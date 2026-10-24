@@ -1,0 +1,28 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "Hongmeng Genealogy main module"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "Digital Chinese family genealogy"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "Miyuan"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "For importing/exporting genealogy files and map tiles"
+    },
+    {
+      "name": "permission_location_reason",
+      "value": "For picking grave GPS coordinates and altitude"
+    },
+    {
+      "name": "permission_media_reason",
+      "value": "For selecting avatar and family photos"
+    }
+  ]
+}

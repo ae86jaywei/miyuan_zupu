@@ -1,0 +1,410 @@
+import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
+import { GenealogyService } from '../service/GenealogyService';
+import { Genealogy } from '../model/Genealogy';
+import { Theme, Spacing, Radius } from '../theme/Theme';
+import { TS } from '../components/TS';
+import { GenealogyStore } from '../store/GenealogyStore';
+import { RouterUtil } from '../util/RouterUtil';
+import { Breakpoint } from '../common/Constants';
+import { DeviceUtil } from '../util/DeviceUtil';
+import { AppStorageV2 } from '@kit.ArkUI';
+
+/**
+ * 设置：族谱信息编辑、展示偏好、隐私开关、设备适配说明、关于。
+ */
+@Component
+export struct SettingsView {
+  @Prop windowWidth: number = 360;
+  @Prop version: number = 0;
+  @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
+
+  onDarkModeChange(): void {
+    Theme.use(this.darkMode);
+  }
+  @StorageProp('gpStyle') styleName: string = 'eu';
+  @StorageProp('gpShowPrivate') showPrivate: boolean = true;
+  @StorageProp('gpPublicMode') publicMode: boolean = false;
+  @State editingBook: boolean = false;
+  @State bookTitle: string = '';
+  @State bookSurname: string = '';
+  @State bookHall: string = '';
+  @State bookJunwang: string = '';
+  @State bookAncestor: string = '';
+  @State bookPoem: string = '';
+  @State bookPreface: string = '';
+  @State bookRules: string = '';
+  @State bookNotes: string = '';
+
+  aboutToAppear(): void {
+    Theme.use(this.darkMode);
+    this.loadBook();
+    const w: number | undefined = AppStorage.get<number>('windowWidth');
+    if (w !== undefined) {
+      this.windowWidth = w;
+    }
+  }
+
+  private loadBook(): void {
+    const b: Genealogy = GenealogyService.getInstance().getBook();
+    this.bookTitle = b.title;
+    this.bookSurname = b.surname;
+    this.bookHall = b.hallName;
+    this.bookJunwang = b.junwang;
+    this.bookAncestor = b.ancestorName;
+    this.bookPoem = b.generationPoem;
+    this.bookPreface = b.preface;
+    this.bookRules = b.familyRules;
+    this.bookNotes = b.editingNotes;
+  }
+
+  private async saveBook(): Promise<void> {
+    const b: Genealogy = GenealogyService.getInstance().getBook();
+    b.title = this.bookTitle;
+    b.surname = this.bookSurname;
+    b.hallName = this.bookHall;
+    b.junwang = this.bookJunwang;
+    b.ancestorName = this.bookAncestor;
+    b.generationPoem = this.bookPoem;
+    b.preface = this.bookPreface;
+    b.familyRules = this.bookRules;
+    b.editingNotes = this.bookNotes;
+    await GenealogyService.getInstance().saveBook(b);
+    GenealogyStore.notifyChanged();
+    this.editingBook = false;
+  }
+
+  @Builder
+  FieldRow(label: string, value: string, onChange: (v: string) => void) {
+    Column() {
+      Text(label)
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .width('100%')
+      TextInput({ text: value })
+        .height(38)
+        .fontSize(14)
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .margin({ top: 4 })
+        .onChange((v: string): void => {
+          onChange(v);
+        })
+    }
+    .width('100%')
+    .margin({ bottom: Spacing.S })
+  }
+
+  @Builder
+  SwitchRow(label: string, tip: string, value: boolean, onChange: (v: boolean) => void) {
+    Row() {
+      Column() {
+        Text(label)
+          .fontSize(14)
+          .fontColor(Theme.ink)
+        if (tip.length > 0) {
+          Text(tip)
+            .fontSize(11)
+            .fontColor(Theme.inkTertiary)
+            .margin({ top: 2 })
+            .maxLines(2)
+        }
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+
+      Toggle({ type: ToggleType.Switch, isOn: value })
+        .selectedColor(Theme.primary)
+        .onChange((isOn: boolean): void => {
+          onChange(isOn);
+        })
+    }
+    .width('100%')
+    .padding({ top: 8, bottom: 8 })
+  }
+
+  @Builder
+  BookForm() {
+    Column() {
+      this.FieldRow('谱名', this.bookTitle, (v: string): void => {
+        this.bookTitle = v;
+      })
+      this.FieldRow('姓氏', this.bookSurname, (v: string): void => {
+        this.bookSurname = v;
+      })
+      this.FieldRow('堂号', this.bookHall, (v: string): void => {
+        this.bookHall = v;
+      })
+      this.FieldRow('郡望', this.bookJunwang, (v: string): void => {
+        this.bookJunwang = v;
+      })
+      this.FieldRow('始迁祖', this.bookAncestor, (v: string): void => {
+        this.bookAncestor = v;
+      })
+      this.FieldRow('字派谱（字辈诗）', this.bookPoem, (v: string): void => {
+        this.bookPoem = v;
+      })
+      Text('谱序')
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .width('100%')
+      TextArea({ text: this.bookPreface })
+        .height(100)
+        .fontSize(13)
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .margin({ top: 4, bottom: Spacing.S })
+        .onChange((v: string): void => {
+          this.bookPreface = v;
+        })
+      Text('家训')
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .width('100%')
+      TextArea({ text: this.bookRules })
+        .height(100)
+        .fontSize(13)
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .margin({ top: 4, bottom: Spacing.S })
+        .onChange((v: string): void => {
+          this.bookRules = v;
+        })
+      Text('凡例 / 修谱说明')
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .width('100%')
+      TextArea({ text: this.bookNotes })
+        .height(80)
+        .fontSize(13)
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .margin({ top: 4 })
+
+      Row() {
+        Button('取消')
+          .fontColor(Theme.inkSecondary)
+          .backgroundColor(Theme.field)
+          .layoutWeight(1)
+          .height(38)
+          .onClick((): void => {
+            this.loadBook();
+            this.editingBook = false;
+          })
+        Button('保存')
+          .backgroundColor(Theme.primary)
+          .layoutWeight(1)
+          .height(38)
+          .margin({ left: Spacing.S })
+          .onClick((): void => {
+            this.saveBook();
+          })
+      }
+      .width('100%')
+      .margin({ top: Spacing.M })
+    }
+    .width('100%')
+  }
+
+  @Builder
+  BookOverview() {
+    Column() {
+      Row() {
+        Column() {
+          Text(GenealogyService.getInstance().getBook().title)
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Theme.ink)
+          Text((GenealogyService.getInstance().getBook().hallName.length > 0 ?
+            GenealogyService.getInstance().getBook().hallName + ' · ' : '') +
+            '始迁祖 ' + GenealogyService.getInstance().getBook().ancestorName)
+            .fontSize(12)
+            .fontColor(Theme.inkTertiary)
+            .margin({ top: 3 })
+          Text('字派：' + GenealogyService.getInstance().getBook().generationPoem)
+            .fontSize(12)
+            .fontColor(Theme.gold)
+            .margin({ top: 3 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Button('编辑')
+          .fontSize(13)
+          .height(32)
+          .backgroundColor(Theme.field)
+          .fontColor(Theme.primary)
+          .onClick((): void => {
+            this.editingBook = true;
+          })
+      }
+      .width('100%')
+    }
+    .width('100%')
+  }
+
+  @Builder
+  StyleRow(meta: TreeStyleMeta) {
+    Row() {
+      Text(meta.name)
+        .fontSize(14)
+        .fontColor(Theme.ink)
+        .width(80)
+      Text(meta.feature)
+        .fontSize(11)
+        .fontColor(Theme.inkTertiary)
+        .layoutWeight(1)
+      Radio({ value: meta.key, group: 'styleGroup' })
+        .checked(this.styleName === meta.key)
+        .onChange((isChecked: boolean): void => {
+          if (isChecked) {
+            GenealogyStore.setStyle(meta.key);
+          }
+        })
+    }
+    .width('100%')
+    .padding({ top: 6, bottom: 6 })
+  }
+
+  build() {
+    Scroll() {
+      Column() {
+        TS({ title: '族谱信息', subtitle: '谱名 · 堂号 · 郡望 · 字派 · 谱序 · 家训', icon: '📕' })
+        Column() {
+          if (this.editingBook) {
+            this.BookForm()
+          } else {
+            this.BookOverview()
+          }
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({ title: '默认谱式', subtitle: '用于谱系页初始化', icon: '🎨' })
+        Column() {
+          ForEach(TREE_STYLES, (meta: TreeStyleMeta) => {
+            this.StyleRow(meta)
+          }, (meta: TreeStyleMeta) => 'st_' + meta.key)
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({ title: '隐私与展示', icon: '🔒' })
+        Column() {
+          this.SwitchRow('显示隐私字段', '手机号、微信号默认加星号显示，关闭后完全隐藏', this.showPrivate, (v: boolean): void => {
+            this.showPrivate = v;
+          })
+          Divider().color(Theme.line).strokeWidth(0.5)
+          this.SwitchRow('公开模式', '公开模式下所有隐私字段不显示，适用于分享/展示', this.publicMode, (v: boolean): void => {
+            this.publicMode = v;
+          })
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({ title: '数据管理', icon: '💾' })
+        Column() {
+          this.NavRow('导入 / 导出', 'JSON 备份、CSV 表格、Markdown 谱文', (): void => {
+            RouterUtil.importExport(this.getUIContext());
+          })
+          Divider().color(Theme.line).strokeWidth(0.5)
+          this.NavRow('按 Excel 字段导出', '严格对齐《关键信息字段_20261023》', (): void => {
+            RouterUtil.importExport(this.getUIContext());
+          })
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({
+          title: '设备适配',
+          subtitle: '当前窗口：' + Math.round(this.windowWidth).toString() + ' vp',
+          icon: '📱'
+        })
+        Column() {
+          this.InfoLine('设备类型', DeviceUtil.deviceType())
+          this.InfoLine('设备形态', DeviceUtil.formLabel(DeviceUtil.formOf(this.windowWidth, this.windowWidth * 1.6)))
+          this.InfoLine('断点', this.windowWidth >= Breakpoint.XL ? 'XL（宽屏/电脑）' :
+            this.windowWidth >= Breakpoint.LG ? 'LG（电脑/三折叠）' :
+              this.windowWidth >= Breakpoint.MD ? 'MD（平板/折叠展开）' :
+                this.windowWidth >= Breakpoint.SM ? 'SM（阔屏）' : 'XS（手机）')
+          this.InfoLine('适配说明', 'XS 底部导航 · SM 侧栏 · MD/LG/XL 三栏主从布局，支持折叠态/展开态无缝切换')
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({ title: '关于', icon: 'ℹ️' })
+        Column() {
+          this.InfoLine('应用名称', '觅源 v1.0.0（com.zupu.ae86jay）')
+          this.InfoLine('支持谱式', '欧式 · 苏式 · 宝塔式 · 牒记式 · 现代创新式')
+          this.InfoLine('适配设备', '手机 · 平板 · 电脑(2in1) · 双折叠 · 三折叠 · 阔屏 · 阔折叠')
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        Column().height(100)
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .height('100%')
+    .scrollBar(BarState.Off)
+  }
+
+
+  @Builder
+  NavRow(title: string, subtitle: string, action: () => void) {
+        Row() {
+          Column() {
+            Text(title).fontSize(14).fontColor(Theme.ink)
+            Text(subtitle).fontSize(11).fontColor(Theme.inkTertiary).margin({ top: 2 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Text('›').fontSize(18).fontColor(Theme.inkTertiary)
+        }
+        .width('100%')
+        .padding({ top: 8, bottom: 8 })
+        .onClick((): void => {
+          action();
+        })
+      }
+
+  @Builder
+  InfoLine(label: string, value: string) {
+        Row() {
+          Text(label).fontSize(12).fontColor(Theme.inkTertiary).width(72)
+          Text(value).fontSize(12.5).fontColor(Theme.inkSecondary).layoutWeight(1)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+        .padding({ top: 4, bottom: 4 })
+      }
+}

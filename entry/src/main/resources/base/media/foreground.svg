@@ -1,0 +1,29 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F6E7BF"/>
+      <stop offset="100%" stop-color="#D9B56D"/>
+    </linearGradient>
+  </defs>
+  <g stroke="url(#gold)" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M512 330 L512 470"/>
+    <path d="M332 470 L692 470"/>
+    <path d="M332 470 L332 560"/>
+    <path d="M512 470 L512 560"/>
+    <path d="M692 470 L692 560"/>
+    <path d="M300 690 Q406 640 512 690 T724 690" stroke-opacity="0.85"/>
+    <path d="M340 770 Q424 730 512 770 T684 770" stroke-opacity="0.6"/>
+  </g>
+  <g fill="url(#gold)">
+    <circle cx="512" cy="272" r="62"/>
+    <circle cx="332" cy="618" r="48"/>
+    <circle cx="512" cy="618" r="48"/>
+    <circle cx="692" cy="618" r="48"/>
+  </g>
+  <g fill="#8C2F1E">
+    <circle cx="512" cy="272" r="24"/>
+    <circle cx="332" cy="618" r="18"/>
+    <circle cx="512" cy="618" r="18"/>
+    <circle cx="692" cy="618" r="18"/>
+  </g>
+</svg>

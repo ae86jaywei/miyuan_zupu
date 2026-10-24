@@ -1,0 +1,62 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\ming\\.ohos\\config\\default_zupu_Jlw-fOs_pR-RF4DlKdMSIpsEz5doeHix7jGrgllj6v8=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001B55BFBBF9594B46B5625C284F8A569F27AC28ED8CF66DE6548DCC054059BDC23975E4067DDC16DB",
+          "profile": "C:\\Users\\ming\\.ohos\\config\\default_zupu_Jlw-fOs_pR-RF4DlKdMSIpsEz5doeHix7jGrgllj6v8=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\ming\\.ohos\\config\\default_zupu_Jlw-fOs_pR-RF4DlKdMSIpsEz5doeHix7jGrgllj6v8=.p12",
+          "storePassword": "0000001B20097C8E2D23B61884D49B50E3C7154FBDD721C6C16C4F7134A80D20F9B66178EBC1F323B6205C"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "compatibleSdkVersion": "6.1.1(24)",
+        "targetSdkVersion": "6.1.1(24)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug"
+      },
+      {
+        "name": "release"
+      }
+    ],
+    "capabilities": [
+      {
+        "bundleName": "com.zupu.ae86jay",
+        "config": []
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}

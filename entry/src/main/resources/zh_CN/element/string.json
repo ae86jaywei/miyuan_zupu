@@ -1,0 +1,28 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "觅源主模块"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "中华宗族族谱数字化"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "觅源"
+    },
+    {
+      "name": "permission_internet_reason",
+      "value": "用于导入导出族谱文件及地图底图加载"
+    },
+    {
+      "name": "permission_location_reason",
+      "value": "用于拾取墓葬GPS经纬度、海拔"
+    },
+    {
+      "name": "permission_media_reason",
+      "value": "用于选择头像与家族相片"
+    }
+  ]
+}

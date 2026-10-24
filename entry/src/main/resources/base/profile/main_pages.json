@@ -1,0 +1,8 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/PersonEdit",
+    "pages/Settings",
+    "pages/ImportExport"
+  ]
+}
