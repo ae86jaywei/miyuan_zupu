@@ -2,7 +2,7 @@ import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Person, clonePerson, createEmptyPerson } from '../model/Person';
+import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, createEmptyPerson, spouseRelationLevel } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { PersonNode } from '../model/PersonNode';
 import { GenerationStat, GenealogyStats } from '../model/Stats';
@@ -16,6 +16,16 @@ const TAG: string = '[Genealogy][Service]';
 const DB_NAME: string = 'genealogy.db';
 const TABLE_PERSON: string = 'person';
 const TABLE_BOOK: string = 'genealogy';
+const TABLE_SPOUSE: string = 'person_spouse';
+
+/** 从数据库读出的配偶关系行（用于组装双向关系） */
+class SpouseEdge {
+  uid: string = '';
+  spouseUid: string = '';
+  relation: string = '';
+  level: string = '';
+  ord: number = 1;
+}
 
 /**
  * 族谱数据服务（单例）。
@@ -76,6 +86,7 @@ export class GenealogyService {
         gender TEXT,
         generation_char TEXT,
         life_status TEXT,
+        child_status TEXT,
         birth_date TEXT,
         birth_calendar TEXT,
         death_date TEXT,
@@ -102,6 +113,18 @@ export class GenealogyService {
         created_at INTEGER,
         updated_at INTEGER
       )`);
+      // 独立配偶关系表：支持一夫多妻（元配/继室/妾），按 ord 排序
+      await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_SPOUSE} (
+        uid TEXT NOT NULL,
+        spouse_uid TEXT NOT NULL,
+        relation TEXT,
+        level TEXT,
+        ord INTEGER,
+        PRIMARY KEY (uid, spouse_uid)
+      )`);
+      // 兼容旧库：补充新增列（child_status / level）
+      await this.ensureColumn(TABLE_PERSON, 'child_status', 'TEXT');
+      await this.ensureColumn(TABLE_SPOUSE, 'level', 'TEXT');
       await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_BOOK} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,
@@ -130,6 +153,10 @@ export class GenealogyService {
           hilog.error(0x0000, TAG, 'seed failed %{public}d %{public}s', se.code, se.message);
         }
       }
+      // 旧数据迁移：把 person.spouse_id 单值转换成配偶关系行（幂等）
+      await this.migrateSpouses();
+      // 回填配偶关系等级（旧行 level 为空）
+      await this.backfillSpouseLevels();
       await this.reload();
       this.ready = true;
       hilog.info(0x0000, TAG, 'ready, people=%{public}d', this.people.length);
@@ -206,6 +233,20 @@ export class GenealogyService {
     });
   }
 
+  /** 某人与指定配偶共同生育的子女（父母双方均匹配） */
+  childrenWithSpouse(uid: string, spouseUid: string): Person[] {
+    const a: string = uid.trim().toUpperCase();
+    const b: string = spouseUid.trim().toUpperCase();
+    if (a.length === 0 || b.length === 0) {
+      return [];
+    }
+    return this.people.filter((p: Person): boolean => {
+      const f: string = p.fatherId.trim().toUpperCase();
+      const m: string = p.motherId.trim().toUpperCase();
+      return (f === a && m === b) || (f === b && m === a);
+    });
+  }
+
   /** 兄弟姊妹（不含本人），按排行排序 */
   siblingsOf(uid: string): Person[] {
     const p: Person | null = this.getPerson(uid);
@@ -229,13 +270,41 @@ export class GenealogyService {
     });
   }
 
-  /** 配偶 */
+  /** 当前人物的全部配偶关系（含元配/继室/妾等名分，按顺序排列） */
+  spousesOf(uid: string): SpouseRelation[] {
+    const p: Person | null = this.getPerson(uid);
+    if (p === null) {
+      return [];
+    }
+    return p.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
+  }
+
+  /** 主配偶（第一位） */
   spouseOf(uid: string): Person | null {
     const p: Person | null = this.getPerson(uid);
-    if (p === null || p.spouseId.length === 0) {
+    if (p === null || p.spouses.length === 0) {
       return null;
     }
-    return this.getPerson(p.spouseId);
+    return this.getPerson(p.spouses[0].uid);
+  }
+
+  /** 配偶展示文案，如：“配 林氏、继室 陈氏、妾 李氏” */
+  spouseTextOf(uid: string): string {
+    const p: Person | null = this.getPerson(uid);
+    if (p === null || p.spouses.length === 0) {
+      return '';
+    }
+    const parts: string[] = [];
+    p.spouses.forEach((r: SpouseRelation): void => {
+      const sp: Person | null = this.getPerson(r.uid);
+      if (sp === null) {
+        return;
+      }
+      const prefix: string = (r.relation === '元配' || r.relation === '未记' || r.relation === '配偶') ?
+        '配' : (r.relation.length > 0 ? r.relation : '配');
+      parts.push(prefix + ' ' + sp.name);
+    });
+    return parts.join('、');
   }
 
   /** 上下三代（含自身），用于详情页关系链 */
@@ -247,16 +316,18 @@ export class GenealogyService {
     }
     const f: Person | null = this.getPerson(p.fatherId);
     const m: Person | null = this.getPerson(p.motherId);
-    const s: Person | null = this.spouseOf(uid);
     if (f !== null) {
       result.push(f);
     }
     if (m !== null && m.uid !== (f === null ? '' : f.uid)) {
       result.push(m);
     }
-    if (s !== null) {
-      result.push(s);
-    }
+    p.spouses.forEach((r: SpouseRelation): void => {
+      const s: Person | null = this.getPerson(r.uid);
+      if (s !== null) {
+        result.push(s);
+      }
+    });
     this.childrenOf(uid).forEach((c: Person): void => {
       result.push(c);
     });
@@ -343,9 +414,11 @@ export class GenealogyService {
       if (p.avatar.length > 0) {
         avatarCount = avatarCount + 1;
       }
-      if (p.spouseId.trim().length > 0) {
-        spouseSet.add(p.spouseId.trim().toUpperCase());
-      }
+      p.spouses.forEach((r: SpouseRelation): void => {
+        if (r.uid.trim().length > 0) {
+          spouseSet.add(r.uid.trim().toUpperCase());
+        }
+      });
       const by: number = parseYear(p.birthDate);
       const dy: number = parseYear(p.deathDate);
       if (by > 0 && dy > by) {
@@ -408,8 +481,9 @@ export class GenealogyService {
     person.uid = person.uid.trim().toUpperCase();
     person.createdAt = Date.now();
     person.updatedAt = person.createdAt;
+    this.normalizeSpouses(person);
     await this.upsertRow(person);
-    await this.syncSpouse(person);
+    await this.saveSpouses(person.uid, person.spouses);
     await this.reload();
     return person;
   }
@@ -419,6 +493,7 @@ export class GenealogyService {
     const person: Person = clonePerson(p);
     person.uid = person.uid.trim().toUpperCase();
     person.updatedAt = Date.now();
+    this.normalizeSpouses(person);
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
     const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_PERSON);
     if (originalUid !== person.uid) {
@@ -436,8 +511,12 @@ export class GenealogyService {
         [person.uid, originalUid.trim().toUpperCase()]);
       await store.executeSql(`UPDATE ${TABLE_PERSON} SET spouse_id = ? WHERE UPPER(spouse_id) = ?`,
         [person.uid, originalUid.trim().toUpperCase()]);
+      await store.executeSql(`UPDATE ${TABLE_SPOUSE} SET uid = ? WHERE UPPER(uid) = ?`,
+        [person.uid, originalUid.trim().toUpperCase()]);
+      await store.executeSql(`UPDATE ${TABLE_SPOUSE} SET spouse_uid = ? WHERE UPPER(spouse_uid) = ?`,
+        [person.uid, originalUid.trim().toUpperCase()]);
     }
-    await this.syncSpouse(person);
+    await this.saveSpouses(person.uid, person.spouses);
     await this.reload();
     return person;
   }
@@ -452,6 +531,7 @@ export class GenealogyService {
     await store.executeSql(`UPDATE ${TABLE_PERSON} SET father_id = '' WHERE UPPER(father_id) = ?`, [u]);
     await store.executeSql(`UPDATE ${TABLE_PERSON} SET mother_id = '' WHERE UPPER(mother_id) = ?`, [u]);
     await store.executeSql(`UPDATE ${TABLE_PERSON} SET spouse_id = '' WHERE UPPER(spouse_id) = ?`, [u]);
+    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE UPPER(uid) = ? OR UPPER(spouse_uid) = ?`, [u, u]);
     await this.reload();
   }
 
@@ -461,6 +541,7 @@ export class GenealogyService {
     for (let i: number = 0; i < list.length; i++) {
       const p: Person = clonePerson(list[i]);
       p.uid = p.uid.trim().toUpperCase();
+      this.normalizeSpouses(p);
       const exist: Person | undefined = this.peopleMap.get(p.uid);
       if (exist !== undefined) {
         if (mergeStrategy === 'skip') {
@@ -469,6 +550,7 @@ export class GenealogyService {
         if (mergeStrategy === 'replace') {
           p.key = exist.key;
           await this.upsertRow(p);
+          await this.saveSpouses(p.uid, p.spouses);
           count++;
           continue;
         }
@@ -477,6 +559,7 @@ export class GenealogyService {
         }
       }
       await this.upsertRow(p);
+      await this.saveSpouses(p.uid, p.spouses);
       count++;
       // 每 50 条刷新一次，避免内存映射未更新导致 ID 重复
       if (count % 50 === 0) {
@@ -491,10 +574,13 @@ export class GenealogyService {
   async replaceAll(list: Person[]): Promise<void> {
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
     await store.executeSql(`DELETE FROM ${TABLE_PERSON}`);
+    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE}`);
     for (let i: number = 0; i < list.length; i++) {
       const p: Person = clonePerson(list[i]);
       p.uid = p.uid.trim().toUpperCase();
+      this.normalizeSpouses(p);
       await this.upsertRow(p);
+      await this.saveSpouses(p.uid, p.spouses);
     }
     await this.reload();
   }
@@ -535,15 +621,169 @@ export class GenealogyService {
     p.key = rowId;
   }
 
-  /** 夫妻关系双向同步 */
-  private async syncSpouse(p: Person): Promise<void> {
+  /**
+   * 归一化配偶关系：去空值 / 去重 / 去本人，补齐名分与次序，
+   * 并把 spouseId 同步为主配偶（spouses[0]）。
+   */
+  private normalizeSpouses(p: Person): void {
+    const list: SpouseRelation[] = [];
+    const seen: Set<string> = new Set<string>();
+    const self: string = p.uid.trim().toUpperCase();
+    p.spouses.forEach((r: SpouseRelation): void => {
+      const id: string = r.uid.trim().toUpperCase();
+      if (id.length === 0 || id === self || seen.has(id)) {
+        return;
+      }
+      seen.add(id);
+      const nr: SpouseRelation = new SpouseRelation();
+      nr.uid = id;
+      nr.relation = r.relation.trim().length > 0 ? r.relation.trim() :
+        (p.gender === '女' ? '夫' : '未记');
+      nr.level = spouseRelationLevel(nr.relation);
+      nr.order = list.length + 1;
+      list.push(nr);
+    });
+    const legacy: string = p.spouseId.trim().toUpperCase();
+    if (list.length === 0 && legacy.length > 0 && legacy !== self) {
+      const nr: SpouseRelation = new SpouseRelation();
+      nr.uid = legacy;
+      nr.relation = p.gender === '女' ? '夫' : '元配';
+      nr.level = spouseRelationLevel(nr.relation);
+      nr.order = 1;
+      list.push(nr);
+    }
+    p.spouses = list;
+    p.spouseId = list.length > 0 ? list[0].uid : '';
+  }
+
+  /**
+   * 保存某人的配偶关系：
+   *  - 先解除已移除的配偶（双向删除，避免另一侧的旧记录复活）；
+   *  - 再重建本人名下的直接关系（按 ord 顺序）。
+   */
+  private async saveSpouses(ownerUid: string, list: SpouseRelation[]): Promise<void> {
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
-    const spouseId: string = p.spouseId.trim().toUpperCase();
-    if (spouseId.length === 0) {
+    const u: string = ownerUid.trim().toUpperCase();
+    if (u.length === 0) {
       return;
     }
-    await store.executeSql(`UPDATE ${TABLE_PERSON} SET spouse_id = ? WHERE uid = ? AND (spouse_id IS NULL OR spouse_id = '')`,
-      [p.uid, spouseId]);
+    const newSet: Set<string> = new Set<string>();
+    list.forEach((r: SpouseRelation): void => {
+      const id: string = r.uid.trim().toUpperCase();
+      if (id.length > 0 && id !== u) {
+        newSet.add(id);
+      }
+    });
+    const oldSet: Set<string> = new Set<string>();
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT uid, spouse_uid FROM ${TABLE_SPOUSE} WHERE UPPER(uid) = ? OR UPPER(spouse_uid) = ?`, [u, u]);
+    try {
+      while (rs.goToNextRow()) {
+        const a: string = rs.getString(rs.getColumnIndex('uid')).trim().toUpperCase();
+        const b: string = rs.getString(rs.getColumnIndex('spouse_uid')).trim().toUpperCase();
+        const partner: string = a === u ? b : a;
+        if (partner.length > 0 && partner !== u) {
+          oldSet.add(partner);
+        }
+      }
+    } finally {
+      rs.close();
+    }
+    const affected: Set<string> = new Set<string>();
+    const olds: string[] = Array.from(oldSet);
+    for (let i: number = 0; i < olds.length; i++) {
+      const o: string = olds[i];
+      affected.add(o);
+      if (!newSet.has(o)) {
+        await store.executeSql(
+          `DELETE FROM ${TABLE_SPOUSE} WHERE (UPPER(uid) = ? AND UPPER(spouse_uid) = ?) OR (UPPER(uid) = ? AND UPPER(spouse_uid) = ?)`,
+          [u, o, o, u]);
+      }
+    }
+    const news: string[] = Array.from(newSet);
+    news.forEach((n: string): void => {
+      affected.add(n);
+    });
+    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE UPPER(uid) = ?`, [u]);
+    for (let i: number = 0; i < list.length; i++) {
+      const id: string = list[i].uid.trim().toUpperCase();
+      if (id.length === 0 || id === u) {
+        continue;
+      }
+      const rel: string = list[i].relation.trim().length > 0 ? list[i].relation.trim() : '未记';
+      await store.executeSql(
+        `INSERT OR REPLACE INTO ${TABLE_SPOUSE}(uid, spouse_uid, relation, level, ord) VALUES(?, ?, ?, ?, ?)`,
+        [u, id, rel, spouseRelationLevel(rel), i + 1]);
+    }
+    // 同步相关人物的 spouse_id（兼容旧字段），避免下次启动被迁移逻辑“复活”
+    const partners: string[] = Array.from(affected);
+    for (let i: number = 0; i < partners.length; i++) {
+      const o: string = partners[i];
+      if (o.length === 0 || o === u) {
+        continue;
+      }
+      await store.executeSql(
+        `UPDATE ${TABLE_PERSON} SET spouse_id = COALESCE((SELECT spouse_uid FROM ${TABLE_SPOUSE} WHERE UPPER(uid) = ? ORDER BY ord LIMIT 1), '') WHERE UPPER(uid) = ?`,
+        [o, o]);
+    }
+  }
+
+  /** 旧数据迁移：把 person.spouse_id 单值写入配偶关系表（幂等） */
+  private async migrateSpouses(): Promise<void> {
+    if (this.store === null) {
+      return;
+    }
+    await this.store.executeSql(`INSERT INTO ${TABLE_SPOUSE} (uid, spouse_uid, relation, level, ord)
+      SELECT UPPER(TRIM(p.uid)), UPPER(TRIM(p.spouse_id)),
+        CASE WHEN p.gender = '女' THEN '夫' ELSE '元配' END,
+        CASE WHEN p.gender = '女' THEN '夫' ELSE '正妻' END, 1
+      FROM ${TABLE_PERSON} p
+      WHERE p.spouse_id IS NOT NULL AND TRIM(p.spouse_id) <> ''
+      AND NOT EXISTS (
+        SELECT 1 FROM ${TABLE_SPOUSE} s
+        WHERE (UPPER(s.uid) = UPPER(TRIM(p.uid)) AND UPPER(s.spouse_uid) = UPPER(TRIM(p.spouse_id)))
+           OR (UPPER(s.uid) = UPPER(TRIM(p.spouse_id)) AND UPPER(s.spouse_uid) = UPPER(TRIM(p.uid)))
+      )`);
+  }
+
+  /** 按称谓回填配偶名分等级（旧数据 level 为空时执行） */
+  private async backfillSpouseLevels(): Promise<void> {
+    if (this.store === null) {
+      return;
+    }
+    await this.store.executeSql(`UPDATE ${TABLE_SPOUSE} SET level = CASE
+      WHEN relation IN ('元配', '正室', '嫡妻', '发妻', '继室', '继妻', '继配', '后妻', '续弦', '填房', '正房') THEN '正妻'
+      WHEN relation IN ('平妻', '并嫡', '对房', '两头大') THEN '平妻'
+      WHEN relation IN ('媵', '侧室', '副室') THEN '贵妾'
+      WHEN relation IN ('偏房', '二房', '姨娘', '如夫人') THEN '良妾'
+      WHEN relation IN ('陪房', '侍妾', '婢妾', '通房丫头') THEN '贱妾'
+      WHEN relation IN ('外室', '外妇') THEN '外室'
+      WHEN relation = '夫' THEN '夫'
+      ELSE '未记' END
+      WHERE level IS NULL OR level = ''`);
+  }
+
+  /** 兼容旧库：表缺列时自动补充 */
+  private async ensureColumn(table: string, column: string, type: string): Promise<void> {
+    if (this.store === null) {
+      return;
+    }
+    const rs: relationalStore.ResultSet = await this.store.querySql(`PRAGMA table_info(${table})`);
+    let exists: boolean = false;
+    try {
+      const nameIndex: number = rs.getColumnIndex('name');
+      while (rs.goToNextRow()) {
+        if (rs.getString(nameIndex) === column) {
+          exists = true;
+          break;
+        }
+      }
+    } finally {
+      rs.close();
+    }
+    if (!exists) {
+      await this.store.executeSql(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+    }
   }
 
   private toValues(p: Person): relationalStore.ValuesBucket {
@@ -555,6 +795,7 @@ export class GenealogyService {
       'gender': p.gender,
       'generation_char': p.generationChar,
       'life_status': p.lifeStatus,
+      'child_status': p.childStatus,
       'birth_date': p.birthDate,
       'birth_calendar': p.birthCalendar,
       'death_date': p.deathDate,
@@ -618,6 +859,8 @@ export class GenealogyService {
       p.gender = resultSet.getString(resultSet.getColumnIndex('gender'));
       p.generationChar = resultSet.getString(resultSet.getColumnIndex('generation_char'));
       p.lifeStatus = resultSet.getString(resultSet.getColumnIndex('life_status'));
+      const cs: string = resultSet.getString(resultSet.getColumnIndex('child_status'));
+      p.childStatus = (cs === null || cs.length === 0) ? '未记' : cs;
       p.birthDate = resultSet.getString(resultSet.getColumnIndex('birth_date'));
       p.birthCalendar = resultSet.getString(resultSet.getColumnIndex('birth_calendar'));
       p.deathDate = resultSet.getString(resultSet.getColumnIndex('death_date'));
@@ -658,6 +901,7 @@ export class GenealogyService {
       map.set(p.uid.trim().toUpperCase(), p);
     });
     this.peopleMap = map;
+    await this.loadSpouseRelations();
     this.roots = TreeBuilder.build(this.people);
 
     // 加载族谱元信息
@@ -687,6 +931,79 @@ export class GenealogyService {
     }
     rs.close();
     this.bump();
+  }
+
+  /**
+   * 从关系表加载全部配偶关系。
+   * 每条记录是“某人的配偶”，加载时同时为对方补一条反向记录，
+   * 从而无论在哪一侧录入，双方详情与谱系都能识别；
+   * 已存在直接记录时以直接记录的名分为准（先处理直接记录）。
+   */
+  private async loadSpouseRelations(): Promise<void> {
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const edges: SpouseEdge[] = [];
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT uid, spouse_uid, relation, level, ord FROM ${TABLE_SPOUSE} ORDER BY uid, ord`);
+    try {
+      while (rs.goToNextRow()) {
+        const e: SpouseEdge = new SpouseEdge();
+        e.uid = rs.getString(rs.getColumnIndex('uid')).trim().toUpperCase();
+        e.spouseUid = rs.getString(rs.getColumnIndex('spouse_uid')).trim().toUpperCase();
+        const rel: string = rs.getString(rs.getColumnIndex('relation'));
+        e.relation = rel === null ? '' : rel;
+        const lv: string = rs.getString(rs.getColumnIndex('level'));
+        e.level = lv === null ? '' : lv;
+        e.ord = rs.getLong(rs.getColumnIndex('ord'));
+        edges.push(e);
+      }
+    } finally {
+      rs.close();
+    }
+    const lists: Map<string, SpouseRelation[]> = new Map<string, SpouseRelation[]>();
+    const seen: Map<string, Set<string>> = new Map<string, Set<string>>();
+    edges.forEach((e: SpouseEdge): void => {
+      this.pushRelation(lists, seen, e.uid, e.spouseUid, e.relation, e.level, e.ord);
+    });
+    edges.forEach((e: SpouseEdge): void => {
+      const owner: Person | undefined = this.peopleMap.get(e.spouseUid);
+      if (owner === undefined) {
+        return;
+      }
+      const label: string = owner.gender === '女' ? '夫' : '配偶';
+      this.pushRelation(lists, seen, e.spouseUid, e.uid, label, '', e.ord);
+    });
+    this.people.forEach((p: Person): void => {
+      const arr: SpouseRelation[] | undefined = lists.get(p.uid.trim().toUpperCase());
+      p.spouses = arr === undefined ? [] : arr;
+      p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
+    });
+  }
+
+  private pushRelation(lists: Map<string, SpouseRelation[]>, seen: Map<string, Set<string>>,
+    owner: string, partner: string, relation: string, level: string, ord: number): void {
+    if (owner.length === 0 || partner.length === 0 || owner === partner) {
+      return;
+    }
+    let seenSet: Set<string> | undefined = seen.get(owner);
+    if (seenSet === undefined) {
+      seenSet = new Set<string>();
+      seen.set(owner, seenSet);
+    }
+    if (seenSet.has(partner)) {
+      return;
+    }
+    seenSet.add(partner);
+    let arr: SpouseRelation[] | undefined = lists.get(owner);
+    if (arr === undefined) {
+      arr = [];
+      lists.set(owner, arr);
+    }
+    const r: SpouseRelation = new SpouseRelation();
+    r.uid = partner;
+    r.relation = relation.trim().length > 0 ? relation.trim() : '未记';
+    r.level = level.trim().length > 0 ? level.trim() : spouseRelationLevel(r.relation);
+    r.order = ord > 0 ? ord : arr.length + 1;
+    arr.push(r);
   }
 
   private async insertSeed(): Promise<void> {

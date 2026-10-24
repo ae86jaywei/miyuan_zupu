@@ -1,4 +1,4 @@
-import { Person } from '../model/Person';
+import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
 import { parseDate } from '../util/DateUtil';
 
@@ -35,36 +35,49 @@ export class TreeBuilder {
           m.children.push(node);
         }
       }
-      const s: PersonNode | undefined = nodeMap.get(p.spouseId.trim().toUpperCase());
-      if (s !== undefined && s !== node) {
-        node.spouse = s;
-      }
-    });
-
-    // 夫妻关系双向补全（历史数据常见单向记录）：任一方登记即可互相识别
-    nodeMap.forEach((node: PersonNode): void => {
-      if (node.spouse !== null && node.spouse.spouse === null) {
-        node.spouse.spouse = node;
-      }
-    });
-
-    // 子女的父母推断夫妻：若两个不同性别的成年人共同拥有子女，则视为配偶
-    nodeMap.forEach((node: PersonNode): void => {
-      if (node.spouse !== null) {
-        return;
-      }
-      node.children.forEach((child: PersonNode): void => {
-        if (node.spouse !== null) {
-          return;
+      // 关联全部配偶（支持一夫多妻：元配 / 继室 / 妾）
+      if (p.spouses.length > 0) {
+        p.spouses.forEach((r: SpouseRelation): void => {
+          const s: PersonNode | undefined = nodeMap.get(r.uid.trim().toUpperCase());
+          if (s !== undefined) {
+            TreeBuilder.linkSpouse(node, s, r.relation);
+          }
+        });
+      } else {
+        // 兼容旧数据：只有 spouseId 单值时也能识别
+        const s: PersonNode | undefined = nodeMap.get(p.spouseId.trim().toUpperCase());
+        if (s !== undefined) {
+          TreeBuilder.linkSpouse(node, s, '元配');
         }
-        const other: PersonNode | null = node.uid === (child.father === null ? '' : child.father.uid) ?
-          child.mother : child.father;
-        if (other !== null && other !== node && other.spouse === null &&
-          other.person.gender !== node.person.gender) {
-          node.spouse = other;
-          other.spouse = node;
+      }
+    });
+
+    // 夫妻关系双向补全（任一方登记即可互相识别）
+    nodeMap.forEach((node: PersonNode): void => {
+      node.spouses.forEach((sp: PersonNode): void => {
+        if (sp.spouses.indexOf(node) < 0) {
+          const rel: string = sp.person.gender === '女' ? '夫' : '配偶';
+          TreeBuilder.linkSpouse(sp, node, rel);
         }
       });
+    });
+
+    // 子女的父母推断夫妻：共同拥有子女的不同性别成年人视为配偶（妾室亦按此关联）
+    nodeMap.forEach((node: PersonNode): void => {
+      node.children.forEach((child: PersonNode): void => {
+        const other: PersonNode | null = node.uid === (child.father === null ? '' : child.father.uid) ?
+          child.mother : child.father;
+        if (other !== null && other !== node && other.person.gender !== node.person.gender &&
+          node.spouses.indexOf(other) < 0 && other.spouses.indexOf(node) < 0) {
+          TreeBuilder.linkSpouse(node, other, '配偶');
+          TreeBuilder.linkSpouse(other, node, '配偶');
+        }
+      });
+    });
+
+    // 统一以第一位配偶作为快捷引用 spouse
+    nodeMap.forEach((node: PersonNode): void => {
+      node.spouse = node.spouses.length > 0 ? node.spouses[0] : null;
     });
 
     // 子女排序：先按出生日期，再按排行，最后按 ID
@@ -109,20 +122,49 @@ export class TreeBuilder {
       }
     });
     nodeMap.forEach((n: PersonNode): void => {
-      const sp: PersonNode | null = n.spouse;
-      if (sp === null || !parentOf.has(sp.uid)) {
-        return;
-      }
-      const a: string = find(n.uid);
-      const b: string = find(sp.uid);
-      if (a !== b) {
-        // 保留“次序更小”的代表，保证结果稳定
-        if (a.localeCompare(b) < 0) {
-          parentOf.set(b, a);
-        } else {
-          parentOf.set(a, b);
+      n.spouses.forEach((sp: PersonNode): void => {
+        if (!parentOf.has(sp.uid)) {
+          return;
         }
+        const a: string = find(n.uid);
+        const b: string = find(sp.uid);
+        if (a !== b) {
+          if (a.localeCompare(b) < 0) {
+            parentOf.set(b, a);
+          } else {
+            parentOf.set(a, b);
+          }
+        }
+      });
+    });
+
+    // 同一夫妻（含多位妻妾）分组内选代表：有子女者优先，其次男性，再按 UID
+    const groups: Map<string, PersonNode[]> = new Map<string, PersonNode[]>();
+    nodeMap.forEach((n: PersonNode): void => {
+      const root: string = find(n.uid);
+      let arr: PersonNode[] | undefined = groups.get(root);
+      if (arr === undefined) {
+        arr = [];
+        groups.set(root, arr);
       }
+      arr.push(n);
+    });
+    groups.forEach((members: PersonNode[]): void => {
+      let rep: PersonNode = members[0];
+      members.forEach((m: PersonNode): void => {
+        if (m.children.length > rep.children.length) {
+          rep = m;
+        } else if (m.children.length === rep.children.length) {
+          if (m.person.gender === '男' && rep.person.gender !== '男') {
+            rep = m;
+          } else if (m.person.gender === rep.person.gender && m.uid.localeCompare(rep.uid) < 0) {
+            rep = m;
+          }
+        }
+      });
+      members.forEach((m: PersonNode): void => {
+        parentOf.set(m.uid, rep.uid);
+      });
     });
 
     // 计算高度与后代数量（自底向上）。先找出根，再后序计算
@@ -167,6 +209,18 @@ export class TreeBuilder {
       r.siblingIndex = idx;
     });
     return roots;
+  }
+
+  /** 挂接配偶节点及其名分（去重，第一位即主配偶） */
+  private static linkSpouse(node: PersonNode, partner: PersonNode, relation: string): void {
+    if (partner === node || node.spouses.indexOf(partner) >= 0) {
+      return;
+    }
+    node.spouses.push(partner);
+    node.spouseRelations.push(relation.trim().length > 0 ? relation.trim() : '未记');
+    if (node.spouse === null) {
+      node.spouse = partner;
+    }
   }
 
   private static computeMetrics(node: PersonNode, visited: Set<string>): number {

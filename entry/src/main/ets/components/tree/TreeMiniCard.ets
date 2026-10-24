@@ -25,8 +25,8 @@ export struct TreeMiniCard {
     return this.node.person.generationChar.length > 0 ? this.node.person.generationChar + '字' : '';
   }
 
-  private spouseName(): string {
-    return this.node.spouse !== null ? this.node.spouse.person.name : '';
+  private spouseText(): string {
+    return this.node.spouseText();
   }
 
   build() {
@@ -80,26 +80,19 @@ export struct TreeMiniCard {
       .margin({ top: 3 })
 
       // 关联配偶
-      if (this.spouseName().length > 0) {
-        Row() {
-          Text('配')
-            .fontSize(9)
-            .fontColor(Theme.female)
-          Text(this.spouseName())
-            .fontSize(9)
-            .fontColor(Theme.inkSecondary)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ left: 2 })
-            .layoutWeight(1)
-        }
-        .width('100%')
-        .margin({ top: 2 })
-        .onClick((): void => {
-          if (this.node.spouse !== null) {
-            this.onTapPerson((this.node.spouse as PersonNode).uid);
-          }
-        })
+      if (this.spouseText().length > 0) {
+        Text(this.spouseText())
+          .fontSize(9)
+          .fontColor(Theme.inkSecondary)
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .margin({ top: 2 })
+          .onClick((): void => {
+            if (this.node.spouse !== null) {
+              this.onTapPerson((this.node.spouse as PersonNode).uid);
+            }
+          })
       }
 
       if (this.node.children.length > 0 && !this.dense) {

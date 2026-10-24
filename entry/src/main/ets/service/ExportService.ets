@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { UIContext } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
-import { Person } from '../model/Person';
+import { Person, SpouseRelation, spouseRelationLevel, childStatusLabel } from '../model/Person';
 import { Genealogy } from '../model/Genealogy';
 import { GenealogyService } from './GenealogyService';
 import { csvEscape } from '../util/StringUtil';
@@ -17,8 +17,8 @@ export class ExportService {
 
   /** Excel 表头（与《关键信息字段》字段名称一致） */
   private static readonly HEADERS: string[] = [
-    '世代', '唯一ID', '谱名', '曾用名/小名', '性别', '辈分/字派', '在世状态',
-    '出生日期', '逝世日期', '出生地', '现居地', '父亲ID', '母亲ID', '排行', '过继/出嗣',
+    '世代', '唯一ID', '谱名', '曾用名/小名', '性别', '辈分/字派', '在世状态', '子女身份',
+    '出生日期', '逝世日期', '出生地', '现居地', '父亲ID', '母亲ID', '配偶关系', '排行', '过继/出嗣',
     '学历/学位', '职业/职务', '生平简介', '墓葬信息', '手机号', '微信号', '头像'
   ];
 
@@ -31,12 +31,14 @@ export class ExportService {
       case '性别': return p.gender;
       case '辈分/字派': return p.generationChar;
       case '在世状态': return p.lifeStatus;
+      case '子女身份': return p.childStatus === '未记' ? '' : p.childStatus;
       case '出生日期': return p.birthCalendar === '农历' ? '农历 ' + p.birthDate : p.birthDate;
       case '逝世日期': return p.deathCalendar === '农历' ? '农历 ' + p.deathDate : p.deathDate;
       case '出生地': return p.birthPlace;
       case '现居地': return p.residence;
       case '父亲ID': return p.fatherId;
       case '母亲ID': return p.motherId;
+      case '配偶关系': return ExportService.spousesText(p);
       case '排行': return p.rank;
       case '过继/出嗣': return p.adoption;
       case '学历/学位': return p.education;
@@ -80,6 +82,7 @@ export class ExportService {
         '性别': p.gender,
         '辈分/字派': p.generationChar,
         '在世状态': p.lifeStatus,
+        '子女身份': p.childStatus,
         '出生日期': p.birthCalendar === '农历' ? '农历 ' + p.birthDate : p.birthDate,
         '逝世日期': p.deathCalendar === '农历' ? '农历 ' + p.deathDate : p.deathDate,
         '出生地': p.birthPlace,
@@ -87,6 +90,7 @@ export class ExportService {
         '父亲ID': p.fatherId,
         '母亲ID': p.motherId,
         '配偶ID': p.spouseId,
+        '配偶关系': ExportService.spousesText(p),
         '排行': p.rank,
         '过继/出嗣': p.adoption,
         '学历/学位': p.education,
@@ -162,6 +166,13 @@ export class ExportService {
       }
       if (p.rank.length > 0) {
         text = text + '，' + p.rank;
+      }
+      if (p.childStatus.length > 0 && p.childStatus !== '未记') {
+        text = text + '，' + childStatusLabel(p.childStatus, p.gender);
+      }
+      const spText: string = ExportService.spouseMarkdown(p, people);
+      if (spText.length > 0) {
+        text = text + '，' + spText;
       }
       if (p.generationChar.length > 0) {
         text = text + '，字派“' + p.generationChar + '”';
@@ -253,6 +264,7 @@ export class ExportService {
       p.gender = r['性别'] ?? '男';
       p.generationChar = r['辈分/字派'] ?? '';
       p.lifeStatus = r['在世状态'] ?? '在世';
+      p.childStatus = r['子女身份'] ?? '未记';
       p.birthDate = r['出生日期'] ?? '';
       p.deathDate = r['逝世日期'] ?? '';
       p.birthPlace = r['出生地'] ?? '';
@@ -260,6 +272,8 @@ export class ExportService {
       p.fatherId = r['父亲ID'] ?? '';
       p.motherId = r['母亲ID'] ?? '';
       p.spouseId = r['配偶ID'] ?? '';
+      p.spouses = ExportService.parseSpouses(r['配偶关系'] ?? '', p.gender);
+      ExportService.finalizeSpouses(p);
       p.rank = r['排行'] ?? '';
       p.adoption = r['过继/出嗣'] ?? '';
       p.education = r['学历/学位'] ?? '';
@@ -300,6 +314,7 @@ export class ExportService {
           case '性别': p.gender = value.length > 0 ? value : '男'; break;
           case '辈分/字派': p.generationChar = value; break;
           case '在世状态': p.lifeStatus = value.length > 0 ? value : '在世'; break;
+          case '子女身份': p.childStatus = value.length > 0 ? value : '未记'; break;
           case '出生日期':
             p.birthCalendar = value.indexOf('农历') >= 0 ? '农历' : '公历';
             p.birthDate = value.replace('农历', '').trim();
@@ -312,6 +327,8 @@ export class ExportService {
           case '现居地': p.residence = value; break;
           case '父亲ID': p.fatherId = value; break;
           case '母亲ID': p.motherId = value; break;
+          case '配偶ID': p.spouseId = value; break;
+          case '配偶关系': p.spouses = ExportService.parseSpouses(value, p.gender); break;
           case '排行': p.rank = value; break;
           case '过继/出嗣': p.adoption = value; break;
           case '学历/学位': p.education = value; break;
@@ -325,10 +342,91 @@ export class ExportService {
         }
       }
       if (p.name.length > 0) {
+        ExportService.finalizeSpouses(p);
         result.push(p);
       }
     }
     return result;
+  }
+
+  /** 配偶关系序列化：`UID:名分;UID:名分`（兼容旧 spouseId 单值） */
+  private static spousesText(p: Person): string {
+    const parts: string[] = [];
+    p.spouses.forEach((r: SpouseRelation): void => {
+      const id: string = r.uid.trim();
+      if (id.length > 0) {
+        parts.push(id + ':' + (r.relation.trim().length > 0 ? r.relation.trim() : '未记'));
+      }
+    });
+    if (parts.length === 0 && p.spouseId.trim().length > 0) {
+      parts.push(p.spouseId.trim() + ':未记');
+    }
+    return parts.join(';');
+  }
+
+  /** 解析配偶关系文本，支持中文分号/冒号，也支持只填 UID */
+  private static parseSpouses(value: string, gender: string): SpouseRelation[] {
+    const list: SpouseRelation[] = [];
+    if (value === undefined || value.trim().length === 0) {
+      return list;
+    }
+    const src: string = value.replace(/；/g, ';').replace(/：/g, ':');
+    const items: string[] = src.split(';');
+    const seen: Set<string> = new Set<string>();
+    for (let i: number = 0; i < items.length; i++) {
+      const item: string = items[i].trim();
+      if (item.length === 0) {
+        continue;
+      }
+      const idx: number = item.indexOf(':');
+      const id: string = (idx >= 0 ? item.substring(0, idx) : item).trim().toUpperCase();
+      if (id.length === 0 || seen.has(id)) {
+        continue;
+      }
+      seen.add(id);
+      const rel: string = idx >= 0 ? item.substring(idx + 1).trim() : '';
+      const r: SpouseRelation = new SpouseRelation();
+      r.uid = id;
+      r.relation = rel.length > 0 ? rel : (gender === '女' ? '夫' : '未记');
+      r.level = spouseRelationLevel(r.relation);
+      r.order = list.length + 1;
+      list.push(r);
+    }
+    return list;
+  }
+
+  /** 归一化：无配偶关系但有旧 spouseId 时补齐；spouseId 同步为主配偶 */
+  private static finalizeSpouses(p: Person): void {
+    if (p.spouses.length === 0 && p.spouseId.trim().length > 0) {
+      const r: SpouseRelation = new SpouseRelation();
+      r.uid = p.spouseId.trim().toUpperCase();
+      r.relation = p.gender === '女' ? '夫' : '元配';
+      r.level = spouseRelationLevel(r.relation);
+      r.order = 1;
+      p.spouses = [r];
+    }
+    p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
+  }
+
+  /** Markdown 谱文中的配偶描述（名分 + 姓名） */
+  private static spouseMarkdown(p: Person, people: Person[]): string {
+    if (p.spouses.length === 0) {
+      return '';
+    }
+    const parts: string[] = [];
+    p.spouses.forEach((r: SpouseRelation): void => {
+      let name: string = r.uid;
+      for (let i: number = 0; i < people.length; i++) {
+        if (people[i].uid.trim().toUpperCase() === r.uid.trim().toUpperCase()) {
+          name = people[i].name;
+          break;
+        }
+      }
+      const prefix: string = (r.relation === '元配' || r.relation === '未记' || r.relation === '配偶') ?
+        '配' : r.relation;
+      parts.push(prefix + name);
+    });
+    return parts.join('、');
   }
 
   private static splitCsv(text: string): string[][] {

@@ -301,7 +301,7 @@ struct ImportExport {
 
           TS({ title: '字段规范', subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
           Column() {
-            Text('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态')
+            Text('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）')
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -310,7 +310,7 @@ struct ImportExport {
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text('亲属关系：父亲ID、母亲ID、排行、过继/出嗣（另含配偶ID扩展）')
+            Text('亲属关系：父亲ID、母亲ID、配偶关系（正妻/平妻/贵妾/良妾/贱妾/外室，格式 UID:名分;UID:名分）、排行、过继/出嗣')
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')

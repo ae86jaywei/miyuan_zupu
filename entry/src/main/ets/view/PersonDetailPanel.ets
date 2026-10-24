@@ -1,4 +1,4 @@
-import { Person } from '../model/Person';
+import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { Tag } from '../components/Tag';
 import { InfoRow } from '../components/InfoRow';
@@ -148,6 +148,31 @@ export struct PersonDetailPanel {
                 InfoRow({ label: '辈分/字派', value: (this.person() as Person).generationChar })
               }
               InfoRow({ label: '在世状态', value: (this.person() as Person).lifeStatus })
+              if ((this.person() as Person).childStatus.length > 0
+                && (this.person() as Person).childStatus !== '未记') {
+                InfoRow({
+                  label: '子女身份',
+                  value: childStatusLabel((this.person() as Person).childStatus, (this.person() as Person).gender)
+                })
+                Column() {
+                  Text(childStatusHint((this.person() as Person).childStatus))
+                    .fontSize(11)
+                    .lineHeight(17)
+                    .fontColor(Theme.inkTertiary)
+                    .width('100%')
+                  if (this.isConcubineChild()) {
+                    Text(CONCUBINE_CHILD_TITLE_HINT)
+                      .fontSize(11)
+                      .lineHeight(17)
+                      .fontColor(Theme.gold)
+                      .width('100%')
+                      .margin({ top: 2 })
+                  }
+                }
+                .alignItems(HorizontalAlign.Start)
+                .width('100%')
+                .padding({ left: 84, bottom: 6 })
+              }
 
               // 时间信息
               this.GroupHeader('时间信息')
@@ -180,8 +205,8 @@ export struct PersonDetailPanel {
                 label: '母亲',
                 value: this.relationText((this.person() as Person).motherId)
               })
-              if ((this.person() as Person).spouseId.length > 0) {
-                InfoRow({ label: '配偶', value: this.relationText((this.person() as Person).spouseId) })
+              if ((this.person() as Person).spouses.length > 0) {
+                InfoRow({ label: '配偶', value: this.spouseInfoText() })
               }
               if ((this.person() as Person).rank.length > 0) {
                 InfoRow({ label: '排行', value: (this.person() as Person).rank })
@@ -338,6 +363,31 @@ export struct PersonDetailPanel {
     return p.name + '（' + p.uid + '）';
   }
 
+  /** 庶出 / 婢生 / 奸生 需提示礼法称谓 */
+  private isConcubineChild(): boolean {
+    const p: Person | null = this.person();
+    if (p === null) {
+      return false;
+    }
+    return p.childStatus === '庶出' || p.childStatus === '婢生' || p.childStatus === '奸生';
+  }
+
+  /** 全部配偶及名分，如：“元配（正妻）：林氏（M001，子女 2）” */
+  private spouseInfoText(): string {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const parts: string[] = [];
+    svc.spousesOf(this.uid).forEach((r: SpouseRelation): void => {
+      const sp: Person | null = svc.getPerson(r.uid);
+      const childCount: number = svc.childrenWithSpouse(this.uid, r.uid).length;
+      const childText: string = childCount > 0 ? '，子女 ' + childCount.toString() : '';
+      const nameText: string = sp === null ? r.uid + '（该ID未录入）' :
+        sp.name + '（' + sp.uid + childText + '）';
+      const rel: string = r.relation.length > 0 ? spouseRelationLabel(r.relation) : '配偶';
+      parts.push(rel + '：' + nameText);
+    });
+    return parts.join('；');
+  }
+
   private lifeText(): string {
     const p: Person | null = this.person();
     if (p === null) {
@@ -357,16 +407,18 @@ export struct PersonDetailPanel {
     const svc: GenealogyService = GenealogyService.getInstance();
     const father: Person | null = svc.getPerson((this.person() as Person).fatherId);
     const mother: Person | null = svc.getPerson((this.person() as Person).motherId);
-    const spouse: Person | null = svc.spouseOf(this.uid);
     if (father !== null) {
       list.push({ person: father, relation: '父' });
     }
     if (mother !== null) {
       list.push({ person: mother, relation: '母' });
     }
-    if (spouse !== null) {
-      list.push({ person: spouse, relation: '配偶' });
-    }
+    svc.spousesOf(this.uid).forEach((r: SpouseRelation): void => {
+      const sp: Person | null = svc.getPerson(r.uid);
+      if (sp !== null) {
+        list.push({ person: sp, relation: r.relation.length > 0 ? r.relation : '配偶' });
+      }
+    });
     svc.siblingsOf(this.uid).forEach((p: Person): void => {
       list.push({ person: p, relation: p.gender === '女' ? '姊妹' : '兄弟' });
     });

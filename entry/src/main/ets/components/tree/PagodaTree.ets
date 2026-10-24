@@ -67,17 +67,19 @@ export struct PagodaTree {
                   .margin({ top: 1 })
 
                 // 关联配偶
-                if (node.spouse !== null) {
-                  Text('配 ' + node.spouse.person.name)
+                if (node.spouseText().length > 0) {
+                  Text(node.spouseText())
                     .fontSize(8)
                     .fontColor(Theme.female)
-                    .maxLines(1)
+                    .maxLines(2)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                     .width(this.compact ? 56 : 68)
                     .textAlign(TextAlign.Center)
                     .margin({ top: 1 })
                     .onClick((): void => {
-                      this.onTapPerson((node.spouse as PersonNode).uid);
+                      if (node.spouse !== null) {
+                        this.onTapPerson((node.spouse as PersonNode).uid);
+                      }
                     })
                 }
               }

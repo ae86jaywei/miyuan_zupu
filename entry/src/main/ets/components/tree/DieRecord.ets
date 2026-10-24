@@ -21,12 +21,8 @@ export struct DieRecord {
   @Prop highlight: boolean = false;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
-  private spouseName(): string {
-    if (this.person.spouseId.length === 0) {
-      return '';
-    }
-    const sp: Person | null = GenealogyService.getInstance().getPerson(this.person.spouseId);
-    return sp === null ? '' : sp.name;
+  private spouseText(): string {
+    return GenealogyService.getInstance().spouseTextOf(this.person.uid);
   }
 
   private line(prefix: string, value: string): string {
@@ -52,8 +48,8 @@ export struct DieRecord {
       }
       .width('100%')
 
-      if (this.spouseName().length > 0) {
-        Text('配偶：' + this.spouseName())
+      if (this.spouseText().length > 0) {
+        Text('配偶：' + this.spouseText())
           .fontSize(12)
           .fontColor(Theme.female)
           .margin({ top: 2 })
@@ -96,7 +92,7 @@ export struct DieRecord {
     }
     .width('100%')
     .padding(Spacing.L)
-    .backgroundColor(this.highlight ? '#FFF9EC' : Theme.card)
+    .backgroundColor(this.highlight ? Theme.highlightBg : Theme.card)
     .borderRadius(12)
     .border({ width: 0.5, color: Theme.line, style: BorderStyle.Dashed })
     .alignItems(HorizontalAlign.Start)

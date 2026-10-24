@@ -326,7 +326,7 @@ export struct HomeView {
       }
       .width('100%')
       .padding(Spacing.L)
-      .backgroundColor('#FBF3E2')
+      .backgroundColor(Theme.highlightBg)
       .borderRadius(16)
       .margin({ bottom: Spacing.M })
     }

@@ -182,7 +182,7 @@ export struct CatalogView {
     }
     .width('100%')
     .padding({ top: 10, bottom: 10, left: 4, right: 4 })
-    .backgroundColor(this.selectedUid === p.uid ? '#FFF9EC' : Color.Transparent)
+    .backgroundColor(this.selectedUid === p.uid ? Theme.highlightBg : Color.Transparent)
     .borderRadius(8)
     .onClick((): void => {
       this.selectedUid = p.uid;

@@ -175,7 +175,7 @@ export struct TreeCanvas {
                     if (this.roots.length > 1) {
                       Row() {
                         Text('宗支 ' + (ri + 1).toString() + '：' + root.person.name +
-                          (root.spouse !== null ? ' · ' + root.spouse.name : ''))
+                          (root.spouseText().length > 0 ? ' · ' + root.spouseText() : ''))
                           .fontSize(13)
                           .fontWeight(FontWeight.Medium)
                           .fontColor(Theme.primary)

@@ -3,10 +3,11 @@ import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
 import { geoLocationManager } from '@kit.LocationKit';
+import { sensor } from '@kit.SensorServiceKit';
 import { picker } from '@kit.CoreFileKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { Breakpoint } from '../common/Constants';
-import { Person, createEmptyPerson, clonePerson, FIELD_GROUPS, FIELD_METAS, FieldMeta } from '../model/Person';
+import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, FIELD_GROUPS, FIELD_METAS, FieldMeta, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { EditParams } from '../model/Scope';
@@ -14,8 +15,11 @@ import { IdGenerator } from '../util/IdGenerator';
 import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, generationLabel } from '../model/Enums';
 import { parseDate } from '../util/DateUtil';
 import { isBlank } from '../util/StringUtil';
-import { ParsedDate, parseHistoricalDate, composeDate, ERA_TABLE, cnToNumber } from '../util/DateUtil';
+import { ParsedDate, parseHistoricalDate, composeDate, cnYearText, ERA_TABLE, cnToNumber } from '../util/DateUtil';
 import { huangLiText, HuangLi, LunarConst, SolarTerms } from '../util/LunarUtil';
+
+/** 第一世（始祖）的排行称谓 */
+const ANCESTOR_RANK: string = '第一世（始祖）';
 
 /**
  * 下拉选择字段（原生 Select）。
@@ -224,6 +228,7 @@ struct PersonEdit {
   @State fGender: string = '男';
   @State fGenChar: string = '';
   @State fLifeStatus: string = '在世';
+  @State fChildStatus: string = '未记';
   @State fBirthDate: string = '';
   @State fBirthCalendar: string = '公历';
   @State fDeathDate: string = '';
@@ -232,7 +237,8 @@ struct PersonEdit {
   @State fResidence: string = '';
   @State fFatherId: string = '';
   @State fMotherId: string = '';
-  @State fSpouseId: string = '';
+  /** 配偶关系（可多位：元配 / 继室 / 妾） */
+  @State fSpouses: SpouseRelation[] = [];
   @State fRank: string = '';
   @State fAdoption: string = '';
   @State fEducation: string = '';
@@ -344,13 +350,14 @@ struct PersonEdit {
       const parent: Person | null = svc.getPerson(params.presetParent);
       if (parent !== null) {
         p.generation = parent.generation + 1;
+        const parentSpouse: string = parent.spouses.length > 0 ? parent.spouses[0].uid : '';
         if (parent.gender === '男') {
           p.fatherId = parent.uid;
-          p.motherId = parent.spouseId;
+          p.motherId = parentSpouse;
         } else {
           p.motherId = parent.uid;
           p.spouseId = '';
-          p.fatherId = parent.spouseId;
+          p.fatherId = parentSpouse;
         }
         const chars: string[] = this.poemChars();
         const idx: number = p.generation - 1;
@@ -389,6 +396,7 @@ struct PersonEdit {
     this.fGender = p.gender;
     this.fGenChar = p.generationChar;
     this.fLifeStatus = p.lifeStatus;
+    this.fChildStatus = p.childStatus.length > 0 ? p.childStatus : '未记';
     this.fBirthDate = p.birthDate;
     this.fBirthCalendar = p.birthCalendar;
     this.fDeathDate = p.deathDate;
@@ -397,8 +405,9 @@ struct PersonEdit {
     this.fResidence = p.residence;
     this.fFatherId = p.fatherId;
     this.fMotherId = p.motherId;
-    this.fSpouseId = p.spouseId;
-    this.fRank = p.rank;
+    this.fSpouses = p.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
+    this.fRank = p.generation === 1 ? ANCESTOR_RANK :
+      (p.rank === ANCESTOR_RANK ? '' : p.rank);
     this.fAdoption = p.adoption;
     this.fEducation = p.education;
     this.fOccupation = p.occupation;
@@ -430,6 +439,7 @@ struct PersonEdit {
     p.gender = this.fGender;
     p.generationChar = this.fGenChar;
     p.lifeStatus = this.fLifeStatus;
+    p.childStatus = this.fChildStatus;
     p.birthDate = this.fBirthDate;
     p.birthCalendar = this.fBirthCalendar;
     p.deathDate = this.fDeathDate;
@@ -438,7 +448,8 @@ struct PersonEdit {
     p.residence = this.fResidence;
     p.fatherId = this.fFatherId;
     p.motherId = this.fMotherId;
-    p.spouseId = this.fSpouseId;
+    p.spouses = this.buildSpouses();
+    p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
     p.rank = this.fRank;
     p.adoption = this.fAdoption;
     p.education = this.fEducation;
@@ -482,10 +493,90 @@ struct PersonEdit {
     if (this.fMotherId.length > 0 && this.svc().getPerson(this.fMotherId) === null) {
       return '母亲ID“' + this.fMotherId + '”不存在，请先录入';
     }
-    if (this.fSpouseId.length > 0 && this.svc().getPerson(this.fSpouseId) === null) {
-      return '配偶ID“' + this.fSpouseId + '”不存在，请先录入';
+    const ownUid: string = this.fUid.trim().toUpperCase();
+    const spouseIds: Set<string> = new Set<string>();
+    for (let i: number = 0; i < this.fSpouses.length; i++) {
+      const id: string = this.fSpouses[i].uid.trim().toUpperCase();
+      if (id.length === 0) {
+        continue;
+      }
+      if (id === ownUid) {
+        return '配偶不能是本人';
+      }
+      if (spouseIds.has(id)) {
+        return '配偶“' + id + '”重复，请只保留一条';
+      }
+      spouseIds.add(id);
+      if (this.svc().getPerson(id) === null) {
+        return '配偶ID“' + id + '”不存在，请先录入';
+      }
     }
     return '';
+  }
+
+  /** 归一化配偶列表：去空值、统一大写、补齐次序 */
+  private buildSpouses(): SpouseRelation[] {
+    const list: SpouseRelation[] = [];
+    this.fSpouses.forEach((r: SpouseRelation): void => {
+      const id: string = r.uid.trim().toUpperCase();
+      if (id.length === 0) {
+        return;
+      }
+      const nr: SpouseRelation = new SpouseRelation();
+      nr.uid = id;
+      nr.relation = r.relation.trim().length > 0 ? r.relation.trim() : '未记';
+      nr.level = spouseRelationLevel(nr.relation);
+      nr.order = list.length + 1;
+      list.push(nr);
+    });
+    return list;
+  }
+
+  private updateSpouse(index: number, uid: string, relation: string): void {
+    const list: SpouseRelation[] = [];
+    this.fSpouses.forEach((r: SpouseRelation, i: number): void => {
+      const nr: SpouseRelation = cloneSpouseRelation(r);
+      if (i === index) {
+        nr.uid = uid;
+        nr.relation = relation;
+        nr.level = spouseRelationLevel(relation);
+      }
+      list.push(nr);
+    });
+    this.fSpouses = list;
+  }
+
+  private addSpouse(): void {
+    const rel: SpouseRelation = new SpouseRelation();
+    rel.relation = this.fGender === '女' ? '夫' : (this.fSpouses.length === 0 ? '元配' : '侧室');
+    rel.level = spouseRelationLevel(rel.relation);
+    let maxOrder: number = 0;
+    this.fSpouses.forEach((r: SpouseRelation): void => {
+      if (r.order > maxOrder) {
+        maxOrder = r.order;
+      }
+    });
+    rel.order = maxOrder + 1;
+    const list: SpouseRelation[] = this.fSpouses.slice();
+    list.push(rel);
+    this.fSpouses = list;
+  }
+
+  private removeSpouse(index: number): void {
+    const list: SpouseRelation[] = this.fSpouses.slice();
+    list.splice(index, 1);
+    this.fSpouses = list;
+  }
+
+  /** 配偶预览文案（含名分与姓名） */
+  private spousesPreview(): string {
+    const parts: string[] = [];
+    this.buildSpouses().forEach((r: SpouseRelation): void => {
+      const p: Person | null = this.svc().getPerson(r.uid);
+      const nameText: string = p === null ? r.uid : p.name + '（' + p.uid + '）';
+      parts.push(spouseRelationLabel(r.relation) + '：' + nameText);
+    });
+    return parts.length === 0 ? '未选择' : parts.join('；');
   }
 
   private async save(): Promise<void> {
@@ -655,7 +746,14 @@ struct PersonEdit {
     }
   }
 
-  /** 拾取当前位置作为墓葬GPS（经纬度 + 海拔） */
+  /** 海拔获取最大尝试次数（含首次） */
+  private static readonly ALTITUDE_RETRY_MAX: number = 3;
+  /** 两次定位尝试之间的间隔（毫秒） */
+  private static readonly ALTITUDE_RETRY_DELAY: number = 1000;
+  /** 气压计单次读取超时（毫秒） */
+  private static readonly BAROMETER_TIMEOUT: number = 3000;
+
+  /** 拾取当前位置作为墓葬GPS（经纬度 + 海拔；海拔缺失时重试，仍失败则回退气压计估算） */
   private async pickGraveLocation(): Promise<void> {
     if (this.locating) {
       return;
@@ -666,35 +764,130 @@ struct PersonEdit {
         this.getUIContext().getPromptAction().showToast({ message: '系统定位未开启，请先打开“位置信息”开关' });
         return;
       }
-      // 高精度 + 导航场景才能拿到 GNSS 高程（FIRST_FIX 通常只有网络定位，无海拔）
-      const location: geoLocationManager.Location = await geoLocationManager.getCurrentLocation({
-        priority: geoLocationManager.LocationRequestPriority.ACCURACY,
-        scenario: geoLocationManager.LocationRequestScenario.NAVIGATION,
-        maxAccuracy: 50,
-        timeoutMs: 15000
-      });
-      this.fGraveLng = location.longitude;
-      this.fGraveLat = location.latitude;
-      const alt: number = location.altitude;
+      let alt: number = NaN;
+      let lastMsg: string = '';
+      for (let attempt = 0; attempt < PersonEdit.ALTITUDE_RETRY_MAX; attempt++) {
+        let fatal: boolean = false;
+        try {
+          // 高精度 + 导航场景才能拿到 GNSS 高程（FIRST_FIX 通常只有网络定位，无海拔）
+          const location: geoLocationManager.Location = await geoLocationManager.getCurrentLocation({
+            priority: geoLocationManager.LocationRequestPriority.ACCURACY,
+            scenario: geoLocationManager.LocationRequestScenario.NAVIGATION,
+            maxAccuracy: 50,
+            timeoutMs: 10000
+          });
+          this.fGraveLng = location.longitude;
+          this.fGraveLat = location.latitude;
+          alt = location.altitude;
+          if (!isNaN(alt) && alt !== 0) {
+            break;
+          }
+          lastMsg = '定位结果不含海拔';
+        } catch (e) {
+          const err = e as BusinessError;
+          lastMsg = err.message;
+          if (err.code === 201) {
+            lastMsg = '未获得定位权限，请在设置中允许';
+            fatal = true;
+          } else if (err.code === 3301100) {
+            lastMsg = '系统定位服务未开启';
+            fatal = true;
+          }
+        }
+        // 权限/服务类错误重试无意义，直接退出
+        if (fatal || attempt === PersonEdit.ALTITUDE_RETRY_MAX - 1) {
+          break;
+        }
+        await this.delay(PersonEdit.ALTITUDE_RETRY_DELAY);
+      }
+
       if (!isNaN(alt) && alt !== 0) {
         this.fGraveAltitude = alt;
         this.getUIContext().getPromptAction().showToast({ message: '已拾取当前位置（含海拔）' });
+        return;
+      }
+      if (this.fGraveLat === 0 && this.fGraveLng === 0) {
+        this.getUIContext().getPromptAction()
+          .showToast({ message: '定位失败（' + lastMsg + '），可手工填写经纬度' });
+        return;
+      }
+      // 重试后仍无海拔：若设备带气压计则用气压换算海拔
+      const baroAlt: number = await this.readAltitudeByBarometer();
+      if (!isNaN(baroAlt)) {
+        this.fGraveAltitude = baroAlt;
+        this.getUIContext().getPromptAction()
+          .showToast({ message: '已拾取经纬度，海拔由气压计估算（' + baroAlt.toFixed(1) + ' 米）' });
       } else {
         this.getUIContext().getPromptAction()
           .showToast({ message: '已拾取经纬度，海拔暂不可用，请到空旷处重试或手工填写' });
       }
-    } catch (e) {
-      const err = e as BusinessError;
-      let msg: string = err.message;
-      if (err.code === 201) {
-        msg = '未获得定位权限，请在设置中允许';
-      } else if (err.code === 3301100) {
-        msg = '系统定位服务未开启';
-      }
-      this.getUIContext().getPromptAction().showToast({ message: '定位失败（' + msg + '），可手工填写经纬度' });
     } finally {
       this.locating = false;
     }
+  }
+
+  /** 延时等待 */
+  private delay(ms: number): Promise<void> {
+    return new Promise<void>((resolve: () => void): void => {
+      setTimeout((): void => {
+        resolve();
+      }, ms);
+    });
+  }
+
+  /** 通过气压计换算海拔（米）；设备不支持气压计或读取失败时返回 NaN */
+  private async readAltitudeByBarometer(): Promise<number> {
+    try {
+      const sensors: sensor.Sensor[] = await sensor.getSensorList();
+      let supported: boolean = false;
+      for (let i = 0; i < sensors.length; i++) {
+        if (sensors[i].sensorId === sensor.SensorId.BAROMETER) {
+          supported = true;
+          break;
+        }
+      }
+      if (!supported) {
+        return NaN;
+      }
+      const pressure: number = await this.readBarometerPressure();
+      if (isNaN(pressure) || pressure <= 0) {
+        return NaN;
+      }
+      // 正常海平面气压约 1013 hPa，超过 2000 视为按 Pa 上报，统一换算为 hPa
+      const hPa: number = pressure > 2000 ? pressure / 100 : pressure;
+      // 国际标准大气压公式：h = 44330 × (1 - (P / P0) ^ (1 / 5.255))
+      const standardPressure: number = 1013.25;
+      return 44330 * (1 - Math.pow(hPa / standardPressure, 1 / 5.255));
+    } catch (e) {
+      console.error('气压计换算海拔失败：' + (e as BusinessError).message);
+      return NaN;
+    }
+  }
+
+  /** 读取一次气压计数据（hPa），超时未上报则返回 NaN */
+  private readBarometerPressure(): Promise<number> {
+    return new Promise<number>((resolve: (value: number) => void): void => {
+      let finished: boolean = false;
+      const finish = (value: number): void => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        resolve(value);
+      };
+      try {
+        sensor.once(sensor.SensorId.BAROMETER, (data: sensor.BarometerResponse): void => {
+          finish(data.pressure);
+        });
+      } catch (e) {
+        console.error('订阅气压计失败：' + (e as BusinessError).message);
+        finish(NaN);
+        return;
+      }
+      setTimeout((): void => {
+        finish(NaN);
+      }, PersonEdit.BAROMETER_TIMEOUT);
+    });
   }
 
   /** 解析地图分享链接 / 定位信息文本，写入经纬度与海拔 */
@@ -809,6 +1002,14 @@ struct PersonEdit {
     return list;
   }
 
+  /** 排行候选：第一世只有“第一世（始祖）”，其余世代为子/女排行 */
+  private rankOptions(): string[] {
+    if (this.fGeneration === 1) {
+      return [ANCESTOR_RANK];
+    }
+    return RANK_OPTIONS;
+  }
+
   private genCharOptions(): string[] {
     const chars: string[] = this.poemChars();
     const extra: string[] = this.svc().generationChars();
@@ -826,12 +1027,22 @@ struct PersonEdit {
     return merged;
   }
 
-  /** 把某个值写入对应字段（Select 选中回调调用） */
+  /** 庶出 / 婢生 / 奸生 需提示“嫡母为母亲、生母称姨娘”的礼法称谓 */
+  private isConcubineChild(): boolean {
+    return this.fChildStatus === '庶出' || this.fChildStatus === '婢生' || this.fChildStatus === '奸生';
+  }
+
   private assignValue(mode: string, value: string): void {
     switch (mode) {
       case 'generation': {
         const g: number = parseInt(value.replace(/[^0-9]/g, ''), 10);
         this.fGeneration = isNaN(g) ? 1 : g;
+        // 第一世用“第一世（始祖）”，其余世代恢复子/女排行
+        if (this.fGeneration === 1) {
+          this.fRank = ANCESTOR_RANK;
+        } else if (this.fRank === ANCESTOR_RANK) {
+          this.fRank = '';
+        }
         break;
       }
       case 'gender': {
@@ -846,6 +1057,9 @@ struct PersonEdit {
         break;
       case 'lifeStatus':
         this.fLifeStatus = value;
+        break;
+      case 'childStatus':
+        this.fChildStatus = value;
         break;
       case 'birthCalendar':
         this.fBirthCalendar = value;
@@ -980,8 +1194,10 @@ struct PersonEdit {
   private refreshDateOptions(): void {
     const years: string[] = [];
     // 与年号表最早的天福元年（936）对齐，保证纪年与公历可选范围一致
+    // 农历模式按传统写法逐位读年：1900 → 一九零零年
+    const lunarMode: boolean = this.dateCalendar === '农历';
     for (let y: number = this.MAX_YEAR; y >= this.MIN_YEAR; y--) {
-      years.push(y.toString() + '年');
+      years.push(lunarMode ? cnYearText(y) + '年' : y.toString() + '年');
     }
     this.yearOptions = years;
     // 先按年份范围校正，再计算该月天数，避免把 936~1799 的历史纪年截断到 1800
@@ -1030,7 +1246,8 @@ struct PersonEdit {
       '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
       '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'];
     for (let d: number = 1; d <= max; d++) {
-      days.push(this.dateCalendar === '农历' && d <= 30 ? lunar[d - 1] : d.toString() + '日');
+      // 农历按传统写法：初一…三十；个别月份到 31 时写作“卅一日”
+      days.push(this.dateCalendar === '农历' ? (d <= 30 ? lunar[d - 1] : '卅一日') : d.toString() + '日');
     }
     this.dayOptions = days;
   }
@@ -1235,6 +1452,15 @@ struct PersonEdit {
     return labels;
   }
 
+  /** 名分下拉文案：称谓（等级），keys 仍为 SPOUSE_RELATIONS */
+  private spouseRelationOptions(): string[] {
+    const labels: string[] = [];
+    SPOUSE_RELATIONS.forEach((r: string): void => {
+      labels.push(spouseRelationLabel(r));
+    });
+    return labels;
+  }
+
   private relationValue(value: string): string {
     if (value.length === 0) {
       return '未选择';
@@ -1251,6 +1477,104 @@ struct PersonEdit {
     }
     .width('100%')
     .padding({ top: Spacing.L, bottom: Spacing.S })
+  }
+
+  /** 配偶关系编辑区：可增删多位配偶，并为每位选择名分 */
+  @Builder
+  SpouseSection() {
+    Column() {
+      Row() {
+        Column() {
+          Text('配偶关系').fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text('一夫一妻多妾制：正妻 / 平妻 / 贵妾 / 良妾 / 贱妾 / 外室，按先后顺序记录')
+            .fontSize(10.5)
+            .fontColor(Theme.inkTertiary)
+            .margin({ top: 1 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Text('+ 添加配偶')
+          .fontSize(12)
+          .fontColor(Theme.primary)
+          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+          .borderRadius(12)
+          .border({ width: 1, color: Theme.primary })
+          .onClick((): void => {
+            this.addSpouse();
+          })
+      }
+      .width('100%')
+      .margin({ bottom: Spacing.S })
+
+      if (this.fSpouses.length === 0) {
+        Text('尚未录入配偶')
+          .fontSize(11)
+          .fontColor(Theme.inkTertiary)
+          .width('100%')
+          .padding({ top: 6, bottom: 6 })
+      }
+
+      ForEach(this.fSpouses, (rel: SpouseRelation, idx: number) => {
+        Column() {
+          Row() {
+            Column() {
+              SelectField({
+                label: '配偶' + (idx + 1).toString(),
+                hint: '选择配偶的唯一ID',
+                options: this.relationLabels(''),
+                keys: this.relationUids(''),
+                value: rel.uid,
+                clearable: true,
+                onValue: (v: string): void => {
+                  this.updateSpouse(idx, v, rel.relation);
+                }
+              })
+              SelectField({
+                label: '名分',
+                hint: '选择具体称谓，括号内为其名分等级',
+                options: this.spouseRelationOptions(),
+                keys: SPOUSE_RELATIONS,
+                value: rel.relation,
+                onValue: (v: string): void => {
+                  this.updateSpouse(idx, rel.uid, v);
+                }
+              })
+            }
+            .layoutWeight(1)
+
+            Text('删除')
+              .fontSize(12)
+              .fontColor(Theme.danger)
+              .padding({ left: Spacing.M, right: Spacing.S, top: 30, bottom: Spacing.M })
+              .onClick((): void => {
+                this.removeSpouse(idx);
+              })
+          }
+          .width('100%')
+          .alignItems(VerticalAlign.Top)
+
+          // 名分含意提示：等级 / 地位 / 所生子女的宗法身份
+          Text(spouseRelationHint(rel.relation))
+            .fontSize(10.5)
+            .fontColor(Theme.inkTertiary)
+            .lineHeight(16)
+            .width('100%')
+          if (childRankOfSpouseRelation(rel.relation).length > 0) {
+            Text('所生子女：' + childRankOfSpouseRelation(rel.relation))
+              .fontSize(10.5)
+              .fontColor(Theme.gold)
+              .width('100%')
+              .margin({ top: 2 })
+          }
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+        .padding({ left: 4, right: 4, bottom: 6 })
+      }, (rel: SpouseRelation) => 'spouse_' + rel.uid + '_' + rel.relation + '_' + rel.order.toString())
+    }
+    .width('100%')
+    .margin({ bottom: Spacing.M })
   }
 
   @Builder
@@ -1387,6 +1711,35 @@ struct PersonEdit {
         .margin({ left: Spacing.M })
       }
 
+      Column() {
+        SelectField({
+          label: '子女身份',
+          hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子（决定宗法地位与继承顺序）',
+          options: CHILD_STATUS_OPTIONS,
+          value: this.fChildStatus,
+          onValue: (v: string): void => {
+            this.assignValue('childStatus', v);
+          }
+        })
+        if (this.fChildStatus !== '未记') {
+          Text(childStatusHint(this.fChildStatus))
+            .fontSize(10.5)
+            .fontColor(Theme.inkTertiary)
+            .lineHeight(16)
+            .width('100%')
+        }
+        if (this.isConcubineChild()) {
+          Text(CONCUBINE_CHILD_TITLE_HINT)
+            .fontSize(10.5)
+            .fontColor(Theme.gold)
+            .lineHeight(16)
+            .width('100%')
+            .margin({ top: 2 })
+        }
+      }
+      .alignItems(HorizontalAlign.Start)
+      .width('100%')
+
       this.TextField('曾用名/小名', this.fAlias, '如有多个用逗号隔开，如：建国, 狗剩', false, (v: string): void => {
         this.fAlias = v;
       })
@@ -1487,21 +1840,12 @@ struct PersonEdit {
           this.fMotherId = v;
         }
       })
-      SelectField({
-        label: '配偶ID',
-        hint: '扩展字段：选择配偶的唯一ID',
-        options: this.relationLabels(''),
-        keys: this.relationUids(''),
-        value: this.fSpouseId,
-        clearable: true,
-        onValue: (v: string): void => {
-          this.fSpouseId = v;
-        }
-      })
+      this.SpouseSection()
       SelectField({
         label: '排行',
-        hint: '第几子/女，上下滑动选择，如：长子、次女',
-        options: RANK_OPTIONS,
+        hint: this.fGeneration === 1 ? '第一世为始祖，排行记为“第一世（始祖）”' :
+          '第几子/女，上下滑动选择，如：长子、次女',
+        options: this.rankOptions(),
         value: this.fRank,
         onValue: (v: string): void => {
           this.assignValue('rank', v);
@@ -1782,13 +2126,15 @@ struct PersonEdit {
         Divider().color(Theme.line).margin({ top: 10, bottom: 10 })
         Text(this.previewLine('性别', this.fGender))
         Text(this.previewLine('在世状态', this.fLifeStatus))
+        Text(this.previewLine('子女身份', this.fChildStatus === '未记' ? '' :
+          childStatusLabel(this.fChildStatus, this.fGender)))
         Text(this.previewLine('出生', this.fBirthDate))
         Text(this.previewLine('逝世', this.fDeathDate))
         Text(this.previewLine('出生地', this.fBirthPlace))
         Text(this.previewLine('现居地', this.fResidence))
         Text(this.previewLine('父亲', this.relationValue(this.fFatherId)))
         Text(this.previewLine('母亲', this.relationValue(this.fMotherId)))
-        Text(this.previewLine('配偶', this.relationValue(this.fSpouseId)))
+        Text(this.previewLine('配偶', this.spousesPreview()))
         Text(this.previewLine('排行', this.fRank))
         Text(this.previewLine('学历', this.fEducation))
         Text(this.previewLine('职业', this.fOccupation))

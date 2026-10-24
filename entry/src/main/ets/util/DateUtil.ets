@@ -204,9 +204,19 @@ export function parseHistoricalDate(text: string): ParsedDate {
     result.year = -parseInt(bc[1], 10);
     return result;
   }
+  // 农历年份逐位中文写法：一九零零年
+  const cnYm: RegExpMatchArray | null = t.match(/([零一二三四五六七八九]{3,4})\s*年/);
+  if (cnYm !== null) {
+    let yv: number = 0;
+    for (let i: number = 0; i < cnYm[1].length; i++) {
+      yv = yv * 10 + CN_DIGITS.indexOf(cnYm[1].charAt(i));
+    }
+    result.year = yv;
+    result.convertible = yv >= 1 && yv <= 9999;
+  }
   // 年份：取第一个 3~4 位数字
   const ym: RegExpMatchArray | null = t.match(/([0-9]{3,4})\s*年?/);
-  if (ym !== null) {
+  if (ym !== null && result.year <= 0) {
     result.year = parseInt(ym[1], 10);
     result.convertible = result.year >= 1 && result.year <= 9999;
   }
@@ -227,6 +237,17 @@ export function parseHistoricalDate(text: string): ParsedDate {
   return result;
 }
 
+/** 年份逐位中文写法：1900 → 一九零零 */
+export function cnYearText(year: number): string {
+  const s: string = year.toString();
+  let out: string = '';
+  for (let i: number = 0; i < s.length; i++) {
+    const n: number = s.charCodeAt(i) - 48;
+    out += CN_DIGITS.charAt(n >= 0 && n <= 9 ? n : 0);
+  }
+  return out;
+}
+
 /** 组装为可展示的日期文本 */
 export function composeDate(year: number, month: number, day: number, calendar: string): string {
   if (year <= 0) {
@@ -238,8 +259,9 @@ export function composeDate(year: number, month: number, day: number, calendar: 
       '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
       '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'];
     const m: string = month >= 1 && month <= 12 ? mons[month - 1] : month.toString() + '月';
-    const dText: string = day >= 1 && day <= 30 ? days[day - 1] : day.toString();
-    return '农历' + year.toString() + '年' + m + dText;
+    // 农历月最多三十日，个别月份按公历天数出现 31 时写作“卅一日”
+    const dText: string = day >= 1 && day <= 30 ? days[day - 1] : (day === 31 ? '卅一日' : day.toString());
+    return '农历' + cnYearText(year) + '年' + m + dText;
   }
   const mm: string = (month < 10 ? '0' : '') + month.toString();
   const dd: string = (day < 10 ? '0' : '') + day.toString();

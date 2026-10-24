@@ -54,14 +54,17 @@ export struct SuTree {
                 this.onTapPerson(uid);
               }
             })
-            if (box.node.spouse !== null && !this.dense) {
-              Text('配 ' + box.node.spouse.person.name)
+            if (box.node.spouseText().length > 0 && !this.dense) {
+              Text(box.node.spouseText())
                 .fontSize(9)
                 .fontColor(Theme.gold)
-                .maxLines(1)
+                .maxLines(2)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
                 .margin({ top: 2 })
                 .onClick((): void => {
-                  this.onTapPerson((box.node.spouse as PersonNode).uid);
+                  if (box.node.spouse !== null) {
+                    this.onTapPerson((box.node.spouse as PersonNode).uid);
+                  }
                 })
             }
           }

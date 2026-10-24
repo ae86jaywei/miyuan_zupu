@@ -23,12 +23,8 @@ export struct ModernTree {
   @Prop minCardWidth: number = 150;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
-  private spouseName(p: Person): string {
-    if (p.spouseId.length === 0) {
-      return '';
-    }
-    const sp: Person | null = GenealogyService.getInstance().getPerson(p.spouseId);
-    return sp === null ? '' : sp.name;
+  private spouseText(p: Person): string {
+    return GenealogyService.getInstance().spouseTextOf(p.uid);
   }
 
   @Builder
@@ -66,17 +62,14 @@ export struct ModernTree {
       .width('100%')
       .margin({ top: 6 })
 
-      if (this.spouseName(p).length > 0) {
-        Row() {
-          Text('配偶').fontSize(9).fontColor(Theme.female)
-          Text(this.spouseName(p))
-            .fontSize(10)
-            .fontColor(Theme.inkSecondary)
-            .maxLines(1)
-            .margin({ left: 4 })
-        }
-        .width('100%')
-        .margin({ top: 4 })
+      if (this.spouseText(p).length > 0) {
+        Text(this.spouseText(p))
+          .fontSize(10)
+          .fontColor(Theme.inkSecondary)
+          .maxLines(2)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width('100%')
+          .margin({ top: 4 })
       }
 
       if (p.biography.length > 0) {
