@@ -1,4 +1,5 @@
 import { uiMaterial } from '@kit.ArkUI';
+import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Breakpoint } from '../common/Constants';
@@ -19,6 +20,7 @@ import { PersonDetailPanel } from '../view/PersonDetailPanel';
 import { GenealogyStatsPanel } from '../view/GenealogyStatsPanel';
 import { RouterUtil } from '../util/RouterUtil';
 import { DeviceUtil } from '../util/DeviceUtil';
+import { AccountService } from '../service/AccountService';
 import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][Index]';
@@ -59,6 +61,8 @@ struct Index {
   @StorageProp('gpZoom') zoom: number = 1;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
+  @StorageProp('gpLogin') loggedIn: boolean = false;
+  @StorageProp('gpPendingShare') @Watch('onPendingShare') pendingShare: boolean = false;
   @State showDetailSheet: boolean = false;
   /** 本地就绪标记（AppStorage 订阅作为兜底） */
   @State localReady: boolean = false;
@@ -95,6 +99,29 @@ struct Index {
     this.syncDarkMode();
     DeviceUtil.listenBreakpoints(this.getUIContext());
     this.initData();
+    this.initAccount();
+    this.onPendingShare();
+  }
+
+  /** 已有登录记录时尝试静默登录，避免每次启动都打扰用户 */
+  private async initAccount(): Promise<void> {
+    const ctx: Context | undefined = this.getUIContext().getHostContext();
+    if (ctx === undefined || ctx === null) {
+      return;
+    }
+    await AccountService.getInstance().init(ctx as common.UIAbilityContext);
+    if (AccountService.getInstance().getUnionId().length > 0) {
+      await AccountService.getInstance().trySilentLogin();
+    }
+  }
+
+  /** 由 App Linking 分享链接唤起时，跳转到只读分享查看页 */
+  onPendingShare(): void {
+    if (!this.pendingShare) {
+      return;
+    }
+    AppStorage.setOrCreate<boolean>('gpPendingShare', false);
+    RouterUtil.sharedView(this.getUIContext());
   }
 
   private ensureStorage(): void {
@@ -517,6 +544,20 @@ struct Index {
           Text(this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
+          Text(this.loggedIn ? '已登录' : '登录')
+            .fontSize(11)
+            .fontColor(this.loggedIn ? Theme.gold : Theme.primary)
+            .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+            .borderRadius(10)
+            .backgroundColor(this.loggedIn ? Theme.field : Theme.highlightBg)
+            .margin({ left: Spacing.S })
+            .onClick((): void => {
+              if (this.loggedIn) {
+                AppStorage.setOrCreate<number>('gpTab', 4);
+              } else {
+                RouterUtil.login(this.getUIContext());
+              }
+            })
           Text('⚙')
             .fontSize(17)
             .fontColor(Theme.inkSecondary)

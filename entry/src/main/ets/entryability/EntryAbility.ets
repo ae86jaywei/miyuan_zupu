@@ -4,6 +4,8 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyScope } from '../model/Scope';
+import { AccountService } from '../service/AccountService';
+import { CloudSyncService } from '../service/CloudSyncService';
 import { Theme } from '../theme/Theme';
 import { resourceManager } from '@kit.LocalizationKit';
 
@@ -39,6 +41,62 @@ export default class EntryAbility extends UIAbility {
       .catch((err: BusinessError): void => {
         hilog.error(0x0000, TAG, 'database init failed: %{public}d %{public}s', err.code, err.message);
       });
+
+    // 账号与云同步服务（幂等）：读取缓存登录态、初始化 AGC 与云开发服务
+    CloudSyncService.getInstance().init(this.context);
+    AccountService.getInstance().init(this.context)
+      .catch((err: BusinessError): void => {
+        hilog.warn(0x0000, TAG, 'account init failed: %{public}s', err.message);
+      });
+
+    // App Linking：分享链接拉起应用时记录族谱归属
+    this.handleShareLink(want);
+  }
+
+  /** 应用已在运行时再次被分享链接唤起 */
+  onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    this.handleShareLink(want);
+  }
+
+  /**
+   * 解析分享链接中的 owner / familyId。
+   * 预留能力：当前未配置公网域名，分享走「文本 + 邀请码」，链接拉起暂不生效。
+   * 若后续配置 App Linking，链接形如 https://{域名}/family?familyId=xxx&owner=hw-xxx
+   */
+  private handleShareLink(want: Want): void {
+    const uri: string | undefined = want.uri;
+    if (uri === undefined || uri.length === 0) {
+      return;
+    }
+    const queryIndex: number = uri.indexOf('?');
+    if (queryIndex < 0 || queryIndex >= uri.length - 1) {
+      return;
+    }
+    const query: string = uri.substring(queryIndex + 1);
+    const pairs: string[] = query.split('&');
+    let owner: string = '';
+    let familyId: string = '';
+    for (let i: number = 0; i < pairs.length; i++) {
+      const pair: string = pairs[i];
+      const eq: number = pair.indexOf('=');
+      if (eq <= 0) {
+        continue;
+      }
+      const key: string = pair.substring(0, eq);
+      const value: string = decodeURIComponent(pair.substring(eq + 1));
+      if (key === 'owner') {
+        owner = value;
+      } else if (key === 'familyId') {
+        familyId = value;
+      }
+    }
+    if (owner.length === 0) {
+      return;
+    }
+    AppStorage.setOrCreate<string>('gpSharedOwner', owner);
+    AppStorage.setOrCreate<string>('gpSharedFamilyId', familyId);
+    AppStorage.setOrCreate<boolean>('gpPendingShare', true);
+    hilog.info(0x0000, TAG, 'share link received, owner=%{public}s', owner);
   }
 
   /**

@@ -23,6 +23,14 @@
     {
       "name": "permission_media_reason",
       "value": "For selecting avatar and family photos"
+    },
+    {
+      "name": "agc_client_id",
+      "value": "2069158863092892224"
+    },
+    {
+      "name": "agc_app_id",
+      "value": "6917620028225503318"
     }
   ]
 }

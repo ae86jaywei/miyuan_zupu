@@ -38,6 +38,16 @@
         ]
       }
     ],
+    "metadata": [
+      {
+        "name": "client_id",
+        "value": "6917620028225503318"
+      },
+      {
+        "name": "app_id",
+        "value": "6917620028225503318"
+      }
+    ],
     "requestPermissions": [
       {
         "name": "ohos.permission.INTERNET",
