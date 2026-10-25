@@ -4,6 +4,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyScope } from '../model/Scope';
+import { Theme } from '../theme/Theme';
 import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][EntryAbility]';
@@ -13,6 +14,9 @@ const TAG: string = '[Genealogy][EntryAbility]';
  * 负责：数据库初始化、沉浸式窗口、全局字体缩放兼容、设备形态记录。
  */
 export default class EntryAbility extends UIAbility {
+  /** 主窗口引用，用于跟随深浅色刷新系统栏配色 */
+  private mainWindow?: window.Window;
+
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 跟随系统深浅色（应用已适配深色主题，见 theme/Theme.ets）
     try {
@@ -44,17 +48,44 @@ export default class EntryAbility extends UIAbility {
   onConfigurationUpdate(newConfig: Configuration): void {
     const dark: boolean = newConfig.colorMode === ConfigurationConstant.ColorMode.COLOR_MODE_DARK;
     AppStorage.setOrCreate<boolean>('darkMode', dark);
+    // 系统栏图标与底色同步切换，避免深色模式下状态栏文字看不清
+    this.applySystemBarStyle(dark);
     hilog.info(0x0000, TAG, 'darkMode updated: %{public}s', String(dark));
+  }
+
+  /**
+   * 系统状态栏 / 导航栏配色。
+   * 状态栏与页面顶部栏同色（Theme.card），导航栏与页面底色同色（Theme.paper），
+   * 营造顶部、底部与系统栏视觉连贯的沉浸效果。
+   */
+  private applySystemBarStyle(isDark: boolean): void {
+    if (!this.mainWindow) {
+      return;
+    }
+    try {
+      Theme.use(isDark);
+      this.mainWindow.setWindowSystemBarProperties({
+        statusBarColor: Theme.card,
+        statusBarContentColor: isDark ? '#FFFFFF' : '#000000',
+        navigationBarColor: Theme.paper,
+        navigationBarContentColor: isDark ? '#FFFFFF' : '#000000'
+      });
+    } catch (e) {
+      hilog.warn(0x0000, TAG, 'setWindowSystemBarProperties failed: %{public}s', JSON.stringify(e));
+    }
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
     windowStage.getMainWindow()
       .then((mainWindow: window.Window): void => {
+        this.mainWindow = mainWindow;
         try {
           mainWindow.setWindowLayoutFullScreen(false);
         } catch (e) {
           hilog.warn(0x0000, TAG, 'layout fullscreen not supported');
         }
+        const dark: boolean = AppStorage.get<boolean>('darkMode') ?? false;
+        this.applySystemBarStyle(dark);
       })
       .catch((err: BusinessError): void => {
         hilog.warn(0x0000, TAG, 'getMainWindow failed %{public}d', err.code);

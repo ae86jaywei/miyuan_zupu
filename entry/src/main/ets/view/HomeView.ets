@@ -58,6 +58,17 @@ export struct HomeView {
         .margin({ top: 8, bottom: 8, left: 8, right: 8 })
         .borderRadius(Radius.L)
 
+      // 沉浸光感：右上角柔光晕，增加封面的纵深与材质感
+      Column()
+        .width('100%')
+        .height('100%')
+        .radialGradient({
+          center: ['80%', '6%'],
+          radius: 260,
+          colors: [[Theme.glow, 0.0], ['rgba(255,255,255,0)', 1.0]]
+        })
+        .hitTestBehavior(HitTestMode.None)
+
       Column() {
         Row() {
           Text('◆ ' + (this.book().junwang.length > 0 ? this.book().junwang : '宗族') +

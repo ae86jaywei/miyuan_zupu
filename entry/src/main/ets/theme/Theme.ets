@@ -119,6 +119,27 @@ export class Theme {
   static get highlightBg(): string {
     return Theme.dark ? '#3A3020' : '#FFF6E0';
   }
+
+  // ---------------------------------------------------------------- 沉浸光感材质
+  /** 悬浮导航 / 顶栏的半透明材质底色（配合背景模糊使用） */
+  static get glass(): string {
+    return Theme.dark ? 'rgba(36, 32, 25, 0.86)' : 'rgba(255, 255, 255, 0.86)';
+  }
+
+  /** 材质高光描边，营造悬浮玻璃边缘 */
+  static get glassBorder(): string {
+    return Theme.dark ? 'rgba(240, 210, 142, 0.28)' : 'rgba(255, 255, 255, 0.92)';
+  }
+
+  /** 沉浸光感的光晕色（封面、页头辉光） */
+  static get glow(): string {
+    return Theme.dark ? 'rgba(224, 185, 90, 0.30)' : 'rgba(201, 162, 39, 0.26)';
+  }
+
+  /** 悬浮元素的深投影 */
+  static get shadowDeep(): string {
+    return Theme.dark ? 'rgba(0, 0, 0, 0.60)' : 'rgba(90, 60, 30, 0.20)';
+  }
 }
 
 /** 间距令牌 */

@@ -113,7 +113,7 @@ export struct CatalogView {
       .margin({ top: Spacing.S })
     }
     .width('100%')
-    .padding(Spacing.M)
+    .padding({ left: Spacing.M, right: Spacing.M, top: Spacing.S, bottom: Spacing.M })
     .backgroundColor(Theme.card)
     .borderRadius(Radius.M)
     .border({ width: 0.5, color: Theme.line })

@@ -148,9 +148,11 @@ struct ImportExport {
     Column() {
       Row() {
         Text('‹')
-          .fontSize(26)
+          .fontSize(22)
           .fontColor(Theme.ink)
-          .width(40)
+          .width(32)
+          .height(32)
+          .textAlign(TextAlign.Center)
           .onClick((): void => {
             this.getUIContext().getRouter().back();
           })
@@ -164,7 +166,7 @@ struct ImportExport {
         }
       }
       .width('100%')
-      .height(52)
+      .height(34)
       .padding({ left: Spacing.S, right: Spacing.L })
       .backgroundColor(Theme.card)
       .border({ width: { bottom: 0.5 }, color: Theme.line })

@@ -2173,9 +2173,11 @@ struct PersonEdit {
       // 顶栏
       Row() {
         Text('‹')
-          .fontSize(26)
+          .fontSize(22)
           .fontColor(Theme.ink)
-          .width(40)
+          .width(32)
+          .height(32)
+          .textAlign(TextAlign.Center)
           .onClick((): void => {
             this.getUIContext().getRouter().back();
           })
@@ -2195,7 +2197,7 @@ struct PersonEdit {
         }
         Button(this.saving ? '保存中…' : '保存')
           .fontSize(13)
-          .height(32)
+          .height(28)
           .padding({ left: 16, right: 16 })
           .backgroundColor(Theme.primary)
           .enabled(!this.saving)
@@ -2204,7 +2206,7 @@ struct PersonEdit {
           })
       }
       .width('100%')
-      .height(52)
+      .height(34)
       .padding({ left: Spacing.S, right: Spacing.L })
       .backgroundColor(Theme.card)
       .border({ width: { bottom: 0.5 }, color: Theme.line })
@@ -2244,7 +2246,7 @@ struct PersonEdit {
         }
         .layoutWeight(1)
         .width('100%')
-        .padding({ left: Spacing.XL, right: Spacing.XL, top: Spacing.S })
+        .padding({ left: Spacing.XL, right: Spacing.XL, top: 0 })
         .alignItems(VerticalAlign.Top)
       } else {
         Scroll() {

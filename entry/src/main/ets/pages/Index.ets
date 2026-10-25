@@ -1,4 +1,5 @@
-import { BusinessError } from '@kit.BasicServicesKit';
+import { uiMaterial } from '@kit.ArkUI';
+import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Breakpoint } from '../common/Constants';
 import { Theme, Spacing } from '../theme/Theme';
@@ -235,28 +236,78 @@ struct Index {
     .border({ width: { right: 0.5 }, color: Theme.line })
   }
 
+  /** 系统是否支持 HDS 沉浸材质（API 26 起），不支持时回退到毛玻璃模糊 */
+  private immersiveMaterialSupported(): boolean {
+    return deviceInfo.apiAvailable('26.0.0');
+  }
+
   @Builder
-  BottomBar() {
-    Row() {
-      ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
-        Column() {
-          Text(item.icon).fontSize(19).opacity(this.currentTab === idx ? 1 : 0.55)
-          Text(item.title)
-            .fontSize(10)
-            .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkTertiary)
-            .margin({ top: 2 })
-        }
-        .layoutWeight(1)
-        .onClick((): void => {
+  NavItems() {
+    ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
+      Column() {
+        Text(item.icon)
+          .fontSize(this.currentTab === idx ? 20 : 19)
+          .opacity(this.currentTab === idx ? 1 : 0.6)
+        Text(item.title)
+          .fontSize(10)
+          .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkTertiary)
+          .margin({ top: 2 })
+      }
+      .layoutWeight(1)
+      .height(46)
+      .justifyContent(FlexAlign.Center)
+      .borderRadius(16)
+      .backgroundColor(this.currentTab === idx ? Theme.highlightBg : Color.Transparent)
+      .onClick((): void => {
+        // 选中态切换用弹性曲线过渡，形成“悬浮式”跟手反馈
+        this.getUIContext().animateTo({
+          duration: 260,
+          curve: Curve.FastOutSlowIn
+        }, (): void => {
           AppStorage.setOrCreate<number>('gpTab', idx);
-        })
-      }, (item: NavItem) => 'bb_' + item.key)
+        });
+      })
+    }, (item: NavItem) => 'bb_' + item.key)
+  }
+
+  /** 悬浮沉浸导航：毛玻璃材质 + 选中高亮，浮于内容之上（参考空间化自适应悬浮导航） */
+  @Builder
+  FloatingBottomBar() {
+    Column() {
+      if (this.immersiveMaterialSupported()) {
+        // 新系统：HDS 沉浸光感材质，随内容与交互产生动态光效
+        Row() {
+          this.NavItems()
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 5, right: 5, top: 5, bottom: 5 })
+        .borderRadius(28)
+        .systemMaterial(new uiMaterial.ImmersiveMaterial({
+          style: uiMaterial.ImmersiveStyle.REGULAR,
+          materialColor: Theme.card,
+          interactive: true,
+          lightEffect: { color: Theme.gold }
+        }))
+        .border({ width: 0.5, color: Theme.glassBorder })
+        .shadow({ radius: 20, color: Theme.shadowDeep, offsetY: 6 })
+      } else {
+        // 旧系统：等效毛玻璃材质（半透明底 + 背景模糊）
+        Row() {
+          this.NavItems()
+        }
+        .width('100%')
+        .height(56)
+        .padding({ left: 5, right: 5, top: 5, bottom: 5 })
+        .backgroundColor(Theme.glass)
+        .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
+        .borderRadius(28)
+        .border({ width: 0.5, color: Theme.glassBorder })
+        .shadow({ radius: 20, color: Theme.shadowDeep, offsetY: 6 })
+      }
     }
     .width('100%')
-    .height(58)
-    .padding({ bottom: 4 })
-    .backgroundColor(Theme.card)
-    .border({ width: { top: 0.5 }, color: Theme.line })
+    .padding({ left: 16, right: 16, bottom: 12 })
   }
 
   @Builder
@@ -320,7 +371,7 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .padding({ top: Spacing.M })
+    .padding({ top: Spacing.XS })
   }
 
   @Builder
@@ -449,73 +500,81 @@ struct Index {
   }
 
   build() {
-    Column() {
-      // 顶部品牌栏（大屏显示完整标题，小屏显示精简标题）
-      Row() {
-        Text(GenealogyService.getInstance().getBook().title)
-          .fontSize(17)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(Theme.ink)
-        Text('· ' + GenealogyService.getInstance().getBook().hallName)
-          .fontSize(12)
-          .fontColor(Theme.gold)
-          .margin({ left: 6 })
-          .maxLines(1)
-        Blank()
-        Text(this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')
-          .fontSize(11)
-          .fontColor(Theme.inkTertiary)
-        Text('⚙')
-          .fontSize(17)
-          .fontColor(Theme.inkSecondary)
-          .padding(6)
-          .margin({ left: Spacing.S })
-          .onClick((): void => {
-            AppStorage.setOrCreate<number>('gpTab', 4);
-          })
-      }
-      .width('100%')
-      .height(48)
-      .padding({ left: Layout.pagePadding(this.windowWidth), right: Layout.pagePadding(this.windowWidth) })
-      .backgroundColor(Theme.card)
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
-
-      Row() {
-        if (this.showSidebar()) {
-          this.NavBar(this.sidebarCollapsed())
+    Stack({ alignContent: Alignment.Bottom }) {
+      Column() {
+        // 顶部品牌栏（大屏显示完整标题，小屏显示精简标题）
+        Row() {
+          Text(GenealogyService.getInstance().getBook().title)
+            .fontSize(17)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Theme.ink)
+          Text('· ' + GenealogyService.getInstance().getBook().hallName)
+            .fontSize(12)
+            .fontColor(Theme.gold)
+            .margin({ left: 6 })
+            .maxLines(1)
+          Blank()
+          Text(this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')
+            .fontSize(11)
+            .fontColor(Theme.inkTertiary)
+          Text('⚙')
+            .fontSize(17)
+            .fontColor(Theme.inkSecondary)
+            .width(30)
+            .height(30)
+            .textAlign(TextAlign.Center)
+            .margin({ left: Spacing.S })
+            .onClick((): void => {
+              AppStorage.setOrCreate<number>('gpTab', 4);
+            })
         }
+        .width('100%')
+        .height(34)
+        .padding({ left: Layout.pagePadding(this.windowWidth), right: Layout.pagePadding(this.windowWidth) })
+        .backgroundColor(Theme.card)
+        .shadow({ radius: 6, color: Theme.shadowDeep, offsetY: 2 })
 
-        Column() {
-          if (!this.localReady && !this.ready) {
-            Column() {
-              LoadingProgress().width(40).height(40).color(Theme.primary)
-              Text('正在展开族谱…').fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
-            }
-            .width('100%')
-            .height('100%')
-            .justifyContent(FlexAlign.Center)
-          } else {
-            this.ContentArea()
+        Row() {
+          if (this.showSidebar()) {
+            this.NavBar(this.sidebarCollapsed())
           }
+
+          Column() {
+            if (!this.localReady && !this.ready) {
+              Column() {
+                LoadingProgress().width(40).height(40).color(Theme.primary)
+                Text('正在展开族谱…').fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
+              }
+              .width('100%')
+              .height('100%')
+              .justifyContent(FlexAlign.Center)
+            } else {
+              this.ContentArea()
+            }
+          }
+          .layoutWeight(1)
+          .height('100%')
+          .padding({
+            left: Layout.pagePadding(this.windowWidth),
+            right: Layout.pagePadding(this.windowWidth),
+            top: 0,
+            // 悬浮导航浮于内容之上，底部留出安全间距，避免列表末项被遮挡
+            bottom: this.showSidebar() ? 0 : 84
+          })
         }
         .layoutWeight(1)
-        .height('100%')
-        .padding({
-          left: Layout.pagePadding(this.windowWidth),
-          right: Layout.pagePadding(this.windowWidth),
-          top: Spacing.S
-        })
+        .width('100%')
       }
-      .layoutWeight(1)
       .width('100%')
+      .height('100%')
+      .backgroundColor(Theme.paper)
 
       if (!this.showSidebar()) {
-        this.BottomBar()
+        this.FloatingBottomBar()
       }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(Theme.paper)
     .onAreaChange((oldValue: Area, newValue: Area) => {
       const w: number = Number(newValue.width);
       const h: number = Number(newValue.height);

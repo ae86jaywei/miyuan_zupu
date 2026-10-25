@@ -45,6 +45,6 @@ export struct TS {
       }
     }
     .width('100%')
-    .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.M, bottom: Spacing.XS })
+    .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.S, bottom: Spacing.XS })
   }
 }
