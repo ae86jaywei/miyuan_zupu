@@ -519,7 +519,8 @@ struct Index {
     .onAreaChange((oldValue: Area, newValue: Area) => {
       const w: number = Number(newValue.width);
       const h: number = Number(newValue.height);
-      if (w > 0 && Math.abs(w - this.windowWidth) > 1) {
+      // 横竖屏旋转、折叠展开、电脑窗口拖拽时都会回调，宽高需一并同步
+      if (w > 0 && (Math.abs(w - this.windowWidth) > 1 || Math.abs(h - this.windowHeight) > 1)) {
         AppStorage.setOrCreate<number>('windowWidth', w);
         AppStorage.setOrCreate<number>('windowHeight', h);
       }

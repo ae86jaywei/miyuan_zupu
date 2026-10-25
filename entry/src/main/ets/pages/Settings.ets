@@ -34,6 +34,7 @@ struct Settings {
 
       Column() {
         SettingsView({
+          windowWidth: this.windowWidth,
           version: this.version
         })
       }
@@ -44,5 +45,12 @@ struct Settings {
     .width('100%')
     .height('100%')
     .backgroundColor(Theme.paper)
+    .onAreaChange((oldValue: Area, newValue: Area) => {
+      // 独立设置页：旋转后同步窗口宽度，断点信息与宽屏布局随之刷新
+      const w: number = Number(newValue.width);
+      if (w > 0 && Math.abs(w - this.windowWidth) > 1) {
+        AppStorage.setOrCreate<number>('windowWidth', w);
+      }
+    })
   }
 }

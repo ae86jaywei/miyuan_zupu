@@ -215,6 +215,7 @@ struct DateFieldInput {
 @Component
 struct PersonEdit {
   @StorageProp('windowWidth') windowWidth: number = 360;
+  @StorageProp('windowHeight') windowHeight: number = 780;
   @State mode: string = 'edit';
   @State originalUid: string = '';
   @State loading: boolean = true;
@@ -1276,6 +1277,11 @@ struct PersonEdit {
     return huangLiText(y, this.pickMonth, this.pickDay, -1);
   }
 
+  /** 日期滚轮高度：横屏等矮窗口下压缩，避免日期面板超出屏幕 */
+  private pickerHeight(): number {
+    return this.windowHeight > 0 && this.windowHeight < 520 ? 120 : 220;
+  }
+
   /** 历史日期选择面板：年 / 月 / 日 三段滚轮 */
   @Builder
   DatePickerPanel() {
@@ -1379,7 +1385,7 @@ struct PersonEdit {
       Row() {
         TextPicker({ range: this.yearOptions, selected: this.yearIndex })
           .layoutWeight(4)
-          .height(220)
+          .height(this.pickerHeight())
           .onChange((value: string | string[], index: number | number[]): void => {
             const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
             this.yearIndex = idx;
@@ -1388,7 +1394,7 @@ struct PersonEdit {
           })
         TextPicker({ range: this.monthOptions, selected: this.monthIndex })
           .layoutWeight(3)
-          .height(220)
+          .height(this.pickerHeight())
           .onChange((value: string | string[], index: number | number[]): void => {
             const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
             this.monthIndex = idx;
@@ -1397,7 +1403,7 @@ struct PersonEdit {
           })
         TextPicker({ range: this.dayOptions, selected: this.dayIndex })
           .layoutWeight(3)
-          .height(220)
+          .height(this.pickerHeight())
           .onChange((value: string | string[], index: number | number[]): void => {
             const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
             this.dayIndex = idx;
@@ -2274,5 +2280,14 @@ struct PersonEdit {
     }
     .width('100%')
     .height('100%')
+    .onAreaChange((oldValue: Area, newValue: Area) => {
+      // 本页独立于主界面，旋转/窗口缩放时需自行同步断点，横屏才会切到双栏
+      const w: number = Number(newValue.width);
+      const h: number = Number(newValue.height);
+      if (w > 0 && (Math.abs(w - this.windowWidth) > 1 || Math.abs(h - this.windowHeight) > 1)) {
+        AppStorage.setOrCreate<number>('windowWidth', w);
+        AppStorage.setOrCreate<number>('windowHeight', h);
+      }
+    })
   }
 }
