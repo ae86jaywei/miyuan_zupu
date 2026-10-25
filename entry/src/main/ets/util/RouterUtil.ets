@@ -28,6 +28,20 @@ export class RouterUtil {
       });
   }
 
+  static login(ui: UIContext): void {
+    ui.getRouter().pushUrl({ url: 'pages/Login' })
+      .catch((err: BusinessError): void => {
+        console.error('push Login failed: ' + err.message);
+      });
+  }
+
+  static sharedView(ui: UIContext): void {
+    ui.getRouter().pushUrl({ url: 'pages/SharedView' })
+      .catch((err: BusinessError): void => {
+        console.error('push SharedView failed: ' + err.message);
+      });
+  }
+
   static back(ui: UIContext): void {
     ui.getRouter().back();
   }

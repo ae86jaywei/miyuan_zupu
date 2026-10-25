@@ -5,6 +5,7 @@ import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { RouterUtil } from '../util/RouterUtil';
+import { AccountCard } from './AccountCard';
 import { Breakpoint } from '../common/Constants';
 import { DeviceUtil } from '../util/DeviceUtil';
 import { AppStorageV2 } from '@kit.ArkUI';
@@ -267,6 +268,8 @@ export struct SettingsView {
   build() {
     Scroll() {
       Column() {
+        AccountCard()
+
         TS({ title: '族谱信息', subtitle: '谱名 · 堂号 · 郡望 · 字派 · 谱序 · 家训', icon: '📕' })
         Column() {
           if (this.editingBook) {

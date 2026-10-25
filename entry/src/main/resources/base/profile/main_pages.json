@@ -3,6 +3,8 @@
     "pages/Index",
     "pages/PersonEdit",
     "pages/Settings",
-    "pages/ImportExport"
+    "pages/ImportExport",
+    "pages/Login",
+    "pages/SharedView"
   ]
 }
