@@ -26,6 +26,10 @@ export class Genealogy {
   coverColor: string = '#8C2F1E';
   /** 封面纹样：classic / modern / minimal */
   coverPattern: string = 'classic';
+  /** 所属母族谱ID（>0 表示本谱是由某人另立的分支） */
+  parentBookId: number = 0;
+  /** 分支始祖在原族谱中的唯一ID（仅分支谱有效） */
+  branchRootUid: string = '';
   /** 创建时间 */
   createdAt: number = 0;
   /** 更新时间 */

@@ -1003,6 +1003,15 @@ struct PersonEdit {
     return list;
   }
 
+  /** 世代候选对应的数值键：文案是“第十世”等中文，必须用键回传数值，否则解析不出世代 */
+  private generationKeys(): string[] {
+    const list: string[] = [];
+    for (let i: number = 1; i <= 40; i++) {
+      list.push(i.toString());
+    }
+    return list;
+  }
+
   /** 排行候选：第一世只有“第一世（始祖）”，其余世代为子/女排行 */
   private rankOptions(): string[] {
     if (this.fGeneration === 1) {
@@ -1036,8 +1045,12 @@ struct PersonEdit {
   private assignValue(mode: string, value: string): void {
     switch (mode) {
       case 'generation': {
-        const g: number = parseInt(value.replace(/[^0-9]/g, ''), 10);
-        this.fGeneration = isNaN(g) ? 1 : g;
+        const g: number = parseInt(value, 10);
+        // 解析失败时保留原世代，绝不回落到第一世
+        if (isNaN(g) || g <= 0) {
+          break;
+        }
+        this.fGeneration = g;
         // 第一世用“第一世（始祖）”，其余世代恢复子/女排行
         if (this.fGeneration === 1) {
           this.fRank = ANCESTOR_RANK;
@@ -1663,9 +1676,11 @@ struct PersonEdit {
         Column() {
           SelectField({
             label: '世代',
-            hint: '上下滑动选择世代，如：始祖（一世）',
+            hint: '必选。妻/妾等无父母者同样只需选择世代',
+            required: true,
             options: this.generationOptions(),
-            value: generationLabel(this.fGeneration),
+            keys: this.generationKeys(),
+            value: this.fGeneration.toString(),
             onValue: (v: string): void => {
               this.assignValue('generation', v);
             }
@@ -1826,7 +1841,7 @@ struct PersonEdit {
       this.GroupHeader('亲属关系', '👪')
       SelectField({
         label: '父亲ID',
-        hint: '选择父亲的唯一ID，如：F000',
+        hint: '选择父亲的唯一ID，如：F000；妻/妾等无父母者可留空',
         options: this.relationLabels('男'),
         keys: this.relationUids('男'),
         value: this.fFatherId,
@@ -1837,7 +1852,7 @@ struct PersonEdit {
       })
       SelectField({
         label: '母亲ID',
-        hint: '选择母亲的唯一ID，如：M050',
+        hint: '选择母亲的唯一ID，如：M050；妻/妾等无父母者可留空',
         options: this.relationLabels('女'),
         keys: this.relationUids('女'),
         value: this.fMotherId,

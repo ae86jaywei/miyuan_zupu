@@ -475,6 +475,9 @@ struct Index {
         },
         onAddChild: (uid: string): void => {
           RouterUtil.editPerson(this.getUIContext(), '', 'child', uid);
+        },
+        onCreateBranch: (uid: string): void => {
+          this.createBranch(uid);
         }
       })
     }
@@ -547,6 +550,56 @@ struct Index {
       const err = e as BusinessError;
       this.getUIContext().getPromptAction().showToast({ message: '切换族谱失败：' + err.message });
     }
+  }
+
+  /** 以某位族人为始祖另立分支族谱（复制其本人、配偶与全部后代，原族谱不受影响） */
+  private createBranch(uid: string): void {
+    const p: Person | null = GenealogyService.getInstance().getPerson(uid);
+    if (p === null) {
+      return;
+    }
+    this.getUIContext().showAlertDialog({
+      title: '创建分支',
+      message: '将以「' + p.name + '（' + p.uid + '）」为第一世（始祖）另立分支族谱，'
+        + '并复制其配偶与全部后代。分支数据独立，原族谱不受影响。确认创建？',
+      primaryButton: {
+        value: '取消',
+        action: (): void => {
+        }
+      },
+      secondaryButton: {
+        value: '创建',
+        action: (): void => {
+          GenealogyService.getInstance().createBranchFromPerson(uid)
+            .then((book: Genealogy): void => {
+              GenealogyStore.notifyChanged();
+              AppStorage.setOrCreate<string>('gpSelection', '');
+              this.showDetailSheet = false;
+              this.showBookPicker = false;
+              this.getUIContext().getPromptAction().showToast({
+                message: '已创建分支《' + book.title + '》，可继续录入族人'
+              });
+            })
+            .catch((err: BusinessError): void => {
+              this.getUIContext().getPromptAction().showToast({ message: '创建分支失败：' + err.message });
+            });
+        }
+      }
+    });
+  }
+
+  /** 分支谱所属母谱的谱名 */
+  private parentBookTitle(book: Genealogy): string {
+    if (book.parentBookId <= 0) {
+      return '';
+    }
+    const books: Genealogy[] = GenealogyService.getInstance().getBooks();
+    for (let i: number = 0; i < books.length; i++) {
+      if (books[i].key === book.parentBookId) {
+        return books[i].title.length > 0 ? books[i].title : '未命名族谱';
+      }
+    }
+    return '未知';
   }
 
   private noBookDesc(): string {
@@ -677,9 +730,11 @@ struct Index {
                     .fontColor(Theme.ink)
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  Text(book.hallName.length > 0 ? book.hallName : '未填写堂号')
+                  Text(book.parentBookId > 0
+                    ? '分支 · 出自《' + this.parentBookTitle(book) + '》'
+                    : (book.hallName.length > 0 ? book.hallName : '未填写堂号'))
                     .fontSize(11)
-                    .fontColor(Theme.inkTertiary)
+                    .fontColor(book.parentBookId > 0 ? Theme.gold : Theme.inkTertiary)
                     .margin({ top: 2 })
                     .maxLines(1)
                 }
@@ -949,6 +1004,9 @@ struct Index {
         onAddChild: (uid: string): void => {
           this.showDetailSheet = false;
           RouterUtil.editPerson(this.getUIContext(), '', 'child', uid);
+        },
+        onCreateBranch: (uid: string): void => {
+          this.createBranch(uid);
         }
       })
     }
