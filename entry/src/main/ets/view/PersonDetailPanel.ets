@@ -21,6 +21,7 @@ export struct PersonDetailPanel {
   onClose: () => void = (): void => {};
   onJump: (uid: string) => void = (uid: string): void => {};
   onAddChild: (uid: string) => void = (uid: string): void => {};
+  onCreateBranch: (uid: string) => void = (uid: string): void => {};
 
   private person(): Person | null {
     return GenealogyService.getInstance().getPerson(this.uid);
@@ -127,7 +128,8 @@ export struct PersonDetailPanel {
             this.ActionButton('＋ 添加子女', Theme.alive, (): void => {
               this.onAddChild(this.uid);
             })
-            this.ActionButton('⇱ 共' + this.childCount().toString() + '子', Theme.inkSecondary, (): void => {
+            this.ActionButton('⑂ 建分支', Theme.gold, (): void => {
+              this.onCreateBranch(this.uid);
             })
           }
           .width('100%')
@@ -343,13 +345,6 @@ export struct PersonDetailPanel {
       .onClick((): void => {
         action();
       })
-  }
-
-  private childCount(): number {
-    if (this.person() === null) {
-      return 0;
-    }
-    return GenealogyService.getInstance().childrenOf(this.uid).length;
   }
 
   private relationText(id: string): string {

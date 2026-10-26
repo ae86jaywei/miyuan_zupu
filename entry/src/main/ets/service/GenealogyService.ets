@@ -162,6 +162,9 @@ export class GenealogyService {
         created_at INTEGER,
         updated_at INTEGER
       )`);
+      // 兼容旧库：族谱分支字段（分支谱记录母族谱与分支出自何人）
+      await this.ensureColumn(TABLE_BOOK, 'parent_book_id', 'INTEGER');
+      await this.ensureColumn(TABLE_BOOK, 'branch_root_uid', 'TEXT');
       // 应用元数据表：记录首次初始化标记，避免用户删除族谱后重启时重新写入演示数据
       await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_META} (
         key TEXT PRIMARY KEY,
@@ -853,6 +856,121 @@ export class GenealogyService {
     return false;
   }
 
+  /**
+   * 以当前族谱中的某位族人为始祖，另立一部分支族谱。
+   *  - 复制该人及其全部后代（含各自的配偶），世代按“该人为第一世”重新编号；
+   *  - 分支谱数据独立，原族谱不受影响；创建后自动切换到分支谱继续录入。
+   */
+  async createBranchFromPerson(rootUid: string): Promise<Genealogy> {
+    if (this.currentBookId <= 0) {
+      throw new Error('请先在「谱系」中创建族谱');
+    }
+    const root: Person | null = this.getPerson(rootUid);
+    if (root === null) {
+      throw new Error('未找到该族人');
+    }
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const picked: Set<string> = new Set<string>();
+    const line: Person[] = [];
+    const collect = (uid: string): void => {
+      const u: string = uid.trim().toUpperCase();
+      if (u.length === 0 || picked.has(u)) {
+        return;
+      }
+      const p: Person | null = this.getPerson(u);
+      if (p === null) {
+        return;
+      }
+      picked.add(u);
+      line.push(p);
+      this.people.forEach((c: Person): void => {
+        if (c.fatherId.trim().toUpperCase() === u || c.motherId.trim().toUpperCase() === u) {
+          collect(c.uid);
+        }
+      });
+    };
+    collect(root.uid);
+
+    // 补入这支人的配偶（妻/妾 / 夫），保证夫妻在分支谱中仍成对显示
+    const spouses: Person[] = [];
+    line.forEach((p: Person): void => {
+      this.spousesOf(p.uid).forEach((r: SpouseRelation): void => {
+        const u: string = r.uid.trim().toUpperCase();
+        const sp: Person | null = this.getPerson(u);
+        if (sp !== null && !picked.has(u)) {
+          picked.add(u);
+          spouses.push(sp);
+        }
+      });
+    });
+    const all: Person[] = line.concat(spouses);
+
+    // 新建分支族谱：命名带上母谱与始祖名，便于区分
+    const baseTitle: string = (this.book.title.trim().length > 0 ? this.book.title.trim() : '我的族谱')
+      + '-' + root.name + '分支';
+    let title: string = baseTitle;
+    let serial: number = 2;
+    while (this.hasBookTitle(title)) {
+      title = baseTitle + ' ' + serial.toString();
+      serial++;
+    }
+    const branch: Genealogy = createEmptyGenealogy();
+    branch.title = title;
+    branch.surname = this.book.surname;
+    branch.hallName = this.book.hallName;
+    branch.junwang = this.book.junwang;
+    branch.ancestorName = root.name;
+    branch.generationPoem = this.book.generationPoem;
+    branch.coverColor = this.book.coverColor;
+    branch.coverPattern = this.book.coverPattern;
+    branch.parentBookId = this.currentBookId;
+    branch.branchRootUid = root.uid.trim().toUpperCase();
+    const rowId: number = await store.insert(TABLE_BOOK, this.bookValues(branch));
+    branch.key = rowId;
+
+    // 复制族人：以始祖为第一世重排世代，剪断分支外的一切父/母与配偶引用
+    const offset: number = root.generation - 1;
+    const rootKey: string = root.uid.trim().toUpperCase();
+    for (let i: number = 0; i < all.length; i++) {
+      const src: Person = all[i];
+      const p: Person = clonePerson(src);
+      p.key = 0;
+      p.generation = Math.max(1, src.generation - offset);
+      if (p.uid.trim().toUpperCase() === rootKey) {
+        p.fatherId = '';
+        p.motherId = '';
+        p.rank = '第一世（始祖）';
+      } else {
+        if (!picked.has(p.fatherId.trim().toUpperCase())) {
+          p.fatherId = '';
+        }
+        if (!picked.has(p.motherId.trim().toUpperCase())) {
+          p.motherId = '';
+        }
+      }
+      const keptSpouses: SpouseRelation[] = [];
+      p.spouses.forEach((r: SpouseRelation): void => {
+        if (picked.has(r.uid.trim().toUpperCase())) {
+          keptSpouses.push(r);
+        }
+      });
+      p.spouses = keptSpouses;
+      if (!picked.has(p.spouseId.trim().toUpperCase())) {
+        p.spouseId = '';
+      }
+      this.normalizeSpouses(p);
+      p.createdAt = Date.now();
+      p.updatedAt = p.createdAt;
+      await this.upsertRow(p, rowId);
+      await this.saveSpouses(p.uid, p.spouses, rowId);
+    }
+
+    this.currentBookId = rowId;
+    await this.setMeta(META_CURRENT_BOOK, rowId.toString());
+    await this.reload();
+    return this.book;
+  }
+
   /** 切换当前族谱，其他页面会跟随刷新 */
   async switchGenealogy(bookId: number): Promise<void> {
     if (bookId <= 0 || bookId === this.currentBookId) {
@@ -909,6 +1027,10 @@ export class GenealogyService {
     await store.executeSql(`DELETE FROM ${TABLE_BOOK}`);
     let firstBookId: number = 0;
     let restored: number = 0;
+    // 云端族谱ID与本地新ID不一致，分支关系需按旧ID映射后回填
+    const bookIdMap: Map<number, number> = new Map<number, number>();
+    const restoredBooks: Genealogy[] = [];
+    const sourceParentIds: number[] = [];
     for (let i: number = 0; i < groups.length; i++) {
       const group: BookGroup = groups[i];
       const book: Genealogy = group.book;
@@ -925,7 +1047,13 @@ export class GenealogyService {
       target.editingNotes = book.editingNotes;
       target.coverColor = book.coverColor;
       target.coverPattern = book.coverPattern;
+      target.parentBookId = 0;
+      target.branchRootUid = book.branchRootUid !== undefined ? book.branchRootUid : '';
       const rowId: number = await store.insert(TABLE_BOOK, this.bookValues(target));
+      target.key = rowId;
+      bookIdMap.set(book.key, rowId);
+      restoredBooks.push(target);
+      sourceParentIds.push(book.parentBookId !== undefined ? book.parentBookId : 0);
       if (firstBookId === 0) {
         firstBookId = rowId;
       }
@@ -938,6 +1066,16 @@ export class GenealogyService {
         await this.saveSpouses(p.uid, p.spouses, rowId);
         restored++;
       }
+    }
+    for (let i: number = 0; i < restoredBooks.length; i++) {
+      const mapped: number | undefined = bookIdMap.get(sourceParentIds[i]);
+      if (mapped === undefined || mapped <= 0) {
+        continue;
+      }
+      restoredBooks[i].parentBookId = mapped;
+      const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_BOOK);
+      predicates.equalTo('id', restoredBooks[i].key);
+      await store.update(this.bookValues(restoredBooks[i]), predicates);
     }
     this.currentBookId = firstBookId;
     await this.setMeta(META_CURRENT_BOOK, firstBookId.toString());
@@ -1190,6 +1328,8 @@ export class GenealogyService {
       'editing_notes': b.editingNotes,
       'cover_color': b.coverColor,
       'cover_pattern': b.coverPattern,
+      'parent_book_id': b.parentBookId,
+      'branch_root_uid': b.branchRootUid,
       'created_at': b.createdAt,
       'updated_at': b.updatedAt
     };
@@ -1261,6 +1401,9 @@ export class GenealogyService {
     b.editingNotes = rs.getString(rs.getColumnIndex('editing_notes'));
     b.coverColor = rs.getString(rs.getColumnIndex('cover_color'));
     b.coverPattern = rs.getString(rs.getColumnIndex('cover_pattern'));
+    b.parentBookId = rs.getLong(rs.getColumnIndex('parent_book_id'));
+    const rootUid: string = rs.getString(rs.getColumnIndex('branch_root_uid'));
+    b.branchRootUid = rootUid === null ? '' : rootUid;
     b.createdAt = rs.getLong(rs.getColumnIndex('created_at'));
     b.updatedAt = rs.getLong(rs.getColumnIndex('updated_at'));
     return b;
