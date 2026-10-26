@@ -155,6 +155,9 @@ struct Index {
     if (AppStorage.get<boolean>('gpShowPrivate') === undefined) {
       AppStorage.setOrCreate<boolean>('gpShowPrivate', true);
     }
+    if (AppStorage.get<string>('gpOrientation') === undefined) {
+      AppStorage.setOrCreate<string>('gpOrientation', 'follow_system');
+    }
     if (AppStorage.get<number>('gpVersion') === undefined) {
       AppStorage.setOrCreate<number>('gpVersion', 0);
     }

@@ -23,7 +23,7 @@
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "launchType": "singleton",
-        "orientation": "auto_rotation",
+        "orientation": "auto_rotation_unspecified",
         "minWindowWidth": 320,
         "minWindowHeight": 480,
         "skills": [

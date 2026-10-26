@@ -9,6 +9,7 @@ import { AccountCard } from './AccountCard';
 import { Breakpoint } from '../common/Constants';
 import { DeviceUtil } from '../util/DeviceUtil';
 import { AppStorageV2 } from '@kit.ArkUI';
+import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
 
 /**
  * 设置：族谱信息编辑、展示偏好、隐私开关、设备适配说明、关于。
@@ -25,6 +26,9 @@ export struct SettingsView {
   @StorageProp('gpStyle') styleName: string = 'eu';
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
+  @StorageProp('gpOrientation') orientationMode: string = 'follow_system';
+  /** 电脑 / 折叠屏：方向由系统统一管理，四个开关不下发 */
+  @State orientationBySystem: boolean = false;
   @State editingBook: boolean = false;
   @State bookTitle: string = '';
   @State bookSurname: string = '';
@@ -43,6 +47,15 @@ export struct SettingsView {
     if (w !== undefined) {
       this.windowWidth = w;
     }
+    this.orientationBySystem = DisplayService.isSystemManaged();
+  }
+
+  /** 切换屏幕方向模式（电脑 / 折叠屏不下发到窗口，仅展示「跟随系统」） */
+  private onOrientationChange(mode: string): void {
+    if (this.orientationBySystem) {
+      return;
+    }
+    DisplayService.getInstance().setMode(mode);
   }
 
   private loadBook(): void {
@@ -265,6 +278,44 @@ export struct SettingsView {
     .padding({ top: 6, bottom: 6 })
   }
 
+  @Builder
+  OrientationRow(meta: OrientationMeta, enabled: boolean, showDivider: boolean) {
+    Column() {
+      Row() {
+        Column() {
+          Text(meta.name)
+            .fontSize(14)
+            .fontColor(enabled ? Theme.ink : Theme.inkTertiary)
+          Text(meta.desc)
+            .fontSize(11)
+            .fontColor(Theme.inkTertiary)
+            .margin({ top: 2 })
+            .maxLines(2)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Radio({ value: meta.key, group: 'orientationGroup' })
+          .checked(this.orientationMode === meta.key)
+          .enabled(enabled)
+          .hitTestBehavior(HitTestMode.None)
+      }
+      .width('100%')
+      .padding({ top: 6, bottom: 6 })
+      .opacity(enabled ? 1 : 0.55)
+      .onClick((): void => {
+        if (enabled && this.orientationMode !== meta.key) {
+          this.onOrientationChange(meta.key);
+        }
+      })
+
+      if (showDivider) {
+        Divider().color(Theme.line).strokeWidth(0.5)
+      }
+    }
+    .width('100%')
+  }
+
   build() {
     Scroll() {
       Column() {
@@ -291,6 +342,39 @@ export struct SettingsView {
           ForEach(TREE_STYLES, (meta: TreeStyleMeta) => {
             this.StyleRow(meta)
           }, (meta: TreeStyleMeta) => 'st_' + meta.key)
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({
+          title: '显示设置',
+          subtitle: '当前：' + DisplayService.labelOf(this.orientationMode),
+          icon: '🖥️'
+        })
+        Column() {
+          Text('屏幕方向')
+            .fontSize(12)
+            .fontColor(Theme.inkTertiary)
+            .width('100%')
+            .margin({ bottom: 6 })
+          if (this.orientationBySystem) {
+            Text(DisplayService.isPc() ?
+              '当前设备为电脑，窗口方向由系统统一调度，应用侧配置不生效，故以下选项不可设置。' :
+              '当前设备为折叠屏，方向跟随桌面并在折叠态切换时由系统自动更新，故以下选项不可设置。')
+              .fontSize(11)
+              .fontColor(Theme.inkTertiary)
+              .width('100%')
+              .margin({ bottom: 6 })
+              .maxLines(3)
+          }
+          ForEach(ORIENTATION_OPTIONS, (meta: OrientationMeta, index: number) => {
+            this.OrientationRow(meta, !this.orientationBySystem, index < ORIENTATION_OPTIONS.length - 1)
+          }, (meta: OrientationMeta) => 'or_' + meta.key)
         }
         .width('100%')
         .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })

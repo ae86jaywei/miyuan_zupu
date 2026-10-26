@@ -6,6 +6,7 @@ import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyScope } from '../model/Scope';
 import { AccountService } from '../service/AccountService';
 import { CloudSyncService } from '../service/CloudSyncService';
+import { DisplayService } from '../service/DisplayService';
 import { Theme } from '../theme/Theme';
 import { resourceManager } from '@kit.LocalizationKit';
 
@@ -13,13 +14,15 @@ const TAG: string = '[Genealogy][EntryAbility]';
 
 /**
  * 应用入口。
- * 负责：数据库初始化、沉浸式窗口、全局字体缩放兼容、设备形态记录。
+ * 负责：数据库初始化、沉浸式窗口、屏幕方向偏好、全局字体缩放兼容、设备形态记录。
  */
 export default class EntryAbility extends UIAbility {
   /** 主窗口引用，用于跟随深浅色刷新系统栏配色 */
   private mainWindow?: window.Window;
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
+    // 屏幕方向偏好：读取用户设置并广播到 AppStorage（电脑/折叠屏固定跟随系统）
+    DisplayService.getInstance().init(this.context);
     // 跟随系统深浅色（应用已适配深色主题，见 theme/Theme.ets）
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);
@@ -144,6 +147,11 @@ export default class EntryAbility extends UIAbility {
         }
         const dark: boolean = AppStorage.get<boolean>('darkMode') ?? false;
         this.applySystemBarStyle(dark);
+        // 主窗口就绪后下发屏幕方向：手机/平板按用户设置生效，
+        // 折叠屏跟随桌面，电脑由系统统一调度（服务内部自动判断）
+        const displaySvc: DisplayService = DisplayService.getInstance();
+        displaySvc.setMainWindow(mainWindow);
+        displaySvc.apply();
       })
       .catch((err: BusinessError): void => {
         hilog.warn(0x0000, TAG, 'getMainWindow failed %{public}d', err.code);
