@@ -6,6 +6,7 @@ import { Breakpoint } from '../common/Constants';
 import { Theme, Spacing } from '../theme/Theme';
 import { Layout } from '../common/Layout';
 import { GenealogyService } from '../service/GenealogyService';
+import { Genealogy } from '../model/Genealogy';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { PersonNode } from '../model/PersonNode';
@@ -55,6 +56,10 @@ struct Index {
   @StorageProp('windowHeight') windowHeight: number = 780;
   @StorageProp('gpVersion') version: number = 0;
   @StorageProp('gpReady') ready: boolean = false;
+  @StorageProp('gpHasBook') hasBook: boolean = true;
+  @StorageProp('gpBookId') bookId: number = 0;
+  @StorageProp('gpBookTitle') bookTitle: string = '';
+  @StorageProp('gpBookCount') bookCount: number = 0;
   @StorageProp('gpStyle') styleName: string = 'eu';
   @StorageProp('gpTab') currentTab: number = 1;
   @StorageProp('gpSelection') selectedUid: string = '';
@@ -64,6 +69,8 @@ struct Index {
   @StorageProp('gpLogin') loggedIn: boolean = false;
   @StorageProp('gpPendingShare') @Watch('onPendingShare') pendingShare: boolean = false;
   @State showDetailSheet: boolean = false;
+  /** 多族谱切换面板 */
+  @State showBookPicker: boolean = false;
   /** 本地就绪标记（AppStorage 订阅作为兜底） */
   @State localReady: boolean = false;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
@@ -164,6 +171,9 @@ struct Index {
     if (AppStorage.get<boolean>('gpReady') === undefined) {
       AppStorage.setOrCreate<boolean>('gpReady', false);
     }
+    if (AppStorage.get<boolean>('gpHasBook') === undefined) {
+      AppStorage.setOrCreate<boolean>('gpHasBook', true);
+    }
   }
 
   private async initData(): Promise<void> {
@@ -248,6 +258,10 @@ struct Index {
         .backgroundColor(Theme.primary)
         .borderRadius(20)
         .onClick((): void => {
+          if (!this.hasBook) {
+            this.createGenealogy();
+            return;
+          }
           RouterUtil.editPerson(this.getUIContext(), '', 'create', '');
         })
 
@@ -343,6 +357,44 @@ struct Index {
   @Builder
   TreeToolbar() {
     Column() {
+      // 多族谱切换入口：显示当前族谱，点击可切换或新建
+      Row() {
+        Text('谱')
+          .fontSize(10)
+          .fontColor('#FFFFFF')
+          .width(18)
+          .height(18)
+          .textAlign(TextAlign.Center)
+          .backgroundColor(Theme.primary)
+          .borderRadius(4)
+        Text(this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱')
+          .fontSize(13)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Theme.ink)
+          .margin({ left: 6 })
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+        Text(this.bookCount > 1 ? '共 ' + this.bookCount.toString() + ' 部' : '')
+          .fontSize(10)
+          .fontColor(Theme.inkTertiary)
+          .margin({ left: 6 })
+        Text('切换 ⌄')
+          .fontSize(11)
+          .fontColor(Theme.primary)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .borderRadius(10)
+          .backgroundColor(Theme.highlightBg)
+      }
+      .width('100%')
+      .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+      .backgroundColor(Theme.field)
+      .borderRadius(10)
+      .margin({ bottom: 6 })
+      .onClick((): void => {
+        this.openBookPicker();
+      })
+
       Row() {
         StyleSwitcher({
           current: this.styleName,
@@ -373,6 +425,10 @@ struct Index {
           .borderRadius(12)
           .border({ width: 1, color: Theme.primary })
           .onClick((): void => {
+            if (!this.hasBook) {
+              this.createGenealogy();
+              return;
+            }
             RouterUtil.editPerson(this.getUIContext(), '', 'create', '');
           })
       }
@@ -449,9 +505,239 @@ struct Index {
     })
   }
 
+  /** 新增一部空族谱，并引导用户完善族谱信息 */
+  private async createGenealogy(): Promise<void> {
+    try {
+      await GenealogyService.getInstance().createGenealogy('');
+      GenealogyStore.notifyChanged();
+      // 创建后直接进入族谱信息编辑态
+      AppStorage.setOrCreate<boolean>(GenealogyStore.KEY_EDITING_BOOK, true);
+      AppStorage.setOrCreate<number>('gpTab', 4);
+      this.getUIContext().getPromptAction().showToast({ message: '已创建族谱，请填写族谱信息' });
+    } catch (e) {
+      const err = e as BusinessError;
+      this.getUIContext().getPromptAction().showToast({ message: '创建族谱失败：' + err.message });
+    }
+  }
+
+  /** 打开族谱切换面板；无族谱时直接进入新建流程 */
+  private openBookPicker(): void {
+    if (!this.hasBook) {
+      this.createGenealogy();
+      return;
+    }
+    this.showBookPicker = true;
+  }
+
+  /** 切换当前族谱，概览/名录/统计会跟随刷新 */
+  private async switchBook(bookKey: number): Promise<void> {
+    this.showBookPicker = false;
+    if (bookKey === this.bookId) {
+      return;
+    }
+    try {
+      await GenealogyService.getInstance().switchGenealogy(bookKey);
+      GenealogyStore.notifyChanged();
+      AppStorage.setOrCreate<string>('gpSelection', '');
+      this.showDetailSheet = false;
+      this.getUIContext().getPromptAction().showToast({
+        message: '已切换到《' + GenealogyService.getInstance().getBook().title + '》'
+      });
+    } catch (e) {
+      const err = e as BusinessError;
+      this.getUIContext().getPromptAction().showToast({ message: '切换族谱失败：' + err.message });
+    }
+  }
+
+  private noBookDesc(): string {
+    if (this.currentTab === 2) {
+      return '族谱尚未创建。请先到「谱系」新增族谱并录入族人，名录会自动汇总世系信息。';
+    }
+    if (this.currentTab === 3) {
+      return '族谱尚未创建。请先到「谱系」新增族谱，统计会展示人口结构、世代繁衍与资料完整度。';
+    }
+    return '族谱尚未创建。请先到「谱系」新增族谱，即可在此查看族谱封面、人口与世代概览。';
+  }
+
+  /** 谱系页空状态：大号 + 号新增族谱入口 */
+  @Builder
+  EmptyTreePane() {
+    Column() {
+      Column() {
+        Text('＋')
+          .fontSize(40)
+          .fontColor('#FFFFFF')
+          .width(76)
+          .height(76)
+          .textAlign(TextAlign.Center)
+          .backgroundColor(Theme.primary)
+          .borderRadius(38)
+          .shadow({ radius: 12, color: Theme.shadowDeep, offsetY: 4 })
+          .onClick((): void => {
+            this.createGenealogy();
+          })
+        Text('新增族谱')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Theme.ink)
+          .margin({ top: Spacing.L })
+          .onClick((): void => {
+            this.createGenealogy();
+          })
+        Text('当前没有族谱，点击上方 + 号新建一部族谱')
+          .fontSize(12)
+          .fontColor(Theme.inkTertiary)
+          .margin({ top: 6 })
+          .textAlign(TextAlign.Center)
+      }
+      .width('100%')
+      .padding(Spacing.XXL)
+      .backgroundColor(Theme.card)
+      .borderRadius(16)
+      .border({ width: 0.5, color: Theme.line })
+      .margin({ top: Spacing.XL, left: Spacing.M, right: Spacing.M })
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  /** 概览 / 名录 / 统计 无族谱时的引导 */
+  @Builder
+  NoBookGuide() {
+    Column() {
+      Text('📜').fontSize(46).opacity(0.65)
+      Text('尚未创建族谱')
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(Theme.ink)
+        .margin({ top: Spacing.L })
+      Text(this.noBookDesc())
+        .fontSize(12.5)
+        .fontColor(Theme.inkTertiary)
+        .margin({ top: 8 })
+        .textAlign(TextAlign.Center)
+        .padding({ left: Spacing.XL, right: Spacing.XL })
+      Button('前往「谱系」新增族谱')
+        .fontSize(14)
+        .height(38)
+        .backgroundColor(Theme.primary)
+        .fontColor('#FFFFFF')
+        .margin({ top: Spacing.XL })
+        .onClick((): void => {
+          AppStorage.setOrCreate<number>('gpTab', 1);
+        })
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
+    .padding(Spacing.XXL)
+  }
+
+  /** 族谱切换面板：列出全部族谱，支持切换与新建 */
+  @Builder
+  BookPickerSheet() {
+    Stack({ alignContent: Alignment.Bottom }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor('#66000000')
+        .onClick((): void => {
+          this.showBookPicker = false;
+        })
+
+      Column() {
+        Row() {
+          Text('切换族谱')
+            .fontSize(16)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(Theme.ink)
+          Blank()
+          Text('＋ 新建族谱')
+            .fontSize(12)
+            .fontColor(Theme.primary)
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            .borderRadius(10)
+            .backgroundColor(Theme.highlightBg)
+            .onClick((): void => {
+              this.showBookPicker = false;
+              this.createGenealogy();
+            })
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.M })
+
+        Scroll() {
+          Column() {
+            ForEach(GenealogyService.getInstance().getBooks(), (book: Genealogy) => {
+              Row() {
+                Column() {
+                  Text(book.title.length > 0 ? book.title : '未命名族谱')
+                    .fontSize(14)
+                    .fontWeight(book.key === this.bookId ? FontWeight.Medium : FontWeight.Normal)
+                    .fontColor(Theme.ink)
+                    .maxLines(1)
+                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  Text(book.hallName.length > 0 ? book.hallName : '未填写堂号')
+                    .fontSize(11)
+                    .fontColor(Theme.inkTertiary)
+                    .margin({ top: 2 })
+                    .maxLines(1)
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+
+                if (book.key === this.bookId) {
+                  Text('当前')
+                    .fontSize(11)
+                    .fontColor(Theme.primary)
+                    .padding({ left: 8, right: 8, top: 3, bottom: 3 })
+                    .borderRadius(9)
+                    .backgroundColor(Theme.highlightBg)
+                }
+              }
+              .width('100%')
+              .padding({ left: Spacing.L, right: Spacing.L, top: 12, bottom: 12 })
+              .backgroundColor(book.key === this.bookId ? Theme.field : Color.Transparent)
+              .onClick((): void => {
+                this.switchBook(book.key);
+              })
+            }, (book: Genealogy) => 'book_' + book.key.toString())
+          }
+          .width('100%')
+        }
+        .constraintSize({ maxHeight: 380 })
+        .scrollBar(BarState.Off)
+
+        Button('关闭')
+          .fontSize(14)
+          .height(38)
+          .width('100%')
+          .backgroundColor(Theme.field)
+          .fontColor(Theme.inkSecondary)
+          .margin({ top: Spacing.M, bottom: Spacing.XL })
+          .onClick((): void => {
+            this.showBookPicker = false;
+          })
+      }
+      .width('100%')
+      .constraintSize({ maxWidth: 520 })
+      .padding({ left: Spacing.L, right: Spacing.L })
+      .backgroundColor(Theme.card)
+      .borderRadius({ topLeft: 20, topRight: 20 })
+    }
+    .width('100%')
+    .height('100%')
+  }
+
   @Builder
   ContentArea() {
-    if (this.currentTab === 0) {
+    if (!this.hasBook && this.currentTab !== 4) {
+      if (this.currentTab === 1) {
+        this.EmptyTreePane()
+      } else {
+        this.NoBookGuide()
+      }
+    } else if (this.currentTab === 0) {
       HomeView({
         version: this.version,
         windowWidth: this.windowWidth,
@@ -534,15 +820,17 @@ struct Index {
       Column() {
         // 顶部品牌栏（大屏显示完整标题，小屏显示精简标题）
         Row() {
-          Text(GenealogyService.getInstance().getBook().title)
+          Text(this.hasBook ? (this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱') : '尚未创建族谱')
             .fontSize(17)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
-          Text('· ' + GenealogyService.getInstance().getBook().hallName)
-            .fontSize(12)
-            .fontColor(Theme.gold)
-            .margin({ left: 6 })
-            .maxLines(1)
+          if (this.hasBook && GenealogyService.getInstance().getBook().hallName.length > 0) {
+            Text('· ' + GenealogyService.getInstance().getBook().hallName)
+              .fontSize(12)
+              .fontColor(Theme.gold)
+              .margin({ left: 6 })
+              .maxLines(1)
+          }
           Blank()
           Text(this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')
             .fontSize(11)
@@ -615,6 +903,10 @@ struct Index {
 
       if (!this.showSidebar()) {
         this.FloatingBottomBar()
+      }
+
+      if (this.showBookPicker) {
+        this.BookPickerSheet()
       }
     }
     .width('100%')

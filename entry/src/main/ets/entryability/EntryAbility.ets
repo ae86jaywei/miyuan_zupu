@@ -64,7 +64,7 @@ export default class EntryAbility extends UIAbility {
   /**
    * 解析分享链接中的 owner / familyId。
    * 预留能力：当前未配置公网域名，分享走「文本 + 邀请码」，链接拉起暂不生效。
-   * 若后续配置 App Linking，链接形如 https://{域名}/family?familyId=xxx&owner=hw-xxx
+   * 若后续配置 App Linking，链接形如 https://{域名}/family?familyId=xxx&owner=hw-xxx&bookKey=1
    */
   private handleShareLink(want: Want): void {
     const uri: string | undefined = want.uri;
@@ -79,6 +79,7 @@ export default class EntryAbility extends UIAbility {
     const pairs: string[] = query.split('&');
     let owner: string = '';
     let familyId: string = '';
+    let bookKey: number = 0;
     for (let i: number = 0; i < pairs.length; i++) {
       const pair: string = pairs[i];
       const eq: number = pair.indexOf('=');
@@ -91,6 +92,9 @@ export default class EntryAbility extends UIAbility {
         owner = value;
       } else if (key === 'familyId') {
         familyId = value;
+      } else if (key === 'bookKey') {
+        const parsed: number = Number.parseInt(value, 10);
+        bookKey = Number.isNaN(parsed) ? 0 : parsed;
       }
     }
     if (owner.length === 0) {
@@ -98,6 +102,7 @@ export default class EntryAbility extends UIAbility {
     }
     AppStorage.setOrCreate<string>('gpSharedOwner', owner);
     AppStorage.setOrCreate<string>('gpSharedFamilyId', familyId);
+    AppStorage.setOrCreate<number>('gpSharedBookKey', bookKey);
     AppStorage.setOrCreate<boolean>('gpPendingShare', true);
     hilog.info(0x0000, TAG, 'share link received, owner=%{public}s', owner);
   }

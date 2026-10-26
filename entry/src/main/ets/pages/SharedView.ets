@@ -22,6 +22,8 @@ struct SharedView {
 
   @State ownerUserId: string = '';
   @State familyId: string = '';
+  /** 云端族谱ID（0 表示旧版邀请码，展示全部） */
+  @State bookKey: number = 0;
   @State loading: boolean = false;
   @State errorText: string = '';
   @State people: Person[] = [];
@@ -43,8 +45,10 @@ struct SharedView {
     Theme.use(this.darkMode);
     const owner: string | undefined = AppStorage.get<string>('gpSharedOwner');
     const family: string | undefined = AppStorage.get<string>('gpSharedFamilyId');
+    const bookKey: number | undefined = AppStorage.get<number>('gpSharedBookKey');
     this.ownerUserId = owner !== undefined ? owner : '';
     this.familyId = family !== undefined ? family : '';
+    this.bookKey = bookKey !== undefined ? bookKey : 0;
     if (this.ownerUserId.length === 0) {
       this.needCode = true;
       return;
@@ -61,8 +65,10 @@ struct SharedView {
     }
     this.ownerUserId = info.ownerUserId;
     this.familyId = info.familyId;
+    this.bookKey = info.bookKey;
     AppStorage.setOrCreate<string>('gpSharedOwner', info.ownerUserId);
     AppStorage.setOrCreate<string>('gpSharedFamilyId', info.familyId);
+    AppStorage.setOrCreate<number>('gpSharedBookKey', info.bookKey);
     this.needCode = false;
     this.errorText = '';
     this.loadShared();
@@ -87,7 +93,7 @@ struct SharedView {
     this.loading = true;
     this.errorText = '';
     try {
-      this.people = await CloudSyncService.getInstance().loadSharedMembers(this.ownerUserId);
+      this.people = await CloudSyncService.getInstance().loadSharedMembers(this.ownerUserId, this.bookKey);
       if (this.people.length === 0) {
         this.errorText = '该族谱暂无公开的成员数据';
       }
@@ -173,7 +179,7 @@ struct SharedView {
             .fontWeight(FontWeight.Medium)
             .fontColor(Theme.ink)
             .margin({ top: Spacing.M })
-          Text('邀请码由族谱所有者分享，格式为「族谱ID.账号标识」')
+          Text('邀请码由族谱所有者分享，格式为「族谱ID.账号标识.族谱序号」')
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .textAlign(TextAlign.Center)

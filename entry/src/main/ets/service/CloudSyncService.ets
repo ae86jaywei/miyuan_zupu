@@ -8,21 +8,26 @@ import { preferences } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Person } from '../model/Person';
 import { Genealogy } from '../model/Genealogy';
-import { GenealogyService } from './GenealogyService';
+import { BookGroup, GenealogyService } from './GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { AccountService } from './AccountService';
 import {
   BackupResult,
   CloudFamilyMedia,
   CloudFamilyMember,
+  CloudMemberPayload,
   CloudUsage,
   RestoreResult,
+  cloudMemberKey,
   cloudMemberToPerson,
-  personToCloudMember
+  personToCloudMember,
+  readCloudMember
 } from '../model/CloudModels';
 
 const TAG: string = '[Genealogy][Cloud]';
 const ZONE_NAME: string = 'miyuanzupu';
+/** 多族谱元信息文件（新版）；book.json 为旧版单族谱文件，恢复时兼容 */
+const BOOKS_CLOUD_NAME: string = 'books.json';
 const BOOK_CLOUD_NAME: string = 'book.json';
 const MAX_VIDEO_BYTES: number = 500 * 1024 * 1024;
 const MAX_LIST: number = 1000;
@@ -32,11 +37,22 @@ export type SyncProgress = (message: string, done: number, total: number) => voi
 
 /** 待上传媒体 */
 class MediaJob {
+  /** 云端成员ID（含族谱前缀） */
   memberId: string = '';
+  /** 人物唯一ID（用于生成本地缓存文件名） */
+  uid: string = '';
+  bookKey: number = 0;
   uri: string = '';
   kind: string = 'photo';
   index: number = 0;
   isVideo: boolean = false;
+}
+
+/** 备份时按族谱收集的人物 */
+class BookPeople {
+  bookKey: number = 0;
+  bookTitle: string = '';
+  people: Person[] = [];
 }
 
 /** 已准备好的本地缓存文件 */
@@ -153,13 +169,30 @@ export class CloudSyncService {
       throw new Error('请先登录华为账号');
     }
     const zone: cloudDatabase.DatabaseZone = this.ensureZone();
-    const people: Person[] = GenealogyService.getInstance().getPeopleCopy();
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const books: Genealogy[] = svc.getBooks();
+    if (books.length === 0) {
+      throw new Error('当前没有族谱可备份，请先创建族谱');
+    }
     const result: BackupResult = new BackupResult();
 
-    // 1. 成员结构化数据
+    // 0. 按族谱读取全部人物（不受当前打开族谱影响），确保多族谱完整备份
+    const groups: BookPeople[] = [];
+    for (let b: number = 0; b < books.length; b++) {
+      const group: BookPeople = new BookPeople();
+      group.bookKey = books[b].key;
+      group.bookTitle = books[b].title;
+      group.people = await svc.getPeopleOf(books[b].key);
+      groups.push(group);
+    }
+
+    // 1. 成员结构化数据（带族谱前缀，恢复时可准确归位）
     const docs: CloudFamilyMember[] = [];
-    for (let i: number = 0; i < people.length; i++) {
-      docs.push(personToCloudMember(people[i], userId));
+    for (let g: number = 0; g < groups.length; g++) {
+      const group: BookPeople = groups[g];
+      for (let i: number = 0; i < group.people.length; i++) {
+        docs.push(personToCloudMember(group.people[i], userId, group.bookKey, group.bookTitle));
+      }
     }
     const batchSize: number = 20;
     for (let start: number = 0; start < docs.length; start += batchSize) {
@@ -180,7 +213,10 @@ export class CloudSyncService {
       existingNames.add(memberId + '|' + fileName);
     }
 
-    const jobs: MediaJob[] = this.collectMediaJobs(people);
+    const jobs: MediaJob[] = [];
+    for (let g: number = 0; g < groups.length; g++) {
+      this.collectMediaJobs(groups[g].people, groups[g].bookKey, jobs);
+    }
     progress('正在上传照片与视频', 0, jobs.length);
     for (let i: number = 0; i < jobs.length; i++) {
       const job: MediaJob = jobs[i];
@@ -210,7 +246,10 @@ export class CloudSyncService {
         progress('正在上传照片与视频', i + 1, jobs.length);
         continue;
       }
-      const cloudPath: string = userId + '/' + job.memberId + '/' + prepared.relName;
+      const pathId: string = job.bookKey > 0
+        ? 'b' + job.bookKey.toString() + '_' + job.uid
+        : job.uid;
+      const cloudPath: string = userId + '/' + pathId + '/' + prepared.relName;
       try {
         await this.uploadCacheFile(prepared.relName, cloudPath);
         const record: CloudFamilyMedia = new CloudFamilyMedia();
@@ -237,26 +276,28 @@ export class CloudSyncService {
       progress('正在上传照片与视频', i + 1, jobs.length);
     }
 
-    // 3. 族谱元信息（谱名、字派、谱序等）
+    // 3. 族谱元信息（全部族谱：谱名、字派、谱序等）
     progress('正在上传族谱信息', docs.length, docs.length + 1);
-    await this.backupBook(userId);
+    await this.backupBooks(userId);
     this.saveUriMap();
     progress('备份完成', docs.length + 1, docs.length + 1);
     return result;
   }
 
-  private collectMediaJobs(people: Person[]): MediaJob[] {
-    const jobs: MediaJob[] = [];
+  private collectMediaJobs(people: Person[], bookKey: number, jobs: MediaJob[]): void {
     const seen: Set<string> = new Set<string>();
     for (let i: number = 0; i < people.length; i++) {
       const person: Person = people[i];
+      const memberId: string = cloudMemberKey(bookKey, person.uid);
       const avatar: string = person.avatar !== undefined ? person.avatar : '';
       if (avatar.length > 0 && !avatar.startsWith('cloud://')) {
-        const key: string = person.uid + '|' + avatar;
+        const key: string = memberId + '|' + avatar;
         if (!seen.has(key)) {
           seen.add(key);
           const job: MediaJob = new MediaJob();
-          job.memberId = person.uid;
+          job.memberId = memberId;
+          job.uid = person.uid;
+          job.bookKey = bookKey;
           job.uri = avatar;
           job.kind = 'avatar';
           job.index = 0;
@@ -270,13 +311,15 @@ export class CloudSyncService {
         if (uri.length === 0 || uri.startsWith('cloud://')) {
           continue;
         }
-        const key: string = person.uid + '|' + uri;
+        const key: string = memberId + '|' + uri;
         if (seen.has(key)) {
           continue;
         }
         seen.add(key);
         const job: MediaJob = new MediaJob();
-        job.memberId = person.uid;
+        job.memberId = memberId;
+        job.uid = person.uid;
+        job.bookKey = bookKey;
         job.uri = uri;
         job.kind = 'photo';
         job.index = p;
@@ -289,13 +332,15 @@ export class CloudSyncService {
         if (uri.length === 0 || uri.startsWith('cloud://')) {
           continue;
         }
-        const key: string = person.uid + '|' + uri;
+        const key: string = memberId + '|' + uri;
         if (seen.has(key)) {
           continue;
         }
         seen.add(key);
         const job: MediaJob = new MediaJob();
-        job.memberId = person.uid;
+        job.memberId = memberId;
+        job.uid = person.uid;
+        job.bookKey = bookKey;
         job.uri = uri;
         job.kind = 'video';
         job.index = v;
@@ -303,7 +348,6 @@ export class CloudSyncService {
         jobs.push(job);
       }
     }
-    return jobs;
   }
 
   private splitUris(value: string): string[] {
@@ -366,7 +410,11 @@ export class CloudSyncService {
     const ext: string = this.extensionOf(job.uri);
     const stamp: number = Date.now();
     const prefix: string = job.kind === 'avatar' ? 'avatar' : 'media';
-    const base: string = job.memberId + '_' + prefix + '_' + job.index + '_' + stamp;
+    // 缓存文件名中不能使用 #（云端成员ID分隔符），改用族谱前缀区隔
+    const fileId: string = job.bookKey > 0
+      ? 'b' + job.bookKey.toString() + '_' + job.uid
+      : job.uid;
+    const base: string = fileId + '_' + prefix + '_' + job.index + '_' + stamp;
     if (!job.isVideo) {
       const jpegName: string = base + '.jpg';
       const jpegPath: string = cacheDir + '/' + jpegName;
@@ -562,36 +610,36 @@ export class CloudSyncService {
     });
   }
 
-  /** 备份族谱元信息为 JSON 文件 */
-  private async backupBook(userId: string): Promise<void> {
+  /** 备份全部族谱元信息为 JSON 文件（多族谱） */
+  private async backupBooks(userId: string): Promise<void> {
     const context: common.UIAbilityContext | null = AccountService.getInstance().getContext();
     if (context === null) {
       return;
     }
-    const book: Genealogy = GenealogyService.getInstance().getBook();
-    const relName: string = 'zupu_book.json';
+    const books: Genealogy[] = GenealogyService.getInstance().getBooks();
+    const relName: string = 'zupu_books.json';
     const path: string = context.cacheDir + '/' + relName;
     try {
       const file: fileIo.File = fileIo.openSync(path,
         fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(file.fd, JSON.stringify(book));
+      fileIo.writeSync(file.fd, JSON.stringify(books));
       fileIo.closeSync(file);
-      await this.uploadCacheFile(relName, userId + '/' + BOOK_CLOUD_NAME);
+      await this.uploadCacheFile(relName, userId + '/' + BOOKS_CLOUD_NAME);
     } catch (err) {
       const be: BusinessError = err as BusinessError;
-      hilog.warn(0x0000, TAG, 'backup book failed: %{public}s', be.message);
+      hilog.warn(0x0000, TAG, 'backup books failed: %{public}s', be.message);
     } finally {
       try {
         fileIo.unlinkSync(path);
       } catch (err) {
-        hilog.warn(0x0000, TAG, 'remove book cache failed');
+        hilog.warn(0x0000, TAG, 'remove books cache failed');
       }
     }
   }
 
   // ============================ 换机恢复 ============================
 
-  /** 从云端恢复族谱：结构数据全量恢复，图片按需下载，视频仅恢复引用 */
+  /** 从云端恢复族谱：按族谱分组全量恢复，图片按需下载，视频仅恢复引用 */
   async restoreAll(progress: SyncProgress): Promise<RestoreResult> {
     this.ensureReady();
     const userId: string = AccountService.getInstance().getUserId();
@@ -606,6 +654,77 @@ export class CloudSyncService {
       throw new Error('云端暂无该账号的族谱数据');
     }
     const mediaList: CloudFamilyMedia[] = await this.queryAllMedia(userId);
+
+    // 解析成员所属族谱，避免多族谱恢复时混成一部
+    const payloads: CloudMemberPayload[] = [];
+    const persons: Person[] = [];
+    for (let i: number = 0; i < members.length; i++) {
+      payloads.push(readCloudMember(members[i]));
+      persons.push(cloudMemberToPerson(members[i]));
+    }
+
+    // 读取族谱元信息（新版 books.json；旧版只有 book.json）
+    const books: Genealogy[] = await this.downloadBooks(userId);
+    if (books.length === 0) {
+      const legacy: Genealogy | null = await this.downloadLegacyBook(userId);
+      if (legacy !== null) {
+        books.push(legacy);
+      }
+    }
+
+    // 按云端族谱ID分组；旧版数据（无前缀）归入唯一族谱
+    const groups: BookGroup[] = [];
+    const groupIndex: Map<number, number> = new Map<number, number>();
+    for (let b: number = 0; b < books.length; b++) {
+      const group: BookGroup = new BookGroup();
+      group.book = books[b];
+      groupIndex.set(books[b].key, groups.length);
+      groups.push(group);
+    }
+    const effectiveKeys: number[] = [];
+    for (let i: number = 0; i < members.length; i++) {
+      const payload: CloudMemberPayload = payloads[i];
+      let bookKey: number = payload.bookKey !== undefined ? payload.bookKey : 0;
+      if (bookKey <= 0 && books.length === 1) {
+        bookKey = books[0].key;
+      }
+      effectiveKeys.push(bookKey);
+    }
+    // 先归位新版记录（带族谱前缀），再补充旧版记录；
+    // 同一族谱内按唯一ID去重，避免新旧备份同时存在时恢复出重复人物
+    const seenByBook: Map<number, Set<string>> = new Map<number, Set<string>>();
+    for (let pass: number = 0; pass < 2; pass++) {
+      for (let i: number = 0; i < members.length; i++) {
+        const payload: CloudMemberPayload = payloads[i];
+        const rawKey: number = payload.bookKey !== undefined ? payload.bookKey : 0;
+        const isLegacy: boolean = rawKey <= 0;
+        if ((pass === 0 && isLegacy) || (pass === 1 && !isLegacy)) {
+          continue;
+        }
+        const bookKey: number = effectiveKeys[i];
+        let idx: number | undefined = groupIndex.get(bookKey);
+        if (idx === undefined) {
+          // 云端缺少元信息的族谱：补建一部，避免人物丢失
+          const group: BookGroup = new BookGroup();
+          const rawTitle: string | undefined = payload.bookTitle;
+          group.book.title = rawTitle !== undefined && rawTitle.length > 0 ? rawTitle : '我的族谱';
+          idx = groups.length;
+          groups.push(group);
+          groupIndex.set(bookKey, idx);
+        }
+        let seen: Set<string> | undefined = seenByBook.get(bookKey);
+        if (seen === undefined) {
+          seen = new Set<string>();
+          seenByBook.set(bookKey, seen);
+        }
+        const uid: string = persons[i].uid.trim().toUpperCase();
+        if (seen.has(uid)) {
+          continue;
+        }
+        seen.add(uid);
+        groups[idx].people.push(persons[i]);
+      }
+    }
 
     const mediaByMember: Map<string, CloudFamilyMedia[]> = new Map<string, CloudFamilyMedia[]>();
     for (let i: number = 0; i < mediaList.length; i++) {
@@ -646,10 +765,14 @@ export class CloudSyncService {
       progress('正在恢复照片', done, totalSteps);
     }
 
-    const persons: Person[] = [];
-    for (let i: number = 0; i < members.length; i++) {
-      const person: Person = cloudMemberToPerson(members[i]);
-      const items: CloudFamilyMedia[] | undefined = mediaByMember.get(person.uid);
+    for (let i: number = 0; i < persons.length; i++) {
+      const person: Person = persons[i];
+      let items: CloudFamilyMedia[] | undefined =
+        mediaByMember.get(cloudMemberKey(effectiveKeys[i], person.uid));
+      if (items === undefined) {
+        // 兼容旧版：媒体记录的 memberId 即人物唯一ID
+        items = mediaByMember.get(person.uid);
+      }
       if (items !== undefined) {
         let avatar: string = '';
         const photos: string[] = [];
@@ -664,7 +787,7 @@ export class CloudSyncService {
           }
           const local: string | undefined = imageLocal.get(cloudPath);
           const storagePath: string = local !== undefined ? local : 'cloud://' + cloudPath;
-          if (fileName.startsWith(person.uid + '_avatar_')) {
+          if (this.isAvatarFile(fileName, person.uid)) {
             avatar = storagePath;
           } else {
             photos.push(storagePath);
@@ -677,35 +800,66 @@ export class CloudSyncService {
           person.photos = photos.join(';');
         }
       }
-      persons.push(person);
       done++;
       progress('正在恢复族谱成员', done, totalSteps);
     }
 
-    await GenealogyService.getInstance().replaceAll(persons);
+    const restored: number = await GenealogyService.getInstance().restoreFromCloud(groups);
     GenealogyStore.notifyChanged();
-    result.memberCount = persons.length;
-
-    await this.restoreBook(userId);
+    result.memberCount = restored;
     progress('恢复完成', totalSteps, totalSteps);
     return result;
   }
 
-  private async restoreBook(userId: string): Promise<void> {
+  /** 判断媒体文件是否为某人的头像（兼容新旧命名） */
+  private isAvatarFile(fileName: string, uid: string): boolean {
+    if (fileName.startsWith(uid + '_avatar_')) {
+      return true;
+    }
+    return fileName.indexOf('_avatar_') >= 0;
+  }
+
+  /** 下载云端全部族谱元信息 */
+  private async downloadBooks(userId: string): Promise<Genealogy[]> {
+    const content: string = await this.downloadTextOrEmpty(
+      userId + '/' + BOOKS_CLOUD_NAME, 'zupu_books_restore.json');
+    if (content.length === 0) {
+      return [];
+    }
     try {
-      const localPath: string = await this.downloadCacheFile(userId + '/' + BOOK_CLOUD_NAME, 'zupu_book_restore.json');
+      return JSON.parse(content) as Genealogy[];
+    } catch (err) {
+      return [];
+    }
+  }
+
+  /** 下载旧版单族谱元信息（兼容历史备份） */
+  private async downloadLegacyBook(userId: string): Promise<Genealogy | null> {
+    const content: string = await this.downloadTextOrEmpty(
+      userId + '/' + BOOK_CLOUD_NAME, 'zupu_book_restore.json');
+    if (content.length === 0) {
+      return null;
+    }
+    try {
+      return JSON.parse(content) as Genealogy;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  /** 下载文本文件，失败或不存在时返回空字符串 */
+  private async downloadTextOrEmpty(cloudPath: string, relName: string): Promise<string> {
+    try {
+      const localPath: string = await this.downloadCacheFile(cloudPath, relName);
       const content: string = this.readTextFile(localPath);
-      if (content.length > 0) {
-        const book: Genealogy = JSON.parse(content) as Genealogy;
-        await GenealogyService.getInstance().saveBook(book);
-      }
       try {
         fileIo.unlinkSync(localPath);
       } catch (err) {
-        hilog.warn(0x0000, TAG, 'remove restored book failed');
+        hilog.warn(0x0000, TAG, 'remove restored text failed');
       }
+      return content;
     } catch (err) {
-      hilog.warn(0x0000, TAG, 'restore book skipped: %{public}s', JSON.stringify(err));
+      return '';
     }
   }
 
@@ -775,13 +929,43 @@ export class CloudSyncService {
     return usage;
   }
 
-  /** 只读预览他人分享的族谱（接收方需已登录） */
-  async loadSharedMembers(ownerUserId: string): Promise<Person[]> {
+  /** 统计指定族谱在云端已备份的成员数（分享前检测是否已备份） */
+  async countBookMembers(ownerUserId: string, bookKey: number): Promise<number> {
+    this.ensureReady();
+    const members: CloudFamilyMember[] = await this.queryAllMembers(ownerUserId);
+    let count: number = 0;
+    for (let i: number = 0; i < members.length; i++) {
+      const payload: CloudMemberPayload = readCloudMember(members[i]);
+      const payloadKey: number = payload.bookKey !== undefined ? payload.bookKey : 0;
+      if (payloadKey === bookKey && payload.person !== undefined && payload.person !== null) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
+   * 读取他人分享的族谱（只读）。
+   * bookKey > 0 时只返回该族谱的成员，避免把分享者的其它族谱一并展示；
+   * bookKey = 0 兼容旧版邀请码，返回全部成员。
+   */
+  async loadSharedMembers(ownerUserId: string, bookKey: number = 0): Promise<Person[]> {
     this.ensureReady();
     const members: CloudFamilyMember[] = await this.queryAllMembers(ownerUserId);
     const persons: Person[] = [];
+    const seen: Set<string> = new Set<string>();
     for (let i: number = 0; i < members.length; i++) {
-      persons.push(cloudMemberToPerson(members[i]));
+      const payload: CloudMemberPayload = readCloudMember(members[i]);
+      const payloadKey: number = payload.bookKey !== undefined ? payload.bookKey : 0;
+      if (bookKey > 0 && payloadKey !== bookKey) {
+        continue;
+      }
+      const person: Person = cloudMemberToPerson(members[i]);
+      if (person.uid.length === 0 || seen.has(person.uid)) {
+        continue;
+      }
+      seen.add(person.uid);
+      persons.push(person);
     }
     return persons;
   }
@@ -808,6 +992,11 @@ export class CloudSyncService {
     await this.deleteInBatches(media);
     const members: CloudFamilyMember[] = await this.queryAllMembers(userId);
     await this.deleteInBatches(members);
+    try {
+      await bucket.deleteFile(userId + '/' + BOOKS_CLOUD_NAME);
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'delete books file skipped');
+    }
     try {
       await bucket.deleteFile(userId + '/' + BOOK_CLOUD_NAME);
     } catch (err) {

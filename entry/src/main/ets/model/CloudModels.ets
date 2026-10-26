@@ -69,28 +69,86 @@ export class RestoreResult {
   warnings: string[] = [];
 }
 
-/** 把本地人物转换为云数据库记录 */
-export function personToCloudMember(person: Person, userId: string): CloudFamilyMember {
+/**
+ * 云端成员 payload 包装。
+ * 多族谱下需要记录人物所属族谱，避免恢复时全部混入同一部族谱。
+ * 旧版本 payload 直接是 Person 的 JSON，解析时做兼容。
+ */
+export class CloudMemberPayload {
+  bookKey?: number;
+  bookTitle?: string;
+  person?: Person | null;
+}
+
+/** 生成带族谱前缀的云端成员ID（旧版无前缀，保持兼容） */
+export function cloudMemberKey(bookKey: number, uid: string): string {
+  return bookKey > 0 ? 'b' + bookKey.toString() + '#' + uid : uid;
+}
+
+/** 从云端成员ID中解析族谱ID（无前缀视为 0） */
+export function parseBookKeyFromMemberId(memberId: string): number {
+  if (memberId.length > 2 && memberId.charAt(0) === 'b') {
+    const idx: number = memberId.indexOf('#');
+    if (idx > 1) {
+      const num: number = Number.parseInt(memberId.substring(1, idx), 10);
+      if (num > 0) {
+        return num;
+      }
+    }
+  }
+  return 0;
+}
+
+/** 提取云端成员ID中的唯一ID（去掉族谱前缀） */
+export function memberUid(memberId: string): string {
+  const idx: number = memberId.indexOf('#');
+  return idx >= 0 ? memberId.substring(idx + 1) : memberId;
+}
+
+/** 把本地人物转换为云数据库记录（带族谱信息） */
+export function personToCloudMember(person: Person, userId: string, bookKey: number = 0,
+  bookTitle: string = ''): CloudFamilyMember {
   const doc: CloudFamilyMember = new CloudFamilyMember();
-  doc.memberId = person.uid;
+  doc.memberId = cloudMemberKey(bookKey, person.uid);
   doc.userId = userId;
   doc.name = person.name;
   doc.generation = person.generation;
   doc.parentId = person.fatherId;
   doc.updatedAt = person.updatedAt > 0 ? person.updatedAt : Date.now();
   doc.deleted = false;
-  doc.payload = JSON.stringify(person);
+  const wrapper: CloudMemberPayload = new CloudMemberPayload();
+  wrapper.bookKey = bookKey;
+  wrapper.bookTitle = bookTitle;
+  wrapper.person = person;
+  doc.payload = JSON.stringify(wrapper);
   return doc;
 }
 
-function parsePersonPayload(json: string | undefined): Person | null {
-  if (json === undefined || json.length === 0) {
-    return null;
+/** 读取云端成员记录（兼容旧版 payload 直接存 Person 的情况） */
+export function readCloudMember(doc: CloudFamilyMember): CloudMemberPayload {
+  const out: CloudMemberPayload = new CloudMemberPayload();
+  const rawId: string = doc.memberId !== undefined ? doc.memberId : '';
+  out.bookKey = parseBookKeyFromMemberId(rawId);
+  out.bookTitle = '';
+  out.person = null;
+  const json: string = doc.payload !== undefined ? doc.payload : '';
+  if (json.length === 0) {
+    return out;
   }
   try {
-    return JSON.parse(json) as Person;
+    const parsed: CloudMemberPayload = JSON.parse(json) as CloudMemberPayload;
+    if (parsed.person !== undefined && parsed.person !== null) {
+      out.person = parsed.person;
+      out.bookKey = parsed.bookKey !== undefined ? parsed.bookKey : out.bookKey;
+      out.bookTitle = parsed.bookTitle !== undefined ? parsed.bookTitle : '';
+      return out;
+    }
+    // 旧格式：payload 直接是 Person
+    const legacy: Person = JSON.parse(json) as Person;
+    out.person = legacy;
+    return out;
   } catch (err) {
-    return null;
+    return out;
   }
 }
 
@@ -122,13 +180,14 @@ function normalizeSpouses(src: SpouseRelation[] | undefined): SpouseRelation[] {
 /** 把云数据库记录还原为本地人物 */
 export function cloudMemberToPerson(doc: CloudFamilyMember): Person {
   const p: Person = createEmptyPerson();
-  p.uid = asText(doc.memberId, '');
+  p.uid = memberUid(asText(doc.memberId, ''));
   p.name = asText(doc.name, '');
   p.generation = asNumber(doc.generation, 1);
   p.fatherId = asText(doc.parentId, '');
   p.updatedAt = asNumber(doc.updatedAt, Date.now());
 
-  const src: Person | null = parsePersonPayload(doc.payload);
+  const payload: CloudMemberPayload = readCloudMember(doc);
+  const src: Person | null = payload.person !== undefined ? payload.person : null;
   if (src === null) {
     return p;
   }

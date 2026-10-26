@@ -13,6 +13,16 @@ export class GenealogyStore {
   static readonly KEY_READY: string = 'gpReady';
   static readonly KEY_PEOPLE: string = 'gpPeopleCount';
   static readonly KEY_STYLE: string = 'gpStyle';
+  /** 是否已有族谱（删除族谱后为 false） */
+  static readonly KEY_HAS_BOOK: string = 'gpHasBook';
+  /** 当前族谱ID（0 表示无族谱） */
+  static readonly KEY_BOOK_ID: string = 'gpBookId';
+  /** 当前族谱名称 */
+  static readonly KEY_BOOK_TITLE: string = 'gpBookTitle';
+  /** 族谱总数 */
+  static readonly KEY_BOOK_COUNT: string = 'gpBookCount';
+  /** 待打开的族谱编辑态（新增族谱后置为 true，设置页读取后自动进入编辑） */
+  static readonly KEY_EDITING_BOOK: string = 'gpEditingBook';
 
   private static put<T>(key: string, value: T): void {
     AppStorage.setOrCreate<T>(key, value);
@@ -27,6 +37,8 @@ export class GenealogyStore {
     await svc.init(GenealogyScope.context());
     GenealogyStore.put<number>(GenealogyStore.KEY_VERSION, svc.getVersion());
     GenealogyStore.put<number>(GenealogyStore.KEY_PEOPLE, svc.getPeople().length);
+    GenealogyStore.put<boolean>(GenealogyStore.KEY_HAS_BOOK, svc.hasBook());
+    GenealogyStore.syncBooks(svc);
     GenealogyStore.put<boolean>(GenealogyStore.KEY_READY, true);
     if (AppStorage.get<string>(GenealogyStore.KEY_STYLE) === undefined) {
       GenealogyStore.put<string>(GenealogyStore.KEY_STYLE, 'eu');
@@ -38,6 +50,15 @@ export class GenealogyStore {
     const svc: GenealogyService = GenealogyService.getInstance();
     GenealogyStore.put<number>(GenealogyStore.KEY_VERSION, svc.getVersion());
     GenealogyStore.put<number>(GenealogyStore.KEY_PEOPLE, svc.getPeople().length);
+    GenealogyStore.put<boolean>(GenealogyStore.KEY_HAS_BOOK, svc.hasBook());
+    GenealogyStore.syncBooks(svc);
+  }
+
+  /** 同步当前族谱信息（多族谱切换入口使用） */
+  private static syncBooks(svc: GenealogyService): void {
+    GenealogyStore.put<number>(GenealogyStore.KEY_BOOK_ID, svc.getCurrentBookId());
+    GenealogyStore.put<string>(GenealogyStore.KEY_BOOK_TITLE, svc.getBook().title);
+    GenealogyStore.put<number>(GenealogyStore.KEY_BOOK_COUNT, svc.getBooks().length);
   }
 
   static version(): number {

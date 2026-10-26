@@ -9,6 +9,7 @@ import { AccountCard } from './AccountCard';
 import { Breakpoint } from '../common/Constants';
 import { DeviceUtil } from '../util/DeviceUtil';
 import { AppStorageV2 } from '@kit.ArkUI';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
 
 /**
@@ -27,6 +28,7 @@ export struct SettingsView {
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
   @StorageProp('gpOrientation') orientationMode: string = 'follow_system';
+  @StorageProp('gpHasBook') hasBook: boolean = true;
   /** 电脑 / 折叠屏：方向由系统统一管理，四个开关不下发 */
   @State orientationBySystem: boolean = false;
   @State editingBook: boolean = false;
@@ -43,6 +45,12 @@ export struct SettingsView {
   aboutToAppear(): void {
     Theme.use(this.darkMode);
     this.loadBook();
+    // 新增族谱后由其他页面置位，这里直接进入族谱信息编辑态
+    const pendingEdit: boolean | undefined = AppStorage.get<boolean>(GenealogyStore.KEY_EDITING_BOOK);
+    if (pendingEdit === true) {
+      AppStorage.setOrCreate<boolean>(GenealogyStore.KEY_EDITING_BOOK, false);
+      this.editingBook = true;
+    }
     const w: number | undefined = AppStorage.get<number>('windowWidth');
     if (w !== undefined) {
       this.windowWidth = w;
@@ -85,6 +93,62 @@ export struct SettingsView {
     await GenealogyService.getInstance().saveBook(b);
     GenealogyStore.notifyChanged();
     this.editingBook = false;
+  }
+
+  /** 删除族谱确认弹窗 */
+  private deleteDialog: CustomDialogController | null = null;
+
+  /** 打开删除确认弹窗（需输入谱名二次确认） */
+  private openDeleteDialog(): void {
+    const title: string = GenealogyService.getInstance().getBook().title;
+    if (title.length === 0) {
+      return;
+    }
+    this.deleteDialog = new CustomDialogController({
+      builder: DeleteGenealogyDialog({
+        bookTitle: title,
+        onConfirm: (input: string): void => {
+          this.confirmDelete(input);
+        }
+      }),
+      autoCancel: true,
+      alignment: DialogAlignment.Center
+    });
+    this.deleteDialog.open();
+  }
+
+  /** 执行删除族谱 */
+  private async confirmDelete(input: string): Promise<void> {
+    const title: string = GenealogyService.getInstance().getBook().title;
+    if (input.trim() !== title) {
+      this.getUIContext().getPromptAction().showToast({ message: '族谱名称输入不一致，已取消删除' });
+      return;
+    }
+    try {
+      await GenealogyService.getInstance().deleteGenealogy();
+      GenealogyStore.notifyChanged();
+      AppStorage.setOrCreate<string>('gpSelection', '');
+      AppStorage.setOrCreate<number>('gpTab', 1);
+      this.getUIContext().getPromptAction().showToast({ message: '族谱已删除' });
+    } catch (e) {
+      const err = e as BusinessError;
+      this.getUIContext().getPromptAction().showToast({ message: '删除失败：' + err.message });
+    }
+  }
+
+  /** 无族谱状态下创建一部空族谱 */
+  private async createBook(): Promise<void> {
+    try {
+      await GenealogyService.getInstance().createGenealogy('');
+      GenealogyStore.notifyChanged();
+      this.loadBook();
+      // 创建后立即进入编辑态，填写谱名、堂号等信息
+      this.editingBook = true;
+      this.getUIContext().getPromptAction().showToast({ message: '已创建族谱，请填写族谱信息' });
+    } catch (e) {
+      const err = e as BusinessError;
+      this.getUIContext().getPromptAction().showToast({ message: '创建失败：' + err.message });
+    }
   }
 
   @Builder
@@ -222,35 +286,68 @@ export struct SettingsView {
   @Builder
   BookOverview() {
     Column() {
-      Row() {
+      if (!this.hasBook) {
         Column() {
-          Text(GenealogyService.getInstance().getBook().title)
-            .fontSize(17)
-            .fontWeight(FontWeight.Bold)
+          Text('尚未创建族谱')
+            .fontSize(15)
             .fontColor(Theme.ink)
-          Text((GenealogyService.getInstance().getBook().hallName.length > 0 ?
-            GenealogyService.getInstance().getBook().hallName + ' · ' : '') +
-            '始迁祖 ' + GenealogyService.getInstance().getBook().ancestorName)
-            .fontSize(12)
+          Text('可在此创建新族谱，或到「谱系」页通过 + 号新增族谱')
+            .fontSize(11.5)
             .fontColor(Theme.inkTertiary)
-            .margin({ top: 3 })
-          Text('字派：' + GenealogyService.getInstance().getBook().generationPoem)
-            .fontSize(12)
-            .fontColor(Theme.gold)
-            .margin({ top: 3 })
+            .margin({ top: 4 })
+            .maxLines(2)
+          Button('创建族谱')
+            .fontSize(13)
+            .height(34)
+            .backgroundColor(Theme.primary)
+            .fontColor('#FFFFFF')
+            .margin({ top: Spacing.M })
+            .onClick((): void => {
+              this.createBook();
+            })
         }
+        .width('100%')
         .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-        Button('编辑')
-          .fontSize(13)
-          .height(32)
-          .backgroundColor(Theme.field)
-          .fontColor(Theme.primary)
-          .onClick((): void => {
-            this.editingBook = true;
-          })
+      } else {
+        Row() {
+          Column() {
+            Text(GenealogyService.getInstance().getBook().title)
+              .fontSize(17)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(Theme.ink)
+            Text((GenealogyService.getInstance().getBook().hallName.length > 0 ?
+              GenealogyService.getInstance().getBook().hallName + ' · ' : '') +
+              '始迁祖 ' + GenealogyService.getInstance().getBook().ancestorName)
+              .fontSize(12)
+              .fontColor(Theme.inkTertiary)
+              .margin({ top: 3 })
+            Text('字派：' + GenealogyService.getInstance().getBook().generationPoem)
+              .fontSize(12)
+              .fontColor(Theme.gold)
+              .margin({ top: 3 })
+          }
+          .alignItems(HorizontalAlign.Start)
+          .layoutWeight(1)
+          Button('编辑')
+            .fontSize(13)
+            .height(32)
+            .backgroundColor(Theme.field)
+            .fontColor(Theme.primary)
+            .onClick((): void => {
+              this.editingBook = true;
+            })
+          Button('删除')
+            .fontSize(13)
+            .height(32)
+            .backgroundColor(Theme.field)
+            .fontColor(Theme.danger)
+            .margin({ left: Spacing.S })
+            .onClick((): void => {
+              this.openDeleteDialog();
+            })
+        }
+        .width('100%')
       }
-      .width('100%')
     }
     .width('100%')
   }
@@ -494,4 +591,82 @@ export struct SettingsView {
         .alignItems(VerticalAlign.Top)
         .padding({ top: 4, bottom: 4 })
       }
+}
+
+/**
+ * 删除族谱二次确认弹窗：必须输入完整谱名才能确认删除。
+ */
+@CustomDialog
+struct DeleteGenealogyDialog {
+  controller?: CustomDialogController;
+  /** 待删除的族谱名称 */
+  bookTitle: string = '';
+  onConfirm: (input: string) => void = (input: string): void => {};
+  @State input: string = '';
+
+  private matched(): boolean {
+    return this.input.trim() === this.bookTitle;
+  }
+
+  build() {
+    Column() {
+      Text('删除族谱')
+        .fontSize(17)
+        .fontWeight(FontWeight.Bold)
+        .fontColor(Theme.danger)
+        .width('100%')
+      Text('此操作将永久删除《' + this.bookTitle + '》的全部族人、配偶关系及族谱信息，删除后无法恢复。')
+        .fontSize(12.5)
+        .fontColor(Theme.inkSecondary)
+        .lineHeight(19)
+        .margin({ top: 10 })
+        .width('100%')
+      Text('请输入族谱名称「' + this.bookTitle + '」以确认')
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .margin({ top: 14 })
+        .width('100%')
+      TextInput({ text: this.input, placeholder: '请输入谱名' })
+        .height(40)
+        .fontSize(14)
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .margin({ top: 6 })
+        .onChange((v: string): void => {
+          this.input = v;
+        })
+      Row() {
+        Button('取消')
+          .fontColor(Theme.inkSecondary)
+          .backgroundColor(Theme.field)
+          .layoutWeight(1)
+          .height(38)
+          .onClick((): void => {
+            this.controller?.close();
+          })
+        Button('确认删除')
+          .backgroundColor(Theme.danger)
+          .fontColor('#FFFFFF')
+          .layoutWeight(1)
+          .height(38)
+          .margin({ left: Spacing.S })
+          .enabled(this.matched())
+          .opacity(this.matched() ? 1 : 0.45)
+          .onClick((): void => {
+            if (!this.matched()) {
+              return;
+            }
+            this.controller?.close();
+            this.onConfirm(this.input.trim());
+          })
+      }
+      .width('100%')
+      .margin({ top: Spacing.L })
+    }
+    .width('100%')
+    .padding(Spacing.XL)
+    .backgroundColor(Theme.card)
+    .borderRadius(16)
+    .alignItems(HorizontalAlign.Start)
+  }
 }

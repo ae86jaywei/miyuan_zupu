@@ -128,7 +128,7 @@ export struct AccountCard {
     }
     this.getUIContext().showAlertDialog({
       title: '从云端恢复',
-      message: '恢复会以云端记录覆盖本地族谱成员数据，媒体图片将按需下载。确定继续吗？',
+      message: '恢复会以云端备份覆盖本机全部族谱（含族人、配偶关系与族谱信息），媒体图片将按需下载。确定继续吗？',
       primaryButton: {
         value: '取消',
         action: () => {
@@ -232,13 +232,67 @@ export struct AccountCard {
       RouterUtil.login(this.getUIContext());
       return;
     }
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const bookKey: number = svc.getCurrentBookId();
+    if (bookKey <= 0) {
+      this.toast('请先在「谱系」中创建族谱后再分享');
+      return;
+    }
     const ctx: common.UIAbilityContext | null = this.hostContext();
     if (ctx === null) {
       return;
     }
+    // 分享内容读取自云端：先检测当前族谱是否已备份，未备份则引导先备份
+    let cloudCount: number = 0;
+    let queryFailed: boolean = false;
+    try {
+      cloudCount = await CloudSyncService.getInstance().countBookMembers(this.userId, bookKey);
+    } catch (err) {
+      queryFailed = true;
+    }
+    if (!queryFailed && cloudCount === 0) {
+      this.getUIContext().showAlertDialog({
+        title: '当前族谱尚未备份',
+        message: '分享内容读取自云端，当前族谱还没有备份，接收方将看不到任何族人。是否先备份再分享？',
+        primaryButton: {
+          value: '取消',
+          action: () => {
+          }
+        },
+        secondaryButton: {
+          value: '先备份并分享',
+          fontColor: Theme.primary,
+          action: async () => {
+            await this.backupThenShare(ctx, bookKey);
+          }
+        }
+      });
+      return;
+    }
+    await this.openShare(ctx, bookKey);
+  }
+
+  /** 先备份当前族谱，确认云端已有数据后再分享 */
+  private async backupThenShare(ctx: common.UIAbilityContext, bookKey: number): Promise<void> {
+    await this.doBackup();
+    let count: number = 0;
+    try {
+      count = await CloudSyncService.getInstance().countBookMembers(this.userId, bookKey);
+    } catch (err) {
+      count = 0;
+    }
+    if (count === 0) {
+      this.toast('备份未完成，暂无法分享');
+      return;
+    }
+    await this.openShare(ctx, bookKey);
+  }
+
+  /** 拉起系统分享面板，只分享当前选中的族谱 */
+  private async openShare(ctx: common.UIAbilityContext, bookKey: number): Promise<void> {
     try {
       await ShareService.shareGenealogy(ctx, GenealogyService.getInstance().getBook().title,
-        AccountService.getInstance().getFamilyId(), this.userId);
+        AccountService.getInstance().getFamilyId(), this.userId, bookKey);
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.toast('分享未完成：' + (be.message !== undefined ? be.message : '用户取消'));
@@ -297,7 +351,7 @@ export struct AccountCard {
               .onClick((): void => {
                 this.doLogout();
               })
-            Button('分享族谱')
+            Button('分享当前族谱')
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.primary)
@@ -386,12 +440,6 @@ export struct AccountCard {
             .margin({ top: Spacing.S })
             .maxLines(4)
         }
-
-        Text('云端未配置时：请将 AGC 生成的 agconnect-services.json 放入 AppScope/resources/rawfile，并在 AGC 控制台创建云数据库对象类型 FamilyMember / FamilyMedia 与存储区 zupu。')
-          .fontSize(10)
-          .fontColor(Theme.inkTertiary)
-          .width('100%')
-          .margin({ top: Spacing.S })
       }
       .width('100%')
       .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
