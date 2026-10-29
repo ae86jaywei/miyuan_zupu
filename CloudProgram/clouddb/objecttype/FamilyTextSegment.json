@@ -1,0 +1,106 @@
+{
+  "objectTypeName": "FamilyTextSegment",
+  "fields": [
+    {
+      "fieldName": "segmentId",
+      "fieldType": "String",
+      "belongPrimaryKey": true,
+      "notNull": true,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "familyId",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "memberId",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "field",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "segOrder",
+      "fieldType": "Integer",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "text",
+      "fieldType": "Text",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "actor",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "rev",
+      "fieldType": "Long",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "createdAt",
+      "fieldType": "Long",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    }
+  ],
+  "indexes": [],
+  "permissions": [
+    {
+      "role": "World",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Authenticated",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Creator",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Administrator",
+      "rights": [
+        "Read",
+        "Upsert",
+        "Delete"
+      ]
+    }
+  ]
+}

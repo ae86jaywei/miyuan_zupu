@@ -10,6 +10,7 @@ import { Breakpoint } from '../common/Constants';
 import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, FIELD_GROUPS, FIELD_METAS, FieldMeta, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
+import { FamilyService } from '../service/FamilyService';
 import { EditParams } from '../model/Scope';
 import { IdGenerator } from '../util/IdGenerator';
 import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, generationLabel } from '../model/Enums';
@@ -224,6 +225,8 @@ struct PersonEdit {
   // 字段状态
   @State fGeneration: number = 1;
   @State fUid: string = '';
+  /** 唯一ID 是否为自动生成（自动生成的会在切换性别时重新计算） */
+  @State uidAuto: boolean = true;
   @State fName: string = '';
   @State fAlias: string = '';
   @State fGender: string = '男';
@@ -391,7 +394,9 @@ struct PersonEdit {
 
   private fill(p: Person): void {
     this.fGeneration = p.generation;
-    this.fUid = p.uid.length > 0 ? p.uid : IdGenerator.next(this.svc().getPeople(), p.gender);
+    // 新增时留空，等选择性别后再生成（编辑时保留原 ID）
+    this.fUid = p.uid;
+    this.uidAuto = p.uid.trim().length === 0;
     this.fName = p.name;
     this.fAlias = p.alias;
     this.fGender = p.gender;
@@ -476,16 +481,18 @@ struct PersonEdit {
     if (this.fBiography.length > 500) {
       return '生平简介不能超过 500 字（当前 ' + this.fBiography.length.toString() + ' 字）';
     }
-    if (!IdGenerator.isUnique(this.svc().getPeople(), this.fUid, this.originalUid)) {
-      return '唯一ID“' + this.fUid + '”已被占用，请更换';
+    // 新增且未填 ID：保存时按性别自动生成，此处跳过校验
+    const uidText: string = this.fUid.trim();
+    if (uidText.length > 0 && !IdGenerator.isUnique(this.svc().getPeople(), uidText, this.originalUid)) {
+      return '唯一ID“' + uidText + '”已被占用，请更换';
     }
     const by: number = parseDate(this.fBirthDate);
     const dy: number = parseDate(this.fDeathDate);
     if (by > 0 && dy > 0 && dy < by) {
       return '逝世日期不能早于出生日期';
     }
-    if (this.fFatherId.trim().toUpperCase() === this.fUid.trim().toUpperCase()
-      || this.fMotherId.trim().toUpperCase() === this.fUid.trim().toUpperCase()) {
+    if (uidText.length > 0 && (this.fFatherId.trim().toUpperCase() === uidText.toUpperCase()
+      || this.fMotherId.trim().toUpperCase() === uidText.toUpperCase())) {
       return '父亲/母亲ID不能与本人的唯一ID相同';
     }
     if (this.fFatherId.length > 0 && this.svc().getPerson(this.fFatherId) === null) {
@@ -592,12 +599,15 @@ struct PersonEdit {
     try {
       const p: Person = this.toPerson();
       if (this.originalUid.length > 0) {
+        // 协作：保存前先留一份快照，用于生成字段级 diff（审核页展示旧值 → 新值）
+        this.svc().captureBefore(this.originalUid);
         await this.svc().updatePerson(p, this.originalUid);
       } else {
         await this.svc().addPerson(p);
       }
       GenealogyStore.notifyChanged();
-      this.getUIContext().getPromptAction().showToast({ message: '已保存' });
+      // 协作态下说明这次修改的去向：已同步 / 已提交审核 / 离线待传
+      this.getUIContext().getPromptAction().showToast({ message: this.saveHint() });
       this.getUIContext().getRouter().back();
     } catch (e) {
       const err = e as BusinessError;
@@ -605,6 +615,24 @@ struct PersonEdit {
     } finally {
       this.saving = false;
     }
+  }
+
+  /** 保存后的去向提示（方案 §十 P1 提交—审核 / §十三 三条门槛） */
+  private saveHint(): string {
+    const mode: string = FamilyService.getInstance().syncMode();
+    if (mode === 'LOCAL') {
+      return '已保存（本谱仅在本机）';
+    }
+    if (mode === 'CLOUD_PENDING') {
+      return '已保存；本谱尚未发布到云端，稍后在「我的家族」发布';
+    }
+    if (!FamilyService.getInstance().canEditCurrent()) {
+      return '已保存到本机；当前角色为只读，未提交云端';
+    }
+    if (FamilyService.getInstance().isOwnerCurrent()) {
+      return '已保存并同步到云端';
+    }
+    return '已提交，等谱主审核后合入';
   }
 
   private async remove(): Promise<void> {
@@ -1003,6 +1031,15 @@ struct PersonEdit {
     return list;
   }
 
+  /** 世代候选对应的数值键：文案是“第十世”等中文，必须用键回传数值，否则解析不出世代 */
+  private generationKeys(): string[] {
+    const list: string[] = [];
+    for (let i: number = 1; i <= 40; i++) {
+      list.push(i.toString());
+    }
+    return list;
+  }
+
   /** 排行候选：第一世只有“第一世（始祖）”，其余世代为子/女排行 */
   private rankOptions(): string[] {
     if (this.fGeneration === 1) {
@@ -1036,8 +1073,12 @@ struct PersonEdit {
   private assignValue(mode: string, value: string): void {
     switch (mode) {
       case 'generation': {
-        const g: number = parseInt(value.replace(/[^0-9]/g, ''), 10);
-        this.fGeneration = isNaN(g) ? 1 : g;
+        const g: number = parseInt(value, 10);
+        // 解析失败时保留原世代，绝不回落到第一世
+        if (isNaN(g) || g <= 0) {
+          break;
+        }
+        this.fGeneration = g;
         // 第一世用“第一世（始祖）”，其余世代恢复子/女排行
         if (this.fGeneration === 1) {
           this.fRank = ANCESTOR_RANK;
@@ -1048,7 +1089,8 @@ struct PersonEdit {
       }
       case 'gender': {
         this.fGender = value;
-        if (this.originalUid.length === 0) {
+        // 新增且 ID 仍为自动生成 → 按新性别重新计算（男 F / 女 M）
+        if (this.originalUid.length === 0 && this.uidAuto) {
           this.fUid = IdGenerator.next(this.svc().getPeople(), value);
         }
         break;
@@ -1651,8 +1693,9 @@ struct PersonEdit {
         }
         .layoutWeight(1)
         Column() {
-          this.TextField('唯一ID', this.fUid, '主键，不可重复，如 F001', false, (v: string): void => {
+          this.TextField('唯一ID', this.fUid, '选性别后自动生成（男 F / 女 M），也可手工填写', false, (v: string): void => {
             this.fUid = v;
+            this.uidAuto = v.trim().length === 0;
           })
         }
         .layoutWeight(1)
@@ -1663,9 +1706,11 @@ struct PersonEdit {
         Column() {
           SelectField({
             label: '世代',
-            hint: '上下滑动选择世代，如：始祖（一世）',
+            hint: '必选。妻/妾等无父母者同样只需选择世代',
+            required: true,
             options: this.generationOptions(),
-            value: generationLabel(this.fGeneration),
+            keys: this.generationKeys(),
+            value: this.fGeneration.toString(),
             onValue: (v: string): void => {
               this.assignValue('generation', v);
             }
@@ -1826,7 +1871,7 @@ struct PersonEdit {
       this.GroupHeader('亲属关系', '👪')
       SelectField({
         label: '父亲ID',
-        hint: '选择父亲的唯一ID，如：F000',
+        hint: '选择父亲的唯一ID，如：F000；妻/妾等无父母者可留空',
         options: this.relationLabels('男'),
         keys: this.relationUids('男'),
         value: this.fFatherId,
@@ -1837,7 +1882,7 @@ struct PersonEdit {
       })
       SelectField({
         label: '母亲ID',
-        hint: '选择母亲的唯一ID，如：M050',
+        hint: '选择母亲的唯一ID，如：M050；妻/妾等无父母者可留空',
         options: this.relationLabels('女'),
         keys: this.relationUids('女'),
         value: this.fMotherId,
@@ -2124,7 +2169,7 @@ struct PersonEdit {
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.fGender === '女' ? Theme.female : Theme.primary)
-        Text(generationLabel(this.fGeneration) + ' · ' + this.fUid +
+        Text(generationLabel(this.fGeneration) + ' · ' + (this.fUid.length > 0 ? this.fUid : 'ID 待生成') +
           (this.fGenChar.length > 0 ? ' · “' + this.fGenChar + '”字' : ''))
           .fontSize(12)
           .fontColor(Theme.inkTertiary)

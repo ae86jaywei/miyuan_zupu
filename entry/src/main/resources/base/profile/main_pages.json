@@ -3,6 +3,14 @@
     "pages/Index",
     "pages/PersonEdit",
     "pages/Settings",
-    "pages/ImportExport"
+    "pages/ImportExport",
+    "pages/Login",
+    "pages/SharedView",
+    "pages/FamilyHome",
+    "pages/FamilyMembers",
+    "pages/FamilyDirectoryView",
+    "pages/AccessApply",
+    "pages/GraveMap",
+    "pages/ChangeReview"
   ]
 }

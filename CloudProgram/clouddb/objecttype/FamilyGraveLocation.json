@@ -1,0 +1,199 @@
+{
+  "objectTypeName": "FamilyGraveLocation",
+  "fields": [
+    {
+      "fieldName": "graveId",
+      "fieldType": "String",
+      "belongPrimaryKey": true,
+      "notNull": true,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "familyId",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "uid",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "personName",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "generation",
+      "fieldType": "Integer",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "bookTitle",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "graveName",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "lng",
+      "fieldType": "Double",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "lat",
+      "fieldType": "Double",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "altitude",
+      "fieldType": "Double",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "facing",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "bearing",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "routeNote",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "photoRefs",
+      "fieldType": "Text",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "visibility",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "precision",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "rev",
+      "fieldType": "Long",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "actor",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "updatedAt",
+      "fieldType": "Long",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    }
+  ],
+  "indexes": [
+    {
+      "indexName": "index_familyId",
+      "indexList": [
+        "familyId"
+      ]
+    },
+    {
+      "indexName": "index_visibility",
+      "indexList": [
+        "visibility"
+      ]
+    }
+  ],
+  "permissions": [
+    {
+      "role": "World",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Authenticated",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Creator",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Administrator",
+      "rights": [
+        "Read",
+        "Upsert",
+        "Delete"
+      ]
+    }
+  ]
+}

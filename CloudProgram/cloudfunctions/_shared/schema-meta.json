@@ -1,0 +1,226 @@
+{
+  "AccessRequest": {
+    "primaryKey": "requestId",
+    "fields": {
+      "requestId": "String",
+      "familyId": "String",
+      "applicantId": "String",
+      "applicantName": "String",
+      "kind": "String",
+      "relationClaim": "Text",
+      "branchClaimUid": "String",
+      "evidence": "Text",
+      "grantedRole": "String",
+      "expireAt": "Long",
+      "status": "String",
+      "reviewerId": "String",
+      "reviewNote": "Text",
+      "reviewedAt": "Long",
+      "createdAt": "Long",
+      "rev": "Long"
+    }
+  },
+  "ChangeLog": {
+    "primaryKey": "logId",
+    "fields": {
+      "logId": "String",
+      "familyId": "String",
+      "rev": "Long",
+      "actor": "String",
+      "action": "String",
+      "targetMemberId": "String",
+      "summary": "String",
+      "payload": "Text",
+      "createdAt": "Long"
+    }
+  },
+  "ChangeRequest": {
+    "primaryKey": "requestId",
+    "fields": {
+      "requestId": "String",
+      "familyId": "String",
+      "bookKey": "Integer",
+      "submitterId": "String",
+      "submitterName": "String",
+      "targetUid": "String",
+      "op": "String",
+      "patchJson": "Text",
+      "baseRev": "Long",
+      "evidence": "Text",
+      "status": "String",
+      "reviewerId": "String",
+      "reviewNote": "Text",
+      "reviewedAt": "Long",
+      "resultRev": "Long",
+      "createdAt": "Long"
+    }
+  },
+  "Family": {
+    "primaryKey": "familyId",
+    "fields": {
+      "familyId": "String",
+      "ownerUserId": "String",
+      "ownerUnionId": "String",
+      "title": "String",
+      "bookKey": "Integer",
+      "rev": "Long",
+      "aclVersion": "Integer",
+      "inviteCode": "String",
+      "inviteExpireAt": "Long",
+      "inviteRole": "String",
+      "directoryEnabled": "Boolean",
+      "directoryUpdatedAt": "Long",
+      "createdAt": "Long",
+      "updatedAt": "Long"
+    }
+  },
+  "FamilyBook": {
+    "primaryKey": "bookId",
+    "fields": {
+      "bookId": "String",
+      "familyId": "String",
+      "bookKey": "Integer",
+      "title": "String",
+      "payload": "Text",
+      "rev": "Long",
+      "actor": "String",
+      "baseRev": "Long",
+      "deleted": "Boolean",
+      "updatedAt": "Long"
+    }
+  },
+  "FamilyDirectory": {
+    "primaryKey": "dirId",
+    "fields": {
+      "dirId": "String",
+      "familyId": "String",
+      "surname": "String",
+      "region": "String",
+      "title": "String",
+      "branchSummary": "Text",
+      "memberCountBand": "String",
+      "coverRef": "String",
+      "accessHint": "String",
+      "createdAt": "Long",
+      "updatedAt": "Long",
+      "rev": "Long",
+      "actor": "String"
+    }
+  },
+  "FamilyGraveLocation": {
+    "primaryKey": "graveId",
+    "fields": {
+      "graveId": "String",
+      "familyId": "String",
+      "uid": "String",
+      "personName": "String",
+      "generation": "Integer",
+      "bookTitle": "String",
+      "graveName": "String",
+      "lng": "Double",
+      "lat": "Double",
+      "altitude": "Double",
+      "facing": "String",
+      "bearing": "String",
+      "routeNote": "String",
+      "photoRefs": "Text",
+      "visibility": "String",
+      "precision": "String",
+      "rev": "Long",
+      "actor": "String",
+      "updatedAt": "Long"
+    }
+  },
+  "FamilyMedia": {
+    "primaryKey": "mediaId",
+    "fields": {
+      "mediaId": "String",
+      "familyId": "String",
+      "memberId": "String",
+      "uid": "String",
+      "type": "String",
+      "cloudPath": "String",
+      "fileName": "String",
+      "size": "Long",
+      "uploadedAt": "Long",
+      "deleted": "Boolean",
+      "actor": "String"
+    }
+  },
+  "FamilyMember": {
+    "primaryKey": "memberId",
+    "fields": {
+      "memberId": "String",
+      "familyId": "String",
+      "bookKey": "Integer",
+      "uid": "String",
+      "name": "String",
+      "generation": "Integer",
+      "parentId": "String",
+      "payload": "Text",
+      "privateRef": "String",
+      "graveRef": "String",
+      "rev": "Long",
+      "actor": "String",
+      "deleted": "Boolean",
+      "deletedAt": "Long",
+      "deletedBy": "String",
+      "baseRev": "Long",
+      "updatedAt": "Long"
+    }
+  },
+  "FamilyPrivate": {
+    "primaryKey": "privateId",
+    "fields": {
+      "privateId": "String",
+      "familyId": "String",
+      "uid": "String",
+      "phone": "String",
+      "wechat": "String",
+      "residence": "String",
+      "actor": "String",
+      "updatedAt": "Long"
+    }
+  },
+  "FamilyTextSegment": {
+    "primaryKey": "segmentId",
+    "fields": {
+      "segmentId": "String",
+      "familyId": "String",
+      "memberId": "String",
+      "field": "String",
+      "segOrder": "Integer",
+      "text": "Text",
+      "actor": "String",
+      "rev": "Long",
+      "createdAt": "Long"
+    }
+  },
+  "Membership": {
+    "primaryKey": "membershipId",
+    "fields": {
+      "membershipId": "String",
+      "familyId": "String",
+      "userId": "String",
+      "role": "String",
+      "status": "String",
+      "branchRootUid": "String",
+      "expireAt": "Long",
+      "nickName": "String",
+      "source": "String",
+      "joinedAt": "Long",
+      "revokedAt": "Long",
+      "updatedAt": "Long"
+    }
+  },
+  "UserDevice": {
+    "primaryKey": "deviceId",
+    "fields": {
+      "deviceId": "String",
+      "userId": "String",
+      "pushToken": "String",
+      "platform": "String",
+      "updatedAt": "Long"
+    }
+  }
+}

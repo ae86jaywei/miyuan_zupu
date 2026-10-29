@@ -5,5 +5,9 @@
   "main": "",
   "author": "zupu",
   "license": "Apache-2.0",
-  "dependencies": {}
+  "dependencies": {
+    "@hw-agconnect/auth": "^1.1.0"
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {}
 }

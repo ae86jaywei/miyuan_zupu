@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "C:\\Users\\ming\\.ohos\\config\\default_zupu_Jlw-fOs_pR-RF4DlKdMSIpsEz5doeHix7jGrgllj6v8=.cer",
-          "keyAlias": "debugKey",
-          "keyPassword": "0000001B55BFBBF9594B46B5625C284F8A569F27AC28ED8CF66DE6548DCC054059BDC23975E4067DDC16DB",
-          "profile": "C:\\Users\\ming\\.ohos\\config\\default_zupu_Jlw-fOs_pR-RF4DlKdMSIpsEz5doeHix7jGrgllj6v8=.p7b",
+          "storeFile": "E:/HarmonyOS/zupu/zhengshu/miyuan.p12",
+          "storePassword": "0000001E9323C79C786F8E7F6F5C8205CC452D3AD37D8D036E5B810E8FE22B646DC73BD97B9151A29FD52BE7ADF6",
+          "keyAlias": "miyuan",
+          "keyPassword": "0000001EA09326E411AED627B4CA416492DFB9B5CDD1ED5C1F54BA299A17B7E484EC2AFE898EA7F83DD78ECCA603",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "C:\\Users\\ming\\.ohos\\config\\default_zupu_Jlw-fOs_pR-RF4DlKdMSIpsEz5doeHix7jGrgllj6v8=.p12",
-          "storePassword": "0000001B20097C8E2D23B61884D49B50E3C7154FBDD721C6C16C4F7134A80D20F9B66178EBC1F323B6205C"
+          "profile": "E:/HarmonyOS/zupu/zhengshu/miyuanDebug.p7b",
+          "certpath": "E:/HarmonyOS/zupu/zhengshu/miyuan.cer"
         }
       }
     ],

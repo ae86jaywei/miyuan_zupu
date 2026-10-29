@@ -23,7 +23,7 @@
         "startWindowBackground": "$color:start_window_background",
         "exported": true,
         "launchType": "singleton",
-        "orientation": "auto_rotation",
+        "orientation": "auto_rotation_unspecified",
         "minWindowWidth": 320,
         "minWindowHeight": 480,
         "skills": [
@@ -36,6 +36,16 @@
             ]
           }
         ]
+      }
+    ],
+    "metadata": [
+      {
+        "name": "client_id",
+        "value": "6917620028225503318"
+      },
+      {
+        "name": "app_id",
+        "value": "6917620028225503318"
       }
     ],
     "requestPermissions": [

@@ -1,0 +1,14 @@
+{
+  "name": "zupu-cloudfunction",
+  "version": "1.0.0",
+  "description": "觅源 · 家族协作云函数",
+  "main": "index.js",
+  "license": "Apache-2.0",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@hw-agconnect/cloud-server": "^1.0.0"
+  }
+}

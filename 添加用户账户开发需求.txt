@@ -1,0 +1,249 @@
+族谱应用 HarmonyOS 开发需求文档
+版本：v1.0
+目标平台：HarmonyOS（Stage 模型）
+开发者身份：个人开发者
+数据架构：AGC 认证服务 + Cloud DB + Cloud Storage，无自有服务端
+
+1. 项目背景与目标
+开发一款面向 HarmonyOS 的族谱应用，支持用户创建族谱、维护成员关系、上传图片与视频记录家族信息，并发布至华为应用市场供不特定用户使用。核心目标：
+
+用户使用华为账号登录，同一账号在换机或重装后可恢复全部族谱数据与媒体文件。
+
+个人开发者身份下，不依赖自有服务端，使用 AGC 端云能力承载账号与数据。
+
+支持将族谱以链接或文件形式分享给其他用户。
+
+2. 总体架构
+text
+华为账号登录（Account Kit + AGC Auth）
+    → 获取 UnionID，格式化为 userId（hw-{unionID}）
+        → 族谱结构数据：Cloud DB（按 userId 隔离）
+        → 图片/视频文件：Cloud Storage（路径含 userId）
+            → 换机/重装：静默登录 → 拉取 Cloud DB 记录 → 按需下载 Cloud Storage 媒体
+            → 分享：Share Kit（系统分享面板 / App Linking）
+个人开发者约束：华为账号一键登录（获取手机号）不可用，仅支持华为账号登录与静默登录。UnionID 作为业务主键，而非 OpenID，因为 UnionID 在同一开发者账号下的多个应用间保持一致。
+
+3. 功能需求
+3.1 华为账号登录与静默登录
+3.1.1 手动登录（首次使用）
+用户点击“华为账号登录”按钮，调用 authentication.HuaweiIDProvider().createLoginWithHuaweiIDRequest()，设置 forceLogin = true。登录成功后获取 authorizationCode 与 idToken，将 authorizationCode 交由 AGC 认证服务完成身份核验，最终获得 UnionID。
+
+typescript
+import { authentication } from '@kit.AccountKit';
+import { util } from '@kit.ArkTS';
+
+const loginRequest = new authentication.HuaweiIDProvider()
+  .createLoginWithHuaweiIDRequest();
+loginRequest.forceLogin = true;
+loginRequest.state = util.generateRandomUUID();
+
+const controller = new authentication.AuthenticationController();
+controller.executeRequest(loginRequest).then((response) => {
+  const data = response.data;
+  const authCode = data?.authorizationCode;
+  // 将 authCode 交由 AGC Auth 处理，获取 UnionID
+}).catch((err: BusinessError) => {
+  // 处理错误
+});
+3.1.2 静默登录（二次启动 / 换机恢复）
+静默登录是换机与重装场景下恢复登录态的核心机制。设置 forceLogin = false，若华为账号已登录且与应用此前使用的账号一致，则无需用户点击即可获取 UnionID，直接完成登录态恢复。
+
+typescript
+const silentRequest = new authentication.HuaweiIDProvider()
+  .createLoginWithHuaweiIDRequest();
+silentRequest.forceLogin = false;
+silentRequest.state = util.generateRandomUUID();
+
+controller.executeRequest(silentRequest).then((response) => {
+  // 成功：获取 UnionID，恢复业务态
+}).catch((err: BusinessError) => {
+  if (err.code === 1001502001) {
+    // 用户未登录华为账号，降级到手动登录页面
+  }
+});
+关键约束：
+
+静默登录失败码 1001502001 表示华为账号未登录，必须降级到手动登录页，不能直接报错卡住。
+
+state 必须做一致性比对，防止跨站攻击。
+
+个人开发者无法使用一键登录，不要尝试申请“获取您的手机号”相关权限，以免审核环节因权限与身份不符被驳回。
+
+3.1.3 登录后的业务主键
+AGC Auth 返回 UnionID 后，格式化为 userId = "hw-" + unionID。该 userId 是后续所有 Cloud DB 查询与 Cloud Storage 路径的强制过滤字段。不使用 OpenID，避免多应用场景下用户数据无法继承。
+
+3.1.4 AGC 配置要点
+在 AGC 控制台开通认证服务，启用“华为账号”作为认证方式。
+
+获取应用的 OAuth 2.0 Client ID（不是 APP ID），在 module.json5 中直接写入字符串，不能使用 $string 引用。
+
+分别配置调试证书和发布证书的 SHA-256 指纹。开发阶段用调试指纹，上架前必须切换为发布证书指纹。
+
+agconnect-services.json 放置在 AppScope/resources/rawfile/ 下。
+
+3.2 云数据与媒体存储
+3.2.1 数据模型
+族谱应用涉及结构化关系与大量非结构化媒体，两者必须分开存储。
+
+Cloud DB 对象类型一：FamilyMember
+
+字段	类型	说明
+memberId	String	主键，UUID，不用自增
+userId	String	hw-{unionID}，隔离字段
+name	String	姓名
+parentId	String	父节点 memberId
+generation	Integer	辈分
+updatedAt	Long	时间戳
+deleted	Boolean	软删除标记
+Cloud DB 对象类型二：FamilyMedia
+
+字段	类型	说明
+mediaId	String	主键，UUID
+userId	String	隔离字段
+memberId	String	关联成员
+type	String	image / video
+cloudPath	String	Cloud Storage 云端路径，恢复的核心
+fileName	String	原始文件名
+size	Long	字节数
+uploadedAt	Long	上传时间
+关键原则：cloudPath 必须是 Cloud Storage 的云端引用，不能存本地沙箱路径（如 internal:// 或 file://），否则换机后必然失效。
+
+3.2.2 云数据库（Cloud DB）操作
+Cloud DB 在 HarmonyOS 平台上的数据存储在云侧，SDK 直接操作云侧数据。所有查询与写入必须携带 userId 过滤条件，这是端侧数据隔离的第一道防线。
+
+写入示例（Upsert）：
+
+typescript
+import { cloudDatabase } from '@kit.CloudFoundationKit';
+
+const record: FamilyMember = {
+  memberId: 'uuid-xxx',
+  userId: `hw-${unionID}`,
+  name: '张三',
+  parentId: 'uuid-parent',
+  generation: 3,
+  updatedAt: Date.now(),
+  deleted: false
+};
+await databaseZone.executeUpsert(record);
+查询示例：
+
+typescript
+const query = databaseZone.queryCondition
+  .equalTo('userId', `hw-${unionID}`)
+  .equalTo('deleted', false)
+  .orderByAsc('generation');
+const result = await databaseZone.executeQuery(query);
+权限配置：在 AGC 控制台为每个对象类型配置安全规则，使用 match / allow 表达式限制用户只能读写自身 userId 匹配的数据。端侧过滤与云侧规则必须同时存在，形成两层隔离，不能仅依赖其中一层。
+
+3.2.3 云存储（Cloud Storage）上传
+使用 cloudStorage 模块的 uploadFile 接口，支持上传进度回调。单次上传对象大小范围为 0—5GB。
+
+typescript
+import { cloudStorage } from '@kit.CloudFoundationKit';
+import { request } from '@kit.BasicServicesKit';
+
+const bucket = cloudStorage.bucket();
+const uploadTask = await bucket.uploadFile(context, {
+  localPath: `${context.cacheDir}/photo_${Date.now()}.jpg`,
+  cloudPath: `hw-${unionID}/${memberId}/${Date.now()}_photo.jpg`
+});
+
+uploadTask.on('progress', (progress) => {
+  // 更新上传进度 UI
+});
+uploadTask.on('completed', () => {
+  // 上传成功，将 cloudPath 写入 FamilyMedia 记录
+});
+uploadTask.on('failed', (err) => {
+  // 上传失败，不写入数据库记录，避免悬空引用
+});
+uploadTask.start();
+上传流程必须严格遵循“先文件、后记录” ：Cloud Storage 上传成功并拿到 cloudPath 后，再写入 FamilyMedia 的 Cloud DB 记录。如果上传失败，不得写入数据库记录，否则恢复时会出现有记录但无法下载的死链。
+
+cloudPath 中携带 userId 目录层级（如 hw-xxx/memberId/timestamp_file.jpg），天然形成账号隔离的文件目录结构。
+
+个人开发者额度边界：Cloud Storage 免费额度为 5GB 存储空间。族谱应用单用户可能上传数十张照片或视频，多用户场景下 5GB 会较快见底。需求上应在上传前做端侧图片压缩（建议压缩到 1920px 长边以内），视频限制时长或码率，并在设置页展示当前账号的云端占用。
+
+3.3 族谱分享（Share Kit）
+族谱分享的核心场景是将族谱以链接或文件形式发送给其他用户，接收方通过分享内容打开应用对应页面或获取文件。使用 Share Kit 的 systemShare 模块拉起系统分享面板。
+
+3.3.1 分享链接（App Linking，推荐）
+通过 App Linking 生成指向族谱详情页的链接，接收方点击后可直接在应用中打开对应族谱。systemShare.SharedRecord 的 content 字段承载链接内容，title 标识标题。
+
+typescript
+import { systemShare } from '@kit.ShareKit';
+import { uniformTypeDescriptor } from '@kit.ArkData';
+
+const sharedData = new systemShare.SharedData({
+  utd: uniformTypeDescriptor.UniformDataType.HYPERLINK,
+  content: `https://your-domain.com/family/${familyId}`,
+  title: '查看族谱：张氏族谱'
+});
+const controller = new systemShare.ShareController(sharedData);
+controller.show(context, {
+  previewMode: systemShare.SharePreviewMode.DETAIL,
+  selectionMode: systemShare.SelectionMode.SINGLE
+});
+utd 建议传入精准类型（HYPERLINK），有助于系统匹配到正确的目标应用。content 和 uri 至少有一个不为空，否则分享失败。
+
+3.3.2 分享文件（族谱导出）
+如果需求包含“导出族谱文件并分享”，可将导出的文件（如 PDF 或 GEDCOM）通过 uri 字段分享。uri 支持应用文件 URI 或用户文件 URI，沙箱路径需通过 fileUri.getUriFromPath 获取文件 URI。
+
+typescript
+const fileUri = fileUri.getUriFromPath(exportedFilePath);
+const sharedData = new systemShare.SharedData({
+  utd: uniformTypeDescriptor.UniformDataType.PDF,
+  uri: fileUri,
+  title: '张氏族谱导出.pdf'
+});
+注意：thumbnail（缩略图）限制在 32KB 以下，过大会导致分享面板无法拉起。
+
+3.3.3 分享的账号边界
+分享出去的链接指向的是族谱的只读或有限访问状态，不应将接收方直接纳入原账号的数据空间。接收方打开链接后，如果未登录华为账号，应引导登录后以“访客”或“协作”身份查看；协作编辑与权限管理属于后续版本范围，本期需求仅覆盖分享可达、可查看。
+
+3.4 换机 / 重装恢复流程
+用户在新设备或重装后使用同一华为账号登录，恢复按以下顺序执行：
+
+步骤	操作	数据来源	用户可见结果
+1	静默登录（forceLogin = false）	Account Kit + AGC Auth	自动恢复登录态，无需点击
+2	拉取 FamilyMember（按 userId 过滤）	Cloud DB	族谱人物关系、辈分恢复
+3	拉取 FamilyMedia 索引（按 userId 过滤）	Cloud DB	媒体目录恢复，文件尚未下载
+4	按需下载媒体	Cloud Storage（根据 cloudPath）	浏览成员详情时加载图片；视频点击时下载
+第 4 步的策略：不在恢复阶段一次性下载全部视频。图片在进入成员详情页时下载并缓存到 cacheDir；视频在列表页只展示占位符或缩略图，用户点击播放时再下载。这样换机登录后的秒级恢复的是族谱结构与媒体索引，媒体文件按浏览行为逐步补齐。
+
+如果静默登录返回 1001502001，降级到手动登录页，用户完成手动登录后同样进入上述恢复流程。
+
+4. 非功能性需求与上架约束
+4.1 安全
+业务 Session/Token 使用 Asset Store Kit 加密存储，不写入明文 Preferences。
+
+Cloud DB 查询强制携带 userId 过滤，同时依赖 AGC 安全规则做云侧隔离。
+
+authorizationCode 一次性使用，客户端不留存。
+
+分享链接中的 familyId 不可猜测（使用 UUID），不暴露自增 ID。
+
+4.2 上架前置条件（个人开发者）
+事项	要求	周期
+软件著作权证书	强制，名称与备案、AGC 一致	30—60 个工作日
+APP 备案	工信部强制，个人主体一次只能提交一个信息服务	按备案流程
+隐私政策	独立 HTTPS URL，首次启动弹窗，列明 AGC 认证/Cloud DB/Cloud Storage 及 Share Kit	开发期完成
+发布证书指纹	AGC 中替换调试指纹为发布证书 SHA-256	上架前
+族谱应用包含用户上传的图片和视频，属于 UGC 类应用。需要在应用内提供删除自身内容的能力，并在隐私政策与用户协议中声明用户对上传内容负责。应用描述应严格匹配实际功能，避免使用未实现的“社交”“家族共享编辑”等表述，以免触发社交类目额外审核。
+
+4.3 调试约束
+端云一体化（Cloud DB / Cloud Storage）不支持模拟器调试，必须使用真机，且调试设备需已登录华为账号。
+
+静默登录、Cloud DB、Cloud Storage 均依赖 AGC 签名校验，调试指纹未配置会导致初始化或上传失败。
+
+5. 交付清单
+□ 华为账号登录页（手动登录 + 静默登录降级逻辑）
+□ AGC Auth 接入，UnionID → userId 映射
+□ Cloud DB 对象类型 FamilyMember / FamilyMedia，含安全规则
+□ 族谱创建、成员增删改查（带 userId 过滤）
+□ 图片/视频选择、端侧压缩、Cloud Storage 上传（进度回调、失败不写库）
+□ 换机恢复流程（静默登录 → Cloud DB 拉取 → 按需媒体下载）
+□ Share Kit 链接分享（App Linking），可选文件分享
+□ 隐私政策弹窗与第三方 SDK 清单
+□ 发布证书指纹配置，软著与备案材料启动

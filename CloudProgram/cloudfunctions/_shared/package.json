@@ -1,0 +1,7 @@
+{
+  "name": "zupu-shared",
+  "version": "1.0.0",
+  "description": "觅源 · 家族协作云函数共享库（身份校验 / 鉴权 / rev 分配 / 结构校验）",
+  "main": "index.js",
+  "license": "Apache-2.0"
+}

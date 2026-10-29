@@ -1,0 +1,98 @@
+{
+  "objectTypeName": "FamilyPrivate",
+  "fields": [
+    {
+      "fieldName": "privateId",
+      "fieldType": "String",
+      "belongPrimaryKey": true,
+      "notNull": true,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "familyId",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "uid",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "phone",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "wechat",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "residence",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "actor",
+      "fieldType": "String",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    },
+    {
+      "fieldName": "updatedAt",
+      "fieldType": "Long",
+      "belongPrimaryKey": false,
+      "notNull": false,
+      "isNeedEncrypt": false,
+      "isSensitive": false
+    }
+  ],
+  "indexes": [],
+  "permissions": [
+    {
+      "role": "World",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Authenticated",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Creator",
+      "rights": [
+        "Read"
+      ]
+    },
+    {
+      "role": "Administrator",
+      "rights": [
+        "Read",
+        "Upsert",
+        "Delete"
+      ]
+    }
+  ]
+}

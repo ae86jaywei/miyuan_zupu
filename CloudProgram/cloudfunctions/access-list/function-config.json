@@ -1,0 +1,18 @@
+{
+  "name": "access-list",
+  "version": "1.0.0",
+  "description": "我的申请 / 谱主待审申请列表",
+  "memorySize": 500,
+  "timeout": 30,
+  "triggers": [
+    {
+      "type": "http",
+      "properties": {
+        "authType": "apigw-client",
+        "methods": [
+          "POST"
+        ]
+      }
+    }
+  ]
+}

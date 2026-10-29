@@ -1,8 +1,7 @@
 # 觅源（Miyuan）· 鸿蒙族谱
 
-> 一部可以装在手机、折叠屏、平板与电脑上的“电子族谱”App。
+> 觅源寻根，一款可以在手机、折叠屏、平板与电脑上创建族谱的鸿蒙版App。
 > 支持 **欧式 / 苏式 / 宝塔式 / 牒记式 / 现代创新式** 五种谱式，
-> 完整覆盖《关键信息字段_20261023.xlsx》中的 5 大类 22 项字段。
 
 ---
 
@@ -151,9 +150,69 @@ entry/src/main/ets/
 
 ---
 
-## 八、后续可扩展
+## 八、家族协作（本次新增）
 
-- 云端备份与家族协作（全员共享一部族谱、线上认领补录）；
+> 技术设计与事实依据见 [家族协作编辑设计方案.md](家族协作编辑设计方案.md)；
+> **需要你在 AGC 控制台手动完成的部分见 [AGC手动操作步骤方案.md](AGC手动操作步骤方案.md)**。
+
+### 8.1 模型（一句话）
+
+**一部谱 = 一个云家族（familyId）**；云侧新建独立存储区 `miyuanfamily` 存放协作数据，
+端侧对其中 12 张表**没有任何直接读写权限**，所有数据都经过云函数；
+可见性 = 有没有一条 `ACTIVE` 的 `Membership`。
+
+### 8.2 「谁能看」的三条门槛（产品口径三选一，实现上只落一张表）
+
+| 门槛 | 入口 | 审批 | 产出 |
+| --- | --- | --- | --- |
+| ① 申请认证 | 族谱黄页 →「申请查看」 | 谱主审批 | `Membership(VIEWER, expireAt = now+180天)` |
+| ② 分享链接 | 加入码 →「用加入码加入」 | 无需审批 | `Membership(VIEWER/EDITOR)` |
+| ③ 成为族人 | 族谱黄页 →「我要加入」并认领支系 | 谱主审批 | `Membership(EDITOR, 永久, branchRootUid)` |
+
+到期失效采用**惰性校验**（云函数鉴权时比较 `expireAt`），不需要定时任务。
+
+### 8.3 隐私
+
+- `payload` 写云前**剔除**手机号 / 微信 / 现居地（进 `FamilyPrivate`，只有谱主经云函数能读）；
+- 墓葬坐标**迁出**到公开对象类型 `FamilyGraveLocation`（祭祖寻墓，任意登录用户可查）；
+- 族谱黄页 `FamilyDirectory` **默认不可搜**，上架后才可被搜到，下架 = 从表中删除该行。
+
+### 8.4 端侧新增
+
+| 页面 | 作用 |
+| --- | --- |
+| `pages/FamilyHome.ets` | 我的家族：接入云家族 / 加入码加入 / 发布本谱 / 同步 / 协作入口 |
+| `pages/FamilyMembers.ets` | 成员与访问申请审批（三条门槛的唯一审批入口） |
+| `pages/FamilyDirectoryView.ets` | 族谱黄页（只含索引元数据）+ 谱主上架管理 |
+| `pages/AccessApply.ets` | 申请查看 / 申请成为族人 + 我的申请 |
+| `pages/GraveMap.ets` | 祭祖寻墓（公开墓葬表 + 本地缓存，离线可查） |
+| `pages/ChangeReview.ets` | 待审变更的字段级 diff 与审核合入 |
+
+| 服务 | 作用 |
+| --- | --- |
+| `service/FamilyService.ets` | 云函数调用封装 + 家族身份/角色 + 写路径编排 |
+| `service/FamilySyncService.ets` | outbox 上传 → sync-pull 增量拉取 → 回放 RDB（唯一读取通道） |
+| `service/FamilyBootstrapService.ets` | 首次把本地全量谱分页发布（≤100 条/次，幂等） |
+| `service/OutboxService.ets` | 断网可编辑：本地变更排队，联网后补传 |
+| `service/GraveService.ets` | 公开墓葬查询 + 本地 `grave_location` 缓存 |
+| `service/DirectoryService.ets` | 黄页搜索与上架 |
+| `service/PrivacyService.ets` | 谱主读取隐私字段（其他人拿不到） |
+
+云侧代码在 `CloudProgram/`（22 个云函数 + 零依赖共享库），部署前先跑 `CloudProgram/tools/sync-shared.ps1`。
+
+**需要在 AGC 控制台手动完成的部分**（建 Zone、建 13 张表、配权限、部署 22 个函数、回归验证），
+见 [AGC手动操作步骤方案.md](AGC手动操作步骤方案.md)。
+
+### 8.5 本地数据库变更（自动迁移，无需手动）
+
+`person` 表新增 `rev / base_rev / dirty / deleted_at`；`genealogy` 表新增
+`family_id / sync_mode / cloud_rev / family_role`；新增表 `outbox`、`grave_location`。
+
+---
+
+## 九、后续可扩展
+
 - 家谱世系图导出为高清图片 / PDF 成册；
 - 族谱事件（婚丧、迁徙、祭祖）时间轴与提醒；
-- 农历精确换算（节气、闰月）与生辰提醒。
+- 农历精确换算（节气、闰月）与生辰提醒；
+- P3：变更推送（Push Kit）、长文分段贡献、谱系版本回滚。

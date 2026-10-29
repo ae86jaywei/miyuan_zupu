@@ -1,0 +1,1850 @@
+{
+  "permissions": [
+    {
+      "objectTypeName": "Family",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "Membership",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyMember",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyBook",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "ChangeRequest",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "ChangeLog",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyMedia",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyGraveLocation",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "AccessRequest",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyDirectory",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyTextSegment",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "UserDevice",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyPrivate",
+      "permissions": [
+        {
+          "role": "World",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Authenticated",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Creator",
+          "rights": [
+            "Read"
+          ]
+        },
+        {
+          "role": "Administrator",
+          "rights": [
+            "Read",
+            "Upsert",
+            "Delete"
+          ]
+        }
+      ]
+    }
+  ],
+  "objectTypes": [
+    {
+      "objectTypeName": "Family",
+      "fields": [
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "ownerUserId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "ownerUnionId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "title",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "bookKey",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "aclVersion",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "inviteCode",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "inviteExpireAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "inviteRole",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "directoryEnabled",
+          "fieldType": "Boolean",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "directoryUpdatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_inviteCode",
+          "indexList": [
+            "inviteCode"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "Membership",
+      "fields": [
+        {
+          "fieldName": "membershipId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "userId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "role",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "status",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "branchRootUid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "expireAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "nickName",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "source",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "joinedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "revokedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId",
+          "indexList": [
+            "familyId"
+          ]
+        },
+        {
+          "indexName": "index_userId",
+          "indexList": [
+            "userId"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyMember",
+      "fields": [
+        {
+          "fieldName": "memberId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "bookKey",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "uid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "name",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "generation",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "parentId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "payload",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "privateRef",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "graveRef",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "deleted",
+          "fieldType": "Boolean",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "deletedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "deletedBy",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "baseRev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId_rev",
+          "indexList": [
+            "familyId",
+            "rev"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyBook",
+      "fields": [
+        {
+          "fieldName": "bookId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "bookKey",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "title",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "payload",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "baseRev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "deleted",
+          "fieldType": "Boolean",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "objectTypeName": "ChangeRequest",
+      "fields": [
+        {
+          "fieldName": "requestId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "bookKey",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "submitterId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "submitterName",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "targetUid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "op",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "patchJson",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "baseRev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "evidence",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "status",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "reviewerId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "reviewNote",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "reviewedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "resultRev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId_status",
+          "indexList": [
+            "familyId",
+            "status"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "ChangeLog",
+      "fields": [
+        {
+          "fieldName": "logId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "action",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "targetMemberId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "summary",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "payload",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId_rev",
+          "indexList": [
+            "familyId",
+            "rev"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyMedia",
+      "fields": [
+        {
+          "fieldName": "mediaId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "memberId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "uid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "type",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "cloudPath",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "fileName",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "size",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "uploadedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "deleted",
+          "fieldType": "Boolean",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId",
+          "indexList": [
+            "familyId"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyGraveLocation",
+      "fields": [
+        {
+          "fieldName": "graveId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "uid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "personName",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "generation",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "bookTitle",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "graveName",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "lng",
+          "fieldType": "Double",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "lat",
+          "fieldType": "Double",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "altitude",
+          "fieldType": "Double",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "facing",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "bearing",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "routeNote",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "photoRefs",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "visibility",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "precision",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId",
+          "indexList": [
+            "familyId"
+          ]
+        },
+        {
+          "indexName": "index_visibility",
+          "indexList": [
+            "visibility"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "AccessRequest",
+      "fields": [
+        {
+          "fieldName": "requestId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "applicantId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "applicantName",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "kind",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "relationClaim",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "branchClaimUid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "evidence",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "grantedRole",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "expireAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "status",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "reviewerId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "reviewNote",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "reviewedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_familyId_status",
+          "indexList": [
+            "familyId",
+            "status"
+          ]
+        },
+        {
+          "indexName": "index_applicantId",
+          "indexList": [
+            "applicantId"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyDirectory",
+      "fields": [
+        {
+          "fieldName": "dirId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "surname",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "region",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "title",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "branchSummary",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "memberCountBand",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "coverRef",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "accessHint",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": [
+        {
+          "indexName": "index_surname",
+          "indexList": [
+            "surname"
+          ]
+        },
+        {
+          "indexName": "index_region",
+          "indexList": [
+            "region"
+          ]
+        }
+      ]
+    },
+    {
+      "objectTypeName": "FamilyTextSegment",
+      "fields": [
+        {
+          "fieldName": "segmentId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "memberId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "field",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "segOrder",
+          "fieldType": "Integer",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "text",
+          "fieldType": "Text",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "rev",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "createdAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "objectTypeName": "UserDevice",
+      "fields": [
+        {
+          "fieldName": "deviceId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "userId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "pushToken",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "platform",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": []
+    },
+    {
+      "objectTypeName": "FamilyPrivate",
+      "fields": [
+        {
+          "fieldName": "privateId",
+          "fieldType": "String",
+          "belongPrimaryKey": true,
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "familyId",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "uid",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "phone",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "wechat",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "residence",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "actor",
+          "fieldType": "String",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        },
+        {
+          "fieldName": "updatedAt",
+          "fieldType": "Long",
+          "belongPrimaryKey": false,
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "isSensitive": false
+        }
+      ],
+      "indexes": []
+    }
+  ]
+}

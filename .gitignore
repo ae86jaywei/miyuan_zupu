@@ -1,15 +1,57 @@
+# ---------------- 依赖（体积大，可重装）----------------
 /node_modules
+**/node_modules/
 /oh_modules
-/local.properties
-/.idea
-**/build
+**/oh_modules/
+**/package-lock.json
+**/oh-package-lock.json
+**/oh-package-lock.json5
+
+# ---------------- 构建产物 ----------------
+**/build/
+**/.hvigor/
 /.hvigor
+/preview
+**/.preview/
+/.appanalyzer
+.local.properties
+**/local.properties
+/preview
+*.log
+tmp_*
+**/.test
+
+# ---------------- IDE / 工具 ----------------
+/.idea/
+**/.idea/
+/.vscode/
+.vscode/
+/.codeartsdoer/
+.codeartsdoer/
 .cxx
 /.clangd
 /.clang-format
 /.clang-tidy
-**/.test
-/.appanalyzer
-/preview
-/tools
-/**/__pycache__
+/**/__pycache__/
+
+# ---------------- 签名与密钥（绝不入库）----------------
+zhengshu/
+**/*.p12
+**/*.p7b
+**/*.csr
+**/*.jks
+**/*.keystore
+**/*.pfx
+**/*.pem
+**/*.key
+**/*.cer
+
+# ---------------- 云函数产物与凭据 ----------------
+CloudProgram/dist/
+CloudProgram/agconnect-credential.json
+**/agconnect-credential.json
+
+# ---------------- 临时素材 ----------------
+远程真机测试截图/
+**/.DS_Store
+Thumbs.db

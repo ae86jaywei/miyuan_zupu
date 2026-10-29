@@ -1,0 +1,84 @@
+{
+  "permissions": [
+    {
+      "permissions": [
+        {
+          "role": "World",
+          "rights": ["Read"]
+        },
+        {
+          "role": "Authenticated",
+          "rights": ["Read", "Upsert"]
+        },
+        {
+          "role": "Creator",
+          "rights": ["Read", "Upsert", "Delete"]
+        },
+        {
+          "role": "Administrator",
+          "rights": ["Read", "Upsert", "Delete"]
+        }
+      ],
+      "objectTypeName": "testObjectTypeName"
+    }
+  ],
+  "objectTypes": [
+    {
+      "indexes": [
+        {
+          "indexName": "index1",
+          "indexList": ["field1", "field2"]
+        },
+        {
+          "indexName": "index2",
+          "indexList": ["field1", "field2", "field3"]
+        }
+      ],
+      "objectTypeName": "testObjectTypeName",
+      "fields": [
+        {
+          "fieldName": "field1",
+          "notNull": true,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": true,
+          "fieldType": "String"
+        },
+        {
+          "fieldName": "field2",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Long"
+        },
+        {
+          "fieldName": "field3",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Integer"
+        },
+        {
+          "fieldName": "field4",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Text"
+        },
+        {
+          "fieldName": "field5",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Float"
+        },
+        {
+          "fieldName": "field6",
+          "notNull": false,
+          "isNeedEncrypt": false,
+          "belongPrimaryKey": false,
+          "fieldType": "Byte"
+        }
+      ]
+    }
+  ]
+}

@@ -300,6 +300,14 @@ export class Person {
   createdAt: number = 0;
   /** 更新时间（毫秒） */
   updatedAt: number = 0;
+  /** 云端家族修订号（0 表示尚未上云；方案 §四 原则 3） */
+  rev: number = 0;
+  /** 最近一次同步到本地时的家族 rev 基线（冲突判定用） */
+  baseRev: number = 0;
+  /** 本地有未上传的修改 */
+  dirty: boolean = false;
+  /** 墓碑时间（非 0 表示已删除，仅协作态使用，见方案 §九） */
+  deletedAt: number = 0;
 }
 
 /** 字段说明（用于表单分组渲染与校验提示） */
@@ -389,5 +397,9 @@ export function clonePerson(src: Person): Person {
   p.photos = src.photos;
   p.createdAt = src.createdAt;
   p.updatedAt = src.updatedAt;
+  p.rev = src.rev;
+  p.baseRev = src.baseRev;
+  p.dirty = src.dirty;
+  p.deletedAt = src.deletedAt;
   return p;
 }

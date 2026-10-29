@@ -1,0 +1,56 @@
+{
+  "tables": [
+    {
+      "objectTypeName": "Family",
+      "fieldCount": 14
+    },
+    {
+      "objectTypeName": "Membership",
+      "fieldCount": 12
+    },
+    {
+      "objectTypeName": "FamilyMember",
+      "fieldCount": 17
+    },
+    {
+      "objectTypeName": "FamilyBook",
+      "fieldCount": 10
+    },
+    {
+      "objectTypeName": "ChangeRequest",
+      "fieldCount": 16
+    },
+    {
+      "objectTypeName": "ChangeLog",
+      "fieldCount": 9
+    },
+    {
+      "objectTypeName": "FamilyMedia",
+      "fieldCount": 11
+    },
+    {
+      "objectTypeName": "FamilyGraveLocation",
+      "fieldCount": 19
+    },
+    {
+      "objectTypeName": "AccessRequest",
+      "fieldCount": 16
+    },
+    {
+      "objectTypeName": "FamilyDirectory",
+      "fieldCount": 13
+    },
+    {
+      "objectTypeName": "FamilyTextSegment",
+      "fieldCount": 9
+    },
+    {
+      "objectTypeName": "UserDevice",
+      "fieldCount": 5
+    },
+    {
+      "objectTypeName": "FamilyPrivate",
+      "fieldCount": 8
+    }
+  ]
+}

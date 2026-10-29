@@ -44,3 +44,11 @@ export class ViewOptions {
   /** 缩放比例 */
   zoom: number = 1;
 }
+
+/** 访问申请页参数 */
+export class AccessParams {
+  /** 目标族谱（空表示从「我的申请」进入） */
+  familyId: string = '';
+  /** 预填的申请类型：VIEW_APPLY / JOIN_CLAIM */
+  kind: string = '';
+}
