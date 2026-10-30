@@ -55,3 +55,9 @@ CloudProgram/agconnect-credential.json
 远程真机测试截图/
 **/.DS_Store
 Thumbs.db
+
+# ---------------- 本地临时文件（调试产物）----------------
+.tmp_*
+**/.tmp_*
+.tmp_uidump/
+*.hprof

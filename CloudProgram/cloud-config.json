@@ -88,5 +88,10 @@
       "name": "user-device",
       "path": "./cloudfunctions/user-device"
     }
+    ,
+    {
+      "name": "family-delete",
+      "path": "./cloudfunctions/family-delete"
+    }
   ]
 }

@@ -527,6 +527,26 @@ export class FamilyService {
     return book;
   }
 
+  /**
+   * 解散云家族（仅谱主）。会清空该 familyId 下全部云端数据，不可恢复。
+   * 成功后：若当前本地族谱正绑定该家族，则退回「仅本机」模式。
+   */
+  async deleteCloudFamily(familyId: string, confirmTitle: string): Promise<void> {
+    await AccountService.getInstance().callFunction('family-delete', {
+      'familyId': familyId,
+      'confirmTitle': confirmTitle
+    });
+    this.roleCache.delete(familyId);
+    this.familyCache.delete(familyId);
+    const svc: GenealogyService = GenealogyService.getInstance();
+    if (svc.getBook().familyId === familyId) {
+      svc.setBookCloudState('', SyncMode.LOCAL, '', 0);
+      this.publishState(SyncMode.LOCAL, '');
+      this.setPendingCount(0);
+      this.setSyncStatus('已退出云家族');
+    }
+  }
+
   /** 空族谱占位（供 UI 判断） */
   static emptyBook(): Genealogy {
     return createEmptyGenealogy();

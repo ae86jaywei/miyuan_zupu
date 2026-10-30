@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "E:/HarmonyOS/miyuan_zupu/zhengshu/miyuan.p12",
+          "storeFile": "./zhengshu/miyuan.p12",
           "storePassword": "0000001EDBCFFDE80AF3B25477DA24BF09926AC4553BD14BA4E2673233A6B62E903E264C62925703CAA7136745DD",
           "keyAlias": "miyuan",
           "keyPassword": "0000001ED7B0AA6C55C6F282AF892005A3E4DB3074882E14A6378967CC2C23193875D5DE551DAC54DB260C8372D2",
           "signAlg": "SHA256withECDSA",
-          "profile": "E:/HarmonyOS/zupu/zhengshu/miyuanDebug.p7b",
-          "certpath": "E:/HarmonyOS/miyuan_zupu/zhengshu/miyuan.cer"
+          "profile": "./zhengshu/miyuanDebug.p7b",
+          "certpath": "./zhengshu/miyuan.cer"
         }
       }
     ],

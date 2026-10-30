@@ -552,6 +552,16 @@ struct FamilyHome {
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
+          Text('删除')
+            .fontSize(11.5)
+            .fontColor(Theme.lost)
+            .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+            .borderRadius(9)
+            .backgroundColor(Theme.field)
+            .margin({ left: 6 })
+            .onClick((): void => {
+              this.confirmDeleteFamily(f);
+            })
           if (f.localBookId === 0 && ALLOW_JOIN) {
             Text('导入本机')
               .fontSize(11.5)
@@ -574,6 +584,53 @@ struct FamilyHome {
     .borderRadius(Radius.L)
     .border({ width: 0.5, color: Theme.line })
     .margin({ top: Spacing.M })
+  }
+
+  /** 解散云家族：二次确认谱名后调用云函数清理 */
+  private confirmDeleteFamily(f: FamilySummary): void {
+    const hasLocal: boolean = f.localBookId > 0;
+    const tip: string = '将要删除云端的《' + f.title + '》\n\n' +
+      '· 云端该谱的全部族人、成员、审批记录都会被清空，且无法恢复；\n' +
+      '· 本机族谱数据不受影响' + (hasLocal ? '（这部谱在本机也有副本）' : '（本机没有这部谱）') + '；\n' +
+      '· 家族ID：' + f.familyId;
+    this.getUIContext().showAlertDialog({
+      title: '确认删除云家族？',
+      message: tip,
+      primaryButton: {
+        value: '取消',
+        action: (): void => {
+        }
+      },
+      secondaryButton: {
+        value: '确认删除',
+        fontColor: Theme.lost,
+        action: (): void => {
+          this.doDeleteFamily(f);
+        }
+      }
+    });
+  }
+
+  private async doDeleteFamily(f: FamilySummary): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.progressText = '正在删除《' + f.title + '》…';
+    try {
+      await FamilyService.getInstance().deleteCloudFamily(f.familyId, f.title);
+      this.progressText = '已删除《' + f.title + '》';
+      this.toast('已删除云家族');
+      await this.loadMine();
+      this.refreshHeader();
+      GenealogyStore.notifyChanged();
+    } catch (err) {
+      const be: BusinessError = err as BusinessError;
+      this.progressText = '删除失败：' + be.message;
+      this.toast(this.progressText);
+    } finally {
+      this.busy = false;
+    }
   }
 
   private async importFamily(f: FamilySummary): Promise<void> {
