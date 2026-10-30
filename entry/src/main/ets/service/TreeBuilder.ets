@@ -62,6 +62,36 @@ export class TreeBuilder {
       });
     });
 
+    // 随母子女挂靠：继室/妾室与前夫所生、随母改嫁而来的子女，
+    // 生父不在本谱、生母已是本谱某男子的配偶时，归入该男子名下。
+    // 这样他们既能随本户子女一并排行（siblingIndex），也能在谱图中随生母展示；
+    // 生父信息不被篡改（Person.fatherId 仍为空），仅树结构上寄挂于继父。
+    nodeMap.forEach((node: PersonNode): void => {
+      if (node.father !== null || node.mother === null) {
+        return;
+      }
+      const mother: PersonNode = node.mother;
+      if (mother.children.indexOf(node) < 0 || mother.spouses.length === 0) {
+        return;
+      }
+      let hostIdx: number = -1;
+      for (let i: number = 0; i < mother.spouses.length; i = i + 1) {
+        if (mother.spouses[i].person.gender === '男') {
+          hostIdx = i;
+          break;
+        }
+      }
+      if (hostIdx < 0) {
+        return;
+      }
+      const host: PersonNode = mother.spouses[hostIdx];
+      if (host === node || host.children.indexOf(node) >= 0) {
+        return;
+      }
+      node.father = host;
+      host.children.push(node);
+    });
+
     // 子女的父母推断夫妻：共同拥有子女的不同性别成年人视为配偶（妾室亦按此关联）
     nodeMap.forEach((node: PersonNode): void => {
       node.children.forEach((child: PersonNode): void => {

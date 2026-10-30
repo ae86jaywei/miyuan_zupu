@@ -101,7 +101,7 @@ export const TREE_STYLES: TreeStyleMeta[] = [
 /** 排行（二子/二女等） */
 export const RANK_OPTIONS: string[] = ['长子', '次子', '三子', '四子', '五子', '六子', '七子', '八子', '九子', '十子',
   '长女', '次女', '三女', '四女', '五女', '六女', '七女', '八女', '九女', '十女',
-  '独子', '独女'];
+  '独子', '独女', '随母子', '随母女'];
 
 /** 世代表述：一世…二十世 */
 export function generationLabel(gen: number): string {

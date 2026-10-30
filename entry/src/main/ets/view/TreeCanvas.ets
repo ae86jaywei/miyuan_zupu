@@ -10,6 +10,7 @@ import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
 import { Breakpoint } from '../common/Constants';
+import { suRootCenterX } from '../service/TreeLayout';
 
 /**
  * 谱式画布：按所选谱式渲染整部族谱。
@@ -17,7 +18,7 @@ import { Breakpoint } from '../common/Constants';
  */
 @Component
 export struct TreeCanvas {
-  @Prop style: string = TreeStyle.EU;
+  @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
   @Prop roots: PersonNode[] = [];
   @Prop people: Person[] = [];
   @Prop highlightUid: string = '';
@@ -38,9 +39,38 @@ export struct TreeCanvas {
   /** 容器可视区尺寸 */
   @State viewW: number = 0;
   @State viewH: number = 0;
+  /** 苏式谱切换后待把始祖居中（等可视区宽度就绪后再执行一次） */
+  private pendingCenter: boolean = true;
 
   private isNarrow(): boolean {
     return this.windowWidth < Breakpoint.SM;
+  }
+
+  /** 切换谱式后画布尺寸与布局完全变化，平移偏移必须归零，否则内容会移出可视区 */
+  onStyleChanged(): void {
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.canvasW = 0;
+    this.canvasH = 0;
+    this.pendingCenter = true;
+    this.centerSuIfReady();
+  }
+
+  /**
+   * 苏式谱的始祖居中于子孙，画布宽度远大于屏幕，默认停在 x=0 时始祖会落在屏幕外，
+   * 看起来像“空白”。可视区宽度就绪后把始祖横移到屏幕中间，保证一切换就有内容。
+   */
+  private centerSuIfReady(): void {
+    if (!this.pendingCenter || this.style !== TreeStyle.SU) {
+      return;
+    }
+    if (this.viewW <= 0 || this.roots.length === 0) {
+      return;
+    }
+    this.pendingCenter = false;
+    const cx: number = suRootCenterX([this.roots[0]], this.cardWidth(), this.isNarrow());
+    this.offsetX = this.viewW / 2 - cx;
+    this.offsetY = 0;
   }
 
   private cardWidth(): number {
@@ -212,6 +242,7 @@ export struct TreeCanvas {
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showGenMark: true,
+                        showSpouse: true,
                         offsetX: $offsetX,
                         offsetY: $offsetY,
                         onTapPerson: (uid: string): void => {
@@ -243,6 +274,7 @@ export struct TreeCanvas {
         .onAreaChange((oldArea: Area, newArea: Area): void => {
           this.viewW = Number(newArea.width);
           this.viewH = Number(newArea.height);
+          this.centerSuIfReady();
         })
         .parallelGesture(
           PanGesture({ fingers: 1, distance: 8, direction: PanDirection.All })

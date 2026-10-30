@@ -15,6 +15,8 @@ export struct SuTree {
   @Prop highlightUid: string = '';
   @Prop dense: boolean = false;
   @Prop showGenMark: boolean = true;
+  /** 是否把配偶作为独立卡片画在男性右侧 */
+  @Prop showSpouse: boolean = false;
   /** 平移偏移（由父组件持有，切换谱式/刷新后保持） */
   @Link offsetX: number;
   @Link offsetY: number;
@@ -24,12 +26,8 @@ export struct SuTree {
   /** 拖动后回调，供父组件记录尺寸 */
   onSize: (w: number, h: number) => void = (w: number, h: number): void => {};
 
-  private cardHeight(): number {
-    return this.dense ? 54 : 68;
-  }
-
   private canvas(): SuCanvas {
-    return SuLayout.compute(this.roots, this.cardWidth, 16, this.dense ? 46 : 62, 8, this.cardHeight());
+    return SuLayout.compute(this.roots, this.cardWidth, this.dense, this.showSpouse);
   }
 
   build() {
@@ -39,37 +37,22 @@ export struct SuTree {
           Row()
             .width(Math.max(Math.abs(seg.x2 - seg.x1), 1.5))
             .height(Math.max(Math.abs(seg.y2 - seg.y1), 1.5))
-            .backgroundColor(Theme.goldLight)
+            .backgroundColor(seg.red ? Theme.primary : Theme.goldLight)
             .position({ x: Math.min(seg.x1, seg.x2), y: Math.min(seg.y1, seg.y2) })
         }, (seg: LineSeg, i: number) => 'su_ln_' + i.toString() + '_' + seg.x1.toString())
 
         ForEach(this.canvas().boxes, (box: SuBox) => {
-          Column() {
-            TreeMiniCard({
-              node: box.node,
-              cardWidth: this.cardWidth,
-              highlight: box.node.uid === this.highlightUid,
-              dense: this.dense,
-              onTapPerson: (uid: string): void => {
-                this.onTapPerson(uid);
-              }
-            })
-            if (box.node.spouseText().length > 0 && !this.dense) {
-              Text(box.node.spouseText())
-                .fontSize(9)
-                .fontColor(Theme.gold)
-                .maxLines(2)
-                .textOverflow({ overflow: TextOverflow.Ellipsis })
-                .margin({ top: 2 })
-                .onClick((): void => {
-                  if (box.node.spouse !== null) {
-                    this.onTapPerson((box.node.spouse as PersonNode).uid);
-                  }
-                })
+          TreeMiniCard({
+            node: box.node,
+            cardWidth: box.w,
+            cardHeight: box.h,
+            highlight: box.node.uid === this.highlightUid,
+            dense: this.dense,
+            onTapPerson: (uid: string): void => {
+              this.onTapPerson(uid);
             }
-          }
-          .width(box.w)
-          .position({ x: box.x, y: box.y })
+          })
+            .position({ x: box.x, y: box.y })
         }, (box: SuBox) => 'su_bx_' + box.node.uid)
       }
       .width(Math.max(this.canvas().width, this.viewWidth + 600))

@@ -1765,7 +1765,7 @@ struct PersonEdit {
       Column() {
         SelectField({
           label: '子女身份',
-          hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子（决定宗法地位与继承顺序）',
+          hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母（决定宗法地位与继承顺序）',
           options: CHILD_STATUS_OPTIONS,
           value: this.fChildStatus,
           onValue: (v: string): void => {

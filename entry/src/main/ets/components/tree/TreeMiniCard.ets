@@ -17,6 +17,8 @@ export struct TreeMiniCard {
     Theme.use(this.darkMode);
   }
   @Prop dense: boolean = false;
+  /** 固定卡片高度（由谱图布局传入，保证连线与卡框精确对齐；<=0 时不约束） */
+  @Prop cardHeight: number = 0;
   /** 是否在卡片内展示配偶（欧式/苏式由外层单独绘制配偶卡时传 false） */
   @Prop showSpouseInline: boolean = false;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
@@ -104,7 +106,8 @@ export struct TreeMiniCard {
       }
     }
     .width(this.cardWidth)
-    .padding({ left: 8, right: 8, top: 6, bottom: 6 })
+    .height(this.cardHeight > 0 ? this.cardHeight : undefined)
+    .padding({ left: 8, right: 8, top: 5, bottom: 5 })
     .backgroundColor(this.highlight ? Theme.highlightBg : Theme.card)
     .borderRadius(10)
     .border({

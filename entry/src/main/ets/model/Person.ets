@@ -158,7 +158,7 @@ export interface ChildStatusMeta {
   hint: string;
 }
 
-export const CHILD_STATUS_OPTIONS: string[] = ['未记', '嫡出', '庶出', '婢生', '奸生', '嗣子', '养子'];
+export const CHILD_STATUS_OPTIONS: string[] = ['未记', '嫡出', '庶出', '婢生', '奸生', '嗣子', '养子', '随母'];
 
 export const CHILD_STATUS_METAS: ChildStatusMeta[] = [
   { status: '未记', hint: '未标注出身名分。' },
@@ -185,6 +185,10 @@ export const CHILD_STATUS_METAS: ChildStatusMeta[] = [
   {
     status: '养子',
     hint: '异姓收养子（义子／螟蛉之子）：通常不改变原姓，严格宗法下继承权受限（如明代规定异姓不得继承），地位不如嗣子稳固。'
+  },
+  {
+    status: '随母',
+    hint: '随母子女（随母子／随母女）：继室或妾室再嫁时随母带来的前夫所生子女，又称“前夫子／前夫女”，俗称“拖油瓶”；对继父而言礼法上称“继子／继女”。非本宗血脉，不入本宗世系承继，通常附于生母名下记录，排行随本户子女一并排定。'
   }
 ];
 
@@ -208,6 +212,7 @@ export function childStatusLabel(status: string, gender: string): string {
     case '奸生': return female ? '奸生女' : '奸生子';
     case '嗣子': return female ? '嗣女' : '嗣子';
     case '养子': return female ? '养女' : '养子';
+    case '随母': return female ? '随母女' : '随母子';
     default: return '未记';
   }
 }
@@ -246,7 +251,7 @@ export class Person {
   generationChar: string = '';
   /** 在世状态：在世 / 已故 / 失联 */
   lifeStatus: string = '在世';
-  /** 子女出身/身份：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 */
+  /** 子女出身/身份：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母 */
   childStatus: string = '未记';
   /** 出生日期（公历年月日或农历原文） */
   birthDate: string = '';
@@ -331,7 +336,7 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'gender', label: '性别', hint: '男 / 女', group: '身份标识', type: 'select', privacy: false },
   { key: 'generationChar', label: '辈分/字派', hint: '所属字辈，如：德', group: '身份标识', type: 'text', privacy: false },
   { key: 'lifeStatus', label: '在世状态', hint: '在世 / 已故 / 失联 / 不详（上下滑动选择）', group: '身份标识', type: 'select', privacy: false },
-  { key: 'childStatus', label: '子女身份', hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子；决定宗法地位与继承顺序', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childStatus', label: '子女身份', hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；决定宗法地位与继承顺序', group: '身份标识', type: 'select', privacy: false },
   { key: 'birthDate', label: '出生日期', hint: '拉起日历选择（公历），或手填农历 1980年农历四月六', group: '时间信息', type: 'date', privacy: false },
   { key: 'deathDate', label: '逝世日期', hint: '格式同上，在世者留空', group: '时间信息', type: 'date', privacy: false },
   { key: 'birthPlace', label: '出生地', hint: '省-市-县-乡镇-村，如：广东-梅州-兴宁-罗岗镇', group: '时间信息', type: 'text', privacy: false },
