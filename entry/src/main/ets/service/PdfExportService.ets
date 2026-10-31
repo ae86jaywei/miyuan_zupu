@@ -83,6 +83,12 @@ function pushAll(dst: TextLine[], src: TextLine[]): void {
   }
 }
 
+function pushAllPages(dst: PageSpec[], src: PageSpec[]): void {
+  for (let i: number = 0; i < src.length; i++) {
+    dst.push(src[i]);
+  }
+}
+
 /** 中文环境按字符宽度逐字断行（依赖 ctx.measureText 实测宽度） */
 function wrapLines(ctx: OffscreenCanvasRenderingContext2D, text: string, font: number,
   indent: number, color: string): TextLine[] {
@@ -416,7 +422,11 @@ async function renderPageToJpeg(spec: PageSpec, pageNo: number, total: number,
   const ctx: OffscreenCanvasRenderingContext2D = canvas.getContext('2d');
   drawPage(ctx, spec, pageNo, total, isCover);
   const data: ImageData = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
-  const buf: ArrayBuffer = data.data.slice().buffer;
+  const buf: ArrayBuffer = new ArrayBuffer(data.data.byteLength);
+  const u8: Uint8Array = new Uint8Array(buf);
+  for (let i: number = 0; i < data.data.length; i++) {
+    u8[i] = data.data[i];
+  }
   const opts: image.InitializationOptions = {
     size: { width: CANVAS_W, height: CANVAS_H },
     srcPixelFormat: image.PixelMapFormat.RGBA_8888,
@@ -479,10 +489,10 @@ export class PdfExportService {
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
 
     const all: PageSpec[] = [];
-    pushAll(all, coverPages);
-    pushAll(all, prefacePages);
-    pushAll(all, genealogyPages);
-    pushAll(all, backPages);
+    pushAllPages(all, coverPages);
+    pushAllPages(all, prefacePages);
+    pushAllPages(all, genealogyPages);
+    pushAllPages(all, backPages);
     const total: number = all.length;
     if (total === 0) {
       throw new Error('排版结果为空');
