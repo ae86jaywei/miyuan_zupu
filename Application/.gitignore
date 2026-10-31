@@ -8,6 +8,7 @@
 **/oh-package-lock.json5
 
 # ---------------- 构建产物 ----------------
+/*/build/
 **/build/
 **/.hvigor/
 /.hvigor
@@ -61,3 +62,6 @@ Thumbs.db
 **/.tmp_*
 .tmp_uidump/
 *.hprof
+/修改提词.txt
+/家族协作编辑设计方案.md
+/添加用户账户开发需求.txt
