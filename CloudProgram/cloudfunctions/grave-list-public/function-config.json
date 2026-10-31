@@ -2,7 +2,6 @@
   "name": "grave-list-public",
   "version": "1.0.0",
   "description": "按关键字聚合祖墓（公开表端侧也可直读本函数非必需）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

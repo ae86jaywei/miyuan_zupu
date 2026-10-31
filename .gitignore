@@ -1,3 +1,7 @@
+/.idea/.gitignore
+/.idea/miyuan_yunkaifa.iml
+/.idea/modules.xml
+/.idea/vcs.xml
 # ---------------- 依赖（体积大，可重装）----------------
 /node_modules
 **/node_modules/

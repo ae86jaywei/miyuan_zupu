@@ -2,7 +2,6 @@
   "name": "family-list-mine",
   "version": "1.0.0",
   "description": "我参与的全部家族与我的角色",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

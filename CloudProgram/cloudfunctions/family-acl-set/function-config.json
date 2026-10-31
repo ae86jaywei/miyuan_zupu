@@ -2,7 +2,6 @@
   "name": "family-acl-set",
   "version": "1.0.0",
   "description": "谱主调整成员角色/分支/期限，或轮换加入码",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

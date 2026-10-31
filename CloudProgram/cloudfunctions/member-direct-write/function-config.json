@@ -2,7 +2,6 @@
   "name": "member-direct-write",
   "version": "1.0.0",
   "description": "编辑者直写认领分支内成员（P2，字段级 LWW + 墓碑）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

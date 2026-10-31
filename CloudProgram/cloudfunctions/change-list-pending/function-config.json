@@ -2,7 +2,6 @@
   "name": "change-list-pending",
   "version": "1.0.0",
   "description": "查看待审变更列表",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

@@ -1,0 +1,22 @@
+{
+  "name": "user-device",
+  "version": "1.0.0",
+  "description": "登记/删除推送设备（P3 Push Kit）",
+  "handler": "index.handler",
+  "memorySize": 500,
+  "timeout": 30,
+  "triggers": [
+    {
+      "type": "http",
+      "properties": {
+        "enableUrlDecode": true,
+        "authFlag": "true",
+        "authAlgor": "HDA-SYSTEM",
+        "authType": "apigw-client",
+        "methods": [
+          "POST"
+        ]
+      }
+    }
+  ]
+}

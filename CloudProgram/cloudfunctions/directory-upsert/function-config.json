@@ -2,7 +2,6 @@
   "name": "directory-upsert",
   "version": "1.0.0",
   "description": "族谱黄页上架/下架与索引元数据维护（字段白名单校验）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

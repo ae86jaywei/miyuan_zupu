@@ -1,0 +1,22 @@
+{
+  "name": "change-submit",
+  "version": "1.0.0",
+  "description": "编辑者提交待审变更（分支子树校验 + 频率限制）",
+  "handler": "index.handler",
+  "memorySize": 500,
+  "timeout": 30,
+  "triggers": [
+    {
+      "type": "http",
+      "properties": {
+        "enableUrlDecode": true,
+        "authFlag": "true",
+        "authAlgor": "HDA-SYSTEM",
+        "authType": "apigw-client",
+        "methods": [
+          "POST"
+        ]
+      }
+    }
+  ]
+}

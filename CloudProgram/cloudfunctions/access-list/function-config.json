@@ -2,7 +2,6 @@
   "name": "access-list",
   "version": "1.0.0",
   "description": "我的申请 / 谱主待审申请列表",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

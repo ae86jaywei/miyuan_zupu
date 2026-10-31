@@ -1,0 +1,25 @@
+components:
+- name: family-create
+  properties:
+    handler: index.handler
+    memorySize: 500
+    runtime: nodejs14.x
+    functionType: 0
+    codeUri: family-create.zip
+    env: null
+    timeout: 60
+    instanceConcurrency: 100
+    codeTemplateType: 0
+    events:
+    - definitions: null
+      properties:
+        methods:
+        - POST
+        enableUrlDecode: true
+        authFlag: 'true'
+        authType: apigw-client
+        authAlgor: HDA-SYSTEM
+      type: no_path
+  type: Huawei::AGC::CloudFunctions
+name: Applicationfamily-create
+type: Application

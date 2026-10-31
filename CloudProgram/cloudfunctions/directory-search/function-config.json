@@ -2,7 +2,6 @@
   "name": "directory-search",
   "version": "1.0.0",
   "description": "按谱名/姓氏/地域搜索黄页（只返回索引元数据）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

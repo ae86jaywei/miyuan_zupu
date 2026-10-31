@@ -2,7 +2,6 @@
   "name": "family-join",
   "version": "1.0.0",
   "description": "用加入码加入家族（写 Membership，门槛②）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

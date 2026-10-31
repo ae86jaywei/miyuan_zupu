@@ -2,7 +2,6 @@
   "name": "change-review",
   "version": "1.0.0",
   "description": "谱主审核合入（分配 rev + 写 FamilyMember/ChangeLog 一批）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

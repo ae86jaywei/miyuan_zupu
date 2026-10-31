@@ -2,7 +2,6 @@
   "name": "user-device",
   "version": "1.0.0",
   "description": "登记/删除推送设备（P3 Push Kit）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

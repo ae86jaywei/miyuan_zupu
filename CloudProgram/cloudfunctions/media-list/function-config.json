@@ -2,7 +2,6 @@
   "name": "media-list",
   "version": "1.0.0",
   "description": "列出家族媒体索引",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

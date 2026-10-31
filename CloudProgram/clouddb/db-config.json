@@ -1,4 +1,4 @@
 {
-  "defaultCloudDBZoneName": "miyuanfamily",
-  "defaultDataStorageLocation": "CN"
+	"defaultCloudDBZoneName": "default",
+	"defaultDataStorageLocation": "CN"
 }

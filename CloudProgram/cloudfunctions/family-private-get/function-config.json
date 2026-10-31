@@ -2,7 +2,6 @@
   "name": "family-private-get",
   "version": "1.0.0",
   "description": "读取活人隐私字段（仅 OWNER）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

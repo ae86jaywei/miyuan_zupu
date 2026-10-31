@@ -2,7 +2,6 @@
   "name": "family-delete",
   "version": "1.0.0",
   "description": "解散云家族（仅谱主，需 confirmTitle 二次确认，逐表清空后删除 Family）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

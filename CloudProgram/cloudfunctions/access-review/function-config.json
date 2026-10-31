@@ -2,7 +2,6 @@
   "name": "access-review",
   "version": "1.0.0",
   "description": "谱主审批访问申请（唯一动作 = 写 Membership）",
-  "functionType": 1,
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

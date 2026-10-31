@@ -1,0 +1,22 @@
+{
+  "name": "media-list",
+  "version": "1.0.0",
+  "description": "列出家族媒体索引",
+  "handler": "index.handler",
+  "memorySize": 500,
+  "timeout": 30,
+  "triggers": [
+    {
+      "type": "http",
+      "properties": {
+        "enableUrlDecode": true,
+        "authFlag": "true",
+        "authAlgor": "HDA-SYSTEM",
+        "authType": "apigw-client",
+        "methods": [
+          "POST"
+        ]
+      }
+    }
+  ]
+}
