@@ -110,13 +110,19 @@
     {
       "indexName": "index_surname",
       "indexList": [
-        "surname"
+        {
+          "fieldName": "surname",
+          "sortType": "ASC"
+        }
       ]
     },
     {
       "indexName": "index_region",
       "indexList": [
-        "region"
+        {
+          "fieldName": "region",
+          "sortType": "ASC"
+        }
       ]
     }
   ],

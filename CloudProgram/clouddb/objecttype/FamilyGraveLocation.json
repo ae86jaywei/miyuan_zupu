@@ -158,13 +158,19 @@
     {
       "indexName": "index_familyId",
       "indexList": [
-        "familyId"
+        {
+          "fieldName": "familyId",
+          "sortType": "ASC"
+        }
       ]
     },
     {
       "indexName": "index_visibility",
       "indexList": [
-        "visibility"
+        {
+          "fieldName": "visibility",
+          "sortType": "ASC"
+        }
       ]
     }
   ],

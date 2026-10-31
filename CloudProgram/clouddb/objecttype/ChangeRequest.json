@@ -134,8 +134,14 @@
     {
       "indexName": "index_familyId_status",
       "indexList": [
-        "familyId",
-        "status"
+        {
+          "fieldName": "familyId",
+          "sortType": "ASC"
+        },
+        {
+          "fieldName": "status",
+          "sortType": "ASC"
+        }
       ]
     }
   ],

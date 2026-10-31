@@ -102,13 +102,19 @@
     {
       "indexName": "index_familyId",
       "indexList": [
-        "familyId"
+        {
+          "fieldName": "familyId",
+          "sortType": "ASC"
+        }
       ]
     },
     {
       "indexName": "index_userId",
       "indexList": [
-        "userId"
+        {
+          "fieldName": "userId",
+          "sortType": "ASC"
+        }
       ]
     }
   ],

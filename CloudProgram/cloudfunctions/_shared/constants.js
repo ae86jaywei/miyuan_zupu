@@ -16,7 +16,9 @@ const T = {
   ACCESS_REQUEST: 'AccessRequest',
   DIRECTORY: 'FamilyDirectory',
   TEXT_SEGMENT: 'FamilyTextSegment',
-  USER_DEVICE: 'UserDevice'
+  USER_DEVICE: 'UserDevice',
+  /** 活人隐私字段表（此前漏登记，导致 S.T.PRIVATE 为 undefined，查询直接抛 2033 invalid parameter） */
+  PRIVATE: 'FamilyPrivate'
 };
 
 /** 角色 */

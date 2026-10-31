@@ -142,8 +142,14 @@
     {
       "indexName": "index_familyId_rev",
       "indexList": [
-        "familyId",
-        "rev"
+        {
+          "fieldName": "familyId",
+          "sortType": "ASC"
+        },
+        {
+          "fieldName": "rev",
+          "sortType": "ASC"
+        }
       ]
     }
   ],

@@ -2,12 +2,17 @@
   "name": "grave-update",
   "version": "1.0.0",
   "description": "更新墓葬位置（就近优先 50m 规则；FAMILY_ONLY 时真移出公开表）",
+  "functionType": 1,
+  "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,
   "triggers": [
     {
       "type": "http",
       "properties": {
+        "enableUrlDecode": true,
+        "authFlag": "true",
+        "authAlgor": "HDA-SYSTEM",
         "authType": "apigw-client",
         "methods": [
           "POST"

@@ -1,18 +1,4 @@
 {
-  "cloudDBZoneName": "miyuanfamily",
-  "objectTypes": [
-    "Family",
-    "Membership",
-    "FamilyMember",
-    "FamilyBook",
-    "ChangeRequest",
-    "ChangeLog",
-    "FamilyMedia",
-    "FamilyGraveLocation",
-    "AccessRequest",
-    "FamilyDirectory",
-    "FamilyTextSegment",
-    "UserDevice",
-    "FamilyPrivate"
-  ]
+  "defaultCloudDBZoneName": "miyuanfamily",
+  "defaultDataStorageLocation": "CN"
 }

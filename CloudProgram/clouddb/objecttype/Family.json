@@ -118,7 +118,10 @@
     {
       "indexName": "index_inviteCode",
       "indexList": [
-        "inviteCode"
+        {
+          "fieldName": "inviteCode",
+          "sortType": "ASC"
+        }
       ]
     }
   ],

@@ -2,12 +2,17 @@
   "name": "family-bootstrap",
   "version": "1.0.0",
   "description": "首次把谱主本地全量基线分页发布到协作 Zone（幂等，≤100 条/次）",
+  "functionType": 1,
+  "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,
   "triggers": [
     {
       "type": "http",
       "properties": {
+        "enableUrlDecode": true,
+        "authFlag": "true",
+        "authAlgor": "HDA-SYSTEM",
         "authType": "apigw-client",
         "methods": [
           "POST"

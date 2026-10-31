@@ -1,97 +1,25 @@
 {
-  "cloudfunctions": [
-    {
-      "name": "family-create",
-      "path": "./cloudfunctions/family-create"
-    },
-    {
-      "name": "family-bootstrap",
-      "path": "./cloudfunctions/family-bootstrap"
-    },
-    {
-      "name": "family-join",
-      "path": "./cloudfunctions/family-join"
-    },
-    {
-      "name": "family-acl-list",
-      "path": "./cloudfunctions/family-acl-list"
-    },
-    {
-      "name": "family-acl-set",
-      "path": "./cloudfunctions/family-acl-set"
-    },
-    {
-      "name": "family-list-mine",
-      "path": "./cloudfunctions/family-list-mine"
-    },
-    {
-      "name": "change-submit",
-      "path": "./cloudfunctions/change-submit"
-    },
-    {
-      "name": "change-list-pending",
-      "path": "./cloudfunctions/change-list-pending"
-    },
-    {
-      "name": "change-review",
-      "path": "./cloudfunctions/change-review"
-    },
-    {
-      "name": "member-direct-write",
-      "path": "./cloudfunctions/member-direct-write"
-    },
-    {
-      "name": "sync-pull",
-      "path": "./cloudfunctions/sync-pull"
-    },
-    {
-      "name": "grave-update",
-      "path": "./cloudfunctions/grave-update"
-    },
-    {
-      "name": "grave-list-public",
-      "path": "./cloudfunctions/grave-list-public"
-    },
-    {
-      "name": "access-request",
-      "path": "./cloudfunctions/access-request"
-    },
-    {
-      "name": "access-review",
-      "path": "./cloudfunctions/access-review"
-    },
-    {
-      "name": "access-list",
-      "path": "./cloudfunctions/access-list"
-    },
-    {
-      "name": "directory-upsert",
-      "path": "./cloudfunctions/directory-upsert"
-    },
-    {
-      "name": "directory-search",
-      "path": "./cloudfunctions/directory-search"
-    },
-    {
-      "name": "family-private-get",
-      "path": "./cloudfunctions/family-private-get"
-    },
-    {
-      "name": "media-record",
-      "path": "./cloudfunctions/media-record"
-    },
-    {
-      "name": "media-list",
-      "path": "./cloudfunctions/media-list"
-    },
-    {
-      "name": "user-device",
-      "path": "./cloudfunctions/user-device"
-    }
-    ,
-    {
-      "name": "family-delete",
-      "path": "./cloudfunctions/family-delete"
-    }
-  ]
+  "appSelected": {
+    "appId": "6917620028225503318",
+    "appName": "觅源",
+    "deviceTypes": [
+      {
+        "deviceType": 4
+      },
+      {
+        "deviceType": 5
+      },
+      {
+        "deviceType": 19
+      }
+    ],
+    "enableSites": "CN",
+    "installationFree": 0,
+    "packageType": 7,
+    "projectId": "101653523865445747",
+    "projectName": "日常应用",
+    "siteId": "CN"
+  },
+  "teamId": "7235262",
+  "uid": "7235262"
 }
