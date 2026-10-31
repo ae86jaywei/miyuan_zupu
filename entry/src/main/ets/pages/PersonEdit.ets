@@ -595,9 +595,41 @@ struct PersonEdit {
     if (this.errorMsg.length > 0) {
       return;
     }
+    const p: Person = this.toPerson();
+    const uid: string = p.uid.trim().toUpperCase();
+    const original: string = this.originalUid.trim().toUpperCase();
+    const retiredName: string = this.svc().retiredNameOf(uid);
+    if (retiredName.length > 0 && original !== uid) {
+      // 编号曾被已删除族人使用：继续沿用会让云端遗留关系指向当前族人
+      this.getUIContext().showAlertDialog({
+        title: '该编号曾用于已删除族人',
+        message: '编号“' + uid + '”曾属于已删除的“' + retiredName + '”。\n\n' +
+          '继续使用该编号时，云端仍保留的旧父母/配偶关系可能被挂到当前族人身上，' +
+          '合并后世系图会出现重复、重叠或多出宗支。\n\n建议取消后更换编号（留空可由系统自动分配）。',
+        primaryButton: {
+          value: '取消改号',
+          action: (): void => {
+          }
+        },
+        secondaryButton: {
+          value: '仍然保存',
+          fontColor: Theme.primary,
+          action: async (): Promise<void> => {
+            await this.doSave(p);
+          }
+        }
+      });
+      return;
+    }
+    await this.doSave(p);
+  }
+
+  private async doSave(p: Person): Promise<void> {
+    if (this.saving) {
+      return;
+    }
     this.saving = true;
     try {
-      const p: Person = this.toPerson();
       if (this.originalUid.length > 0) {
         // 协作：保存前先留一份快照，用于生成字段级 diff（审核页展示旧值 → 新值）
         this.svc().captureBefore(this.originalUid);
@@ -1091,7 +1123,7 @@ struct PersonEdit {
         this.fGender = value;
         // 新增且 ID 仍为自动生成 → 按新性别重新计算（男 F / 女 M）
         if (this.originalUid.length === 0 && this.uidAuto) {
-          this.fUid = IdGenerator.next(this.svc().getPeople(), value);
+          this.fUid = this.svc().nextUid(value);
         }
         break;
       }

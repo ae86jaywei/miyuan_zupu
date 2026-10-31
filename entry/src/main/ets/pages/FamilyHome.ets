@@ -153,9 +153,33 @@ struct FamilyHome {
     });
   }
 
-  private async doPublish(): Promise<void> {
+  private async doPublish(force: boolean = false): Promise<void> {
     if (this.busy) {
       return;
+    }
+    if (!force) {
+      // 发布前体检：错乱的编号/关系一旦上传，其他成员同步后都会看到重复宗支
+      const report = GenealogyService.getInstance().checkIntegrity();
+      if (report.hasError()) {
+        this.getUIContext().showAlertDialog({
+          title: '发布前数据体检',
+          message: report.summary() + '\n\n' + report.detail(5) +
+            '\n\n建议先取消，核对相关人员编号与父母/配偶关系后再发布。',
+          primaryButton: {
+            value: '取消',
+            action: (): void => {
+            }
+          },
+          secondaryButton: {
+            value: '仍然发布',
+            fontColor: Theme.primary,
+            action: async (): Promise<void> => {
+              await this.doPublish(true);
+            }
+          }
+        });
+        return;
+      }
     }
     this.busy = true;
     this.progressText = '正在发布到云端…';
@@ -167,7 +191,8 @@ struct FamilyHome {
       this.progressText = result.message;
       this.toast(result.message);
       if (result.ok) {
-        await FamilySyncService.getInstance().syncCurrent('after-bootstrap');
+        const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-bootstrap');
+        this.showIntegrity(synced);
       }
     } catch (err) {
       const be: BusinessError = err as BusinessError;
@@ -201,9 +226,10 @@ struct FamilyHome {
       }
       GenealogyStore.notifyChanged();
       this.refreshHeader();
-      await FamilySyncService.getInstance().syncCurrent('after-join');
+      const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-join');
       this.progressText = '已加入《' + summary.title + '》，角色：' + roleLabel(summary.role);
       this.toast(this.progressText);
+      this.showIntegrity(synced);
       await this.loadMine();
     } catch (err) {
       const be: BusinessError = err as BusinessError;
@@ -225,9 +251,35 @@ struct FamilyHome {
         (result.applied > 0 ? '（应用 ' + result.applied.toString() + ' 条变更）' : '');
       this.toast(result.message);
       this.refreshHeader();
+      this.showIntegrity(result);
     } finally {
       this.busy = false;
     }
+  }
+
+  /** 同步/合并后发现ID与亲属关系异常时弹窗说明 */
+  private showIntegrity(result: SyncResult): void {
+    if (result.integrityIssues.length === 0) {
+      return;
+    }
+    const shown: string[] = result.integrityIssues.slice(0, 5);
+    let text: string = shown.join('\n');
+    if (result.integrityIssues.length > shown.length) {
+      text = text + '\n……另有 ' + (result.integrityIssues.length - shown.length).toString() + ' 项';
+    }
+    const title: string = result.integrityBlocked > 0 ? '同步已暂缓部分变更' : '数据一致性提示';
+    const tail: string = result.integrityBlocked > 0
+      ? '\n\n为避免旧的父母/配偶关系挂到新族人身上，相关变更未合入。请到「名录」核对编号与亲属关系，改号后重新发布或同步。'
+      : '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。';
+    this.getUIContext().showAlertDialog({
+      title: title,
+      message: text + tail,
+      confirm: {
+        value: '知道了',
+        action: (): void => {
+        }
+      }
+    });
   }
 
   private async loadPrivate(): Promise<void> {
@@ -639,9 +691,10 @@ struct FamilyHome {
       await FamilyService.getInstance().createLocalBookForFamily(f);
       GenealogyStore.notifyChanged();
       this.refreshHeader();
-      await FamilySyncService.getInstance().syncCurrent('import');
+      const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('import');
       await this.loadMine();
       this.toast('已导入《' + f.title + '》');
+      this.showIntegrity(synced);
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.toast('导入失败：' + be.message);

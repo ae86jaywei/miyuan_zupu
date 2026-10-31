@@ -5,33 +5,50 @@ import { Person } from '../model/Person';
  *
  * 规则（可人工修改）：
  *  - 性别前缀：**男 F / 女 M**，两类各自独立编号；
- *  - **优先复用最小空号**：删掉 F004 后再新增男丁，会重新拿到 F004；
+ *  - **优先复用最小空号**：删掉 F004 后再新增男丁，会优先拿到 F004；
+ *  - 但调用方可通过 reserved 传入「已被删除、仍可能存在于云端的编号」，
+ *    生成时会跳过这些历史编号，避免同一ID先后代表两个人；
  *  - 编号默认 3 位（F001）；**只有当编号本身超过 999 时才增位**（F1000）。
  *    注意宽度只看「本次要用的编号」，不看历史最大值——否则删到只剩 F1000 时，
  *    复用空号会生成 F0001，与既有 F001 风格不一致。
  */
 export class IdGenerator {
-  /** 根据族谱中现有 ID 生成下一个可用 ID */
-  static next(people: Person[], gender: string): string {
+  /**
+   * 根据族谱中现有 ID 生成下一个可用 ID。
+   * @param people 当前可见族人
+   * @param gender 性别（男/女）
+   * @param reserved 需要跳过的历史编号（如已删除人员的编号）
+   */
+  static next(people: Person[], gender: string, reserved?: Set<string>): string {
     const prefix: string = gender === '女' ? 'M' : 'F';
     const used: Set<number> = new Set<number>();
     people.forEach((p: Person): void => {
-      const id: string = p.uid.trim().toUpperCase();
-      const m: RegExpMatchArray | null = id.match(/^([FM])([0-9]+)$/);
-      if (m === null || m[1] !== prefix) {
-        return;
-      }
-      const num: number = parseInt(m[2], 10);
-      if (isNaN(num) || num <= 0) {
-        return;
-      }
-      used.add(num);
+      IdGenerator.collect(p.uid, prefix, used);
     });
+    if (reserved !== undefined) {
+      reserved.forEach((uid: string): void => {
+        IdGenerator.collect(uid, prefix, used);
+      });
+    }
     let num: number = 1;
     while (used.has(num)) {
       num = num + 1;
     }
     return IdGenerator.format(prefix, num);
+  }
+
+  /** 把一个编号折算为数字并登记；前缀不符或非法编号直接忽略 */
+  private static collect(uid: string, prefix: string, used: Set<number>): void {
+    const id: string = uid.trim().toUpperCase();
+    const m: RegExpMatchArray | null = id.match(/^([FM])([0-9]+)$/);
+    if (m === null || m[1] !== prefix) {
+      return;
+    }
+    const num: number = parseInt(m[2], 10);
+    if (isNaN(num) || num <= 0) {
+      return;
+    }
+    used.add(num);
   }
 
   /** 编号位数：最少 3 位，超过 999 时按实际位数 */

@@ -94,6 +94,35 @@ export struct AccountCard {
       this.toast(this.cloudMsg.length > 0 ? this.cloudMsg : '云服务未就绪');
       return;
     }
+    // 备份不会改动本机数据，但若发现ID与亲属关系错位，先提醒用户核对
+    const report = GenealogyService.getInstance().checkIntegrity();
+    if (report.hasError()) {
+      this.getUIContext().showAlertDialog({
+        title: '数据一致性提示',
+        message: report.summary() + '\n\n' + report.detail(5) +
+          '\n\n备份只是上传，不会修改本机数据；但建议先核对相关人员编号与亲属关系。',
+        primaryButton: {
+          value: '先处理',
+          action: () => {
+          }
+        },
+        secondaryButton: {
+          value: '仍然备份',
+          fontColor: Theme.primary,
+          action: async () => {
+            await this.runBackup();
+          }
+        }
+      });
+      return;
+    }
+    await this.runBackup();
+  }
+
+  private async runBackup(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
     this.busy = true;
     this.progressText = '准备上传…';
     try {
@@ -141,20 +170,20 @@ export struct AccountCard {
         value: '恢复',
         fontColor: Theme.primary,
         action: async () => {
-          await this.runRestore();
+          await this.runRestore(false);
         }
       }
     });
   }
 
-  private async runRestore(): Promise<void> {
+  private async runRestore(force: boolean): Promise<void> {
     this.busy = true;
     this.progressText = '正在读取云端数据…';
     try {
       const result: RestoreResult = await CloudSyncService.getInstance().restoreAll(
         (message: string, done: number, total: number): void => {
           this.progressText = message + ' ' + done.toString() + '/' + total.toString();
-        });
+        }, force);
       this.progressText = '恢复完成：成员 ' + result.memberCount.toString()
         + ' 位，图片 ' + result.imageDownloaded.toString() + ' 张，视频待点播 '
         + result.videoDeferred.toString() + ' 个';
@@ -162,8 +191,32 @@ export struct AccountCard {
       await this.refreshUsage();
     } catch (err) {
       const be: BusinessError = err as BusinessError;
-      this.progressText = '恢复失败：' + (be.message !== undefined ? be.message : '云端暂无数据');
-      this.toast(this.progressText);
+      const raw: string = be.message !== undefined ? be.message : '云端暂无数据';
+      if (raw.indexOf('INTEGRITY:') === 0) {
+        // 云端数据中同一编号对应了不同族人：先弹窗说明，由用户决定是否继续覆盖
+        const detail: string = raw.substring('INTEGRITY:'.length);
+        this.progressText = '恢复已暂停：云端数据存在ID/关系异常';
+        this.getUIContext().showAlertDialog({
+          title: '数据一致性警告',
+          message: '云端备份中的人员关系与编号存在异常，直接恢复可能造成世系图重复、重叠或多出宗支。\n\n' +
+            detail + '\n\n建议先取消恢复，核对云端数据后再操作。',
+          primaryButton: {
+            value: '取消恢复',
+            action: () => {
+            }
+          },
+          secondaryButton: {
+            value: '仍然恢复',
+            fontColor: Theme.primary,
+            action: async () => {
+              await this.runRestore(true);
+            }
+          }
+        });
+      } else {
+        this.progressText = '恢复失败：' + raw;
+        this.toast(this.progressText);
+      }
     } finally {
       this.busy = false;
     }

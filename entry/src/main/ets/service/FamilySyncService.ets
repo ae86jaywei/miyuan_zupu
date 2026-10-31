@@ -9,6 +9,8 @@ import { GenealogyStore } from '../store/GenealogyStore';
 import { Person, createEmptyPerson, SpouseRelation } from '../model/Person';
 import { Genealogy } from '../model/Genealogy';
 import { SyncMode, SyncResult, bool, num, objectList, str } from '../model/FamilyDomain';
+import { IntegrityService } from './IntegrityService';
+import { IntegrityIssue, IntegrityReport } from '../model/Integrity';
 
 const TAG: string = '[Genealogy][FamilySync]';
 const PAGE_SIZE: number = 200;
@@ -71,7 +73,7 @@ export class FamilySyncService {
       const remaining: number = store0 === null ? 0
         : await OutboxService.getInstance().pendingCount(store0, familyId);
       result.remainingOutbox = remaining;
-      result.ok = remaining === 0;
+      result.ok = remaining === 0 && result.integrityBlocked === 0;
       if (result.message.length === 0) {
         if (remaining === 0) {
           result.message = '同步完成';
@@ -81,6 +83,13 @@ export class FamilySyncService {
         } else {
           result.message = '已拉取云端更新，' + remaining.toString() + ' 条本地变更仍待上传';
         }
+      }
+      if (result.integrityBlocked > 0) {
+        result.message = '同步已暂缓 ' + result.integrityBlocked.toString() +
+          ' 条编号冲突变更，请核对提示后重试';
+      } else if (result.integrityIssues.length > 0) {
+        result.message = result.message + '（发现 ' + result.integrityIssues.length.toString() +
+          ' 项ID/关系异常）';
       }
       FamilyService.getInstance().setOffline(false);
     } catch (err) {
@@ -168,6 +177,7 @@ export class FamilySyncService {
     const svc: GenealogyService = GenealogyService.getInstance();
     const book: Genealogy = svc.getBook();
     let since: number = book.cloudRev;
+    let committedRev: number = since;
     let offset: number = 0;
     result.fromRev = since;
     let guard: number = 0;
@@ -185,7 +195,7 @@ export class FamilySyncService {
       const graves: Record<string, Object>[] = objectList(data, 'graves');
       const fullSnapshot: boolean = bool(data, 'fullSnapshot');
       for (let i: number = 0; i < members.length; i++) {
-        const changed: boolean = await this.replayMember(members[i]);
+        const changed: boolean = await this.replayMember(members[i], result);
         if (changed) {
           result.applied++;
         }
@@ -198,12 +208,20 @@ export class FamilySyncService {
         this.replayBook(bookRaw);
       }
       since = headRev;
+      if (result.integrityBlocked === 0) {
+        committedRev = headRev;
+      }
       if (!fullSnapshot || !bool(data, 'hasMore')) {
         break;
       }
     }
-    svc.setBookCloudState(familyId, SyncMode.CLOUD_READY, FamilyService.getInstance().roleOf(familyId), since);
+    // 存在编号冲突时基线停在上一次已确认的 rev，下次同步会再次拉取并提示
+    svc.setBookCloudState(familyId, SyncMode.CLOUD_READY, FamilyService.getInstance().roleOf(familyId), committedRev);
     await svc.reloadAfterReplay();
+    // 有变更被应用或存在编号冲突时才体检，避免每次同步重复弹历史提示
+    if (result.applied > 0 || result.integrityBlocked > 0) {
+      this.collectIntegrity(result);
+    }
     GenealogyStore.notifyChanged();
     result.familyId = familyId;
     result.role = FamilyService.getInstance().roleOf(familyId);
@@ -211,9 +229,9 @@ export class FamilySyncService {
   }
 
   /** 回放单个人物 */
-  private async replayMember(raw: Record<string, Object>): Promise<boolean> {
+  private async replayMember(raw: Record<string, Object>, result: SyncResult): Promise<boolean> {
     const svc: GenealogyService = GenealogyService.getInstance();
-    const uid: string = str(raw, 'uid');
+    const uid: string = str(raw, 'uid').trim().toUpperCase();
     if (uid.length === 0) {
       return false;
     }
@@ -224,8 +242,56 @@ export class FamilySyncService {
       return true;
     }
     const person: Person = FamilySyncService.personFromRow(raw);
+    const personName: string = person.name.trim();
+
+    // 1. 本地已明确记录该编号属于某个已删除族人：同名视为删后恢复，异名视为编号被复用
+    const retiredName: string = svc.retiredNameOf(uid);
+    if (retiredName.length > 0 && personName.length > 0 && personName !== retiredName) {
+      result.integrityBlocked++;
+      result.integrityIssues.push('云端编号 ' + uid + ' 曾用于已删除族人“' + retiredName +
+        '”，现对应“' + personName + '”，已暂缓合入，避免旧关系挂错人');
+      return false;
+    }
+
+    // 2. 同编号在本机与云端代表不同人物：暂缓覆盖，保留本地关系不被冲掉
+    const exist: Person | null = svc.getPerson(uid);
+    if (exist !== null) {
+      const report: IntegrityReport = IntegrityService.compare([exist], [person], '本机', '云端');
+      let fatal: boolean = false;
+      for (let i: number = 0; i < report.issues.length; i++) {
+        const issue: IntegrityIssue = report.issues[i];
+        if (issue.level !== 'error') {
+          continue;
+        }
+        fatal = true;
+        result.integrityIssues.push('编号 ' + uid + '：' + issue.message);
+      }
+      if (fatal) {
+        result.integrityBlocked++;
+        return false;
+      }
+    }
     await svc.applyRemoteChange(uid, person, rev, false);
     return true;
+  }
+
+  /** 同步结束后做一次ID/亲属关系体检，把严重问题交给界面弹窗 */
+  private collectIntegrity(result: SyncResult): void {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const report: IntegrityReport = IntegrityService.check(svc.getPeople(), svc.getBook().title);
+    report.merge(IntegrityService.reused(svc.getPeople(), svc.getRetiredMap()));
+    report.merge(IntegrityService.reusedReferences(svc.getPeople(), svc.getRetiredMap()));
+    for (let i: number = 0; i < report.issues.length; i++) {
+      const issue: IntegrityIssue = report.issues[i];
+      if (issue.level !== 'error') {
+        continue;
+      }
+      const who: string = issue.uid.length > 0 ? issue.uid : '族谱';
+      const text: string = who + '：' + issue.message;
+      if (result.integrityIssues.indexOf(text) < 0) {
+        result.integrityIssues.push(text);
+      }
+    }
   }
 
   /** 谱元信息回放：本地未填的字段才用云端值覆盖 */

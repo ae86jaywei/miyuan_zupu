@@ -6,7 +6,7 @@ import { FamilyService } from '../service/FamilyService';
 import { FamilySyncService } from '../service/FamilySyncService';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { ChangeRequestInfo, Role, opLabel, roleLabel } from '../model/FamilyDomain';
+import { ChangeRequestInfo, Role, SyncResult, opLabel, roleLabel } from '../model/FamilyDomain';
 import { FieldChange, displayValue, fieldLabel, parsePatchJson } from '../util/PatchUtil';
 import { Genealogy } from '../model/Genealogy';
 
@@ -78,8 +78,24 @@ struct ChangeReview {
       this.expandedId = '';
       await this.load();
       if (approve) {
-        await FamilySyncService.getInstance().syncCurrent('after-review');
+        const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-review');
         GenealogyStore.notifyChanged();
+        if (synced.integrityIssues.length > 0) {
+          const shown: string[] = synced.integrityIssues.slice(0, 5);
+          let text: string = shown.join('\n');
+          if (synced.integrityIssues.length > shown.length) {
+            text = text + '\n……另有 ' + (synced.integrityIssues.length - shown.length).toString() + ' 项';
+          }
+          this.getUIContext().showAlertDialog({
+            title: synced.integrityBlocked > 0 ? '部分变更未合入' : '数据一致性提示',
+            message: text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。',
+            confirm: {
+              value: '知道了',
+              action: (): void => {
+              }
+            }
+          });
+        }
       }
     } catch (err) {
       const be: BusinessError = err as BusinessError;

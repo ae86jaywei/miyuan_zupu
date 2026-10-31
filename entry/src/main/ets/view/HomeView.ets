@@ -9,6 +9,8 @@ import { Breakpoint } from '../common/Constants';
 import { generationLabel } from '../model/Enums';
 import { RouterUtil } from '../util/RouterUtil';
 import { InsightService } from '../service/InsightService';
+import { IntegrityService } from '../service/IntegrityService';
+import { IntegrityIssue, IntegrityReport } from '../model/Integrity';
 import { BirthdayItem } from '../model/TimerSession';
 
 /**
@@ -268,7 +270,15 @@ export struct HomeView {
   }
 
   private warnings(): Array<string[]> {
-    return InsightService.lineageWarnings(this.svc().getPeople());
+    const report: IntegrityReport = IntegrityService.check(this.svc().getPeople());
+    report.merge(IntegrityService.reused(this.svc().getPeople(), this.svc().getRetiredMap()));
+    report.merge(IntegrityService.reusedReferences(this.svc().getPeople(), this.svc().getRetiredMap()));
+    const rows: string[][] = [];
+    report.issues.forEach((issue: IntegrityIssue): void => {
+      const name: string = issue.name.length > 0 ? issue.name : issue.uid;
+      rows.push([name, issue.uid, issue.message]);
+    });
+    return rows;
   }
 
   @Builder
@@ -323,11 +333,11 @@ export struct HomeView {
   WarningStrip() {
     if (this.warnings().length > 0) {
       Column() {
-        Text('⚠ 世系校验提示（' + this.warnings().length.toString() + ' 条）')
+        Text('⚠ 世系与ID校验提示（' + this.warnings().length.toString() + ' 条）')
           .fontSize(13)
           .fontColor(Theme.lost)
           .width('100%')
-        ForEach(this.warnings().slice(0, 3), (w: string[]) => {
+        ForEach(this.warnings().slice(0, 4), (w: string[]) => {
           Text(w[0] + '（' + w[1] + '）：' + w[2])
             .fontSize(11.5)
             .fontColor(Theme.inkSecondary)

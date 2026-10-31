@@ -11,6 +11,8 @@ import { Genealogy } from '../model/Genealogy';
 import { BookGroup, GenealogyService } from './GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { AccountService } from './AccountService';
+import { IntegrityService } from './IntegrityService';
+import { IntegrityCode, IntegrityReport } from '../model/Integrity';
 import {
   BackupResult,
   CloudFamilyMedia,
@@ -640,7 +642,7 @@ export class CloudSyncService {
   // ============================ 换机恢复 ============================
 
   /** 从云端恢复族谱：按族谱分组全量恢复，图片按需下载，视频仅恢复引用 */
-  async restoreAll(progress: SyncProgress): Promise<RestoreResult> {
+  async restoreAll(progress: SyncProgress, force: boolean = false): Promise<RestoreResult> {
     this.ensureReady();
     const userId: string = AccountService.getInstance().getUserId();
     if (userId.length === 0) {
@@ -693,6 +695,7 @@ export class CloudSyncService {
     // 先归位新版记录（带族谱前缀），再补充旧版记录；
     // 同一族谱内按唯一ID去重，避免新旧备份同时存在时恢复出重复人物
     const seenByBook: Map<number, Set<string>> = new Map<number, Set<string>>();
+    const duplicateReport: IntegrityReport = new IntegrityReport();
     for (let pass: number = 0; pass < 2; pass++) {
       for (let i: number = 0; i < members.length; i++) {
         const payload: CloudMemberPayload = payloads[i];
@@ -719,11 +722,45 @@ export class CloudSyncService {
         }
         const uid: string = persons[i].uid.trim().toUpperCase();
         if (seen.has(uid)) {
+          // 第二遍补充旧版记录时，撞到新版同编号属于正常兼容去重，不报错
+          if (pass === 0) {
+            duplicateReport.add(IntegrityCode.UID_DUPLICATE, 'error', uid, persons[i].name,
+              '云端同一部族谱内该编号出现多次，恢复后会出现人物重叠');
+          }
           continue;
         }
         seen.add(uid);
         groups[idx].people.push(persons[i]);
       }
+    }
+
+    // 全量覆盖前按「每部族谱」分别体检：
+    //  - 多部族谱都从 F001 开始编号，混在一起会被误判成重复ID；
+    //  - 与本机同编号身份、已删除编号复用只针对当前打开的族谱。
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const local: Person[] = svc.getPeople();
+    const retired: Map<string, string> = svc.getRetiredMap();
+    const currentTitle: string = svc.getBook().title;
+    const report: IntegrityReport = new IntegrityReport();
+    let currentGroup: BookGroup | null = null;
+    for (let i: number = 0; i < groups.length; i++) {
+      const group: BookGroup = groups[i];
+      report.merge(IntegrityService.check(group.people, '云端《' + group.book.title + '》'));
+      if (group.book.title === currentTitle) {
+        currentGroup = group;
+      }
+    }
+    if (currentGroup === null && groups.length > 0) {
+      currentGroup = groups[0];
+    }
+    if (currentGroup !== null) {
+      report.merge(IntegrityService.compare(local, currentGroup.people, '本机', '云端'));
+      report.merge(IntegrityService.reused(currentGroup.people, retired));
+      report.merge(IntegrityService.reusedReferences(currentGroup.people, retired));
+    }
+    report.merge(duplicateReport);
+    if (report.hasError() && !force) {
+      throw new Error('INTEGRITY:' + report.summary() + '\n' + report.detail(6));
     }
 
     const mediaByMember: Map<string, CloudFamilyMedia[]> = new Map<string, CloudFamilyMedia[]>();

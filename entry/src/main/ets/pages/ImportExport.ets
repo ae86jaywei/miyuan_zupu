@@ -97,6 +97,39 @@ struct ImportExport {
     if (this.pendingPeople.length === 0 || this.busy) {
       return;
     }
+    // 合并前体检：导入文件内部、与本机同编号身份、已删除编号复用
+    const report = this.svc().checkImport(this.pendingPeople);
+    if (report.hasIssue()) {
+      let text: string = report.summary() + '\n\n' + report.detail(5);
+      if (report.hasError()) {
+        text = text + '\n\n其中严重问题会让旧父母/配偶关系挂到新族人身上，导入后世系图可能出现重复、重叠或多出宗支。';
+      }
+      text = text + '\n\n建议先取消，修正文件中的唯一ID或亲属关系后再导入。';
+      this.getUIContext().showAlertDialog({
+        title: '导入前数据体检',
+        message: text,
+        primaryButton: {
+          value: '取消',
+          action: (): void => {
+          }
+        },
+        secondaryButton: {
+          value: '继续导入',
+          fontColor: Theme.primary,
+          action: async (): Promise<void> => {
+            await this.executeImport();
+          }
+        }
+      });
+      return;
+    }
+    await this.executeImport();
+  }
+
+  private async executeImport(): Promise<void> {
+    if (this.pendingPeople.length === 0 || this.busy) {
+      return;
+    }
     this.busy = true;
     try {
       const n: number = await this.svc().importPeople(this.pendingPeople, this.mergeStrategy);

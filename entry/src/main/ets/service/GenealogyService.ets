@@ -13,6 +13,8 @@ import { TreeBuilder } from './TreeBuilder';
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
 import { FamilyService } from './FamilyService';
+import { IntegrityService } from './IntegrityService';
+import { IntegrityReport } from '../model/Integrity';
 import { buildPersonPatch } from '../util/PatchUtil';
 
 const TAG: string = '[Genealogy][Service]';
@@ -25,6 +27,15 @@ const TABLE_META: string = 'app_meta';
 const META_INITIALIZED: string = 'initialized';
 /** 元数据：当前打开的族谱ID（0 表示无族谱） */
 const META_CURRENT_BOOK: string = 'current_book_id';
+/** 元数据前缀：某部族谱中已被删除、但编号仍需保留不再复用的族人 */
+const META_RETIRED_PREFIX: string = 'retired_uids_';
+
+/** 已删除人员的编号记录（用于防止新族人沿用旧编号） */
+class RetiredUid {
+  uid: string = '';
+  name: string = '';
+  deletedAt: number = 0;
+}
 
 /** 云端恢复时按族谱分组的人物数据 */
 export class BookGroup {
@@ -61,6 +72,8 @@ export class GenealogyService {
   /** 当前打开的族谱ID（0 表示无族谱） */
   private currentBookId: number = 0;
   private peopleMap: Map<string, Person> = new Map<string, Person>();
+  /** 当前族谱中已删除人员的编号（uid → 原姓名），新增人员时不得复用 */
+  private retiredUids: Map<string, string> = new Map<string, string>();
   private roots: PersonNode[] = [];
   /** 编辑前快照（uid → Person），用于生成字段级 diff */
   private beforeSnapshots: Map<string, Person> = new Map<string, Person>();
@@ -406,6 +419,118 @@ export class GenealogyService {
     return this.book;
   }
 
+  /** 当前族谱已删除人员的编号表（uid → 原姓名） */
+  getRetiredMap(): Map<string, string> {
+    return this.retiredUids;
+  }
+
+  /** 查询某编号是否曾用于已删除族人，返回原姓名；未使用过返回空串 */
+  retiredNameOf(uid: string): string {
+    const name: string | undefined = this.retiredUids.get(uid.trim().toUpperCase());
+    return name === undefined ? '' : name;
+  }
+
+  /**
+   * 生成新编号：跳过当前族人与已删除族人使用过的编号，避免同一ID先后代表两个人，
+   * 导致父子/配偶关系指向错误对象。
+   */
+  nextUid(gender: string, extra?: Set<string>): string {
+    const reserved: Set<string> = new Set<string>();
+    this.retiredUids.forEach((name: string, uid: string): void => {
+      reserved.add(uid);
+    });
+    if (extra !== undefined) {
+      extra.forEach((uid: string): void => {
+        reserved.add(uid);
+      });
+    }
+    return IdGenerator.next(this.people, gender, reserved);
+  }
+
+  /** 当前族谱的数据一致性体检（重复ID、关系悬空、世代/性别/日期错位、编号复用） */
+  checkIntegrity(): IntegrityReport {
+    const report: IntegrityReport = IntegrityService.check(this.people, this.book.title);
+    report.merge(IntegrityService.reused(this.people, this.retiredUids));
+    report.merge(IntegrityService.reusedReferences(this.people, this.retiredUids));
+    return report;
+  }
+
+  /** 导入合并前的综合体检 */
+  checkImport(list: Person[]): IntegrityReport {
+    return IntegrityService.incoming(list, this.people, this.retiredUids);
+  }
+
+  /** 读取某部族谱的已删除编号表 */
+  private async loadRetired(bookId: number): Promise<Map<string, string>> {
+    const out: Map<string, string> = new Map<string, string>();
+    if (bookId <= 0) {
+      return out;
+    }
+    const text: string = await this.getMeta(META_RETIRED_PREFIX + bookId.toString());
+    if (text.length === 0) {
+      return out;
+    }
+    let list: RetiredUid[] = [];
+    try {
+      list = JSON.parse(text) as RetiredUid[];
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'parse retired uid failed');
+      return out;
+    }
+    if (list === null || list === undefined) {
+      return out;
+    }
+    for (let i: number = 0; i < list.length; i++) {
+      const uid: string = list[i].uid === undefined ? '' : list[i].uid.trim().toUpperCase();
+      if (uid.length > 0 && out.get(uid) === undefined) {
+        out.set(uid, list[i].name === undefined ? '' : list[i].name);
+      }
+    }
+    return out;
+  }
+
+  /** 记录被删除人员的编号；首次记录后不再覆盖姓名（保留最初使用该编号的族人） */
+  private async recordRetired(uid: string, name: string): Promise<void> {
+    const u: string = uid.trim().toUpperCase();
+    if (this.currentBookId <= 0 || u.length === 0) {
+      return;
+    }
+    const key: string = META_RETIRED_PREFIX + this.currentBookId.toString();
+    const text: string = await this.getMeta(key);
+    let list: RetiredUid[] = [];
+    if (text.length > 0) {
+      try {
+        list = JSON.parse(text) as RetiredUid[];
+      } catch (err) {
+        list = [];
+      }
+    }
+    for (let i: number = 0; i < list.length; i++) {
+      if (list[i].uid !== undefined && list[i].uid.trim().toUpperCase() === u) {
+        return;
+      }
+    }
+    const item: RetiredUid = new RetiredUid();
+    item.uid = u;
+    item.name = name;
+    item.deletedAt = Date.now();
+    list.push(item);
+    if (list.length > 5000) {
+      list = list.slice(list.length - 5000);
+    }
+    await this.setMeta(key, JSON.stringify(list));
+    this.retiredUids.set(u, name);
+  }
+
+  /** 清空某部族谱的已删除编号表（恢复备份 / 全量替换后历史不再可信） */
+  private async clearRetired(bookId: number): Promise<void> {
+    if (bookId <= 0) {
+      return;
+    }
+    await this.setMeta(META_RETIRED_PREFIX + bookId.toString(), '[]');
+    this.retiredUids.clear();
+  }
+
   /** 全部族谱（多族谱管理） */
   getBooks(): Genealogy[] {
     return this.books;
@@ -702,7 +827,7 @@ export class GenealogyService {
     }
     const person: Person = clonePerson(p);
     if (person.uid.trim().length === 0) {
-      person.uid = IdGenerator.next(this.people, person.gender);
+      person.uid = this.nextUid(person.gender);
     }
     person.uid = person.uid.trim().toUpperCase();
     person.createdAt = Date.now();
@@ -769,6 +894,10 @@ export class GenealogyService {
       predicates.and().equalTo('book_id', this.currentBookId);
       await store.delete(predicates);
     }
+    if (deleted !== null) {
+      // 记录该编号已被使用过，后续新增人员不再复用，避免旧关系挂到新族人身上
+      await this.recordRetired(u, deleted.name);
+    }
     await store.executeSql(`UPDATE ${TABLE_PERSON} SET father_id = '' WHERE book_id = ? AND UPPER(father_id) = ?`,
       [this.currentBookId, u]);
     await store.executeSql(`UPDATE ${TABLE_PERSON} SET mother_id = '' WHERE book_id = ? AND UPPER(mother_id) = ?`,
@@ -790,10 +919,27 @@ export class GenealogyService {
       throw new Error('请先在「谱系」中创建族谱');
     }
     let count: number = 0;
+    // 批量导入时 people 只每 50 条刷新一次，需单独记录本批已分配的编号
+    const batchUsed: Set<string> = new Set<string>();
     for (let i: number = 0; i < list.length; i++) {
       const p: Person = clonePerson(list[i]);
       p.uid = p.uid.trim().toUpperCase();
       this.normalizeSpouses(p);
+      if (p.uid.length === 0) {
+        // 导入文件缺少唯一ID时补一个未使用的编号，避免空ID无法建立亲属关系
+        p.uid = this.nextUid(p.gender, batchUsed);
+        batchUsed.add(p.uid);
+      }
+      if (this.retiredNameOf(p.uid).length > 0) {
+        // 该编号曾用于已删除族人：跳过或改用新编号，避免旧关系被错误挂接
+        if (mergeStrategy === 'skip') {
+          continue;
+        }
+        if (mergeStrategy === 'newId') {
+          p.uid = this.nextUid(p.gender, batchUsed);
+          batchUsed.add(p.uid);
+        }
+      }
       const exist: Person | undefined = this.peopleMap.get(p.uid);
       if (exist !== undefined) {
         if (mergeStrategy === 'skip') {
@@ -803,15 +949,18 @@ export class GenealogyService {
           p.key = exist.key;
           await this.upsertRow(p);
           await this.saveSpouses(p.uid, p.spouses);
+          batchUsed.add(p.uid);
           count++;
           continue;
         }
         if (mergeStrategy === 'newId') {
-          p.uid = IdGenerator.next(this.people, p.gender);
+          p.uid = this.nextUid(p.gender, batchUsed);
+          batchUsed.add(p.uid);
         }
       }
       await this.upsertRow(p);
       await this.saveSpouses(p.uid, p.spouses);
+      batchUsed.add(p.uid);
       count++;
       // 每 50 条刷新一次，避免内存映射未更新导致 ID 重复
       if (count % 50 === 0) {
@@ -830,6 +979,8 @@ export class GenealogyService {
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
     await store.executeSql(`DELETE FROM ${TABLE_PERSON} WHERE book_id = ?`, [this.currentBookId]);
     await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ?`, [this.currentBookId]);
+    // 全量替换后，历史ID与旧关系不再可信，清空复用黑名单避免误报
+    await this.clearRetired(this.currentBookId);
     for (let i: number = 0; i < list.length; i++) {
       const p: Person = clonePerson(list[i]);
       p.uid = p.uid.trim().toUpperCase();
@@ -1046,6 +1197,8 @@ export class GenealogyService {
     await store.executeSql(`DELETE FROM ${TABLE_PERSON} WHERE book_id = ?`, [target]);
     await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ?`, [target]);
     await store.executeSql(`DELETE FROM ${TABLE_BOOK} WHERE id = ?`, [target]);
+    await store.executeSql(`DELETE FROM ${TABLE_META} WHERE key = ?`,
+      [META_RETIRED_PREFIX + target.toString()]);
     // 重新选定当前族谱：优先保留原来的，不存在则取第一部，全部删除则为 0
     await this.ensureCurrentBook();
     await this.setMeta(META_CURRENT_BOOK, this.currentBookId.toString());
@@ -1064,6 +1217,9 @@ export class GenealogyService {
     await store.executeSql(`DELETE FROM ${TABLE_PERSON}`);
     await store.executeSql(`DELETE FROM ${TABLE_SPOUSE}`);
     await store.executeSql(`DELETE FROM ${TABLE_BOOK}`);
+    // 云端恢复是全量重建：已删除编号表来自旧本地库，恢复后不再适用
+    await store.executeSql(`DELETE FROM ${TABLE_META} WHERE key LIKE 'retired_uids_%'`);
+    this.retiredUids.clear();
     let firstBookId: number = 0;
     let restored: number = 0;
     // 云端族谱ID与本地新ID不一致，分支关系需按旧ID映射后回填
@@ -1429,6 +1585,7 @@ export class GenealogyService {
     });
     this.peopleMap = map;
     await this.attachSpouses(this.currentBookId, list);
+    this.retiredUids = await this.loadRetired(this.currentBookId);
     this.roots = TreeBuilder.build(this.people);
     // 切换/加载族谱后同步协作态（familyId / 角色 / 同步模式）
     FamilyService.getInstance().applyBookFamilyState();
@@ -1676,9 +1833,23 @@ export class GenealogyService {
     }
     const bookId: number = this.currentBookId;
     if (deleted) {
+      const tomb: Person | null = this.getPerson(u);
       await this.store.executeSql(
         `UPDATE ${TABLE_PERSON} SET deleted_at = ?, rev = ?, base_rev = ?, dirty = 0 WHERE book_id = ? AND UPPER(uid) = ?`,
         [Date.now(), rev, rev, bookId, u]);
+      // 墓碑同样要断开引用：否则其他族人的父亲/配偶仍指向这个已删除编号，
+      // 一旦该编号被新族人复用，旧关系就会挂到新人身上。
+      await this.store.executeSql(`UPDATE ${TABLE_PERSON} SET father_id = '' WHERE book_id = ? AND UPPER(father_id) = ?`,
+        [bookId, u]);
+      await this.store.executeSql(`UPDATE ${TABLE_PERSON} SET mother_id = '' WHERE book_id = ? AND UPPER(mother_id) = ?`,
+        [bookId, u]);
+      await this.store.executeSql(`UPDATE ${TABLE_PERSON} SET spouse_id = '' WHERE book_id = ? AND UPPER(spouse_id) = ?`,
+        [bookId, u]);
+      await this.store.executeSql(
+        `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) = ? OR UPPER(spouse_uid) = ?)`,
+        [bookId, u, u]);
+      // 云端墓碑的编号同样封存，后续新增不得复用
+      await this.recordRetired(u, tomb === null ? '' : tomb.name);
       return true;
     }
     const exist: Person | null = this.getPerson(u);

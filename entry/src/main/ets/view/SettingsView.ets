@@ -13,7 +13,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
 import { FamilyService } from '../service/FamilyService';
 import { FamilySyncService } from '../service/FamilySyncService';
-import { SyncMode, roleLabel } from '../model/FamilyDomain';
+import { SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
 
 /**
  * 设置：族谱信息编辑、展示偏好、隐私开关、设备适配说明、关于。
@@ -90,8 +90,24 @@ export struct SettingsView {
     }
     this.syncing = true;
     try {
-      const result = await FamilySyncService.getInstance().syncCurrent('settings');
+      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('settings');
       this.getUIContext().getPromptAction().showToast({ message: result.message });
+      if (result.integrityIssues.length > 0) {
+        const shown: string[] = result.integrityIssues.slice(0, 5);
+        let text: string = shown.join('\n');
+        if (result.integrityIssues.length > shown.length) {
+          text = text + '\n……另有 ' + (result.integrityIssues.length - shown.length).toString() + ' 项';
+        }
+        this.getUIContext().showAlertDialog({
+          title: '数据一致性提示',
+          message: text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。',
+          confirm: {
+            value: '知道了',
+            action: (): void => {
+            }
+          }
+        });
+      }
     } finally {
       this.syncing = false;
       this.familyModeText = this.computeFamilyModeText();

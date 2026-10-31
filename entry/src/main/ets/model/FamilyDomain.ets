@@ -365,6 +365,10 @@ export class SyncResult {
   remainingOutbox: number = 0;
   conflicts: string[] = [];
   warnings: string[] = [];
+  /** 同步过程中发现的ID与亲属关系异常（供界面弹窗提示） */
+  integrityIssues: string[] = [];
+  /** 因编号对应不同人物而暂缓回放的条数（>0 时云端基线不前进） */
+  integrityBlocked: number = 0;
   message: string = '';
 }
 
