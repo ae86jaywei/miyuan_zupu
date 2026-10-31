@@ -3,6 +3,7 @@ import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { GenealogyService } from '../service/GenealogyService';
 import { ExportService } from '../service/ExportService';
+import { PdfExportService, PdfExportProgress } from '../service/PdfExportService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
@@ -64,6 +65,30 @@ struct ImportExport {
       if (err.code !== 13900042) {
         this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + err.message });
       }
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  private async doExportPdf(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.previewText = '正在渲染，请稍候……';
+    try {
+      const people: Person[] = this.svc().getPeople();
+      const path: string = await PdfExportService.exportPdf(GenealogyScope.context(),
+        people, this.svc().getBook(), { includeCover: true },
+        (p: PdfExportProgress): void => {
+          this.previewText = p.message;
+        });
+      const name: string = path.substring(path.lastIndexOf('/') + 1);
+      await ExportService.saveBinaryAsFile(GenealogyScope.context(), path, name);
+      this.getUIContext().getPromptAction().showToast({ message: '已导出 ' + name });
+    } catch (e) {
+      const err = e as BusinessError;
+      this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + (err.message ?? String(e)) });
     } finally {
       this.busy = false;
     }
@@ -226,6 +251,11 @@ struct ImportExport {
             this.ExportRow('Markdown 牒记谱文', '按世序生成的文字谱文，可直接打印或转 PDF', '成册',
               (): void => {
                 this.doExport('markdown');
+              })
+            Divider().color(Theme.line).strokeWidth(0.5)
+            this.ExportRow('PDF 整本族谱', '封面/谱序/世系/家训排版成册，端侧渲染 A4 页面，适合打印', '打印',
+              (): void => {
+                this.doExportPdf();
               })
           }
           .width('100%')

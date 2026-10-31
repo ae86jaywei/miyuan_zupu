@@ -205,6 +205,27 @@ export class ExportService {
     return lines.join('\n');
   }
 
+  /**
+   * 弹出保存对话框，把沙箱内的二进制文件（如 PDF）拷贝到用户选择的位置。
+   * 成功后删除沙箱原文件。
+   */
+  static async saveBinaryAsFile(context: common.UIAbilityContext, srcPath: string,
+    fileName: string): Promise<void> {
+    const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+    options.newFileNames = [fileName];
+    options.fileSuffixChoices = [fileName.substring(fileName.lastIndexOf('.'))];
+    const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+    const uris: string[] = await documentPicker.save(options);
+    if (uris.length === 0) {
+      return;
+    }
+    fileIo.copyFileSync(srcPath, uris[0]);
+    try {
+      fileIo.unlinkSync(srcPath);
+    } catch (_e) {
+    }
+  }
+
   /** 弹出保存对话框并写入文件 */
   static async saveAsFile(context: common.UIAbilityContext, fileName: string, content: string): Promise<void> {
     const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
