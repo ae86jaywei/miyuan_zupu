@@ -19,19 +19,20 @@ import { suRootCenterX } from '../service/TreeLayout';
 @Component
 export struct TreeCanvas {
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
-  @Prop roots: PersonNode[] = [];
+  @Prop @Watch('onRootsChanged') roots: PersonNode[] = [];
   @Prop people: Person[] = [];
   @Prop highlightUid: string = '';
   @Prop showPrivate: boolean = true;
   @Prop windowWidth: number = 360;
-  @Prop zoom: number = 1;
+  @Prop @Watch('onZoomChanged') zoom: number = 1;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
   /** 欧式/苏式画布平移偏移（拖到哪停到哪） */
   @State offsetX: number = 0;
   @State offsetY: number = 0;
-  /** 画布内容尺寸（用于限制平移范围） */
+  /** 画布内容尺寸（用于限制平移范围）：canvasW 取各宗支最大宽度 */
   @State canvasW: number = 0;
+  /** 全部宗支堆叠后的总高度（由外层 Column 实测） */
   @State canvasH: number = 0;
   /** 手势起点 */
   private startX: number = 0;
@@ -54,6 +55,18 @@ export struct TreeCanvas {
     this.canvasH = 0;
     this.pendingCenter = true;
     this.centerSuIfReady();
+  }
+
+  /** 宗支数量/结构变化后画布宽度会变，需重新取最大值 */
+  onRootsChanged(): void {
+    this.canvasW = 0;
+    this.canvasH = 0;
+  }
+
+  /** 缩放变化后可用可视范围随之改变，把平移偏移重新夹回边界内 */
+  onZoomChanged(): void {
+    this.offsetX = this.clampX(this.offsetX);
+    this.offsetY = this.clampY(this.offsetY);
   }
 
   /**
@@ -231,8 +244,7 @@ export struct TreeCanvas {
                           this.onTapPerson(uid);
                         },
                         onSize: (w: number, h: number): void => {
-                          this.canvasW = w;
-                          this.canvasH = h;
+                          this.canvasW = Math.max(this.canvasW, w);
                         }
                       })
                     } else {
@@ -249,8 +261,7 @@ export struct TreeCanvas {
                           this.onTapPerson(uid);
                         },
                         onSize: (w: number, h: number): void => {
-                          this.canvasW = w;
-                          this.canvasH = h;
+                          this.canvasW = Math.max(this.canvasW, w);
                         }
                       })
                     }
@@ -262,6 +273,11 @@ export struct TreeCanvas {
               }
               .width('100%')
               .alignItems(HorizontalAlign.Start)
+              // 实测「全部宗支堆叠」后的总高度：多宗支时按各支高度累加，
+              // 否则平移边界只按最后一支算，下面几支永远拖不到
+              .onAreaChange((oldArea: Area, newArea: Area): void => {
+                this.canvasH = Number(newArea.height);
+              })
               .scale({ x: this.zoom, y: this.zoom, centerX: 0, centerY: 0 })
               .animation({ duration: 150 })
             }
@@ -304,15 +320,17 @@ export struct TreeCanvas {
     .alignItems(HorizontalAlign.Start)
   }
 
-  /** 水平平移边界：内容两侧各留 60vp 余量，保证可自由左右拖动查看 */
+  /** 水平平移边界：按缩放后的内容宽度计算，两侧各留余量 */
   private clampX(v: number): number {
-    const max: number = Math.max(this.canvasW - this.viewW + 120, 160);
+    const scaledW: number = this.canvasW * this.zoom;
+    const max: number = Math.max(scaledW - this.viewW + 120, 160);
     return Math.min(Math.max(v, -max), 320);
   }
 
-  /** 垂直平移边界 */
+  /** 垂直平移边界：按缩放后的「全部宗支总高度」计算，保证最下面一支也能拖出来 */
   private clampY(v: number): number {
-    const max: number = Math.max(this.canvasH - this.viewH + 120, 160);
+    const scaledH: number = this.canvasH * this.zoom;
+    const max: number = Math.max(scaledH - this.viewH + 120, 160);
     return Math.min(Math.max(v, -max), 240);
   }
 

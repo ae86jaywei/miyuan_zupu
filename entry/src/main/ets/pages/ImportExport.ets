@@ -7,6 +7,7 @@ import { PdfExportService, PdfExportProgress } from '../service/PdfExportService
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
+import { ImportPlan, ImportResult } from '../service/ImportPlanner';
 import { Breakpoint } from '../common/Constants';
 
 /**
@@ -23,7 +24,7 @@ struct ImportExport {
     Theme.use(this.darkMode);
   }
   @State includePrivate: boolean = true;
-  @State mergeStrategy: string = 'skip';
+  @State mergeStrategy: string = 'auto';
   @State previewText: string = '';
   @State parsedCount: number = 0;
   @State pendingPeople: Person[] = [];
@@ -122,49 +123,41 @@ struct ImportExport {
     if (this.pendingPeople.length === 0 || this.busy) {
       return;
     }
-    // 合并前体检：导入文件内部、与本机同编号身份、已删除编号复用
-    const report = this.svc().checkImport(this.pendingPeople);
-    if (report.hasIssue()) {
-      let text: string = report.summary() + '\n\n' + report.detail(5);
-      if (report.hasError()) {
-        text = text + '\n\n其中严重问题会让旧父母/配偶关系挂到新族人身上，导入后世系图可能出现重复、重叠或多出宗支。';
-      }
-      text = text + '\n\n建议先取消，修正文件中的唯一ID或亲属关系后再导入。';
-      this.getUIContext().showAlertDialog({
-        title: '导入前数据体检',
-        message: text,
-        primaryButton: {
-          value: '取消',
-          action: (): void => {
-          }
-        },
-        secondaryButton: {
-          value: '继续导入',
-          fontColor: Theme.primary,
-          action: async (): Promise<void> => {
-            await this.executeImport();
-          }
+    // 先生成导入计划（身份匹配 + ID 重映射），让用户看到合并/新增/跳过的人数再执行
+    const plan: ImportPlan = this.svc().planImport(this.pendingPeople, this.mergeStrategy);
+    const text: string = plan.summary() + '\n\n确认后先做整谱快照，写入失败会自动回滚。';
+    this.getUIContext().showAlertDialog({
+      title: '导入合并预览',
+      message: text,
+      primaryButton: {
+        value: '取消',
+        action: (): void => {
         }
-      });
-      return;
-    }
-    await this.executeImport();
+      },
+      secondaryButton: {
+        value: '开始导入',
+        fontColor: Theme.primary,
+        action: async (): Promise<void> => {
+          await this.executeImport(plan);
+        }
+      }
+    });
   }
 
-  private async executeImport(): Promise<void> {
-    if (this.pendingPeople.length === 0 || this.busy) {
+  private async executeImport(plan: ImportPlan): Promise<void> {
+    if (this.busy) {
       return;
     }
     this.busy = true;
     try {
-      const n: number = await this.svc().importPeople(this.pendingPeople, this.mergeStrategy);
+      const result: ImportResult = await this.svc().applyImportPlan(plan);
       GenealogyStore.notifyChanged();
       this.pendingPeople = [];
       this.parsedCount = 0;
-      this.getUIContext().getPromptAction().showToast({ message: '成功导入 ' + n.toString() + ' 人' });
+      this.getUIContext().getPromptAction().showToast({ message: '导入完成：' + result.summary() });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '导入失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: '导入失败，已回滚：' + err.message });
     } finally {
       this.busy = false;
     }
@@ -288,13 +281,14 @@ struct ImportExport {
             }
             .width('100%')
 
-            Text('唯一ID冲突时：')
+            Text('人员匹配策略：')
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: Spacing.M, bottom: 6 })
             Row() {
-              ForEach([['skip', '跳过'], ['replace', '覆盖'], ['newId', '另生成ID']], (item: string[]) => {
+              ForEach([['auto', '智能匹配'], ['skip', '跳过'], ['replace', '覆盖'], ['newId', '另编号']],
+                (item: string[]) => {
                 Text(item[1])
                   .fontSize(12)
                   .fontColor(this.mergeStrategy === item[0] ? '#FFFFFF' : Theme.inkSecondary)

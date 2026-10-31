@@ -234,6 +234,8 @@ export class EuLayout {
     showSpouse: boolean, startY: number): EuCanvas {
     const canvas: EuCanvas = new EuCanvas();
     const placed: Map<string, EuBox> = new Map<string, EuBox>();
+    /** 正在递归下钻的节点：父链若成环，下钻会无限递归导致栈溢出 */
+    const visiting: Set<string> = new Set<string>();
 
     // 主卡高度：按卡片实际内容高度取值（渲染时卡片被固定为该高度，连线才能与卡框对齐）
     const cardH: number = Math.max(44, rowHeight - 4);
@@ -284,6 +286,15 @@ export class EuLayout {
       box.w = cardWidth;
       box.h = cardH;
       box.x = depth < colX.length ? colX[depth] : depth * (cardWidth + colGap);
+      // 环形关系保护：同一节点在本次下钻中再次出现，说明父链成环，
+      // 直接占位返回，避免 place() 无限递归导致 RangeError: Stack overflow
+      if (visiting.has(node.uid)) {
+        box.y = cursorY;
+        box.centerY = box.y + box.h / 2;
+        cursorY = box.y + box.h + siblingGap;
+        return box;
+      }
+      visiting.add(node.uid);
       if (node.children.length === 0) {
         box.y = cursorY;
       } else {
@@ -307,6 +318,7 @@ export class EuLayout {
         box.y = lo < 0 ? cursorY : (lo + hi) / 2 - box.h / 2;
       }
       box.centerY = box.y + box.h / 2;
+      visiting.delete(node.uid);
       placed.set(node.uid, box);
       canvas.boxes.push(box);
       // 主卡与配偶堆叠中较低者决定该子树占用的纵向底边，后续兄弟据此下移
@@ -490,6 +502,8 @@ export class SuLayout {
   static compute(roots: PersonNode[], cardWidth: number, dense: boolean, showSpouse: boolean): SuCanvas {
     const canvas: SuCanvas = new SuCanvas();
     const placed: Map<string, SuBox> = new Map<string, SuBox>();
+    /** 正在递归下钻的节点：父链若成环，下钻会无限递归导致栈溢出 */
+    const visiting: Set<string> = new Set<string>();
     const colGap: number = SuLayout.COL_GAP;
     const startX: number = SuLayout.START_X;
     const rowGap: number = dense ? 14 : 24;
@@ -556,6 +570,13 @@ export class SuLayout {
       box.w = cardWidth;
       box.h = cardH;
       box.y = depth < rowY.length ? rowY[depth] : depth * (cardH + rowGap);
+      // 环形关系保护：父链成环时不再下钻，占位返回避免无限递归
+      if (visiting.has(node.uid)) {
+        box.x = cursorX;
+        cursorX = cursorX + cardWidth + colGap;
+        return box;
+      }
+      visiting.add(node.uid);
       if (node.children.length === 0) {
         box.x = cursorX;
       } else {
@@ -578,6 +599,7 @@ export class SuLayout {
         });
         box.x = lo < 0 ? cursorX : (lo + hi) / 2 - cardWidth / 2;
       }
+      visiting.delete(node.uid);
       placed.set(node.uid, box);
       canvas.boxes.push(box);
       // 子树右边界取“子孙右缘”与“本卡连配偶右缘”的较大者，后续兄弟据此右移

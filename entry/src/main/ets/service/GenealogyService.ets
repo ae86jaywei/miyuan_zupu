@@ -14,7 +14,9 @@ import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
 import { FamilyService } from './FamilyService';
 import { IntegrityService } from './IntegrityService';
-import { IntegrityReport } from '../model/Integrity';
+import { IntegrityReport, IntegrityIssue } from '../model/Integrity';
+import { ImportPlan, ImportOptions, ImportPlanner, ImportResult } from './ImportPlanner';
+import { RelationGraph, RepairReport } from './RelationGraph';
 import { buildPersonPatch } from '../util/PatchUtil';
 
 const TAG: string = '[Genealogy][Service]';
@@ -29,6 +31,8 @@ const META_INITIALIZED: string = 'initialized';
 const META_CURRENT_BOOK: string = 'current_book_id';
 /** 元数据前缀：某部族谱中已被删除、但编号仍需保留不再复用的族人 */
 const META_RETIRED_PREFIX: string = 'retired_uids_';
+/** 元数据：导入前人员快照（导入失败可回滚） */
+const META_SNAPSHOT_PREFIX: string = 'import_snapshot_';
 
 /** 已删除人员的编号记录（用于防止新族人沿用旧编号） */
 class RetiredUid {
@@ -969,6 +973,134 @@ export class GenealogyService {
     }
     await this.reload();
     return count;
+  }
+
+  /**
+   * 生成导入计划（纯内存，不落库）：身份匹配 + 全局 ID 重映射。
+   * strategy 与旧界面保持一致：
+   *   auto（智能匹配）/ skip（冲突跳过）/ replace（冲突覆盖）/ newId（冲突另编号）。
+   */
+  planImport(list: Person[], strategy: string): ImportPlan {
+    const opt: ImportOptions = new ImportOptions();
+    if (strategy === 'skip' || strategy === 'defer') {
+      opt.conflictPolicy = 'defer';
+    } else if (strategy === 'replace' || strategy === 'merge') {
+      opt.conflictPolicy = 'merge';
+      opt.localFieldFirst = false;
+    } else if (strategy === 'newId' || strategy === 'new') {
+      opt.conflictPolicy = 'new';
+    } else {
+      opt.conflictPolicy = 'auto';
+    }
+    return ImportPlanner.plan(list, this.people, this.retiredUids, opt);
+  }
+
+  /** 导入前快照：把当前族谱全部人物（含配偶）序列化进元数据，失败时可回滚 */
+  async snapshotBook(): Promise<string> {
+    if (this.currentBookId <= 0) {
+      return '';
+    }
+    const key: string = META_SNAPSHOT_PREFIX + this.currentBookId.toString();
+    await this.setMeta(key, JSON.stringify(this.people));
+    return key;
+  }
+
+  /** 从快照回滚：清空当前族谱人物并写回快照数据 */
+  async rollbackSnapshot(key: string): Promise<void> {
+    if (this.currentBookId <= 0 || key.length === 0 || this.store === null) {
+      return;
+    }
+    const text: string = await this.getMeta(key);
+    if (text.length === 0) {
+      return;
+    }
+    let list: Person[] = [];
+    try {
+      list = JSON.parse(text) as Person[];
+    } catch (err) {
+      hilog.error(0x0000, TAG, 'parse import snapshot failed');
+      return;
+    }
+    if (list === null || list === undefined) {
+      return;
+    }
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    await store.executeSql(`DELETE FROM ${TABLE_PERSON} WHERE book_id = ?`, [this.currentBookId]);
+    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ?`, [this.currentBookId]);
+    for (let i: number = 0; i < list.length; i++) {
+      const p: Person = clonePerson(list[i]);
+      p.key = 0;
+      p.uid = p.uid.trim().toUpperCase();
+      this.normalizeSpouses(p);
+      await this.upsertRow(p);
+      await this.saveSpouses(p.uid, p.spouses);
+    }
+    await this.reload();
+    await this.setMeta(key, '');
+    hilog.info(0x0000, TAG, 'import rolled back, rows=%{public}d', list.length);
+  }
+
+  /**
+   * 执行导入计划：
+   *   写入前先快照 → 逐条落库 → 关系图修复（悬空清理 + 配偶双向）→ 体检；
+   *   任何异常都从快照回滚，避免留下半成品。
+   */
+  async applyImportPlan(plan: ImportPlan): Promise<ImportResult> {
+    if (this.currentBookId <= 0) {
+      throw new Error('请先在「谱系」中创建族谱');
+    }
+    const result: ImportResult = new ImportResult();
+    const snapshotKey: string = await this.snapshotBook();
+    try {
+      for (let i: number = 0; i < plan.people.length; i++) {
+        const p: Person = clonePerson(plan.people[i]);
+        p.uid = p.uid.trim().toUpperCase();
+        this.normalizeSpouses(p);
+        const exist: Person | undefined = this.peopleMap.get(p.uid);
+        if (exist !== undefined) {
+          p.key = exist.key;
+          p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
+          p.updatedAt = Date.now();
+        }
+        await this.upsertRow(p);
+        await this.saveSpouses(p.uid, p.spouses);
+        result.saved = result.saved + 1;
+        if (result.saved % 50 === 0) {
+          await this.reload();
+        }
+      }
+      await this.reload();
+      // 关系图修复：断链清理 + 配偶双向补齐（世代默认只统计，不改史料）
+      const repaired: RepairReport = RelationGraph.repair(this.people, false);
+      for (let i: number = 0; i < repaired.touched.length; i++) {
+        const target: Person | undefined = this.peopleMap.get(repaired.touched[i]);
+        if (target === undefined) {
+          continue;
+        }
+        await this.upsertRow(target);
+        await this.saveSpouses(target.uid, target.spouses);
+      }
+      if (repaired.touched.length > 0) {
+        await this.reload();
+      }
+      result.danglingCount = repaired.danglingCount;
+      result.oneWaySpouseCount = repaired.oneWaySpouseCount;
+      result.generationMismatchCount = repaired.generationMismatchCount;
+      const report: IntegrityReport = this.checkIntegrity();
+      report.issues.forEach((issue: IntegrityIssue): void => {
+        if (issue.level === 'error') {
+          result.integrityErrors = result.integrityErrors + 1;
+        }
+      });
+      await this.setMeta(snapshotKey, '');
+      hilog.info(0x0000, TAG, 'import applied, saved=%{public}d', result.saved);
+      return result;
+    } catch (e) {
+      const err = e as BusinessError;
+      hilog.error(0x0000, TAG, 'import failed, rolling back: %{public}s', err.message);
+      await this.rollbackSnapshot(snapshotKey);
+      throw new Error('导入写入失败，已回滚：' + err.message);
+    }
   }
 
   /** 全量替换当前族谱的人物（恢复备份） */

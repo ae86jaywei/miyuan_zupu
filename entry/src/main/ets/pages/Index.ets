@@ -413,13 +413,14 @@ struct Index {
         Text('缩放 ' + Math.round(this.zoom * 100).toString() + '%')
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
-        Slider({ value: this.zoom * 100, min: 50, max: 150, step: 5 })
+        // 下限放到 20%：大树（多支/多代）也能整体缩到一屏查看
+        Slider({ value: this.zoom * 100, min: 20, max: 150, step: 5 })
           .layoutWeight(1)
           .selectedColor(Theme.primary)
           .blockColor(Theme.primary)
           .margin({ left: Spacing.S, right: Spacing.S })
           .onChange((value: number): void => {
-            AppStorage.setOrCreate<number>('gpZoom', value / 100);
+            AppStorage.setOrCreate<number>('gpZoom', Math.max(0.2, value / 100));
           })
         Text('新增族人')
           .fontSize(12)
