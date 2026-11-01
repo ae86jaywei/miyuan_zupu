@@ -1,7 +1,11 @@
 ﻿<#
 .SYNOPSIS
-  Copy CloudProgram/cloudfunctions/_shared into each function's node_modules/_zupu_shared.
+  Copy CloudProgram/cloudfunctions/_shared into each function's shared/ directory.
   Also copies CloudProgram/agconnect-credential.json into each function when present.
+
+  NOTE: 不再放到 node_modules 下 —— DevEco 构建云函数时会执行 npm install，
+  会把未在 package.json 声明的 node_modules/_zupu_shared 当作多余依赖删除，
+  导致线上运行报 'Cannot find module '_zupu_shared''。放在函数目录内则会被原样打包。
 
 .EXAMPLE
   powershell -ExecutionPolicy Bypass -File CloudProgram/tools/sync-shared.ps1
@@ -25,7 +29,7 @@ foreach ($fn in $targets) {
     Write-Host "skip (not a function): $($fn.Name)"
     continue
   }
-  $dest = Join-Path -Path $fn.FullName -ChildPath 'node_modules\_zupu_shared'
+  $dest = Join-Path -Path $fn.FullName -ChildPath 'shared'
   if (Test-Path -Path $dest) {
     Remove-Item -Path $dest -Recurse -Force
   }

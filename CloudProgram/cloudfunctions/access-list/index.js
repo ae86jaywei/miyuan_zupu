@@ -7,7 +7,7 @@
  *  - mode=mine ：我提交过的全部申请（任意登录用户）；
  *  - mode=inbox：谱主待审列表（仅 OWNER）。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('access-list', async (params, event, log, context) => {
 

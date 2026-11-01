@@ -8,7 +8,7 @@
  *  2) APPROVED：读成员 → 字段级合入 → 分配新 rev → 成员 + ChangeLog 一批原子写；
  *  3) DELETE_REQ 写入墓碑（deleted=true），不物理删除。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('change-review', async (params, event, log, context) => {
 

@@ -4,7 +4,7 @@ import { UIContext } from '@kit.ArkUI';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
 import { Person, SpouseRelation, spouseRelationLevel, childStatusLabel } from '../model/Person';
-import { Genealogy } from '../model/Genealogy';
+import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { GenealogyService } from './GenealogyService';
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
@@ -309,6 +309,31 @@ export class ExportService {
       result.push(p);
     });
     return result;
+  }
+
+  /** 解析 JSON 备份中的「族谱信息」段（无该段时返回 null） */
+  static parseBook(text: string): Genealogy | null {
+    if (!text || text.trim().length === 0) {
+      return null;
+    }
+    const data: Record<string, Object> = JSON.parse(text) as Record<string, Object>;
+    const raw: Object | undefined = data['book'];
+    if (raw === undefined || raw === null) {
+      return null;
+    }
+    const r: Record<string, string> = raw as Record<string, string>;
+    const g: Genealogy = createEmptyGenealogy();
+    const title: string = r['谱名'] ?? '';
+    g.title = title.trim().length > 0 ? title : '我的族谱';
+    g.surname = r['姓氏'] ?? '';
+    g.hallName = r['堂号'] ?? '';
+    g.junwang = r['郡望'] ?? '';
+    g.ancestorName = r['始迁祖'] ?? '';
+    g.generationPoem = r['字派'] ?? '';
+    g.preface = r['谱序'] ?? '';
+    g.familyRules = r['家训'] ?? '';
+    g.editingNotes = r['凡例'] ?? '';
+    return g;
   }
 
   /** 简易 CSV 解析（支持双引号转义） */

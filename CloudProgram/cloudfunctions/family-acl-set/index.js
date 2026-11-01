@@ -6,7 +6,7 @@
  * 谱主调整成员角色 / 分支 / 期限 / 状态，或轮换加入码（§六 family-acl-set）。
  * ACL 变化 = Membership 改动 + Family.aclVersion + 1。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('family-acl-set', async (params, event, log, context) => {
 

@@ -6,7 +6,7 @@
  * 查看待审变更（§六 change-list-pending）。
  *  - OWNER 看全部；EDITOR 只看到自己认领分支内的提交。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('change-list-pending', async (params, event, log, context) => {
 

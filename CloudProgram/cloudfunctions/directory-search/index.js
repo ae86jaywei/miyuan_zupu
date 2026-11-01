@@ -7,7 +7,7 @@
  * 注意：**不是权限所必需**（黄页端侧可直读），只为服务端侧前缀匹配/聚合/排序而设。
  * 仍需登录，但**不做 Membership 校验**；返回值只能是黄页字段，绝不含人物数据。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('directory-search', async (params, event, log, context) => {
 

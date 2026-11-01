@@ -9,7 +9,7 @@
  *   - directoryEnabled=false → 置 false 并**物理删除**黄页行（不是写一行 false 靠端侧过滤）。
  * 服务端做字段白名单校验，拒绝任何疑似人物数据。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('directory-upsert', async (params, event, log, context) => {
 

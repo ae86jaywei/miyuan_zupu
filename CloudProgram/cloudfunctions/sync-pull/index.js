@@ -7,7 +7,7 @@
  *  - sinceRev>0：增量拉取 ChangeLog（rev > sinceRev），同一对象只返回「最新快照 + 最新 rev」；
  *  - sinceRev=0：下发全量快照基线（分页 offset/limit），并带上 headRev 作为后续增量起点。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('sync-pull', async (params, event, log, context) => {
   const userId = await S.requireUserId(event, params);

@@ -5,7 +5,7 @@
  *
  * 谱主查看成员列表与当前加入码（§六 family-acl-list）。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('family-acl-list', async (params, event, log, context) => {
 

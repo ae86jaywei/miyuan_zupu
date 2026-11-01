@@ -3,7 +3,7 @@
  * 觅源 · 家族协作云函数：family-bootstrap
  * 共享库见 CloudProgram/cloudfunctions/_shared（部署前复制到 node_modules/_zupu_shared）
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('family-bootstrap', async (params, event, log, context) => {
 

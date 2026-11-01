@@ -8,7 +8,7 @@
  *  - 已 PENDING 时幂等返回原单；10 分钟内最多 3 次（防刷）；
  *  - expireAt：VIEW_APPLY 默认 now+180 天，JOIN_CLAIM 默认 0（永久）。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('access-request', async (params, event, log, context) => {
 

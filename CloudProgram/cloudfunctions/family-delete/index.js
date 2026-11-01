@@ -10,7 +10,7 @@
  *  - 必须带 confirmTitle 且与谱名完全一致（防误触）；
  *  - 按对象类型逐表清空后删除 Family 行（协作 Zone 无跨表事务，采用先子表后主表顺序）。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 /** 需要清理的对象类型（顺序：先子表，后主表） */
 const CHILD_TYPES = [

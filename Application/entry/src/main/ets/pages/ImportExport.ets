@@ -7,6 +7,7 @@ import { PdfExportService, PdfExportProgress } from '../service/PdfExportService
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
+import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { ImportPlan, ImportResult } from '../service/ImportPlanner';
 import { Breakpoint } from '../common/Constants';
 
@@ -28,6 +29,7 @@ struct ImportExport {
   @State previewText: string = '';
   @State parsedCount: number = 0;
   @State pendingPeople: Person[] = [];
+  @State pendingBook: Genealogy | null = null;
 
   private svc(): GenealogyService {
     return GenealogyService.getInstance();
@@ -108,9 +110,13 @@ struct ImportExport {
       }
       this.previewText = text.length > 1200 ? text.substring(0, 1200) + '\n……' : text;
       const list: Person[] = kind === 'json' ? ExportService.parseJson(text) : ExportService.parseCsv(text);
+      this.pendingBook = kind === 'json' ? ExportService.parseBook(text) : null;
       this.pendingPeople = list;
       this.parsedCount = list.length;
-      this.getUIContext().getPromptAction().showToast({ message: '解析到 ' + list.length.toString() + ' 条记录，请确认导入' });
+      const tip: string = this.pendingBook !== null ? '，含族谱信息「' + this.pendingBook.title + '」' : '';
+      this.getUIContext().getPromptAction().showToast({
+        message: '解析到 ' + list.length.toString() + ' 条记录' + tip + '，请确认导入'
+      });
     } catch (e) {
       const err = e as BusinessError;
       this.getUIContext().getPromptAction().showToast({ message: '导入失败：' + err.message });
@@ -125,7 +131,12 @@ struct ImportExport {
     }
     // 先生成导入计划（身份匹配 + ID 重映射），让用户看到合并/新增/跳过的人数再执行
     const plan: ImportPlan = this.svc().planImport(this.pendingPeople, this.mergeStrategy);
-    const text: string = plan.summary() + '\n\n确认后先做整谱快照，写入失败会自动回滚。';
+    const willCreateBook: boolean = !this.svc().hasBook();
+    const meta: Genealogy = this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy();
+    let text: string = willCreateBook
+      ? '当前没有族谱，将先按文件中的族谱信息新建「' + meta.title + '」再导入。\n\n'
+      : '导入到当前族谱「' + this.svc().getBook().title + '」，文件中的族谱信息不会覆盖现有设置。\n\n';
+    text = text + plan.summary() + '\n\n确认后先做整谱快照，写入失败会自动回滚。';
     this.getUIContext().showAlertDialog({
       title: '导入合并预览',
       message: text,
@@ -150,9 +161,12 @@ struct ImportExport {
     }
     this.busy = true;
     try {
-      const result: ImportResult = await this.svc().applyImportPlan(plan);
+      const result: ImportResult = this.svc().hasBook()
+        ? await this.svc().applyImportPlan(plan)
+        : await this.svc().importAsNewBook(this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy(), plan);
       GenealogyStore.notifyChanged();
       this.pendingPeople = [];
+      this.pendingBook = null;
       this.parsedCount = 0;
       this.getUIContext().getPromptAction().showToast({ message: '导入完成：' + result.summary() });
     } catch (e) {
@@ -308,6 +322,19 @@ struct ImportExport {
                 Text('已解析 ' + this.parsedCount.toString() + ' 条记录')
                   .fontSize(13)
                   .fontColor(Theme.alive)
+                if (this.pendingBook !== null) {
+                  Text('族谱信息：' + this.pendingBook.title +
+                    (this.pendingBook.hallName.length > 0 ? ' · ' + this.pendingBook.hallName : ''))
+                    .fontSize(11)
+                    .fontColor(Theme.inkSecondary)
+                    .margin({ top: 4 })
+                }
+                if (!this.svc().hasBook()) {
+                  Text('当前没有族谱，确认导入时会自动新建')
+                    .fontSize(11)
+                    .fontColor(Theme.gold)
+                    .margin({ top: 4 })
+                }
                 if (this.pendingPeople.length > 0) {
                   Text('示例：' + this.pendingPeople[0].name + '（' + this.pendingPeople[0].uid + '）')
                     .fontSize(11)

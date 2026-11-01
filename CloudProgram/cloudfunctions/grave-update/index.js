@@ -2,7 +2,7 @@
 /**
  * 觅源 · 家族协作云函数：grave-update
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('grave-update', async (params, event, log, context) => {
 

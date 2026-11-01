@@ -8,7 +8,7 @@
  *   - 三条门槛（①申请认证 ②分享链接 ③成为族人）最终都只落这张表；
  *   - expireAt 默认：门槛① now+180 天，门槛③ 0（永久）。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('access-review', async (params, event, log, context) => {
 

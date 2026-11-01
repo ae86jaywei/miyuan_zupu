@@ -98,7 +98,7 @@ hvigorw assembleHap --mode module -p product=default -p buildMode=debug
 - **统计**：性别构成、在世状况、世代繁衍表、字派分布、平均寿命、资料完整度（出生日期 / 头像 / 墓葬定位覆盖率）。
 - **人物详情**：按字段分类完整展示，隐私字段打码；显示父母、配偶、兄弟姊妹、子女，可直接跳转；宽屏为右栏，窄屏为底部弹层。
 - **人物编辑**：全部字段表单 + 实时预览（宽屏右栏）；头像/相片选择（PhotoPicker）；校验必填、日期先后、ID 唯一与存在性。
-- **导入导出**：JSON 全量备份、JSON 脱敏分享版、CSV（与 Excel 字段一一对应）、Markdown 牒记谱文；导入支持 JSON/CSV，ID 冲突可选跳过/覆盖/另生成 ID。
+- **导入导出**：JSON 全量备份、JSON 脱敏分享版、CSV（与 Excel 字段一一对应）、Markdown 牒记谱文、整本 PDF；导入支持 JSON/CSV，ID 冲突可选跳过/覆盖/另生成 ID。整谱备份内含「族谱信息」，**删除族谱后可直接导入备份恢复**：按文件里的谱名自动新建族谱，并把堂号/郡望/始迁祖/字派/谱序/家训/凡例一并写回；已有族谱时只合并族人，不覆盖现有设置。
 - **设置**：族谱信息（谱名、堂号、郡望、始迁祖、字派谱、谱序、家训、凡例）、默认谱式、隐私开关与公开模式、设备适配信息。
 - **隐私**：手机号打码显示、公开模式下隐藏联系方式、导出可选脱敏。
 
@@ -198,15 +198,32 @@ entry/src/main/ets/
 | `service/DirectoryService.ets` | 黄页搜索与上架 |
 | `service/PrivacyService.ets` | 谱主读取隐私字段（其他人拿不到） |
 
-云侧代码在 `CloudProgram/`（22 个云函数 + 零依赖共享库），部署前先跑 `CloudProgram/tools/sync-shared.ps1`。
+云侧代码在 `CloudProgram/`（**23 个云函数 + 零依赖共享库 `_shared`**）。部署前先跑：
 
-**需要在 AGC 控制台手动完成的部分**（建 Zone、建 13 张表、配权限、部署 22 个函数、回归验证），
+```powershell
+powershell -ExecutionPolicy Bypass -File CloudProgram/tools/sync-shared.ps1   # 把 _shared 复制为各函数的 shared/
+node CloudProgram/tools/smoke-test.js                                        # 44 项冒烟测试，全绿再部署
+```
+
+**需要在 AGC 控制台手动完成的部分**（建 Zone、建 13 张表、配权限、部署 23 个函数、回归验证），
 见 [AGC手动操作步骤方案.md](AGC手动操作步骤方案.md)。
 
 ### 8.5 本地数据库变更（自动迁移，无需手动）
 
 `person` 表新增 `rev / base_rev / dirty / deleted_at`；`genealogy` 表新增
 `family_id / sync_mode / cloud_rev / family_role`；新增表 `outbox`、`grave_location`。
+
+### 8.6 云函数部署要点（踩过的坑）
+
+1. **共享库用相对路径 `require('./shared')`，不要用 `node_modules/_zupu_shared`。**
+   DevEco 构建时会执行 npm 安装，把未写入 `package.json` dependencies 的多余目录清掉，
+   部署包里就没有该模块，线上报 `Cannot find module '_zupu_shared'`。
+   `shared/` 是函数源码目录内的普通文件夹，打包会原样带上。
+2. **改了 `_shared` 必须重跑 `sync-shared.ps1` 再部署**；23 个函数都依赖它，改动后要全部重传。
+3. **谱元信息直写**（uid 为空串）与**新增族人**（`op=ADD`）都由 `member-direct-write` 处理；
+   云端缺记录时 ADD 会建档，只有 `UPDATE` 到不存在的 uid 才报「族人不存在」。
+4. **`agconnect-credential.json`（含 `client_secret`）不入库**，每个函数目录各自放一份，从 AGC 控制台下载。
+5. **`shared/` 是生成物，也不入库**；克隆仓库后先跑一次脚本再构建/部署。
 
 ---
 

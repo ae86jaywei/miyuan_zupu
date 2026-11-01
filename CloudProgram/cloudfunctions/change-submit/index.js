@@ -8,7 +8,7 @@
  *  - targetUid 必须在该编辑者认领分支（branchRootUid）子树内；
  *  - 频率限制：同一提交者每分钟 ≤10 条。
  */
-const S = require('_zupu_shared');
+const S = require('./shared');
 
 module.exports.handler = S.createHandler('change-submit', async (params, event, log, context) => {
 

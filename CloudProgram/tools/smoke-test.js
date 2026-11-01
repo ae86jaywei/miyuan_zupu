@@ -207,6 +207,18 @@ function mkEvent(data, uid) {
   check('FamilyMember.payload 已更新', mrow && String(mrow.payload || '').includes('韦道像公'));
   check('ChangeLog 有记录', table('ChangeLog').size > 0, '条数 ' + table('ChangeLog').size);
 
+  // 9.1) 谱主新增一个云端不存在的族人（op=ADD 必须能建档，否则端侧会一直报「族人不存在」）
+  const addPatch = JSON.stringify({
+    name: { b: null, a: '韦德明' }, generation: { b: null, a: 3 }, fatherId: { b: null, a: 'F002' }
+  });
+  const r8b = await directWrite(mkEvent({
+    familyId: familyId, op: 'ADD', uid: 'F003', patchJson: addPatch, baseRev: 0
+  }, owner), {}, () => {}, console);
+  check('member-direct-write 新增族人成功', r8b && r8b.code === 200, JSON.stringify(r8b && (r8b.data || r8b.message)));
+  const addRow = table('FamilyMember').get(familyId + '#F003');
+  check('新增族人已建档', addRow && String(addRow.payload || '').includes('韦德明') && addRow.deleted !== true,
+    addRow ? addRow.name : 'none');
+
   // 10) 谱主改黄页
   const dirUp = require(path.join(FN_DIR, 'directory-upsert', 'index.js')).handler;
   const r9 = await dirUp(mkEvent({

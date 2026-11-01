@@ -1168,6 +1168,24 @@ export class GenealogyService {
     return this.book;
   }
 
+  /**
+   * 在没有族谱时，用备份文件中的「族谱信息」新建族谱并导入族人。
+   * 族谱实体的 key/云协作字段不随文件恢复，避免把旧谱的云家族信息一起带回来。
+   */
+  async importAsNewBook(meta: Genealogy, plan: ImportPlan): Promise<ImportResult> {
+    const created: Genealogy = await this.createGenealogy(meta.title);
+    created.surname = meta.surname;
+    created.hallName = meta.hallName;
+    created.junwang = meta.junwang;
+    created.ancestorName = meta.ancestorName;
+    created.generationPoem = meta.generationPoem;
+    created.preface = meta.preface;
+    created.familyRules = meta.familyRules;
+    created.editingNotes = meta.editingNotes;
+    await this.saveBook(created);
+    return this.applyImportPlan(plan);
+  }
+
   /** 是否已存在同名族谱 */
   private hasBookTitle(title: string): boolean {
     for (let i: number = 0; i < this.books.length; i++) {
