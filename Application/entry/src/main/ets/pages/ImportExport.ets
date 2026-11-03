@@ -35,9 +35,15 @@ struct ImportExport {
   @State progress: number = 0;
   @State progressText: string = '';
   @State showProgress: boolean = false;
+  /** 页首「当前共 X 位族人」：导入完成后要立刻反映新人数，不能等页面重建 */
+  @State peopleCount: number = 0;
 
   private svc(): GenealogyService {
     return GenealogyService.getInstance();
+  }
+
+  aboutToAppear(): void {
+    this.peopleCount = this.svc().getPeople().length;
   }
 
   /** 更新进度条 */
@@ -234,6 +240,7 @@ struct ImportExport {
       this.pendingPeople = [];
       this.pendingBook = null;
       this.parsedCount = 0;
+      this.peopleCount = this.svc().getPeople().length;
       this.setProgress('导入完成：' + result.summary(), 100);
       this.getUIContext().getPromptAction().showToast({ message: '导入完成：' + result.summary() });
     } catch (e) {
@@ -359,7 +366,7 @@ struct ImportExport {
 
       Scroll() {
         Column() {
-          TS({ title: '导出', subtitle: '当前共 ' + this.svc().getPeople().length.toString() + ' 位族人', icon: '📤' })
+          TS({ title: '导出', subtitle: '当前共 ' + this.peopleCount.toString() + ' 位族人', icon: '📤' })
           Column() {
             this.ExportRow('JSON 全量备份', '含全部字段与隐私信息，用于换机/归档，可再次导入', '推荐',
               (): void => {

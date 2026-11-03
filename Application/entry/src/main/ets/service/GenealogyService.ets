@@ -1016,6 +1016,8 @@ export class GenealogyService {
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
     const result: ImportResult = new ImportResult();
     const total: number = plan.people.length;
+    /** 事务是否已提交：提交后的错误不再回滚，避免把已落库的族人删掉 */
+    let committed: boolean = false;
     // 整段写入放进一个事务：失败由 SQLite 回滚，不再序列化「整谱快照」。
     // 数万人的快照是几十 MB 的 JSON，序列化 + 写单行 TEXT 比导入本身还慢；
     // 事务还省掉了逐条 fsync，实测 3.6 万条从约 9 分钟降到分钟级。
@@ -1087,6 +1089,11 @@ export class GenealogyService {
       if (spouseBatch.length > 0) {
         await store.batchInsert(TABLE_SPOUSE, spouseBatch);
       }
+      // 先提交、再重读：ArkTS 的异步 SQL 走独立连接，事务内 SELECT 读不到未提交数据。
+      // 旧实现把 reload 放在事务里，首次建谱导入后 this.people 会被重读成空数组 ——
+      // 库里其实已有几万人，界面却显示 0 人，用户只能再导入一次才「看得见」。
+      store.commit();
+      committed = true;
       await this.reload();
       // 关系图修复：断链清理 + 配偶双向补齐（世代默认只统计，不改史料）
       const repaired: RepairReport = RelationGraph.repair(this.people, false);
@@ -1110,20 +1117,26 @@ export class GenealogyService {
           result.integrityErrors = result.integrityErrors + 1;
         }
       });
-      store.commit();
       hilog.info(0x0000, TAG, 'import applied, saved=%{public}d', result.saved);
       return result;
     } catch (e) {
       const err = e as BusinessError;
-      hilog.error(0x0000, TAG, 'import failed, rolling back: %{public}s', err.message);
-      try {
-        store.rollBack();
-      } catch (rb) {
-        hilog.error(0x0000, TAG, 'import rollback failed');
+      if (!committed) {
+        hilog.error(0x0000, TAG, 'import failed, rolling back: %{public}s', err.message);
+        try {
+          store.rollBack();
+        } catch (rb) {
+          hilog.error(0x0000, TAG, 'import rollback failed');
+        }
+        // 回滚后必须重读库修正内存状态
+        await this.reload();
+        throw new Error('导入写入失败，已回滚：' + err.message);
       }
-      // 事务内 reload 过未提交数据，回滚后必须重读库修正内存状态
+      // 已提交：族人已经落库，关系修复阶段出错不能回滚，
+      // 否则会把刚导入的整谱删掉；只记录日志并按已写入人数返回。
+      hilog.error(0x0000, TAG, 'import repair failed after commit: %{public}s', err.message);
       await this.reload();
-      throw new Error('导入写入失败，已回滚：' + err.message);
+      return result;
     }
   }
 
