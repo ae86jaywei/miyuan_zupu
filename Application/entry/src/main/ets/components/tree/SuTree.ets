@@ -6,6 +6,7 @@ import { ViewRect, ViewportMath } from '../../service/TreeViewport';
 import { TreeMiniCard } from './TreeMiniCard';
 import { Theme } from '../../theme/Theme';
 import { GenealogyService } from '../../service/GenealogyService';
+import { TreePerf } from '../../util/TreePerf';
 
 /**
  * 苏式谱（竖式吊线图）画布。
@@ -80,8 +81,11 @@ export struct SuTree {
     const view: ViewRect = ViewportMath.contentRect(this.offsetX,
       this.offsetY + this.contentTop,
       this.viewWidth, this.viewHeight, this.zoom, this.viewWidth * 0.5);
+    TreePerf.begin('cull_su');
     this.visibleBoxes = TreeCuller.suBoxes(canvas.boxes, view);
     this.visibleLines = TreeCuller.lines(canvas.lines, view);
+    TreePerf.end('cull_su', 'visible=' + this.visibleBoxes.length.toString() +
+      ' degrade=' + TreePerf.shouldDegrade(this.visibleBoxes.length).toString());
     this.onSize(canvas.width, canvas.height);
   }
 

@@ -3,6 +3,33 @@ import { Theme } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { generationLabel } from '../../model/Enums';
 import { GenealogyService } from '../../service/GenealogyService';
+import { FlatListSource } from '../../util/FlatListSource';
+import { TreePerf } from '../../util/TreePerf';
+
+class PagodaRow {
+  nodes: PersonNode[];
+  generation: number;
+  generationIndex: number;
+  start: number;
+  count: number;
+  first: boolean;
+  last: boolean;
+
+  constructor(nodes: PersonNode[], generation: number, generationIndex: number,
+    start: number, count: number, first: boolean, last: boolean) {
+    this.nodes = nodes;
+    this.generation = generation;
+    this.generationIndex = generationIndex;
+    this.start = start;
+    this.count = count;
+    this.first = first;
+    this.last = last;
+  }
+
+  values(): PersonNode[] {
+    return this.nodes.slice(this.start, this.start + this.count);
+  }
+}
 
 /**
  * 宝塔式谱：上窄下宽，始祖居塔尖，子孙逐代向两侧对称展开。
@@ -15,11 +42,12 @@ import { GenealogyService } from '../../service/GenealogyService';
 export struct PagodaTree {
   @Prop @Watch('onChanged') rootUids: string[] = [];
   @Prop @Watch('onChanged') layoutVersion: number = 0;
-  @Prop highlightUid: string = '';
+  @Prop @Watch('onHighlightChanged') highlightUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
-  @Prop compact: boolean = true;
-  @State rows: PersonNode[][] = [];
+  @Prop @Watch('onChanged') compact: boolean = true;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
+  private rows: PagodaRow[] = [];
+  private rowSource: FlatListSource<PagodaRow> = new FlatListSource<PagodaRow>();
 
   aboutToAppear(): void {
     this.rebuildRows();
@@ -33,117 +61,159 @@ export struct PagodaTree {
     this.rebuildRows();
   }
 
+  onHighlightChanged(): void {
+    this.rowSource.setData(this.rows);
+  }
+
   private rebuildRows(): void {
+    TreePerf.begin('pagoda_rows');
     if (this.rootUids.length === 0) {
       this.rows = [];
+      this.rowSource.setData(this.rows);
+      TreePerf.end('pagoda_rows', 'generations=0');
       return;
     }
-    const rows: PersonNode[][] = [];
+    const generations: PersonNode[][] = [];
+    const seen: Set<string> = new Set<string>();
+    let count: number = 0;
     const walk = (node: PersonNode): void => {
-      const idx: number = node.person.generation - 1;
-      while (rows.length <= idx) {
-        rows.push([]);
+      const index: number = node.person.generation - 1;
+      while (generations.length <= index) {
+        generations.push([]);
       }
-      const exists: boolean = rows[idx].some((n: PersonNode): boolean => n.uid === node.uid);
-      if (!exists) {
-        rows[idx].push(node);
+      if (!seen.has(node.uid)) {
+        seen.add(node.uid);
+        generations[index].push(node);
+        count = count + 1;
       }
-      node.children.forEach((c: PersonNode): void => {
-        walk(c);
+      node.children.forEach((child: PersonNode): void => {
+        walk(child);
       });
     };
-    GenealogyService.getInstance().getRoots().forEach((r: PersonNode): void => {
-      if (this.rootUids.indexOf(r.uid) >= 0) {
-        walk(r);
+    const rootUidSet: Set<string> = new Set<string>();
+    this.rootUids.forEach((uid: string): void => {
+      rootUidSet.add(uid);
+    });
+    GenealogyService.getInstance().getRoots().forEach((root: PersonNode): void => {
+      if (rootUidSet.has(root.uid)) {
+        walk(root);
+      }
+    });
+    const chunkSize: number = this.compact ? 4 : 6;
+    const rows: PagodaRow[] = [];
+    generations.forEach((nodes: PersonNode[], generationIndex: number): void => {
+      if (nodes.length === 0) {
+        return;
+      }
+      const generation: number = nodes[0].person.generation;
+      for (let start: number = 0; start < nodes.length; start = start + chunkSize) {
+        const countInRow: number = Math.min(chunkSize, nodes.length - start);
+        rows.push(new PagodaRow(nodes, generation, generationIndex, start, countInRow,
+          start === 0, start + countInRow >= nodes.length));
       }
     });
     this.rows = rows;
+    this.rowSource.setData(rows);
+    TreePerf.end('pagoda_rows', 'people=' + count.toString() +
+      ' generations=' + generations.length.toString() + ' rows=' + rows.length.toString());
   }
 
   build() {
-    Column() {
-      ForEach(this.rows, (row: PersonNode[], gi: number) => {
-        Column() {
-          Row() {
-            Text(generationLabel(row.length > 0 ? row[0].person.generation : gi + 1) +
-              ' · ' + row.length.toString() + '人')
-              .fontSize(10)
-              .fontColor(Theme.primary)
-              .backgroundColor(Theme.highlightBg)
-              .borderRadius(8)
-              .padding({ left: 8, right: 8, top: 2, bottom: 2 })
-          }
-          .width('100%')
-          .justifyContent(FlexAlign.Center)
-          .margin({ bottom: 4 })
+    List() {
+      LazyForEach(this.rowSource, (row: PagodaRow) => {
+        ListItem() {
+          Column() {
+            if (row.first) {
+              Row() {
+                Text(generationLabel(row.generation) + ' · ' + row.nodes.length.toString() + '人')
+                  .fontSize(10)
+                  .fontColor(Theme.primary)
+                  .backgroundColor(Theme.highlightBg)
+                  .borderRadius(8)
+                  .padding({ left: 8, right: 8, top: 2, bottom: 2 })
+              }
+              .width('100%')
+              .justifyContent(FlexAlign.Center)
+              .margin({ bottom: 4 })
+            }
 
-          Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center, alignItems: ItemAlign.Center }) {
-            ForEach(row, (node: PersonNode) => {
-              Column() {
-                Stack() {
-                  PersonAvatar({ person: node.person, avatarSize: this.compact ? 22 : 26, showRing: node.uid === this.highlightUid })
-                }
-                .width(this.compact ? 24 : 28)
-                .height(this.compact ? 24 : 28)
+            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Center, alignItems: ItemAlign.Center }) {
+              ForEach(row.values(), (node: PersonNode) => {
+                Column() {
+                  Stack() {
+                    PersonAvatar({
+                      person: node.person,
+                      avatarSize: this.compact ? 22 : 26,
+                      showRing: node.uid === this.highlightUid
+                    })
+                  }
+                  .width(this.compact ? 24 : 28)
+                  .height(this.compact ? 24 : 28)
 
-                Text(node.person.name)
-                  .fontSize(this.compact ? 11 : 12)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(node.person.gender === '女' ? Theme.female : Theme.ink)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  .margin({ top: 2 })
-                  .width(this.compact ? 56 : 68)
-                  .textAlign(TextAlign.Center)
-
-                // 世代徽标
-                Text(generationLabel(node.person.generation))
-                  .fontSize(8)
-                  .fontColor('#FFFFFF')
-                  .backgroundColor(node.person.gender === '女' ? Theme.female : Theme.primaryLight)
-                  .borderRadius(3)
-                  .padding({ left: 3, right: 3 })
-                  .margin({ top: 1 })
-
-                // 关联配偶
-                if (node.spouseText().length > 0) {
-                  Text(node.spouseText())
-                    .fontSize(8)
-                    .fontColor(Theme.female)
-                    .maxLines(2)
+                  Text(node.person.name)
+                    .fontSize(this.compact ? 11 : 12)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(node.person.gender === '女' ? Theme.female : Theme.ink)
+                    .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    .margin({ top: 2 })
                     .width(this.compact ? 56 : 68)
                     .textAlign(TextAlign.Center)
+
+                  Text(generationLabel(node.person.generation))
+                    .fontSize(8)
+                    .fontColor('#FFFFFF')
+                    .backgroundColor(node.person.gender === '女' ? Theme.female : Theme.primaryLight)
+                    .borderRadius(3)
+                    .padding({ left: 3, right: 3 })
                     .margin({ top: 1 })
-                    .onClick((): void => {
-                      if (node.spouse !== null) {
-                        this.onTapPerson((node.spouse as PersonNode).uid);
-                      }
-                    })
+
+                  if (node.spouseText().length > 0) {
+                    Text(node.spouseText())
+                      .fontSize(8)
+                      .fontColor(Theme.female)
+                      .maxLines(2)
+                      .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      .width(this.compact ? 56 : 68)
+                      .textAlign(TextAlign.Center)
+                      .margin({ top: 1 })
+                      .onClick((): void => {
+                        if (node.spouse !== null) {
+                          this.onTapPerson((node.spouse as PersonNode).uid);
+                        }
+                      })
+                  }
                 }
-              }
-              .alignItems(HorizontalAlign.Center)
-              .padding({ top: 4, bottom: 4, left: 2, right: 2 })
-              .backgroundColor(node.uid === this.highlightUid ? Theme.highlightBg : Color.Transparent)
-              .borderRadius(8)
-              .onClick((): void => {
-                this.onTapPerson(node.uid);
-              })
-            }, (node: PersonNode) => 'pg_' + node.uid)
+                .alignItems(HorizontalAlign.Center)
+                .padding({ top: 4, bottom: 4, left: 2, right: 2 })
+                .backgroundColor(node.uid === this.highlightUid ? Theme.highlightBg : Color.Transparent)
+                .borderRadius(8)
+                .onClick((): void => {
+                  this.onTapPerson(node.uid);
+                })
+              }, (node: PersonNode) => 'pg_' + this.layoutVersion.toString() + '_' + node.uid)
+            }
+            .width('100%')
+
+            if (row.last) {
+              Row()
+                .width((70 + Math.min(row.generationIndex * 6, 30)).toString() + '%')
+                .height(1)
+                .backgroundColor(Theme.goldLight)
+                .margin({ top: 6, bottom: 6 })
+            }
           }
           .width('100%')
-
-          // 腰线：宽度随层级递增，形成塔身轮廓
-          Row()
-            .width((70 + Math.min(gi * 6, 30)).toString() + '%')
-            .height(1)
-            .backgroundColor(Theme.goldLight)
-            .margin({ top: 6, bottom: 6 })
+          .alignItems(HorizontalAlign.Center)
         }
-        .width('100%')
-        .alignItems(HorizontalAlign.Center)
-      }, (row: PersonNode[], gi: number) => 'gen_' + gi.toString())
+      }, (row: PagodaRow) => 'gen_' + this.layoutVersion.toString() + '_' + this.highlightUid + '_' +
+        row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString())
     }
     .width('100%')
+    .layoutWeight(1)
+    .cachedCount(this.rows.length > 20 ? 2 : 3)
+    .padding({ bottom: 120 })
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.None)
   }
 }

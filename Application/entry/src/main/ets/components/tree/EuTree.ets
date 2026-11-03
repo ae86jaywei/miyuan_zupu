@@ -6,6 +6,7 @@ import { ViewRect, ViewportMath } from '../../service/TreeViewport';
 import { TreeMiniCard } from './TreeMiniCard';
 import { Theme } from '../../theme/Theme';
 import { GenealogyService } from '../../service/GenealogyService';
+import { TreePerf } from '../../util/TreePerf';
 
 /**
  * 欧式谱（横轴世系图）画布。
@@ -83,8 +84,11 @@ export struct EuTree {
     const view: ViewRect = ViewportMath.contentRect(this.offsetX,
       this.offsetY + this.contentTop,
       this.viewWidth, this.viewHeight, this.zoom, this.viewWidth * 0.5);
+    TreePerf.begin('cull_eu');
     this.visibleBoxes = TreeCuller.euBoxes(canvas.boxes, view);
     this.visibleLines = TreeCuller.lines(canvas.lines, view);
+    TreePerf.end('cull_eu', 'visible=' + this.visibleBoxes.length.toString() +
+      ' degrade=' + TreePerf.shouldDegrade(this.visibleBoxes.length).toString());
     this.onSize(canvas.width, canvas.height);
   }
 

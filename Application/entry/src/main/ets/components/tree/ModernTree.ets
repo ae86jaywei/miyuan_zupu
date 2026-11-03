@@ -3,8 +3,36 @@ import { Theme, Spacing } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { Tag } from '../Tag';
 import { generationLabel } from '../../model/Enums';
-import { lifeSpan, ageOf } from '../../util/DateUtil';
+import { lifeSpan } from '../../util/DateUtil';
 import { GenealogyService } from '../../service/GenealogyService';
+import { FlatListSource } from '../../util/FlatListSource';
+import { TreePerf } from '../../util/TreePerf';
+
+class ModernRow {
+  people: Person[];
+  generation: number;
+  label: string;
+  start: number;
+  count: number;
+  first: boolean;
+  last: boolean;
+  lastOverall: boolean = false;
+
+  constructor(people: Person[], generation: number, label: string,
+    start: number, count: number, first: boolean, last: boolean) {
+    this.people = people;
+    this.generation = generation;
+    this.label = label;
+    this.start = start;
+    this.count = count;
+    this.first = first;
+    this.last = last;
+  }
+
+  values(): Person[] {
+    return this.people.slice(this.start, this.start + this.count);
+  }
+}
 
 /**
  * 现代创新式：卡片时间轴。
@@ -12,17 +40,66 @@ import { GenealogyService } from '../../service/GenealogyService';
  */
 @Component
 export struct ModernTree {
-  /** 分组数据量可达数万人，不能用 @Prop（深拷贝会卡死主线程） */
-  groups: Person[][] = [];
-  groupLabels: string[] = [];
-  @Prop highlightUid: string = '';
+  @Prop @Watch('onDataChanged') layoutVersion: number = 0;
+  @Prop @Watch('onLayoutChanged') windowWidth: number = 360;
+  @Prop @Watch('onHighlightChanged') highlightUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
+  @Prop @Watch('onLayoutChanged') minCardWidth: number = 150;
+  onTapPerson: (uid: string) => void = (uid: string): void => {};
+  private rows: ModernRow[] = [];
+  private currentColumns: number = 0;
+  private rowSource: FlatListSource<ModernRow> = new FlatListSource<ModernRow>();
+
+  aboutToAppear(): void {
+    this.rebuildRows();
+  }
+
+  onDataChanged(): void {
+    this.rebuildRows();
+  }
+
+  onHighlightChanged(): void {
+    this.rowSource.setData(this.rows);
+  }
+
+  onLayoutChanged(): void {
+    if (this.columnCount() !== this.currentColumns) {
+      this.rebuildRows();
+    }
+  }
 
   onDark(): void {
     Theme.use(this.darkMode);
   }
-  @Prop minCardWidth: number = 150;
-  onTapPerson: (uid: string) => void = (uid: string): void => {};
+
+  private columnCount(): number {
+    return Math.max(1, Math.min(4, Math.floor((this.windowWidth - 32) / (this.minCardWidth + 10))));
+  }
+
+  private rebuildRows(): void {
+    TreePerf.begin('modern_rows');
+    const map: Map<number, Person[]> = GenealogyService.getInstance().groupByGeneration();
+    const generations: number[] = Array.from(map.keys()).sort((a: number, b: number): number => a - b);
+    const columns: number = this.columnCount();
+    this.currentColumns = columns;
+    const rows: ModernRow[] = [];
+    generations.forEach((generation: number): void => {
+      const people: Person[] = map.get(generation) as Person[];
+      const label: string = generationLabel(generation);
+      for (let start: number = 0; start < people.length; start = start + columns) {
+        const count: number = Math.min(columns, people.length - start);
+        rows.push(new ModernRow(people, generation, label, start, count,
+          start === 0, start + count >= people.length));
+      }
+    });
+    if (rows.length > 0) {
+      rows[rows.length - 1].lastOverall = true;
+    }
+    this.rows = rows;
+    this.rowSource.setData(rows);
+    TreePerf.end('modern_rows', 'generations=' + generations.length.toString() +
+      ' rows=' + rows.length.toString());
+  }
 
   private spouseText(p: Person): string {
     return GenealogyService.getInstance().spouseTextOf(p.uid);
@@ -98,63 +175,67 @@ export struct ModernTree {
   }
 
   build() {
-    Row() {
-      // 左侧时间轴
-      Column() {
-        ForEach(this.groups, (grp: Person[], gi: number) => {
-          Column() {
-            Stack() {
-              Circle({ width: 14, height: 14 }).fill(Theme.primary)
-              Circle({ width: 6, height: 6 }).fill(Color.White)
-            }
-            Row()
-              .width(2)
-              .layoutWeight(1)
-              .backgroundColor(grp.length > 1 ? Theme.goldLight : Color.Transparent)
-          }
-          .width(16)
-          .layoutWeight(1)
-          .alignItems(HorizontalAlign.Center)
-        }, (grp: Person[], gi: number) => 'axis_' + gi.toString())
-      }
-      .width(16)
-      .alignItems(HorizontalAlign.Center)
-
-      Column() {
-        ForEach(this.groups, (grp: Person[], gi: number) => {
-          Column() {
-            Row() {
-              Text(this.groupLabels[gi])
-                .fontSize(13)
-                .fontWeight(FontWeight.Bold)
-                .fontColor(Theme.primary)
-              Text(grp.length.toString() + ' 人')
-                .fontSize(11)
-                .fontColor(Theme.inkTertiary)
-                .margin({ left: 6 })
-            }
-            .width('100%')
-            .margin({ bottom: Spacing.S })
-
-            Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start, alignItems: ItemAlign.Start }) {
-              ForEach(grp, (p: Person) => {
-                Column() {
-                  this.PersonCard(p)
+    List() {
+      LazyForEach(this.rowSource, (row: ModernRow) => {
+        ListItem() {
+          Row() {
+            Column() {
+              if (row.first) {
+                Stack() {
+                  Circle({ width: 14, height: 14 }).fill(Theme.primary)
+                  Circle({ width: 6, height: 6 }).fill(Color.White)
                 }
-                .padding({ right: 10, bottom: 10 })
-              }, (p: Person) => 'mc_' + p.uid)
+              }
+              Row()
+                .width(2)
+                .layoutWeight(1)
+                .backgroundColor(row.lastOverall ? Color.Transparent : Theme.goldLight)
             }
-            .width('100%')
+            .width(16)
+            .height('100%')
+            .alignItems(HorizontalAlign.Center)
+
+            Column() {
+              if (row.first) {
+                Row() {
+                  Text(row.label)
+                    .fontSize(13)
+                    .fontWeight(FontWeight.Bold)
+                    .fontColor(Theme.primary)
+                  Text(row.people.length.toString() + ' 人')
+                    .fontSize(11)
+                    .fontColor(Theme.inkTertiary)
+                    .margin({ left: 6 })
+                }
+                .width('100%')
+                .margin({ bottom: Spacing.S })
+              }
+
+              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start, alignItems: ItemAlign.Start }) {
+                ForEach(row.values(), (p: Person) => {
+                  Column() {
+                    this.PersonCard(p)
+                  }
+                  .padding({ right: 10, bottom: 10 })
+                }, (p: Person) => 'mc_' + this.layoutVersion.toString() + '_' + p.uid)
+              }
+              .width('100%')
+            }
+            .layoutWeight(1)
+            .alignItems(HorizontalAlign.Start)
+            .padding({ left: Spacing.M, bottom: row.last ? Spacing.XL : 0 })
           }
           .width('100%')
-          .alignItems(HorizontalAlign.Start)
-          .margin({ bottom: Spacing.XL })
-        }, (grp: Person[], gi: number) => 'mg_' + gi.toString())
-      }
-      .layoutWeight(1)
-      .padding({ left: Spacing.M })
+          .alignItems(VerticalAlign.Top)
+        }
+      }, (row: ModernRow) => 'mg_' + this.layoutVersion.toString() + '_' + this.highlightUid + '_' +
+        row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString())
     }
     .width('100%')
-    .alignItems(VerticalAlign.Top)
+    .layoutWeight(1)
+    .cachedCount(this.rows.length > 20 ? 2 : 3)
+    .padding({ bottom: 120 })
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.None)
   }
 }

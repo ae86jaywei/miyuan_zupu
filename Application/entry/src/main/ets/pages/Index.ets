@@ -77,6 +77,8 @@ struct Index {
   /** 本地就绪标记（AppStorage 订阅作为兜底） */
   @State localReady: boolean = false;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
+  private switchingTab: boolean = false;
+  private lastTabClickAt: number = 0;
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
@@ -199,6 +201,31 @@ struct Index {
 
   // ---------------------------------------------------------------- 交互
 
+  private switchTab(index: number, animated: boolean): void {
+    if (index === this.currentTab || this.switchingTab) {
+      return;
+    }
+    const now: number = Date.now();
+    if (now - this.lastTabClickAt < 320) {
+      return;
+    }
+    this.lastTabClickAt = now;
+    if (!animated) {
+      AppStorage.setOrCreate<number>('gpTab', index);
+      return;
+    }
+    this.switchingTab = true;
+    this.getUIContext().animateTo({
+      duration: 260,
+      curve: Curve.FastOutSlowIn,
+      onFinish: (): void => {
+        this.switchingTab = false;
+      }
+    }, (): void => {
+      AppStorage.setOrCreate<number>('gpTab', index);
+    });
+  }
+
   private openPerson(uid: string): void {
     AppStorage.setOrCreate<string>('gpSelection', uid);
     if (this.windowWidth < Breakpoint.MD) {
@@ -246,7 +273,7 @@ struct Index {
         .padding(collapsed ? 0 : { left: Spacing.M })
         .margin({ bottom: 4 })
         .onClick((): void => {
-          AppStorage.setOrCreate<number>('gpTab', idx);
+          this.switchTab(idx, false);
         })
       }, (item: NavItem) => 'nav_' + item.key)
 
@@ -306,13 +333,7 @@ struct Index {
       .borderRadius(16)
       .backgroundColor(this.currentTab === idx ? Theme.highlightBg : Color.Transparent)
       .onClick((): void => {
-        // 选中态切换用弹性曲线过渡，形成“悬浮式”跟手反馈
-        this.getUIContext().animateTo({
-          duration: 260,
-          curve: Curve.FastOutSlowIn
-        }, (): void => {
-          AppStorage.setOrCreate<number>('gpTab', idx);
-        });
+        this.switchTab(idx, true);
       })
     }, (item: NavItem) => 'bb_' + item.key)
   }

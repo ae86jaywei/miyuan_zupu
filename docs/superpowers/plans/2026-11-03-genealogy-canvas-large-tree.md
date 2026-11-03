@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 让欧式/苏式谱在 1000~5000 人规模下仍能完整浏览、平移可达四角、60fps 左右流畅拖动且不崩溃。
+**Goal:** 让五种谱式在 1000~50000 人规模下按需浏览，优先消除名录切页主线程阻塞与崩溃，再保持欧式/苏式平移可达四角和流畅拖动。
 
 **Architecture:** 采用“布局一次算、按视口裁剪、只渲染可见卡片、大数据分级”的四层模型：数据层不向 UI 深拷贝树；布局层用带版本号的单例缓存；视口层用纯函数计算内容可视矩形与平移边界；渲染层只创建可视区（含缓冲区）内的组件，超出阈值自动进入宗支总览。
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 目标分支：`1.02-huawei_yun`，不修改云函数与 CloudDB schema。
+- 目标分支：`1.03-huawei_yun`，不修改云函数与 CloudDB schema。
 - 不改变五种谱式的视觉语义（欧式左→右、苏式父→子、配偶红双线、朱砂+鎏金配色）。
 - 所有新增/修改的 `.ets` 必须通过 ArkTS 严格检查：禁止 `any`、禁止未声明类型的对象字面量、禁止在 UI 组件中做 O(N) 以上的重复计算。
 - 单屏任何时刻创建的卡片组件数 ≤ 250（含缓冲区）。
@@ -28,11 +28,25 @@
 - Task 4 TreeCanvas 数据传递与边界修复（移除 `roots/people` 深拷贝，缓尺寸驱动边界，世代索引缓存）。
 - 额外修复：`TreeMiniCard` 不再接收 `@Prop PersonNode`；`PagodaTree` 不再接收 `@Prop rows: PersonNode[][]`。
 
-未实施（等待真机结果）：
-- Task 5 连线 Canvas 化（当前仍用可见 Row，视口内数量已受控）。
-- Task 6 大树宗支总览、Task 7 其余谱式懒加载、Task 8 性能埋点。
+本轮优先级根据 50000 人 DEBUG 日志调整：
+1. 新 P0-2：`CatalogView` 改 `LazyForEach + IDataSource`，筛选按 `version + keyword + filterGen + filterGender + filterStatus` 缓存，世代选项按 version 缓存，列表增加 `cachedCount`。
+2. 新 P0-2：`Index` 底部与侧边切页统一做同页忽略、320ms 防抖和动画期间重入锁；不能只靠防抖替代列表虚拟化。
+3. Task 7 扩展：名录、牒记、宝塔、现代统一懒加载；列表直接承载纵向滚动，禁止把虚拟列表放进无界 `Scroll`。
+4. Task 8：增加筛选、分组、布局、裁剪耗时日志，大列表降低预取数量；欧式/苏式超过 250 张可见卡时本轮只记录降级指标，宗支聚合仍由 Task 6 实现，本轮不承诺该场景不超过 250 卡。
+5. Task 6：10000+ 人画布概览/下钻。
+6. Task 5：连线 Canvas 化，当前崩溃堆栈未指向连线，延后。
 
-验证限制：当前环境没有 HarmonyOS SDK / `hvigorw`，无法编译与真机运行；仅完成纯函数断言与静态走查。下一步需在 DevEco Studio 编译后按 4.1/4.3 清单实测。
+DEBUG 证据：两份 appfreeze 均为 `THREAD_BLOCK_6S`，主线程停在 `CatalogView.ets:222` 的普通 `ForEach` 更新，点击链来自 `Index.ets:310` 的 `animateTo`；另一份 HiLog 出现全局引用数 104162，超过 100000 上限。现有证据不支持把 OOM 或连线当作本次主因。
+
+本轮代码已完成，待编译与真机验收：
+- P0-2：名录使用通用 `FlatListSource<Person>` 与 `LazyForEach`，`build()` 不再调用 `filtered()`；筛选和世代选项按版本/条件缓存，清空筛选只刷新一次，选中变化只重载可见项。
+- P0-2：底部与侧边切页统一经 `Index.switchTab()`，包含同页忽略、320ms 防抖和 260ms 动画重入锁。
+- Task 7 扩展：牒记仅在当前谱式需要时扁平化，按人物懒加载并保留世代标题；现代谱按版本从服务重建，每块 1~4 人；宝塔每块手机 4 人、宽屏 6 人，根 uid 用 `Set` 筛选，避免独立根节点场景 O(N²)。
+- Task 7 扩展：现代/宝塔/牒记的行 key 包含数据版本、切片形状和选中 uid；现代尺寸变化仅在列数实际变化时重建。
+- Task 8 部分：筛选、分组、布局、裁剪使用 `TreePerf` 每秒汇总 max/avg/calls，长任务告警限流；大列表降低 `cachedCount`。欧/苏宗支聚合与自动降级仍未实施。
+- Task 5、Task 6 保持未实施，优先级分别为连线优化和大树概览/下钻。
+
+验证限制：当前环境没有 HarmonyOS SDK / `hvigorw`，无法编译与真机运行；本轮完成三轮 ArkTS 静态复核和 `git diff --check`，不等同于真机性能验收。下一步需在 DevEco Studio 编译后按 4.1/4.3 清单实测，并增加单世代 50000 人、50000 个独立根节点、连续双击切页和跨断点 resize 用例。
 
 实现相对计划的差异（以代码为准）：
 - 多宗支精确裁剪：`EuTree`/`SuTree` 新增 `contentTop`（该支在屏幕上的起点），`TreeCanvas` 预计算 `branchTops`，并把宗支标题高度计入起点；

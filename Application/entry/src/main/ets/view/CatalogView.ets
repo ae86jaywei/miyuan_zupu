@@ -2,32 +2,54 @@ import { Person } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { PersonAvatar } from '../components/PersonAvatar';
-import { Tag } from '../components/Tag';
 import { EmptyHint } from '../components/EmptyHint';
 import { generationLabel } from '../model/Enums';
-import { lifeSpan, ageOf } from '../util/DateUtil';
+import { lifeSpan } from '../util/DateUtil';
 import { Breakpoint } from '../common/Constants';
 import { RouterUtil } from '../util/RouterUtil';
+import { FlatListSource } from '../util/FlatListSource';
+import { TreePerf } from '../util/TreePerf';
 
 /**
  * 世系名录：按搜索、世代、性别、状态筛选，以列表/表格形式浏览全部族人。
  */
 @Component
 export struct CatalogView {
-  @Prop version: number = 0;
+  @Prop @Watch('onFiltersChanged') version: number = 0;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
   }
   @Prop windowWidth: number = 360;
-  @StorageProp('gpKeyword') keyword: string = '';
-  @StorageProp('gpFilterGen') filterGen: number = 0;
-  @StorageProp('gpFilterGender') filterGender: string = '';
-  @StorageProp('gpFilterStatus') filterStatus: string = '';
-  @StorageLink('gpSelection') selectedUid: string = '';
+  @StorageProp('gpKeyword') @Watch('onFiltersChanged') keyword: string = '';
+  @StorageProp('gpFilterGen') @Watch('onFiltersChanged') filterGen: number = 0;
+  @StorageProp('gpFilterGender') @Watch('onFiltersChanged') filterGender: string = '';
+  @StorageProp('gpFilterStatus') @Watch('onFiltersChanged') filterStatus: string = '';
+  @StorageLink('gpSelection') @Watch('onSelectionChanged') selectedUid: string = '';
   @Prop isMasterDetail: boolean = false;
+  @State filteredCount: number = 0;
+  @State generationValues: number[] = [];
   onOpenPerson: (uid: string) => void = (uid: string): void => {};
+  private listSource: FlatListSource<Person> = new FlatListSource<Person>();
+  private filteredCache: Person[] = [];
+  private filterCacheKey: string = '';
+  private generationVersion: number = -1;
+  private resettingFilters: boolean = false;
+
+  aboutToAppear(): void {
+    this.refreshFiltered();
+  }
+
+  onFiltersChanged(): void {
+    if (!this.resettingFilters) {
+      this.refreshFiltered();
+    }
+  }
+
+  onSelectionChanged(): void {
+    this.listSource.setData(this.filteredCache);
+  }
 
   private svc(): GenealogyService {
     return GenealogyService.getInstance();
@@ -37,7 +59,17 @@ export struct CatalogView {
     return this.windowWidth >= Breakpoint.MD;
   }
 
+  private filterKey(): string {
+    return this.version.toString() + '|' + this.keyword + '|' + this.filterGen.toString() + '|' +
+      this.filterGender + '|' + this.filterStatus;
+  }
+
   private filtered(): Person[] {
+    const key: string = this.filterKey();
+    if (key === this.filterCacheKey) {
+      return this.filteredCache;
+    }
+    TreePerf.begin('catalog_filter');
     let list: Person[] = this.svc().search(this.keyword);
     if (this.filterGen > 0) {
       list = list.filter((p: Person): boolean => p.generation === this.filterGen);
@@ -48,15 +80,34 @@ export struct CatalogView {
     if (this.filterStatus.length > 0) {
       list = list.filter((p: Person): boolean => p.lifeStatus === this.filterStatus);
     }
+    this.filteredCache = list;
+    this.filterCacheKey = key;
+    TreePerf.end('catalog_filter', 'people=' + list.length.toString());
     return list;
   }
 
-  private generations(): number[] {
-    const set: Set<number> = new Set<number>();
-    this.svc().getPeople().forEach((p: Person): void => {
-      set.add(p.generation);
-    });
-    return Array.from(set).sort((a: number, b: number): number => a - b);
+  private refreshFiltered(): void {
+    const list: Person[] = this.filtered();
+    this.filteredCount = list.length;
+    this.listSource.setData(list);
+    if (this.generationVersion !== this.version) {
+      const set: Set<number> = new Set<number>();
+      this.svc().getPeople().forEach((p: Person): void => {
+        set.add(p.generation);
+      });
+      this.generationValues = Array.from(set).sort((a: number, b: number): number => a - b);
+      this.generationVersion = this.version;
+    }
+  }
+
+  private clearFilters(): void {
+    this.resettingFilters = true;
+    this.keyword = '';
+    this.filterGen = 0;
+    this.filterGender = '';
+    this.filterStatus = '';
+    this.resettingFilters = false;
+    this.refreshFiltered();
   }
 
   @Builder
@@ -88,7 +139,7 @@ export struct CatalogView {
           this.FilterChip('全部世', this.filterGen === 0, (): void => {
             this.filterGen = 0;
           })
-          ForEach(this.generations(), (g: number) => {
+          ForEach(this.generationValues, (g: number) => {
             this.FilterChip(generationLabel(g), this.filterGen === g, (): void => {
               this.filterGen = g;
             })
@@ -195,7 +246,7 @@ export struct CatalogView {
       this.FilterBar()
 
       Row() {
-        Text('共 ' + this.filtered().length.toString() + ' 人')
+        Text('共 ' + this.filteredCount.toString() + ' 人')
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
         Blank()
@@ -205,28 +256,26 @@ export struct CatalogView {
             .fontSize(12)
             .fontColor(Theme.primary)
             .onClick((): void => {
-              this.keyword = '';
-              this.filterGen = 0;
-              this.filterGender = '';
-              this.filterStatus = '';
+              this.clearFilters();
             })
         }
       }
       .width('100%')
       .padding({ top: Spacing.S, bottom: 4, left: 4, right: 4 })
 
-      if (this.filtered().length === 0) {
+      if (this.filteredCount === 0) {
         EmptyHint({ icon: '🔍', title: '没有符合条件的族人', desc: '尝试调整搜索词或筛选条件' })
       } else {
         List({ space: 2 }) {
-          ForEach(this.filtered(), (p: Person) => {
+          LazyForEach(this.listSource, (p: Person) => {
             ListItem() {
               this.PersonRow(p, !this.isMasterDetail)
             }
-          }, (p: Person) => 'cat_' + p.uid + p.updatedAt.toString())
+          }, (p: Person) => 'cat_' + this.selectedUid + '_' + p.uid + p.updatedAt.toString())
         }
         .layoutWeight(1)
         .width('100%')
+        .cachedCount(TreePerf.listCacheCount(this.filteredCount))
         .divider({ strokeWidth: 0.5, color: Theme.line, startMargin: 50 })
         .padding({ bottom: 100 })
         .scrollBar(BarState.Off)

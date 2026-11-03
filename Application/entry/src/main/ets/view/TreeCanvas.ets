@@ -13,6 +13,8 @@ import { TreeLayoutCache } from '../service/TreeLayoutCache';
 import { EuCanvas, SuCanvas, suRootCenterX } from '../service/TreeLayout';
 import { ViewportMath } from '../service/TreeViewport';
 import { Breakpoint } from '../common/Constants';
+import { FlatListSource } from '../util/FlatListSource';
+import { TreePerf } from '../util/TreePerf';
 
 /** 多宗支时每支标题的固定高度（16 行高 + 8 底部间距），用于精确计算裁剪起点 */
 const BRANCH_HEADER_H: number = 24;
@@ -30,7 +32,7 @@ const BRANCH_HEADER_H: number = 24;
 export struct TreeCanvas {
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
   @StorageProp('gpVersion') @Watch('onDataVersionChanged') dataVersion: number = 0;
-  @Prop highlightUid: string = '';
+  @Prop @Watch('onHighlightChanged') highlightUid: string = '';
   @Prop showPrivate: boolean = true;
   @Prop @Watch('onWindowWidthChanged') windowWidth: number = 360;
   @Prop @Watch('onZoomChanged') zoom: number = 1;
@@ -60,6 +62,8 @@ export struct TreeCanvas {
   private startY: number = 0;
   /** 苏式谱切换后待把始祖居中（等可视区宽度就绪后再执行一次） */
   private pendingCenter: boolean = true;
+  private dieSource: FlatListSource<Person> = new FlatListSource<Person>();
+  private diePeople: Person[] = [];
 
   aboutToAppear(): void {
     this.refreshData();
@@ -74,9 +78,18 @@ export struct TreeCanvas {
   onStyleChanged(): void {
     this.offsetX = 0;
     this.offsetY = 0;
+    if (this.style === TreeStyle.DIE) {
+      this.rebuildDieSource();
+    }
     this.rebuildCanvasSize();
     this.pendingCenter = true;
     this.centerSuIfReady();
+  }
+
+  onHighlightChanged(): void {
+    if (this.style === TreeStyle.DIE) {
+      this.dieSource.setData(this.diePeople);
+    }
   }
 
   /** 族人数据变化：丢弃旧布局，重建宗支索引与世代索引 */
@@ -100,6 +113,7 @@ export struct TreeCanvas {
   }
 
   private refreshData(): void {
+    TreePerf.begin('tree_groups');
     const svc: GenealogyService = GenealogyService.getInstance();
     const roots: PersonNode[] = svc.getRoots();
     this.rootUids = roots.map((r: PersonNode): string => r.uid);
@@ -109,7 +123,23 @@ export struct TreeCanvas {
     this.genLabels = gens.map((g: number): string => generationLabel(g));
     this.genCounts = gens.map((g: number): number => (map.get(g) as Person[]).length);
     this.genGroups = gens.map((g: number): Person[] => map.get(g) as Person[]);
+    if (this.style === TreeStyle.DIE) {
+      this.rebuildDieSource();
+    }
+    TreePerf.end('tree_groups', 'people=' + this.peopleCount.toString() +
+      ' generations=' + gens.length.toString());
     this.rebuildCanvasSize();
+  }
+
+  private rebuildDieSource(): void {
+    const people: Person[] = [];
+    this.genGroups.forEach((group: Person[]): void => {
+      group.forEach((person: Person): void => {
+        people.push(person);
+      });
+    });
+    this.diePeople = people;
+    this.dieSource.setData(people);
   }
 
   /** 只在数据/谱式/宽度变化时调用，不要在手势回调里调用 */
@@ -241,6 +271,48 @@ export struct TreeCanvas {
     }
   }
 
+  @Builder
+  DieList() {
+    List({ space: Spacing.M }) {
+      LazyForEach(this.dieSource, (person: Person, index: number) => {
+        ListItem() {
+          Column() {
+            if (index === 0 || this.dieSource.getData(index - 1).generation !== person.generation) {
+              Row() {
+                Text(generationLabel(person.generation))
+                  .fontSize(18)
+                  .fontWeight(FontWeight.Bold)
+                  .fontColor(Theme.primary)
+                Divider()
+                  .layoutWeight(1)
+                  .color(Theme.goldLight)
+                  .margin({ left: Spacing.M })
+              }
+              .width('100%')
+              .margin({ top: index === 0 ? 0 : Spacing.XL, bottom: Spacing.M })
+            }
+            DieRecord({
+              person: person,
+              index: 0,
+              showPrivate: this.showPrivate,
+              highlight: person.uid === this.highlightUid,
+              onTapPerson: (uid: string): void => {
+                this.onTapPerson(uid);
+              }
+            })
+          }
+          .width('100%')
+        }
+      }, (person: Person) => 'die_' + this.dataVersion.toString() + '_' + this.highlightUid + '_' + person.uid)
+    }
+    .width('100%')
+    .layoutWeight(1)
+    .cachedCount(TreePerf.listCacheCount(this.peopleCount))
+    .padding({ bottom: 120 })
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.None)
+  }
+
   build() {
     Column() {
       this.StyleHint()
@@ -248,172 +320,135 @@ export struct TreeCanvas {
       if (this.peopleCount === 0) {
         EmptyHint({ icon: '🌱', title: '族谱暂无人物', desc: '点击右下角“＋”创建始祖，开启家族记录' })
       } else {
-        Scroll() {
+        if (this.style === TreeStyle.DIE) {
+          this.DieList()
+        } else if (this.style === TreeStyle.PAGODA) {
           Column() {
-            if (this.style === TreeStyle.DIE) {
-              ForEach(this.genGroups, (grp: Person[], gi: number) => {
-                Column() {
-                  Row() {
-                    Text(generationLabel(grp[0].generation))
-                      .fontSize(18)
-                      .fontWeight(FontWeight.Bold)
-                      .fontColor(Theme.primary)
-                    Divider()
-                      .layoutWeight(1)
-                      .color(Theme.goldLight)
-                      .margin({ left: Spacing.M })
-                  }
-                  .width('100%')
-                  .margin({ top: gi === 0 ? 0 : Spacing.XL, bottom: Spacing.M })
-
-                  ForEach(grp, (p: Person, pi: number) => {
-                    Column() {
-                      DieRecord({
-                        person: p,
-                        index: pi,
-                        showPrivate: this.showPrivate,
-                        highlight: p.uid === this.highlightUid,
-                        onTapPerson: (uid: string): void => {
-                          this.onTapPerson(uid);
-                        }
-                      })
-                    }
-                    .width('100%')
-                    .margin({ bottom: Spacing.M })
-                  }, (p: Person) => 'die_' + p.uid)
-                }
-                .width('100%')
-              }, (grp: Person[], gi: number) => 'dieg_' + gi.toString())
-            } else if (this.style === TreeStyle.PAGODA) {
-              this.GenerationIndex()
-              PagodaTree({
-                rootUids: this.rootUids,
-                layoutVersion: this.dataVersion,
-                highlightUid: this.highlightUid,
-                compact: this.isNarrow(),
-                onTapPerson: (uid: string): void => {
-                  this.onTapPerson(uid);
-                }
-              })
-            } else if (this.style === TreeStyle.MODERN) {
-              ModernTree({
-                groups: this.genGroups,
-                groupLabels: this.genLabels,
-                highlightUid: this.highlightUid,
-                minCardWidth: this.windowWidth >= Breakpoint.MD ? 220 : (this.isNarrow() ? 150 : 180),
-                onTapPerson: (uid: string): void => {
-                  this.onTapPerson(uid);
-                }
-              })
-            } else {
-              // 欧式 / 苏式：布局缓存 + 坐标预计算 + 视口裁剪（手势自由平移 + 整体缩放）
-              Column() {
-                ForEach(this.rootUids, (uid: string, ri: number) => {
-                  Column() {
-                    if (this.rootUids.length > 1) {
-                      Row() {
-                        Text('宗支 ' + (ri + 1).toString() + '：' + this.rootName(uid))
-                          .fontSize(13)
-                          .fontWeight(FontWeight.Medium)
-                          .fontColor(Theme.primary)
-                        Text('后代 ' + this.rootDescendants(uid).toString() + ' 人')
-                          .fontSize(11)
-                          .fontColor(Theme.inkTertiary)
-                          .margin({ left: 6 })
-                      }
-                      .width('100%')
-                      .height(BRANCH_HEADER_H)
-                      .margin({ bottom: Spacing.S })
-                    }
-                    if (this.style === TreeStyle.EU) {
-                      EuTree({
-                        rootUid: uid,
-                        layoutVersion: this.dataVersion,
-                        highlightUid: this.highlightUid,
-                        cardWidth: this.cardWidth(),
-                        dense: this.isNarrow(),
-                        showSpouse: true,
-                        offsetX: $offsetX,
-                        offsetY: $offsetY,
-                        viewWidth: this.viewW,
-                        viewHeight: this.viewH,
-                        zoom: this.zoom,
-                        contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
-                        onTapPerson: (id: string): void => {
-                          this.onTapPerson(id);
-                        },
-                        onSize: (w: number, h: number): void => {
-                          this.collectSize(w, h);
-                        }
-                      })
-                    } else {
-                      SuTree({
-                        rootUid: uid,
-                        layoutVersion: this.dataVersion,
-                        highlightUid: this.highlightUid,
-                        cardWidth: this.cardWidth(),
-                        dense: this.isNarrow(),
-                        showGenMark: true,
-                        showSpouse: true,
-                        offsetX: $offsetX,
-                        offsetY: $offsetY,
-                        viewWidth: this.viewW,
-                        viewHeight: this.viewH,
-                        zoom: this.zoom,
-                        contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
-                        onTapPerson: (id: string): void => {
-                          this.onTapPerson(id);
-                        },
-                        onSize: (w: number, h: number): void => {
-                          this.collectSize(w, h);
-                        }
-                      })
-                    }
-                  }
-                  .width('100%')
-                  .alignItems(HorizontalAlign.Start)
-                  .margin({ bottom: Spacing.XXL })
-                }, (uid: string) => 'root_' + uid)
+            this.GenerationIndex()
+            PagodaTree({
+              rootUids: this.rootUids,
+              layoutVersion: this.dataVersion,
+              highlightUid: this.highlightUid,
+              compact: this.isNarrow(),
+              onTapPerson: (uid: string): void => {
+                this.onTapPerson(uid);
               }
-              .width('100%')
-              .alignItems(HorizontalAlign.Start)
-            }
+            })
+            .layoutWeight(1)
           }
           .width('100%')
-          .padding({ bottom: 120 })
-        }
-        .scrollable(this.style === TreeStyle.EU || this.style === TreeStyle.SU ?
-          ScrollDirection.None : ScrollDirection.Vertical)
-        .onAreaChange((oldArea: Area, newArea: Area): void => {
-          this.viewW = Number(newArea.width);
-          this.viewH = Number(newArea.height);
-          if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
+          .layoutWeight(1)
+        } else if (this.style === TreeStyle.MODERN) {
+          ModernTree({
+            layoutVersion: this.dataVersion,
+            windowWidth: this.windowWidth,
+            highlightUid: this.highlightUid,
+            minCardWidth: this.windowWidth >= Breakpoint.MD ? 220 : (this.isNarrow() ? 150 : 180),
+            onTapPerson: (uid: string): void => {
+              this.onTapPerson(uid);
+            }
+          })
+          .layoutWeight(1)
+        } else {
+          Scroll() {
+            Column() {
+              ForEach(this.rootUids, (uid: string, ri: number) => {
+                Column() {
+                  if (this.rootUids.length > 1) {
+                    Row() {
+                      Text('宗支 ' + (ri + 1).toString() + '：' + this.rootName(uid))
+                        .fontSize(13)
+                        .fontWeight(FontWeight.Medium)
+                        .fontColor(Theme.primary)
+                      Text('后代 ' + this.rootDescendants(uid).toString() + ' 人')
+                        .fontSize(11)
+                        .fontColor(Theme.inkTertiary)
+                        .margin({ left: 6 })
+                    }
+                    .width('100%')
+                    .height(BRANCH_HEADER_H)
+                    .margin({ bottom: Spacing.S })
+                  }
+                  if (this.style === TreeStyle.EU) {
+                    EuTree({
+                      rootUid: uid,
+                      layoutVersion: this.dataVersion,
+                      highlightUid: this.highlightUid,
+                      cardWidth: this.cardWidth(),
+                      dense: this.isNarrow(),
+                      showSpouse: true,
+                      offsetX: $offsetX,
+                      offsetY: $offsetY,
+                      viewWidth: this.viewW,
+                      viewHeight: this.viewH,
+                      zoom: this.zoom,
+                      contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
+                      onTapPerson: (id: string): void => {
+                        this.onTapPerson(id);
+                      },
+                      onSize: (w: number, h: number): void => {
+                        this.collectSize(w, h);
+                      }
+                    })
+                  } else {
+                    SuTree({
+                      rootUid: uid,
+                      layoutVersion: this.dataVersion,
+                      highlightUid: this.highlightUid,
+                      cardWidth: this.cardWidth(),
+                      dense: this.isNarrow(),
+                      showGenMark: true,
+                      showSpouse: true,
+                      offsetX: $offsetX,
+                      offsetY: $offsetY,
+                      viewWidth: this.viewW,
+                      viewHeight: this.viewH,
+                      zoom: this.zoom,
+                      contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
+                      onTapPerson: (id: string): void => {
+                        this.onTapPerson(id);
+                      },
+                      onSize: (w: number, h: number): void => {
+                        this.collectSize(w, h);
+                      }
+                    })
+                  }
+                }
+                .width('100%')
+                .alignItems(HorizontalAlign.Start)
+                .margin({ bottom: Spacing.XXL })
+              }, (uid: string) => 'root_' + uid)
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Start)
+            .padding({ bottom: 120 })
+          }
+          .scrollable(ScrollDirection.None)
+          .onAreaChange((oldArea: Area, newArea: Area): void => {
+            this.viewW = Number(newArea.width);
+            this.viewH = Number(newArea.height);
             this.offsetX = this.clampX(this.offsetX);
             this.offsetY = this.clampY(this.offsetY);
-          }
-          this.centerSuIfReady();
-        })
-        .parallelGesture(
-          PanGesture({ fingers: 1, distance: 8, direction: PanDirection.All })
-            .onActionStart((event: GestureEvent): void => {
-              this.startX = this.offsetX;
-              this.startY = this.offsetY;
-            })
-            .onActionUpdate((event: GestureEvent): void => {
-              if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
-                return;
-              }
-              this.offsetX = this.clampX(this.startX + event.offsetX);
-              this.offsetY = this.clampY(this.startY + event.offsetY);
-            })
-        )
-        .scrollBar(BarState.Auto)
-        // 拖动平移到哪就停在哪：不使用弹性回弹
-        .edgeEffect(EdgeEffect.None)
-        .enableScrollInteraction(true)
-        .align(Alignment.TopStart)
-        .width('100%')
-        .layoutWeight(1)
+            this.centerSuIfReady();
+          })
+          .parallelGesture(
+            PanGesture({ fingers: 1, distance: 8, direction: PanDirection.All })
+              .onActionStart((event: GestureEvent): void => {
+                this.startX = this.offsetX;
+                this.startY = this.offsetY;
+              })
+              .onActionUpdate((event: GestureEvent): void => {
+                this.offsetX = this.clampX(this.startX + event.offsetX);
+                this.offsetY = this.clampY(this.startY + event.offsetY);
+              })
+          )
+          .scrollBar(BarState.Auto)
+          .edgeEffect(EdgeEffect.None)
+          .enableScrollInteraction(true)
+          .align(Alignment.TopStart)
+          .width('100%')
+          .layoutWeight(1)
+        }
       }
     }
     .width('100%')

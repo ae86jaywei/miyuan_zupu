@@ -1,5 +1,6 @@
 import { PersonNode } from '../model/PersonNode';
 import { EuCanvas, EuLayout, SuCanvas, SuLayout } from './TreeLayout';
+import { TreePerf } from '../util/TreePerf';
 
 /**
  * 布局缓存：同一宗支 + 同一显示参数只计算一次。
@@ -37,7 +38,9 @@ export class TreeLayoutCache {
     if (hit !== undefined) {
       return hit;
     }
+    TreePerf.begin('layout_eu');
     const canvas: EuCanvas = EuLayout.compute(roots, cardWidth, rowHeight, 30, showSpouse, startY);
+    TreePerf.end('layout_eu', 'root=' + rootKey + ' boxes=' + canvas.boxes.length.toString());
     if (this.euMap.size >= TreeLayoutCache.MAX_ENTRIES) {
       this.euMap.clear();
     }
@@ -53,7 +56,9 @@ export class TreeLayoutCache {
     if (hit !== undefined) {
       return hit;
     }
+    TreePerf.begin('layout_su');
     const canvas: SuCanvas = SuLayout.compute(roots, cardWidth, dense, showSpouse);
+    TreePerf.end('layout_su', 'root=' + rootKey + ' boxes=' + canvas.boxes.length.toString());
     if (this.suMap.size >= TreeLayoutCache.MAX_ENTRIES) {
       this.suMap.clear();
     }
