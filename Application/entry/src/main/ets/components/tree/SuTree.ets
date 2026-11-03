@@ -41,6 +41,14 @@ export struct SuTree {
     this.refresh();
   }
 
+  private lineThickness(): number {
+    return 1.5 / (this.zoom > 0 ? this.zoom : 1);
+  }
+
+  private isHorizontal(seg: LineSeg): boolean {
+    return Math.abs(seg.y2 - seg.y1) <= 0.5;
+  }
+
   private root(): PersonNode | null {
     const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
     for (let i: number = 0; i < roots.length; i = i + 1) {
@@ -98,11 +106,12 @@ export struct SuTree {
       Stack({ alignContent: Alignment.TopStart }) {
         ForEach(this.visibleLines, (seg: LineSeg) => {
           Row()
-            .width(Math.max(Math.abs(seg.x2 - seg.x1), 1.5))
-            .height(Math.max(Math.abs(seg.y2 - seg.y1), 1.5))
+            .width(this.isHorizontal(seg) ? Math.max(Math.abs(seg.x2 - seg.x1), 1) : this.lineThickness())
+            .height(this.isHorizontal(seg) ? this.lineThickness() : Math.max(Math.abs(seg.y2 - seg.y1), 1))
             .backgroundColor(seg.red ? Theme.primary : Theme.goldLight)
             .position({ x: Math.min(seg.x1, seg.x2), y: Math.min(seg.y1, seg.y2) })
-        }, (seg: LineSeg) => 'su_ln_' + seg.id.toString())
+        }, (seg: LineSeg) => 'su_ln_' + this.rootUid + '_' + this.layoutVersion.toString() + '_' +
+          this.cardWidth.toString() + '_' + this.dense.toString() + '_' + seg.id.toString())
 
         ForEach(this.visibleBoxes, (box: SuBox) => {
           TreeMiniCard({
@@ -120,7 +129,8 @@ export struct SuTree {
             }
           })
             .position({ x: box.x, y: box.y })
-        }, (box: SuBox) => 'su_bx_' + box.node.uid)
+        }, (box: SuBox) => 'su_bx_' + this.rootUid + '_' + this.layoutVersion.toString() + '_' +
+          this.cardWidth.toString() + '_' + this.dense.toString() + '_' + box.node.uid)
       }
       .width(this.contentW)
       .height(this.contentH)

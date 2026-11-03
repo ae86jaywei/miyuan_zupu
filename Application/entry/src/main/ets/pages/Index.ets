@@ -477,6 +477,8 @@ struct Index {
           this.openPerson(uid);
         }
       })
+        .width('100%')
+        .layoutWeight(1)
     }
     .width('100%')
     .height('100%')
@@ -808,6 +810,21 @@ struct Index {
   }
 
   @Builder
+  ContentBody() {
+    if (!this.localReady && !this.ready) {
+      Column() {
+        LoadingProgress().width(40).height(40).color(Theme.primary)
+        Text('正在展开族谱…').fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+    } else {
+      this.ContentArea()
+    }
+  }
+
+  @Builder
   ContentArea() {
     if (!this.hasBook && this.currentTab !== 4) {
       if (this.currentTab === 1) {
@@ -968,44 +985,50 @@ struct Index {
         .backgroundColor(Theme.card)
         .shadow({ radius: 6, color: Theme.shadowDeep, offsetY: 2 })
 
-        Row() {
-          if (this.showSidebar()) {
+        if (this.showSidebar()) {
+          Row() {
             this.NavBar(this.sidebarCollapsed())
-          }
-
-          Column() {
-            if (!this.localReady && !this.ready) {
-              Column() {
-                LoadingProgress().width(40).height(40).color(Theme.primary)
-                Text('正在展开族谱…').fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
-              }
-              .width('100%')
-              .height('100%')
-              .justifyContent(FlexAlign.Center)
-            } else {
-              this.ContentArea()
+            Column() {
+              this.ContentBody()
             }
+            .layoutWeight(1)
+            .height(LayoutPolicy.matchParent)
+            .padding({
+              left: Layout.pagePadding(this.windowWidth),
+              right: Layout.pagePadding(this.windowWidth),
+              top: 0,
+              bottom: 0
+            })
+            .onAreaChange((oldValue: Area, newValue: Area): void => {
+              hilog.info(0x0000, TAG, 'content column h=%{public}d w=%{public}d sidebar=true',
+                Number(newValue.height), Number(newValue.width));
+            })
           }
           .layoutWeight(1)
-          .height('100%')
+          .width('100%')
+        } else {
+          Column() {
+            this.ContentBody()
+          }
+          .width('100%')
+          .layoutWeight(1)
           .padding({
             left: Layout.pagePadding(this.windowWidth),
             right: Layout.pagePadding(this.windowWidth),
             top: 0,
-            // 悬浮导航浮于内容之上，底部留出安全间距，避免列表末项被遮挡
-            bottom: this.showSidebar() ? 0 : 84
+            bottom: 0
           })
+          .onAreaChange((oldValue: Area, newValue: Area): void => {
+            hilog.info(0x0000, TAG, 'content column h=%{public}d w=%{public}d sidebar=false',
+              Number(newValue.height), Number(newValue.width));
+          })
+
+          this.FloatingBottomBar()
         }
-        .layoutWeight(1)
-        .width('100%')
       }
       .width('100%')
       .height('100%')
       .backgroundColor(Theme.paper)
-
-      if (!this.showSidebar()) {
-        this.FloatingBottomBar()
-      }
 
       if (this.showBookPicker) {
         this.BookPickerSheet()

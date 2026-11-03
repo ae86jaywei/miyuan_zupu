@@ -212,7 +212,7 @@ export struct PagodaTree {
     .width('100%')
     .layoutWeight(1)
     .cachedCount(this.rows.length > 20 ? 2 : 3)
-    .padding({ bottom: 120 })
+    .contentEndOffset(16)
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.None)
   }

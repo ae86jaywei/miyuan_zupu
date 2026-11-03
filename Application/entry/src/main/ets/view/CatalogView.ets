@@ -277,7 +277,7 @@ export struct CatalogView {
         .width('100%')
         .cachedCount(TreePerf.listCacheCount(this.filteredCount))
         .divider({ strokeWidth: 0.5, color: Theme.line, startMargin: 50 })
-        .padding({ bottom: 100 })
+        .contentEndOffset(16)
         .scrollBar(BarState.Off)
       }
     }

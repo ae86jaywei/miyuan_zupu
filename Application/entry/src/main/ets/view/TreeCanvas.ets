@@ -308,7 +308,7 @@ export struct TreeCanvas {
     .width('100%')
     .layoutWeight(1)
     .cachedCount(TreePerf.listCacheCount(this.peopleCount))
-    .padding({ bottom: 120 })
+    .contentEndOffset(16)
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.None)
   }
@@ -421,7 +421,7 @@ export struct TreeCanvas {
             }
             .width('100%')
             .alignItems(HorizontalAlign.Start)
-            .padding({ bottom: 120 })
+            .padding({ bottom: 16 })
           }
           .scrollable(ScrollDirection.None)
           .onAreaChange((oldArea: Area, newArea: Area): void => {
@@ -452,7 +452,6 @@ export struct TreeCanvas {
       }
     }
     .width('100%')
-    .layoutWeight(1)
     .alignItems(HorizontalAlign.Start)
   }
 
