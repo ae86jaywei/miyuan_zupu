@@ -1,0 +1,640 @@
+11-03 23:07:21.900   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains scroll_bar_pattern!
+11-03 23:07:21.900   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style scroll_bar_pattern get attr scroll_bar_interactive error!
+11-03 23:07:21.900   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style scroll_bar_pattern not contains arc_scroll_bar_normal_background_width!
+11-03 23:07:21.908   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains scrollable_pattern!
+11-03 23:07:21.908   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style scrollable_pattern not contains scroll_able_default_scrolling_distance!
+11-03 23:07:21.911   32906    com.zupu.ae86jay/2DGraphics     E     LoadFromTypeface: Drawing_Text [LoadFromTypeface] not variable font!
+11-03 23:07:21.926   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:07:21.948   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains search_pattern!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains error_text_border_color_alpha!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains disable_underline_alpha!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains default_counter_color!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains over_counter_color!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains underline_color_alpha!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains underline_color_alpha!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains cursor_width!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains over_count_border_color_alpha!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_field_placeholder_linespacing!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains textfield_underline_border_radius!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains underline_bg_color_focused!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_input_normal_color!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_input_password_icon_size!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_input_cancel_icon_padding!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_input_password_icon_padding!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_input_icon_offset_padding!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains text_input_icon_focus_padding!
+11-03 23:07:21.951   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style textfield_pattern not contains error_under_line_width!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_button_radius!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains bg_color_disabled_alpha!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains more_or_back_symbol_size!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_copy!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_paste!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_select_all!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_cut!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_max_width!
+11-03 23:07:21.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_overlay_pattern not contains text_overlay_menu_horizontal_gap!
+11-03 23:07:30.900   32906    com.zupu.ae86jay/ArkCompiler    I     [ecmascript] Trigger old gc here may cost long time, trigger full concurrent mark instead
+11-03 23:07:39.004   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains list_pattern!
+11-03 23:07:39.315   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:07:39.315   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:07:39.315   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:07:39.315   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:07:39.317   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains divider_pattern!
+11-03 23:07:39.318   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:705992|249]ac: down: 705992
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:705992|708]recv
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:2,InputId:705992,wid:697,ac:2
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:705992, fId:0, T:0, I=0, M=0
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:705992, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:705992, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.323   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:705993|249]ac: move: 705993
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706000|249]ac: move, first: 705994-(2026-11-03 23:07:39.323ms), 705999, count: 6, last: ac: up: 706000
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706000|708]recv
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:3,InputId:706000,wid:697,ac:4
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706000, fId:0, T:1, I=0, M=0
+11-03 23:07:39.324   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706001|249]ac: down: 706001
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706001|708]recv
+11-03 23:07:39.324   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:4,InputId:706001,wid:697,ac:2
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706001, fId:0, T:0, I=0, M=0
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706001, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706001, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706002|249]ac: move: 706002
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706009|249]ac: move, first: 706003-(2026-11-03 23:07:39.325ms), 706008, count: 6, last: ac: up: 706009
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706009|708]recv
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:5,InputId:706009,wid:697,ac:4
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706009, fId:0, T:1, I=0, M=0
+11-03 23:07:39.325   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706010|249]ac: down: 706010
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706010|708]recv
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:6,InputId:706010,wid:697,ac:2
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706010, fId:0, T:0, I=0, M=0
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706010, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706010, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.325   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706011|249]ac: move: 706011
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706016|249]ac: move, first: 706012-(2026-11-03 23:07:39.325ms), 706015, count: 4, last: ac: up: 706016
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706016|708]recv
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:7,InputId:706016,wid:697,ac:4
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706016, fId:0, T:1, I=0, M=0
+11-03 23:07:39.326   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706017|249]ac: down: 706017
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706017|708]recv
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:8,InputId:706017,wid:697,ac:2
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706017, fId:0, T:0, I=0, M=0
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706017, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706017, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706018|249]ac: move: 706018
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706025|249]ac: move, first: 706019-(2026-11-03 23:07:39.326ms), 706024, count: 6, last: ac: up: 706025
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706025|708]recv
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:9,InputId:706025,wid:697,ac:4
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706025, fId:0, T:1, I=0, M=0
+11-03 23:07:39.326   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.326   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706026|249]ac: down: 706026
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706026|708]recv
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:10,InputId:706026,wid:697,ac:2
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706026, fId:0, T:0, I=0, M=0
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706026, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706026, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706027|249]ac: move: 706027
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706034|249]ac: move, first: 706028-(2026-11-03 23:07:39.327ms), 706033, count: 6, last: ac: up: 706034
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706034|708]recv
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:11,InputId:706034,wid:697,ac:4
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706034, fId:0, T:1, I=0, M=0
+11-03 23:07:39.327   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706035|249]ac: down: 706035
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706035|708]recv
+11-03 23:07:39.327   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:12,InputId:706035,wid:697,ac:2
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706035, fId:0, T:0, I=0, M=0
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706035, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706035, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706036|249]ac: move: 706036
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706043|249]ac: move, first: 706037-(2026-11-03 23:07:39.328ms), 706042, count: 6, last: ac: up: 706043
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706043|708]recv
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:13,InputId:706043,wid:697,ac:4
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706043, fId:0, T:1, I=0, M=0
+11-03 23:07:39.328   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706044|249]ac: down: 706044
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706044|708]recv
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:14,InputId:706044,wid:697,ac:2
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706044, fId:0, T:0, I=0, M=0
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706044, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706044, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706045|249]ac: move: 706045
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706054|249]ac: move, first: 706046-(2026-11-03 23:07:39.329ms), 706053, count: 8, last: ac: up: 706054
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706054|708]recv
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:15,InputId:706054,wid:697,ac:4
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706054, fId:0, T:1, I=0, M=0
+11-03 23:07:39.329   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706055|249]ac: down: 706055
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706055|708]recv
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:16,InputId:706055,wid:697,ac:2
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706055, fId:0, T:0, I=0, M=0
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706055, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706055, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706056|249]ac: move: 706056
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706063|249]ac: move, first: 706057-(2026-11-03 23:07:39.330ms), 706062, count: 6, last: ac: up: 706063
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706063|708]recv
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:17,InputId:706063,wid:697,ac:4
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706063, fId:0, T:1, I=0, M=0
+11-03 23:07:39.330   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706064|249]ac: down: 706064
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706064|708]recv
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:18,InputId:706064,wid:697,ac:2
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706064, fId:0, T:0, I=0, M=0
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706064, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706064, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706065|249]ac: move: 706065
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706069|249]ac: move, first: 706066-(2026-11-03 23:07:39.330ms), 706068, count: 3, last: ac: up: 706069
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706069|708]recv
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:19,InputId:706069,wid:697,ac:4
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706069, fId:0, T:1, I=0, M=0
+11-03 23:07:39.330   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706070|249]ac: down: 706070
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706070|708]recv
+11-03 23:07:39.330   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:20,InputId:706070,wid:697,ac:2
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706070, fId:0, T:0, I=0, M=0
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706070, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706070, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706071|249]ac: move: 706071
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706078|249]ac: move, first: 706072-(2026-11-03 23:07:39.331ms), 706077, count: 6, last: ac: up: 706078
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706078|708]recv
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:21,InputId:706078,wid:697,ac:4
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706078, fId:0, T:1, I=0, M=0
+11-03 23:07:39.331   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706079|249]ac: down: 706079
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706079|708]recv
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:22,InputId:706079,wid:697,ac:2
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706079, fId:0, T:0, I=0, M=0
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706079, TTHNI:fId: 0{ T: Row, D: 9 };
+11-03 23:07:39.331   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706079, TTHRTI: 
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706080|249]ac: move: 706080
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706082|249]ac: move, first: 706081-(2026-11-03 23:07:39.332ms), count: 1, last: ac: up: 706082
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706082|708]recv
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:23,InputId:706082,wid:697,ac:4
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706082, fId:0, T:1, I=0, M=0
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706083|249]ac: down: 706083
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706083|708]recv
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:24,InputId:706083,wid:697,ac:2
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706083, fId:0, T:0, I=0, M=0
+11-03 23:07:39.332   32906    com.zupu.ae86jay/AceUIEvent     W     [(100000:100000:scope)] Column/50 eventHub not enabled, needn't do touch test
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706083, TTHNI:fId: 0
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   W     [(100000:100000:scope)] Touch test result is empty.
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706083, TTHRTI: 
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706084|249]ac: up: 706084
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706084|708]recv
+11-03 23:07:39.332   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:25,InputId:706084,wid:697,ac:4
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706084, fId:0, T:1, I=0, M=0
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706085|249]ac: down: 706085
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706085|708]recv
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:26,InputId:706085,wid:697,ac:2
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706085, fId:0, T:0, I=0, M=0
+11-03 23:07:39.333   32906    com.zupu.ae86jay/AceUIEvent     W     [(100000:100000:scope)] Column/50 eventHub not enabled, needn't do touch test
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706085, TTHNI:fId: 0
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   W     [(100000:100000:scope)] Touch test result is empty.
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706085, TTHRTI: 
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706086|249]ac: move: 706086
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706088|249]ac: move, first: 706087-(2026-11-03 23:07:39.333ms), count: 1, last: ac: up: 706088
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706088|708]recv
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:27,InputId:706088,wid:697,ac:4
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706088, fId:0, T:1, I=0, M=0
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706089|249]ac: down: 706089
+11-03 23:07:39.333   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706089|708]recv
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:28,InputId:706089,wid:697,ac:2
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706089, fId:0, T:0, I=0, M=0
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706089, TTHNI:fId: 0{ T: Row, D: 9 };
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706089, TTHRTI: 
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706090|249]ac: move: 706090
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706097|249]ac: move, first: 706091-(2026-11-03 23:07:39.334ms), 706096, count: 6, last: ac: up: 706097
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706097|708]recv
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:29,InputId:706097,wid:697,ac:4
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706097, fId:0, T:1, I=0, M=0
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706098|249]ac: down: 706098
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706098|708]recv
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:30,InputId:706098,wid:697,ac:2
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706098, fId:0, T:0, I=0, M=0
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706098, TTHNI:fId: 0{ T: Row, D: 9 };
+11-03 23:07:39.334   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706098, TTHRTI: 
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706099|249]ac: move: 706099
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706103|249]ac: move, first: 706100-(2026-11-03 23:07:39.335ms), 706102, count: 3, last: ac: up: 706103
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706103|708]recv
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:31,InputId:706103,wid:697,ac:4
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706103, fId:0, T:1, I=0, M=0
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706104|249]ac: down: 706104
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706104|708]recv
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:32,InputId:706104,wid:697,ac:2
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706104, fId:0, T:0, I=0, M=0
+11-03 23:07:39.335   32906    com.zupu.ae86jay/AceUIEvent     W     [(100000:100000:scope)] Column/50 eventHub not enabled, needn't do touch test
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706104, TTHNI:fId: 0
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   W     [(100000:100000:scope)] Touch test result is empty.
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706104, TTHRTI: 
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706105|249]ac: move: 706105
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706112|249]ac: move, first: 706106-(2026-11-03 23:07:39.335ms), 706111, count: 6, last: ac: up: 706112
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706112|708]recv
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:33,InputId:706112,wid:697,ac:4
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706112, fId:0, T:1, I=0, M=0
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706113|249]ac: down: 706113
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706113|708]recv
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:34,InputId:706113,wid:697,ac:2
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706113, fId:0, T:0, I=0, M=0
+11-03 23:07:39.335   32906    com.zupu.ae86jay/AceUIEvent     W     [(100000:100000:scope)] Column/50 eventHub not enabled, needn't do touch test
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706113, TTHNI:fId: 0
+11-03 23:07:39.335   32906    com.zupu.ae86jay/InputKeyFlow   W     [(100000:100000:scope)] Touch test result is empty.
+11-03 23:07:39.336   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706113, TTHRTI: 
+11-03 23:07:39.336   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706114|249]ac: move: 706114
+11-03 23:07:39.336   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706121|249]ac: move, first: 706115-(2026-11-03 23:07:39.336ms), 706120, count: 6, last: ac: up: 706121
+11-03 23:07:39.336   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706121|708]recv
+11-03 23:07:39.336   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:35,InputId:706121,wid:697,ac:4
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706121, fId:0, T:1, I=0, M=0
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706122|249]ac: down: 706122
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706122|708]recv
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:36,InputId:706122,wid:697,ac:2
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706122, fId:0, T:0, I=0, M=0
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706122, TTHNI:fId: 0{ T: Row, D: 9 };
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706122, TTHRTI: 
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706123|249]ac: move: 706123
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706125|249]ac: move, first: 706124-(2026-11-03 23:07:39.337ms), count: 1, last: ac: up: 706125
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706125|708]recv
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:37,InputId:706125,wid:697,ac:4
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706125, fId:0, T:1, I=0, M=0
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706126|249]ac: down: 706126
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706126|708]recv
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:38,InputId:706126,wid:697,ac:2
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706126, fId:0, T:0, I=0, M=0
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706126, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706126, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:39.337   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706127|249]ac: move: 706127
+11-03 23:07:39.338   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706133|249]ac: move, first: 706128-(2026-11-03 23:07:39.338ms), 706132, count: 5, last: ac: up: 706133
+11-03 23:07:39.338   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706133|708]recv
+11-03 23:07:39.338   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:39,InputId:706133,wid:697,ac:4
+11-03 23:07:39.338   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706133, fId:0, T:1, I=0, M=0
+11-03 23:07:39.338   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:39.338   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:39.510   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains grid_pattern!
+11-03 23:07:45.919   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706134|249]ac: down: 706134
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706134|708]recv
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:40,InputId:706134,wid:697,ac:2
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706134, fId:0, T:0, I=0, M=0
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706134, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706134, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706135|249]ac: move: 706135
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706144|249]ac: move, first: 706136-(2026-11-03 23:07:45.920ms), 706143, count: 8, last: ac: up: 706144
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706144|708]recv
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:41,InputId:706144,wid:697,ac:4
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706144, fId:0, T:1, I=0, M=0
+11-03 23:07:45.920   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:45.920   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706145|249]ac: down: 706145
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706145|708]recv
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:42,InputId:706145,wid:697,ac:2
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706145, fId:0, T:0, I=0, M=0
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706145, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706145, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706146|249]ac: move: 706146
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706155|249]ac: move, first: 706147-(2026-11-03 23:07:45.921ms), 706154, count: 8, last: ac: up: 706155
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706155|708]recv
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:43,InputId:706155,wid:697,ac:4
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706155, fId:0, T:1, I=0, M=0
+11-03 23:07:45.921   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:45.921   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:45.944   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains radio_pattern!
+11-03 23:07:45.945   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style radio_pattern not contains radio_uncheck_border_color!
+11-03 23:07:45.945   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style radio_pattern not contains touch_animation_duration!
+11-03 23:07:45.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains switch_pattern!
+11-03 23:07:45.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style switch_pattern not contains touch_animation_duration!
+11-03 23:07:45.956   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains toggle_pattern!
+11-03 23:07:45.957   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style toggle_pattern not contains border_width_status_button_unchecked!
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706156|249]ac: down: 706156
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706156|708]recv
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:44,InputId:706156,wid:697,ac:2
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706156, fId:0, T:0, I=0, M=0
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706156, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706156, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706157|249]ac: move: 706157
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706164|249]ac: move, first: 706158-(2026-11-03 23:07:46.008ms), 706163, count: 6, last: ac: up: 706164
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706164|708]recv
+11-03 23:07:46.008   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:45,InputId:706164,wid:697,ac:4
+11-03 23:07:46.009   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706164, fId:0, T:1, I=0, M=0
+11-03 23:07:46.009   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:46.009   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:46.010   32906    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains image_pattern!
+11-03 23:07:46.010   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706165|249]ac: down: 706165
+11-03 23:07:46.010   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706165|708]recv
+11-03 23:07:46.010   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:46,InputId:706165,wid:697,ac:2
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706165, fId:0, T:0, I=0, M=0
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706165, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706165, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706166|249]ac: move: 706166
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706173|249]ac: move, first: 706167-(2026-11-03 23:07:46.011ms), 706172, count: 6, last: ac: up: 706173
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706173|708]recv
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:47,InputId:706173,wid:697,ac:4
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706173, fId:0, T:1, I=0, M=0
+11-03 23:07:46.011   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706174|249]ac: down: 706174
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706174|708]recv
+11-03 23:07:46.011   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:48,InputId:706174,wid:697,ac:2
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706174, fId:0, T:0, I=0, M=0
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706174, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706174, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706175|249]ac: move: 706175
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706178|249]ac: move, first: 706176-(2026-11-03 23:07:46.012ms), 706177, count: 2, last: ac: up: 706178
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706178|708]recv
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:49,InputId:706178,wid:697,ac:4
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706178, fId:0, T:1, I=0, M=0
+11-03 23:07:46.012   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:46.012   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706179|249]ac: down: 706179
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706179|708]recv
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:50,InputId:706179,wid:697,ac:2
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706179, fId:0, T:0, I=0, M=0
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706179, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706179, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706180|249]ac: move: 706180
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706188|249]ac: move, first: 706181-(2026-11-03 23:07:51.204ms), 706187, count: 7, last: ac: up: 706188
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706188|708]recv
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:51,InputId:706188,wid:697,ac:4
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706188, fId:0, T:1, I=0, M=0
+11-03 23:07:51.204   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:07:51.204   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:07:58.972   32906    com.zupu.ae86jay/ArkCompiler    W     [ecmascript] Global reference count is 104162,It exceed the upper limit 100000!
+11-03 23:08:05.910   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:08:05.910   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:08:05.910   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:08:05.910   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:08:05.910   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706189|249]ac: down: 706189
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706189|708]recv
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:52,InputId:706189,wid:697,ac:2
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706189, fId:0, T:0, I=0, M=0
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706189, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706189, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706190|249]ac: move: 706190
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706193|249]ac: move, first: 706191-(2026-11-03 23:08:05.914ms), 706192, count: 2, last: ac: up: 706193
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706193|708]recv
+11-03 23:08:05.914   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:53,InputId:706193,wid:697,ac:4
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706193, fId:0, T:1, I=0, M=0
+11-03 23:08:05.915   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706194|249]ac: down: 706194
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706194|708]recv
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:54,InputId:706194,wid:697,ac:2
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706194, fId:0, T:0, I=0, M=0
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706194, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706194, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706195|249]ac: move: 706195
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706201|249]ac: move, first: 706196-(2026-11-03 23:08:05.915ms), 706200, count: 5, last: ac: up: 706201
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706201|708]recv
+11-03 23:08:05.915   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:55,InputId:706201,wid:697,ac:4
+11-03 23:08:05.916   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706201, fId:0, T:1, I=0, M=0
+11-03 23:08:05.916   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:08:05.916   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:09:48.950   32906    com.zupu.ae86jay/2DGraphics     E     LoadFromTypeface: Drawing_Text [LoadFromTypeface] not variable font!
+11-03 23:09:48.985   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:09:48.986   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:09:48.993   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706202|249]ac: down: 706202
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706202|708]recv
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:56,InputId:706202,wid:697,ac:2
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706202, fId:0, T:0, I=0, M=0
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706202, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706202, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706203|249]ac: move: 706203
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706214|249]ac: move, first: 706204-(2026-11-03 23:09:48.994ms), 706213, count: 10, last: ac: up: 706214
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706214|708]recv
+11-03 23:09:48.994   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:57,InputId:706214,wid:697,ac:4
+11-03 23:09:48.995   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706214, fId:0, T:1, I=0, M=0
+11-03 23:09:48.995   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:09:48.995   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:09:49.333   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706215|249]ac: down: 706215
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706215|708]recv
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:58,InputId:706215,wid:697,ac:2
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706215, fId:0, T:0, I=0, M=0
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706215, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706215, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706216|249]ac: move: 706216
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706225|249]ac: move, first: 706217-(2026-11-03 23:09:49.335ms), 706224, count: 8, last: ac: up: 706225
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706225|708]recv
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:59,InputId:706225,wid:697,ac:4
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706225, fId:0, T:1, I=0, M=0
+11-03 23:09:49.335   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:09:49.335   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:08.427   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:08.427   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:08.427   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:08.427   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:08.428   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:10:08.432   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706226|249]ac: down: 706226
+11-03 23:10:08.432   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706226|708]recv
+11-03 23:10:08.432   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:60,InputId:706226,wid:697,ac:2
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706226, fId:0, T:0, I=0, M=0
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706226, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706226, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706227|249]ac: move: 706227
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706236|249]ac: move, first: 706228-(2026-11-03 23:10:08.433ms), 706235, count: 8, last: ac: up: 706236
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706236|708]recv
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:61,InputId:706236,wid:697,ac:4
+11-03 23:10:08.433   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706236, fId:0, T:1, I=0, M=0
+11-03 23:10:08.434   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:08.434   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:08.436   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706237|249]ac: down: 706237
+11-03 23:10:08.436   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706237|708]recv
+11-03 23:10:08.436   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:62,InputId:706237,wid:697,ac:2
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706237, fId:0, T:0, I=0, M=0
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706237, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706237, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706238|249]ac: move: 706238
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706240|249]ac: move, first: 706239-(2026-11-03 23:10:08.437ms), count: 1, last: ac: up: 706240
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706240|708]recv
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:63,InputId:706240,wid:697,ac:4
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706240, fId:0, T:1, I=0, M=0
+11-03 23:10:08.437   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:08.437   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:14.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706241|249]ac: down: 706241
+11-03 23:10:14.328   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706241|708]recv
+11-03 23:10:14.328   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:64,InputId:706241,wid:697,ac:2
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706241, fId:0, T:0, I=0, M=0
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706241, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706241, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706242|249]ac: move: 706242
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706251|249]ac: move, first: 706243-(2026-11-03 23:10:14.329ms), 706250, count: 8, last: ac: up: 706251
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706251|708]recv
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:65,InputId:706251,wid:697,ac:4
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706251, fId:0, T:1, I=0, M=0
+11-03 23:10:14.329   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:14.329   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706252|249]ac: down: 706252
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706252|708]recv
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:66,InputId:706252,wid:697,ac:2
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706252, fId:0, T:0, I=0, M=0
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706252, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706252, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706253|249]ac: move: 706253
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706256|249]ac: move, first: 706254-(2026-11-03 23:10:14.408ms), 706255, count: 2, last: ac: up: 706256
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706256|708]recv
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:67,InputId:706256,wid:697,ac:4
+11-03 23:10:14.408   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706256, fId:0, T:1, I=0, M=0
+11-03 23:10:14.408   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:14.409   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706257|249]ac: down: 706257
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706257|708]recv
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:68,InputId:706257,wid:697,ac:2
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706257, fId:0, T:0, I=0, M=0
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706257, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706257, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706258|249]ac: move: 706258
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706263|249]ac: move, first: 706259-(2026-11-03 23:10:14.410ms), 706262, count: 4, last: ac: up: 706263
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706263|708]recv
+11-03 23:10:14.410   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:69,InputId:706263,wid:697,ac:4
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706263, fId:0, T:1, I=0, M=0
+11-03 23:10:14.411   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706264|249]ac: down: 706264
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706264|708]recv
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:70,InputId:706264,wid:697,ac:2
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706264, fId:0, T:0, I=0, M=0
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706264, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706264, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:14.411   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706265|249]ac: move: 706265
+11-03 23:10:14.412   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706272|249]ac: move, first: 706266-(2026-11-03 23:10:14.412ms), 706271, count: 6, last: ac: up: 706272
+11-03 23:10:14.412   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706272|708]recv
+11-03 23:10:14.412   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:71,InputId:706272,wid:697,ac:4
+11-03 23:10:14.412   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706272, fId:0, T:1, I=0, M=0
+11-03 23:10:14.412   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:14.412   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:20.024   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706273|249]ac: down: 706273
+11-03 23:10:20.024   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706273|708]recv
+11-03 23:10:20.024   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:72,InputId:706273,wid:697,ac:2
+11-03 23:10:20.024   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706273, fId:0, T:0, I=0, M=0
+11-03 23:10:20.024   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706273, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:20.024   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706273, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706274|249]ac: move: 706274
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706283|249]ac: move, first: 706275-(2026-11-03 23:10:20.025ms), 706282, count: 8, last: ac: up: 706283
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706283|708]recv
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:73,InputId:706283,wid:697,ac:4
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706283, fId:0, T:1, I=0, M=0
+11-03 23:10:20.025   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706284|249]ac: down: 706284
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706284|708]recv
+11-03 23:10:20.025   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:74,InputId:706284,wid:697,ac:2
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706284, fId:0, T:0, I=0, M=0
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706284, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706284, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706285|249]ac: move: 706285
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706294|249]ac: move, first: 706286-(2026-11-03 23:10:20.026ms), 706293, count: 8, last: ac: up: 706294
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706294|708]recv
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:75,InputId:706294,wid:697,ac:4
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706294, fId:0, T:1, I=0, M=0
+11-03 23:10:20.026   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:20.026   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:25.914   32906    com.zupu.ae86jay/ArkCompiler    I     [gc] SetWaterLine: No region survival in current gc, current region available size: 0
+11-03 23:10:38.979   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:38.979   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:38.979   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:38.979   32906    com.zupu.ae86jay/OHOS::RS       E     Failed to attach property, property is null.
+11-03 23:10:38.980   32906    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-03 23:10:38.985   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706295|249]ac: down: 706295
+11-03 23:10:38.985   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706295|708]recv
+11-03 23:10:38.985   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:76,InputId:706295,wid:697,ac:2
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706295, fId:0, T:0, I=0, M=0
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706295, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706295, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706296|249]ac: move: 706296
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706305|249]ac: move, first: 706297-(2026-11-03 23:10:38.986ms), 706304, count: 8, last: ac: up: 706305
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706305|708]recv
+11-03 23:10:38.986   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:77,InputId:706305,wid:697,ac:4
+11-03 23:10:38.987   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706305, fId:0, T:1, I=0, M=0
+11-03 23:10:38.987   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:38.987   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706306|249]ac: down: 706306
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706306|708]recv
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:78,InputId:706306,wid:697,ac:2
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706306, fId:0, T:0, I=0, M=0
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706306, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706306, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:38.988   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706307|249]ac: move: 706307
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706316|249]ac: move, first: 706308-(2026-11-03 23:10:38.988ms), 706315, count: 8, last: ac: up: 706316
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706316|708]recv
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:79,InputId:706316,wid:697,ac:4
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706316, fId:0, T:1, I=0, M=0
+11-03 23:10:38.989   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706317|249]ac: down: 706317
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706317|708]recv
+11-03 23:10:38.989   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:80,InputId:706317,wid:697,ac:2
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706317, fId:0, T:0, I=0, M=0
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706317, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706317, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706318|249]ac: up: 706318
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706318|708]recv
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:81,InputId:706318,wid:697,ac:4
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706318, fId:0, T:1, I=0, M=0
+11-03 23:10:38.990   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706319|249]ac: down: 706319
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706319|708]recv
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:82,InputId:706319,wid:697,ac:2
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706319, fId:0, T:0, I=0, M=0
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706319, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706319, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:38.990   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706320|249]ac: move: 706320
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706322|249]ac: move, first: 706321-(2026-11-03 23:10:38.991ms), count: 1, last: ac: up: 706322
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706322|708]recv
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:83,InputId:706322,wid:697,ac:4
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706322, fId:0, T:1, I=0, M=0
+11-03 23:10:38.991   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706323|249]ac: down: 706323
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:D:706323|708]recv
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:84,InputId:706323,wid:697,ac:2
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706323, fId:0, T:0, I=0, M=0
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706323, TTHNI:fId: 0{ T: Row, D: 9 };{ T: Column, D: 12 };
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706323, TTHRTI: T ClickRecognizer info: { T: Column };
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:M:706324|249]ac: move: 706324
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706331|249]ac: move, first: 706325-(2026-11-03 23:10:38.991ms), 706330, count: 6, last: ac: up: 706331
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [P:U:706331|708]recv
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     HandleInputEvent: eid:85,InputId:706331,wid:697,ac:4
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] ITK Id:706331, fId:0, T:1, I=0, M=0
+11-03 23:10:38.991   32906    com.zupu.ae86jay/AceGesture     I     [(100000:100000:scope)] Click try accept Column
+11-03 23:10:38.991   32906    com.zupu.ae86jay/InputKeyFlow   I     [(100000:100000:scope)] CLK RACC, T: Column
+11-03 23:11:06.258   32906    com.zupu.ae86jay/ArkCompiler    I     [gc]  [ SharedPartialGC ] 39.6406 (97.25) -> 29.4663 (35.25) MB, 7.861ms, GCReason: ConcurrentMark finished, MarkReason: Memory reach limit
+11-03 23:11:06.258   32906    com.zupu.ae86jay/ArkCompiler    I     [gc] IsInBackground: 0; SensitiveStatus: 2; StartupStatus: 3; Old: 36438016; Huge:0; NonMov:262144; TotCommit:36962304
+11-03 23:11:06.258   32906    com.zupu.ae86jay/ArkCompiler    I     [gc] /****************** GC Memory statistic: *****************/
+11-03 23:11:06.258   32906    com.zupu.ae86jay/ArkCompiler    I     [gc] AllSpaces         used: 30173.5KB     committed:   36096KB
+                                                                    SharedOldSpace         used:   29896KB     committed:   35584KB
+                                                                    SharedNonMovableSpace  used: 21.4219KB     committed:     256KB
+                                                                    SharedHugeObjectSpace  used:       0KB     committed:       0KB
+                                                                    SharedAppSpawnSpace    used: 1648.55KB     committed:    2560KB
+11-03 23:11:06.258   32906    com.zupu.ae86jay/ArkCompiler    I     [gc] Anno memory usage size:  104.75  MB
+                                                                    Native memory usage size:10.5181 MB
+                                                                    NativeBindingSize:       0       KB
+                                                                    NativeLimitGC:           1.04858e+06KB
+                                                                    NativeLimitCM:           307200  KB
+11-03 23:11:06.258   32906    com.zupu.ae86jay/ArkCompiler    I     [gc] Heap alive rate:         0.302995
+11-03 23:11:35.996   32906    com.zupu.ae86jay/ArkCompiler    I     ConnectServer OnMessage: {"type":"stopDebugger"}
+11-03 23:11:35.996   32906    com.zupu.ae86jay/ArkCompiler    W     ConnectRequest, parse method error
+11-03 23:11:35.996   32906    com.zupu.ae86jay/ArkCompiler    W     OnCangjieInspectorMessage. unknown request
+11-03 23:11:35.997   32906    com.zupu.ae86jay/ArkCompiler    I     WsServer OnMessage: {"id":5,"method":"Debugger.disable","params":{}}
+11-03 23:11:35.997   32906    com.zupu.ae86jay/ArkCompiler    I     WsServer SendReply: {"method":"Debugger.resumed","params":{}}
+11-03 23:11:35.997   32906    com.zupu.ae86jay/ArkCompiler    I     [debugger] ProtocolHandler::SendResponse: success
+11-03 23:11:35.997   32906    com.zupu.ae86jay/ArkCompiler    I     WsServer SendReply: {"id":5,"result":{}}
+11-03 23:11:36.001   32906    com.zupu.ae86jay/ArkCompiler    I     Close connection, status = 0
+11-03 23:11:36.001   32906    com.zupu.ae86jay/ArkCompiler    W     Failed to shutdown client socket, errno = 13
+11-03 23:11:36.001   32906    com.zupu.ae86jay/ArkCompiler    E     ReadMsg failed, msgLen = -1, errno = 9
+11-03 23:11:36.001   32906    com.zupu.ae86jay/ArkCompiler    E     ConnectUnixWebSocket HttpHandShake failed
+11-03 23:11:36.001   32906    com.zupu.ae86jay/ArkCompiler    W     Failed to shutdown client socket, errno = 9
+11-03 23:11:36.136   32906    com.zupu.ae86jay/ArkCompiler    I     Close connection, status = 0
+11-03 23:11:36.136   32906    com.zupu.ae86jay/ArkCompiler    W     Failed to shutdown client socket, errno = 13
+11-03 23:11:36.136   32906    com.zupu.ae86jay/ArkCompiler    E     ReadMsg failed, msgLen = -1, errno = 9
+11-03 23:11:36.136   32906    com.zupu.ae86jay/ArkCompiler    E     ConnectUnixWebSocket HttpHandShake failed
+11-03 23:11:36.136   32906    com.zupu.ae86jay/ArkCompiler    W     Failed to shutdown client socket, errno = 9
