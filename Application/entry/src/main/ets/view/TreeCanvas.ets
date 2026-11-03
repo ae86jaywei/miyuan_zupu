@@ -1,6 +1,6 @@
 import { PersonNode } from '../model/PersonNode';
 import { Person } from '../model/Person';
-import { TreeStyle, TREE_STYLES, TreeStyleMeta, generationLabel } from '../model/Enums';
+import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';
 import { SuTree } from '../components/tree/SuTree';
 import { PagodaTree } from '../components/tree/PagodaTree';
@@ -9,81 +9,167 @@ import { ModernTree } from '../components/tree/ModernTree';
 import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
+import { TreeLayoutCache } from '../service/TreeLayoutCache';
+import { EuCanvas, SuCanvas, suRootCenterX } from '../service/TreeLayout';
+import { ViewportMath } from '../service/TreeViewport';
 import { Breakpoint } from '../common/Constants';
-import { suRootCenterX } from '../service/TreeLayout';
+
+/** 多宗支时每支标题的固定高度（16 行高 + 8 底部间距），用于精确计算裁剪起点 */
+const BRANCH_HEADER_H: number = 24;
 
 /**
  * 谱式画布：按所选谱式渲染整部族谱。
- * 内含“世系总表”索引，便于在大屏上快速跳转。
+ *
+ * 大树性能策略：
+ * - 布局由 TreeLayoutCache 按宗支缓存，build 内不再重复 compute；
+ * - 欧式/苏式由 EuTree/SuTree 做视口裁剪，只创建可见卡片与连线；
+ * - 不再通过 @Prop 接收 PersonNode[]，避免环状深拷贝；
+ * - 平移边界由 ViewportMath 按内容尺寸与缩放计算，四角可达。
  */
 @Component
 export struct TreeCanvas {
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
-  @Prop @Watch('onRootsChanged') roots: PersonNode[] = [];
-  @Prop people: Person[] = [];
+  @StorageProp('gpVersion') @Watch('onDataVersionChanged') dataVersion: number = 0;
   @Prop highlightUid: string = '';
   @Prop showPrivate: boolean = true;
-  @Prop windowWidth: number = 360;
+  @Prop @Watch('onWindowWidthChanged') windowWidth: number = 360;
   @Prop @Watch('onZoomChanged') zoom: number = 1;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
   /** 欧式/苏式画布平移偏移（拖到哪停到哪） */
   @State offsetX: number = 0;
   @State offsetY: number = 0;
-  /** 画布内容尺寸（用于限制平移范围）：canvasW 取各宗支最大宽度 */
+  /** 画布内容尺寸（未缩放），由布局缓存计算 */
   @State canvasW: number = 0;
-  /** 全部宗支堆叠后的总高度（由外层 Column 实测） */
   @State canvasH: number = 0;
-  /** 手势起点 */
-  private startX: number = 0;
-  private startY: number = 0;
   /** 容器可视区尺寸 */
   @State viewW: number = 0;
   @State viewH: number = 0;
+  /** 当前族谱的宗支根 uid 列表 */
+  @State rootUids: string[] = [];
+  @State peopleCount: number = 0;
+  /** 世代索引（一次构建，供索引条与牒记/现代谱式复用） */
+  @State genLabels: string[] = [];
+  @State genCounts: number[] = [];
+  @State genGroups: Person[][] = [];
+  /** 每个宗支在全部宗支堆叠画布中的屏幕起点（已含 zoom） */
+  @State branchTops: number[] = [];
+
+  /** 手势起点 */
+  private startX: number = 0;
+  private startY: number = 0;
   /** 苏式谱切换后待把始祖居中（等可视区宽度就绪后再执行一次） */
   private pendingCenter: boolean = true;
+
+  aboutToAppear(): void {
+    this.refreshData();
+    this.centerSuIfReady();
+  }
 
   private isNarrow(): boolean {
     return this.windowWidth < Breakpoint.SM;
   }
 
-  /** 切换谱式后画布尺寸与布局完全变化，平移偏移必须归零，否则内容会移出可视区 */
+  /** 切换谱式后画布尺寸与布局完全变化，平移偏移必须归零 */
   onStyleChanged(): void {
     this.offsetX = 0;
     this.offsetY = 0;
-    this.canvasW = 0;
-    this.canvasH = 0;
+    this.rebuildCanvasSize();
     this.pendingCenter = true;
     this.centerSuIfReady();
   }
 
-  /** 宗支数量/结构变化后画布宽度会变，需重新取最大值 */
-  onRootsChanged(): void {
-    this.canvasW = 0;
-    this.canvasH = 0;
+  /** 族人数据变化：丢弃旧布局，重建宗支索引与世代索引 */
+  onDataVersionChanged(): void {
+    TreeLayoutCache.getInstance().invalidate();
+    this.refreshData();
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.pendingCenter = true;
+    this.centerSuIfReady();
   }
 
-  /** 缩放变化后可用可视范围随之改变，把平移偏移重新夹回边界内 */
+  /** 缩放变化后可用可视范围随之改变：先重算各支屏幕起点，再把平移偏移夹回边界 */
   onZoomChanged(): void {
+    this.rebuildCanvasSize();
+  }
+
+  /** 断点/窗口宽度变化会改变卡片宽度与密度，画布尺寸与各支起点需重算 */
+  onWindowWidthChanged(): void {
+    this.rebuildCanvasSize();
+  }
+
+  private refreshData(): void {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const roots: PersonNode[] = svc.getRoots();
+    this.rootUids = roots.map((r: PersonNode): string => r.uid);
+    this.peopleCount = svc.getPeople().length;
+    const map: Map<number, Person[]> = svc.groupByGeneration();
+    const gens: number[] = Array.from(map.keys()).sort((a: number, b: number): number => a - b);
+    this.genLabels = gens.map((g: number): string => generationLabel(g));
+    this.genCounts = gens.map((g: number): number => (map.get(g) as Person[]).length);
+    this.genGroups = gens.map((g: number): Person[] => map.get(g) as Person[]);
+    this.rebuildCanvasSize();
+  }
+
+  /** 只在数据/谱式/宽度变化时调用，不要在手势回调里调用 */
+  private rebuildCanvasSize(): void {
+    if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
+      return;
+    }
+    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const headerBlock: number = roots.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
+    let w: number = 0;
+    let screenCursor: number = 0;
+    const tops: number[] = [];
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      // tops 记录该支 EuTree/SuTree 在屏幕上的起点（标题之后，已含 zoom）
+      tops.push(screenCursor + headerBlock);
+      if (this.style === TreeStyle.SU) {
+        const c: SuCanvas = cache.su(roots[i].uid, [roots[i]], this.cardWidth(), this.isNarrow(), true);
+        w = Math.max(w, c.width);
+        screenCursor = screenCursor + headerBlock + c.height * this.zoom + Spacing.XXL;
+      } else {
+        const c: EuCanvas = cache.eu(roots[i].uid, [roots[i]], this.cardWidth(),
+          this.isNarrow() ? 66 : 78, true, 6);
+        w = Math.max(w, c.width);
+        screenCursor = screenCursor + headerBlock + c.height * this.zoom + Spacing.XXL;
+      }
+    }
+    this.branchTops = tops;
+    // canvasW/canvasH 统一存“屏幕尺寸”（已含 zoom），与多宗支标题/间隔的真实占位一致
+    this.canvasW = w * this.zoom;
+    this.canvasH = screenCursor;
     this.offsetX = this.clampX(this.offsetX);
     this.offsetY = this.clampY(this.offsetY);
   }
 
-  /**
-   * 苏式谱的始祖居中于子孙，画布宽度远大于屏幕，默认停在 x=0 时始祖会落在屏幕外，
-   * 看起来像“空白”。可视区宽度就绪后把始祖横移到屏幕中间，保证一切换就有内容。
-   */
-  private centerSuIfReady(): void {
-    if (!this.pendingCenter || this.style !== TreeStyle.SU) {
-      return;
+  private collectSize(w: number, h: number): void {
+    // 只在严格变大时写入，避免拖动时每帧触发父组件重渲染
+    const sw: number = w * this.zoom;
+    const sh: number = h * this.zoom;
+    if (sw > this.canvasW) {
+      this.canvasW = sw;
     }
-    if (this.viewW <= 0 || this.roots.length === 0) {
-      return;
+    if (sh > this.canvasH) {
+      this.canvasH = sh;
     }
-    this.pendingCenter = false;
-    const cx: number = suRootCenterX([this.roots[0]], this.cardWidth(), this.isNarrow());
-    this.offsetX = this.viewW / 2 - cx;
-    this.offsetY = 0;
+  }
+
+  private rootName(uid: string): string {
+    const p: Person | null = GenealogyService.getInstance().getPerson(uid);
+    return p === null ? '' : p.name;
+  }
+
+  private rootDescendants(uid: string): number {
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      if (roots[i].uid === uid) {
+        return roots[i].descendants;
+      }
+    }
+    return 0;
   }
 
   private cardWidth(): number {
@@ -98,18 +184,26 @@ export struct TreeCanvas {
     return base;
   }
 
-  private groups(): Person[][] {
-    const svc: GenealogyService = GenealogyService.getInstance();
-    const map: Map<number, Person[]> = svc.groupByGeneration();
-    const gens: number[] = Array.from(map.keys()).sort((a: number, b: number): number => a - b);
-    return gens.map((g: number): Person[] => map.get(g) as Person[]);
-  }
-
-  private groupLabels(): string[] {
-    const svc: GenealogyService = GenealogyService.getInstance();
-    const map: Map<number, Person[]> = svc.groupByGeneration();
-    const gens: number[] = Array.from(map.keys()).sort((a: number, b: number): number => a - b);
-    return gens.map((g: number): string => generationLabel(g));
+  /**
+   * 苏式谱的始祖居中于子孙，画布宽度远大于屏幕，默认停在 x=0 时始祖会落在屏幕外，
+   * 看起来像“空白”。可视区宽度就绪后把始祖横移到屏幕中间。
+   */
+  private centerSuIfReady(): void {
+    if (!this.pendingCenter || this.style !== TreeStyle.SU) {
+      return;
+    }
+    if (this.viewW <= 0 || this.rootUids.length === 0) {
+      return;
+    }
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    if (roots.length === 0) {
+      return;
+    }
+    this.pendingCenter = false;
+    const cx: number = suRootCenterX([roots[0]], this.cardWidth(), this.isNarrow());
+    // 屏幕坐标 = 内容坐标 × zoom + offset，因此居中的偏移要乘 zoom
+    this.offsetX = this.clampX(this.viewW / 2 - cx * this.zoom);
+    this.offsetY = 0;
   }
 
   /** 渲染上下方向谱式的世系索引 */
@@ -117,8 +211,8 @@ export struct TreeCanvas {
   GenerationIndex() {
     Scroll() {
       Row() {
-        ForEach(this.groupLabels(), (label: string, idx: number) => {
-          Text(label + ' · ' + this.groups()[idx].length + '人')
+        ForEach(this.genLabels, (label: string, idx: number) => {
+          Text(label + ' · ' + this.genCounts[idx].toString() + '人')
             .fontSize(11)
             .fontColor(Theme.primary)
             .backgroundColor(Theme.highlightBg)
@@ -151,13 +245,13 @@ export struct TreeCanvas {
     Column() {
       this.StyleHint()
 
-      if (this.people.length === 0) {
+      if (this.peopleCount === 0) {
         EmptyHint({ icon: '🌱', title: '族谱暂无人物', desc: '点击右下角“＋”创建始祖，开启家族记录' })
       } else {
         Scroll() {
           Column() {
             if (this.style === TreeStyle.DIE) {
-              ForEach(this.groups(), (grp: Person[], gi: number) => {
+              ForEach(this.genGroups, (grp: Person[], gi: number) => {
                 Column() {
                   Row() {
                     Text(generationLabel(grp[0].generation))
@@ -193,7 +287,8 @@ export struct TreeCanvas {
             } else if (this.style === TreeStyle.PAGODA) {
               this.GenerationIndex()
               PagodaTree({
-                rows: this.buildRows(),
+                rootUids: this.rootUids,
+                layoutVersion: this.dataVersion,
                 highlightUid: this.highlightUid,
                 compact: this.isNarrow(),
                 onTapPerson: (uid: string): void => {
@@ -202,8 +297,8 @@ export struct TreeCanvas {
               })
             } else if (this.style === TreeStyle.MODERN) {
               ModernTree({
-                groups: this.groups(),
-                groupLabels: this.groupLabels(),
+                groups: this.genGroups,
+                groupLabels: this.genLabels,
                 highlightUid: this.highlightUid,
                 minCardWidth: this.windowWidth >= Breakpoint.MD ? 220 : (this.isNarrow() ? 150 : 180),
                 onTapPerson: (uid: string): void => {
@@ -211,28 +306,29 @@ export struct TreeCanvas {
                 }
               })
             } else {
-              // 欧式 / 苏式：坐标预计算 + 绝对定位画布（手势自由平移 + 整体缩放）
+              // 欧式 / 苏式：布局缓存 + 坐标预计算 + 视口裁剪（手势自由平移 + 整体缩放）
               Column() {
-                ForEach(this.roots, (root: PersonNode, ri: number) => {
+                ForEach(this.rootUids, (uid: string, ri: number) => {
                   Column() {
-                    if (this.roots.length > 1) {
+                    if (this.rootUids.length > 1) {
                       Row() {
-                        Text('宗支 ' + (ri + 1).toString() + '：' + root.person.name +
-                          (root.spouseText().length > 0 ? ' · ' + root.spouseText() : ''))
+                        Text('宗支 ' + (ri + 1).toString() + '：' + this.rootName(uid))
                           .fontSize(13)
                           .fontWeight(FontWeight.Medium)
                           .fontColor(Theme.primary)
-                        Text('后代 ' + root.descendants.toString() + ' 人')
+                        Text('后代 ' + this.rootDescendants(uid).toString() + ' 人')
                           .fontSize(11)
                           .fontColor(Theme.inkTertiary)
                           .margin({ left: 6 })
                       }
                       .width('100%')
+                      .height(BRANCH_HEADER_H)
                       .margin({ bottom: Spacing.S })
                     }
                     if (this.style === TreeStyle.EU) {
                       EuTree({
-                        roots: [root],
+                        rootUid: uid,
+                        layoutVersion: this.dataVersion,
                         highlightUid: this.highlightUid,
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
@@ -240,16 +336,20 @@ export struct TreeCanvas {
                         offsetX: $offsetX,
                         offsetY: $offsetY,
                         viewWidth: this.viewW,
-                        onTapPerson: (uid: string): void => {
-                          this.onTapPerson(uid);
+                        viewHeight: this.viewH,
+                        zoom: this.zoom,
+                        contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
+                        onTapPerson: (id: string): void => {
+                          this.onTapPerson(id);
                         },
                         onSize: (w: number, h: number): void => {
-                          this.canvasW = Math.max(this.canvasW, w);
+                          this.collectSize(w, h);
                         }
                       })
                     } else {
                       SuTree({
-                        roots: [root],
+                        rootUid: uid,
+                        layoutVersion: this.dataVersion,
                         highlightUid: this.highlightUid,
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
@@ -257,11 +357,15 @@ export struct TreeCanvas {
                         showSpouse: true,
                         offsetX: $offsetX,
                         offsetY: $offsetY,
-                        onTapPerson: (uid: string): void => {
-                          this.onTapPerson(uid);
+                        viewWidth: this.viewW,
+                        viewHeight: this.viewH,
+                        zoom: this.zoom,
+                        contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
+                        onTapPerson: (id: string): void => {
+                          this.onTapPerson(id);
                         },
                         onSize: (w: number, h: number): void => {
-                          this.canvasW = Math.max(this.canvasW, w);
+                          this.collectSize(w, h);
                         }
                       })
                     }
@@ -269,17 +373,10 @@ export struct TreeCanvas {
                   .width('100%')
                   .alignItems(HorizontalAlign.Start)
                   .margin({ bottom: Spacing.XXL })
-                }, (root: PersonNode) => 'root_' + root.uid)
+                }, (uid: string) => 'root_' + uid)
               }
               .width('100%')
               .alignItems(HorizontalAlign.Start)
-              // 实测「全部宗支堆叠」后的总高度：多宗支时按各支高度累加，
-              // 否则平移边界只按最后一支算，下面几支永远拖不到
-              .onAreaChange((oldArea: Area, newArea: Area): void => {
-                this.canvasH = Number(newArea.height);
-              })
-              .scale({ x: this.zoom, y: this.zoom, centerX: 0, centerY: 0 })
-              .animation({ duration: 150 })
             }
           }
           .width('100%')
@@ -290,6 +387,10 @@ export struct TreeCanvas {
         .onAreaChange((oldArea: Area, newArea: Area): void => {
           this.viewW = Number(newArea.width);
           this.viewH = Number(newArea.height);
+          if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
+            this.offsetX = this.clampX(this.offsetX);
+            this.offsetY = this.clampY(this.offsetY);
+          }
           this.centerSuIfReady();
         })
         .parallelGesture(
@@ -320,54 +421,13 @@ export struct TreeCanvas {
     .alignItems(HorizontalAlign.Start)
   }
 
-  /** 水平平移边界：按缩放后的内容宽度计算，两侧各留余量 */
+  /** 水平平移边界：canvasW 已是屏幕尺寸 */
   private clampX(v: number): number {
-    const scaledW: number = this.canvasW * this.zoom;
-    const max: number = Math.max(scaledW - this.viewW + 120, 160);
-    return Math.min(Math.max(v, -max), 320);
+    return ViewportMath.clampScreenOffset(v, this.canvasW, this.viewW, 24);
   }
 
-  /** 垂直平移边界：按缩放后的「全部宗支总高度」计算，保证最下面一支也能拖出来 */
+  /** 垂直平移边界：canvasH 已包含各宗支标题与间隔的屏幕高度 */
   private clampY(v: number): number {
-    const scaledH: number = this.canvasH * this.zoom;
-    const max: number = Math.max(scaledH - this.viewH + 120, 160);
-    return Math.min(Math.max(v, -max), 240);
-  }
-
-  /** 欧式/苏式画布宽度：按“世代数 × 列宽”估算，保证内容不被压缩 */
-  private estimateWidth(): number {
-    const svc: GenealogyService = GenealogyService.getInstance();
-    let maxGen: number = 1;
-    svc.getPeople().forEach((p: Person): void => {
-      if (p.generation > maxGen) {
-        maxGen = p.generation;
-      }
-    });
-    if (this.style === TreeStyle.SU) {
-      return this.windowWidth;
-    }
-    return Math.max(this.windowWidth, maxGen * (this.cardWidth() + 30) + 40);
-  }
-
-  /** 宝塔式：把树按世代扁平化为“层” */
-  private buildRows(): PersonNode[][] {
-    const rows: PersonNode[][] = [];
-    const walk = (node: PersonNode): void => {
-      const idx: number = node.person.generation - 1;
-      while (rows.length <= idx) {
-        rows.push([]);
-      }
-      const exists: boolean = rows[idx].some((n: PersonNode): boolean => n.uid === node.uid);
-      if (!exists) {
-        rows[idx].push(node);
-      }
-      node.children.forEach((c: PersonNode): void => {
-        walk(c);
-      });
-    };
-    this.roots.forEach((r: PersonNode): void => {
-      walk(r);
-    });
-    return rows;
+    return ViewportMath.clampScreenOffset(v, this.canvasH, this.viewH, 24);
   }
 }

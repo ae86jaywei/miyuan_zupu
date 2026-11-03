@@ -448,8 +448,6 @@ struct Index {
       this.TreeToolbar()
       TreeCanvas({
         style: this.styleName,
-        roots: GenealogyService.getInstance().getRoots(),
-        people: GenealogyService.getInstance().getPeople(),
         highlightUid: this.selectedUid,
         showPrivate: this.showPrivate && !this.publicMode,
         windowWidth: this.windowWidth,

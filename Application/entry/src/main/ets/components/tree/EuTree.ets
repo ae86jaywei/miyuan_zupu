@@ -1,49 +1,115 @@
 import { PersonNode } from '../../model/PersonNode';
-import { EuBox, EuCanvas, EuLayout, LineSeg } from '../../service/TreeLayout';
+import { EuBox, EuCanvas, LineSeg } from '../../service/TreeLayout';
+import { TreeLayoutCache } from '../../service/TreeLayoutCache';
+import { TreeCuller } from '../../service/TreeCuller';
+import { ViewRect, ViewportMath } from '../../service/TreeViewport';
 import { TreeMiniCard } from './TreeMiniCard';
 import { Theme } from '../../theme/Theme';
+import { GenealogyService } from '../../service/GenealogyService';
 
 /**
  * 欧式谱（横轴世系图）画布。
- * 位置由 EuLayout 预计算，卡片与连线按坐标绝对定位；
- * 画布可自由拖动平移（水平 + 垂直），松手后停在原处。
+ * 变换约定：屏幕 = 内容 × zoom + offset（外层 translate，内层 scale）。
+ * 布局由 TreeLayoutCache 缓存，只渲染视口内（含 1 屏缓冲）的卡片与连线。
  */
 @Component
 export struct EuTree {
-  @Prop roots: PersonNode[];
-  @Prop cardWidth: number = 112;
+  @Prop @Watch('onViewportChanged') rootUid: string = '';
+  @Prop @Watch('onViewportChanged') layoutVersion: number = 0;
+  @Prop @Watch('onViewportChanged') cardWidth: number = 112;
   @Prop highlightUid: string = '';
-  @Prop dense: boolean = false;
-  @Prop showSpouse: boolean = true;
-  @Link offsetX: number;
-  @Link offsetY: number;
-  /** 可视区宽度（由父容器传入，用于撑开可平移范围） */
-  @Prop viewWidth: number = 0;
+  @Prop @Watch('onViewportChanged') dense: boolean = false;
+  @Prop @Watch('onViewportChanged') showSpouse: boolean = true;
+  @Prop @Watch('onViewportChanged') viewWidth: number = 0;
+  @Prop @Watch('onViewportChanged') viewHeight: number = 0;
+  @Prop @Watch('onViewportChanged') zoom: number = 1;
+  /** 本宗支在“全部宗支堆叠画布”中的屏幕起点（已含 zoom，不含平移） */
+  @Prop @Watch('onViewportChanged') contentTop: number = 0;
+  @Link @Watch('onViewportChanged') offsetX: number;
+  @Link @Watch('onViewportChanged') offsetY: number;
+  @State visibleBoxes: EuBox[] = [];
+  @State visibleLines: LineSeg[] = [];
+  @State contentW: number = 0;
+  @State contentH: number = 0;
+  private lastViewKey: string = '';
   onTapPerson: (uid: string) => void = (uid: string): void => {};
   onSize: (w: number, h: number) => void = (w: number, h: number): void => {};
+
+  aboutToAppear(): void {
+    this.refresh();
+  }
 
   private rowHeight(): number {
     return this.dense ? 66 : 78;
   }
 
+  private root(): PersonNode | null {
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      if (roots[i].uid === this.rootUid) {
+        return roots[i];
+      }
+    }
+    return null;
+  }
+
   private canvas(): EuCanvas {
-    return EuLayout.compute(this.roots, this.cardWidth, this.rowHeight(), 30, this.showSpouse, 6);
+    const r: PersonNode | null = this.root();
+    const roots: PersonNode[] = r === null ? [] : [r];
+    return TreeLayoutCache.getInstance().eu(this.rootUid, roots, this.cardWidth, this.rowHeight(),
+      this.showSpouse, 6);
+  }
+
+  private viewKey(): string {
+    return this.rootUid + '|' + this.offsetX.toString() + '|' + this.offsetY.toString() + '|' +
+      this.viewWidth.toString() + '|' + this.viewHeight.toString() + '|' +
+      this.zoom.toString() + '|' + this.layoutVersion.toString() + '|' + this.contentTop.toString() +
+      '|' + this.cardWidth.toString() + '|' + this.dense.toString() + '|' + this.showSpouse.toString();
+  }
+
+  /** 只做裁剪，不做布局；同一视口 key 下重复调用直接返回 */
+  private refresh(): void {
+    if (this.viewWidth <= 0 || this.viewHeight <= 0) {
+      return;
+    }
+    const key: string = this.viewKey();
+    if (key === this.lastViewKey) {
+      return;
+    }
+    this.lastViewKey = key;
+    const canvas: EuCanvas = this.canvas();
+    this.contentW = canvas.width;
+    this.contentH = canvas.height;
+    const view: ViewRect = ViewportMath.contentRect(this.offsetX,
+      this.offsetY + this.contentTop,
+      this.viewWidth, this.viewHeight, this.zoom, this.viewWidth * 0.5);
+    this.visibleBoxes = TreeCuller.euBoxes(canvas.boxes, view);
+    this.visibleLines = TreeCuller.lines(canvas.lines, view);
+    this.onSize(canvas.width, canvas.height);
+  }
+
+  onViewportChanged(): void {
+    this.refresh();
   }
 
   build() {
     Column() {
       Stack({ alignContent: Alignment.TopStart }) {
-        ForEach(this.canvas().lines, (seg: LineSeg, i: number) => {
+        ForEach(this.visibleLines, (seg: LineSeg) => {
           Row()
             .width(Math.max(Math.abs(seg.x2 - seg.x1), 1.5))
             .height(Math.max(Math.abs(seg.y2 - seg.y1), 1.5))
             .backgroundColor(seg.red ? Theme.primary : Theme.goldLight)
             .position({ x: Math.min(seg.x1, seg.x2), y: Math.min(seg.y1, seg.y2) })
-        }, (seg: LineSeg, i: number) => 'ln_' + i.toString() + '_' + seg.x1.toString() + '_' + seg.y1.toString())
+        }, (seg: LineSeg) => 'ln_' + seg.id.toString())
 
-        ForEach(this.canvas().boxes, (box: EuBox) => {
+        ForEach(this.visibleBoxes, (box: EuBox) => {
           TreeMiniCard({
-            node: box.node,
+            person: box.node.person,
+            spouseText: box.node.spouseText(),
+            spouseUid: box.node.spouse === null ? '' : box.node.spouse.uid,
+            childCount: box.node.children.length,
+            descendants: box.node.descendants,
             cardWidth: box.w,
             cardHeight: box.h,
             highlight: box.node.uid === this.highlightUid,
@@ -55,14 +121,16 @@ export struct EuTree {
             .position({ x: box.x, y: box.y })
         }, (box: EuBox) => 'bx_' + box.node.uid)
       }
-      .width(Math.max(this.canvas().width, this.viewWidth + 600))
-      .height(this.canvas().height)
-      .translate({ x: this.offsetX, y: this.offsetY })
+      .width(this.contentW)
+      .height(this.contentH)
+      .scale({ x: this.zoom, y: this.zoom, centerX: 0, centerY: 0 })
     }
-    .width('100%')
+    .width(this.contentW * this.zoom)
+    .height(this.contentH * this.zoom)
+    .translate({ x: this.offsetX, y: this.offsetY })
     .alignItems(HorizontalAlign.Start)
     .onAreaChange((oldArea: Area, newArea: Area): void => {
-      this.onSize(this.canvas().width, this.canvas().height);
+      this.refresh();
     })
   }
 }

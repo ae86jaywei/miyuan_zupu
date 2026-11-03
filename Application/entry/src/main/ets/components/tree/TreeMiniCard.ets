@@ -1,14 +1,22 @@
-import { PersonNode } from '../../model/PersonNode';
+import { Person } from '../../model/Person';
 import { Theme } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 
 /**
  * 欧式 / 苏式 / 宝塔式谱系图中的人物小卡片。
- * 卡片内固定展示：谱名、世代（第几世）、唯一ID、字派、配偶。
+ *
+ * 只接收扁平的 Person 与预先算好的展示字段，不接收 PersonNode：
+ * PersonNode 的 father/mother/spouse/children 互为引用，作为 @Prop 会被深拷贝并递归爆栈。
  */
 @Component
 export struct TreeMiniCard {
-  @Prop node: PersonNode;
+  @Prop person: Person = new Person();
+  /** 预先格式化的配偶文案，如：“配 林氏、继室 陈氏” */
+  @Prop spouseText: string = '';
+  /** 第一位配偶 uid，空字符串表示无 */
+  @Prop spouseUid: string = '';
+  @Prop childCount: number = 0;
+  @Prop descendants: number = 0;
   @Prop cardWidth: number = 116;
   @Prop highlight: boolean = false;
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
@@ -24,24 +32,20 @@ export struct TreeMiniCard {
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
   private genChar(): string {
-    return this.node.person.generationChar.length > 0 ? this.node.person.generationChar + '字' : '';
-  }
-
-  private spouseText(): string {
-    return this.node.spouseText();
+    return this.person.generationChar.length > 0 ? this.person.generationChar + '字' : '';
   }
 
   build() {
     Column() {
       Row() {
-        Text(this.node.person.name)
+        Text(this.person.name)
           .fontSize(this.dense ? 13 : 14)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.node.person.gender === '女' ? Theme.female : Theme.ink)
+          .fontColor(this.person.gender === '女' ? Theme.female : Theme.ink)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
-        if (this.node.person.lifeStatus === '已故') {
+        if (this.person.lifeStatus === '已故') {
           Text('故')
             .fontSize(9)
             .fontColor(Theme.deceased)
@@ -49,7 +53,7 @@ export struct TreeMiniCard {
             .borderRadius(3)
             .padding({ left: 3, right: 3 })
             .margin({ left: 2 })
-        } else if (this.node.person.lifeStatus === '失联') {
+        } else if (this.person.lifeStatus === '失联') {
           Text('？')
             .fontSize(9)
             .fontColor(Theme.lost)
@@ -60,13 +64,13 @@ export struct TreeMiniCard {
 
       // 世代 + 唯一ID + 字派
       Row() {
-        Text(generationLabel(this.node.person.generation))
+        Text(generationLabel(this.person.generation))
           .fontSize(9)
           .fontColor('#FFFFFF')
           .backgroundColor(Theme.primaryLight)
           .borderRadius(4)
           .padding({ left: 4, right: 4 })
-        Text(this.node.person.uid)
+        Text(this.person.uid)
           .fontSize(9)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 4 })
@@ -82,8 +86,8 @@ export struct TreeMiniCard {
       .margin({ top: 3 })
 
       // 关联配偶
-      if (this.spouseText().length > 0) {
-        Text(this.spouseText())
+      if (this.spouseText.length > 0) {
+        Text(this.spouseText)
           .fontSize(9)
           .fontColor(Theme.inkSecondary)
           .maxLines(2)
@@ -91,14 +95,14 @@ export struct TreeMiniCard {
           .width('100%')
           .margin({ top: 2 })
           .onClick((): void => {
-            if (this.node.spouse !== null) {
-              this.onTapPerson((this.node.spouse as PersonNode).uid);
+            if (this.spouseUid.length > 0) {
+              this.onTapPerson(this.spouseUid);
             }
           })
       }
 
-      if (this.node.children.length > 0 && !this.dense) {
-        Text(this.node.children.length.toString() + '子 · 后代' + this.node.descendants.toString() + '人')
+      if (this.childCount > 0 && !this.dense) {
+        Text(this.childCount.toString() + '子 · 后代' + this.descendants.toString() + '人')
           .fontSize(9)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
@@ -112,12 +116,12 @@ export struct TreeMiniCard {
     .borderRadius(10)
     .border({
       width: this.highlight ? 2 : 1,
-      color: this.highlight ? Theme.gold : (this.node.person.gender === '女' ? '#EFC9D5' : '#CFDCEA')
+      color: this.highlight ? Theme.gold : (this.person.gender === '女' ? '#EFC9D5' : '#CFDCEA')
     })
     .shadow({ radius: 6, color: Theme.shadow, offsetY: 1 })
     .alignItems(HorizontalAlign.Start)
     .onClick((): void => {
-      this.onTapPerson(this.node.uid);
+      this.onTapPerson(this.person.uid);
     })
   }
 }

@@ -2,24 +2,63 @@ import { PersonNode } from '../../model/PersonNode';
 import { Theme } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { generationLabel } from '../../model/Enums';
+import { GenealogyService } from '../../service/GenealogyService';
 
 /**
  * 宝塔式谱：上窄下宽，始祖居塔尖，子孙逐代向两侧对称展开。
  * 每一代为一个“层”，层内成员平均分布，层与层之间以金色腰线分割。
+ *
+ * 不接收 PersonNode[][] 作为 @Prop（环状结构会被深拷贝），
+ * 改为接收宗支 uid 列表，在组件内按 version 重建分层数据。
  */
 @Component
 export struct PagodaTree {
-  /** 按世代分层的数据 */
-  @Prop rows: PersonNode[][];
+  @Prop @Watch('onChanged') rootUids: string[] = [];
+  @Prop @Watch('onChanged') layoutVersion: number = 0;
   @Prop highlightUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
+  @Prop compact: boolean = true;
+  @State rows: PersonNode[][] = [];
+  onTapPerson: (uid: string) => void = (uid: string): void => {};
+
+  aboutToAppear(): void {
+    this.rebuildRows();
+  }
 
   onDark(): void {
     Theme.use(this.darkMode);
   }
-  @Prop compact: boolean = true;
-  onTapPerson: (uid: string) => void = (uid: string): void => {};
 
+  onChanged(): void {
+    this.rebuildRows();
+  }
+
+  private rebuildRows(): void {
+    if (this.rootUids.length === 0) {
+      this.rows = [];
+      return;
+    }
+    const rows: PersonNode[][] = [];
+    const walk = (node: PersonNode): void => {
+      const idx: number = node.person.generation - 1;
+      while (rows.length <= idx) {
+        rows.push([]);
+      }
+      const exists: boolean = rows[idx].some((n: PersonNode): boolean => n.uid === node.uid);
+      if (!exists) {
+        rows[idx].push(node);
+      }
+      node.children.forEach((c: PersonNode): void => {
+        walk(c);
+      });
+    };
+    GenealogyService.getInstance().getRoots().forEach((r: PersonNode): void => {
+      if (this.rootUids.indexOf(r.uid) >= 0) {
+        walk(r);
+      }
+    });
+    this.rows = rows;
+  }
 
   build() {
     Column() {

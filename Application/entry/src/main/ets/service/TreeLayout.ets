@@ -13,6 +13,8 @@ export class EuBox {
 
 /** 连线线段；red 为真表示朱砂红婚约双线，否则为金色世系连线 */
 export class LineSeg {
+  /** 稳定唯一 id：裁剪后数组下标会变化，不能作为 ForEach key */
+  id: number = 0;
   x1: number = 0;
   y1: number = 0;
   x2: number = 0;
@@ -36,6 +38,7 @@ const MARRIAGE_LINE_GAP: number = 4;
 /** 追加一条普通（金色）世系线段 */
 function pushLine(lines: LineSeg[], x1: number, y1: number, x2: number, y2: number): void {
   const s: LineSeg = new LineSeg();
+  s.id = lines.length;
   s.x1 = x1;
   s.y1 = y1;
   s.x2 = x2;
@@ -61,13 +64,15 @@ export function pushDoubleLine(lines: LineSeg[], x1: number, y1: number,
   a.y1 = y1 + ny * gap;
   a.x2 = x2 + nx * gap;
   a.y2 = y2 + ny * gap;
+  a.id = lines.length;
+  lines.push(a);
   const b: LineSeg = new LineSeg();
   b.red = true;
   b.x1 = x1 - nx * gap;
   b.y1 = y1 - ny * gap;
   b.x2 = x2 - nx * gap;
   b.y2 = y2 - ny * gap;
-  lines.push(a);
+  b.id = lines.length;
   lines.push(b);
 }
 
@@ -368,6 +373,7 @@ export class EuLayout {
         });
         if (lastCy > pb.centerY + 0.5) {
           const spine: LineSeg = new LineSeg();
+          spine.id = canvas.lines.length;
           spine.red = true;
           spine.x1 = pb.x + pb.w;
           // 竖线起点对齐婚约双线中靠下的那一条，而不是卡中心，避免向上错位
