@@ -179,9 +179,22 @@ export class TreeBuilder {
       }
       arr.push(n);
     });
+    const hasParent: (n: PersonNode) => boolean =
+      (n: PersonNode): boolean => n.father !== null || n.mother !== null;
     groups.forEach((members: PersonNode[]): void => {
       let rep: PersonNode = members[0];
       members.forEach((m: PersonNode): void => {
+        // 「上挂父母」优先于「有子女」：本谱外来配偶往往无父母但子女多，
+        // 若按子女数选它当代表，就会带着孩子单独成根，和配偶所在的家族树断开。
+        // 选有父母的一方当代表，它挂在原家族树上，无父母的一方自然作为配偶卡跟随。
+        const mParent: boolean = hasParent(m);
+        const rParent: boolean = hasParent(rep);
+        if (mParent !== rParent) {
+          if (mParent) {
+            rep = m;
+          }
+          return;
+        }
         if (m.children.length > rep.children.length) {
           rep = m;
         } else if (m.children.length === rep.children.length) {
@@ -191,6 +204,20 @@ export class TreeBuilder {
             rep = m;
           }
         }
+      });
+      // 非代表成员的子女并入代表：这些子女原本挂在配偶名下，
+      // 而配偶只是代表旁边的一张卡，不会被递归遍历，子女会整条支线消失。
+      members.forEach((m: PersonNode): void => {
+        if (m === rep) {
+          return;
+        }
+        for (let i: number = 0; i < m.children.length; i++) {
+          const c: PersonNode = m.children[i];
+          if (rep.children.indexOf(c) < 0) {
+            rep.children.push(c);
+          }
+        }
+        m.children = [];
       });
       members.forEach((m: PersonNode): void => {
         parentOf.set(m.uid, rep.uid);
@@ -211,21 +238,21 @@ export class TreeBuilder {
       roots.push(node);
     });
     const visited: Set<string> = new Set<string>();
-    // 配偶成员视为“已归入其代表根”，不单独成根
-    nodeMap.forEach((node: PersonNode): void => {
-      if (find(node.uid) !== node.uid) {
-        visited.add(node.uid);
-      }
-    });
     roots.forEach((r: PersonNode): void => {
       TreeBuilder.computeMetrics(r, visited);
     });
-    // 兜底：存在环或孤立节点的场景
+    // 兜底：环、孤立节点，以及「非代表配偶」名下的子女。
+    // 之前把所有非代表配偶预先标记为已访问，它们名下的子女就不会进任何根的子树，
+    // 谱系图上整条支线会凭空消失（名录里却有人）。无子女的配偶仍随代表显示，不单独成根。
     nodeMap.forEach((node: PersonNode): void => {
-      if (!visited.has(node.uid)) {
-        TreeBuilder.computeMetrics(node, visited);
-        roots.push(node);
+      if (visited.has(node.uid)) {
+        return;
       }
+      if (find(node.uid) !== node.uid && node.children.length === 0) {
+        return;
+      }
+      TreeBuilder.computeMetrics(node, visited);
+      roots.push(node);
     });
 
     // 根节点排序：按世代升序，同年份按 ID

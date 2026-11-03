@@ -9,8 +9,8 @@ import { generationLabel } from '../../model/Enums';
  */
 @Component
 export struct PagodaTree {
-  /** 按世代分层的数据 */
-  @Prop rows: PersonNode[][];
+  /** 按世代分层的数据（大对象，不能用 @Prop，避免深拷贝） */
+  rows: PersonNode[][] = [];
   @Prop highlightUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
 
@@ -19,7 +19,6 @@ export struct PagodaTree {
   }
   @Prop compact: boolean = true;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
-
 
   build() {
     Column() {

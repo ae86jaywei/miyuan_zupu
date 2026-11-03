@@ -1,7 +1,7 @@
 import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, spouseRelationLevel } from '../model/Person';
 import { IntegrityReport, IntegrityIssue } from '../model/Integrity';
 import { IntegrityService } from './IntegrityService';
-import { IdGenerator } from '../util/IdGenerator';
+import { UidAllocator } from '../util/IdGenerator';
 
 /**
  * 导入合并引擎。
@@ -334,6 +334,25 @@ export class ImportPlanner {
       });
     });
 
+    // 一次性把已占用编号建成索引，之后每次分配摊销 O(1)。
+    // 旧实现每次分配都重扫整谱 + 黑名单并逐条正则，导入 4 万人时会退化成 O(n²)，
+    // 主线程连续阻塞 >6 秒后被系统判定 THREAD_BLOCK_6S 直接杀死进程。
+    const allocator: UidAllocator = new UidAllocator();
+    used.forEach((u: string): void => {
+      allocator.reserve(u);
+    });
+
+    // 本机指纹缓存：同名同姓候选常被多条导入记录反复打分，
+    // 每次重算都要解析生日正则、遍历配偶，4 万条导入下开销可观。
+    // names 此时已完整（本机 + 导入文件），缓存结果与逐次计算一致。
+    const localFp: Map<string, PersonFingerprint> = new Map<string, PersonFingerprint>();
+    local.forEach((p: Person): void => {
+      const u: string = ImportPlanner.up(p.uid);
+      if (u.length > 0 && localFp.get(u) === undefined) {
+        localFp.set(u, IdentityMatcher.fingerprint(p, names));
+      }
+    });
+
     // 计划内按目标 uid 累积（同一人可能有多条来源）
     const planned: Map<string, Person> = new Map<string, Person>();
     const remap: Map<string, string> = new Map<string, string>();
@@ -371,7 +390,13 @@ export class ImportPlanner {
           if (c.uid.trim().toUpperCase() === p.uid) {
             return;
           }
-          const s: number = IdentityMatcher.score(fp, IdentityMatcher.fingerprint(c, names));
+          const key: string = ImportPlanner.up(c.uid);
+          const cached: PersonFingerprint | undefined = localFp.get(key);
+          const cfp: PersonFingerprint = cached === undefined ? IdentityMatcher.fingerprint(c, names) : cached;
+          if (cached === undefined) {
+            localFp.set(key, cfp);
+          }
+          const s: number = IdentityMatcher.score(fp, cfp);
           if (s > bestScore) {
             bestScore = s;
             bestLocal = c;
@@ -471,9 +496,10 @@ export class ImportPlanner {
         let newUid: string = ImportPlanner.up(p.uid);
         const needsNew: boolean = newUid.length === 0 || used.has(newUid);
         if (needsNew) {
-          newUid = ImportPlanner.alloc(p.gender, local, used);
+          newUid = ImportPlanner.alloc(p.gender, allocator, used);
         } else {
           used.add(newUid);
+          allocator.reserve(newUid);
         }
         p.uid = newUid;
         target = newUid;
@@ -526,9 +552,9 @@ export class ImportPlanner {
     }
   }
 
-  /** 分配一个新编号（跳过本机、已删除黑名单与已分配编号） */
-  private static alloc(gender: string, local: Person[], used: Set<string>): string {
-    const uid: string = IdGenerator.next(local, gender, used);
+  /** 分配一个新编号（跳过本机、已删除黑名单与已分配编号；allocator 已含全部已占用编号） */
+  private static alloc(gender: string, allocator: UidAllocator, used: Set<string>): string {
+    const uid: string = allocator.take(gender);
     used.add(uid);
     return uid;
   }

@@ -1,4 +1,5 @@
 import { PersonNode } from '../../model/PersonNode';
+import { Person } from '../../model/Person';
 import { Theme } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 
@@ -8,7 +9,8 @@ import { generationLabel } from '../../model/Enums';
  */
 @Component
 export struct TreeMiniCard {
-  @Prop node: PersonNode;
+  /** 节点含父/子/配偶互相引用，用 @Prop 会深拷贝整棵子树，人多时直接卡死主线程 */
+  node: PersonNode = new PersonNode(new Person());
   @Prop cardWidth: number = 116;
   @Prop highlight: boolean = false;
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;

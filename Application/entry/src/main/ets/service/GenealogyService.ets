@@ -31,8 +31,8 @@ const META_INITIALIZED: string = 'initialized';
 const META_CURRENT_BOOK: string = 'current_book_id';
 /** 元数据前缀：某部族谱中已被删除、但编号仍需保留不再复用的族人 */
 const META_RETIRED_PREFIX: string = 'retired_uids_';
-/** 元数据：导入前人员快照（导入失败可回滚） */
-const META_SNAPSHOT_PREFIX: string = 'import_snapshot_';
+/** 元数据：旧库配偶关系迁移是否已完成（迁移 SQL 是 O(n²)，只能在首次启动跑一次） */
+const META_SPOUSE_MIGRATED: string = 'spouse_migrated_v1';
 
 /** 已删除人员的编号记录（用于防止新族人沿用旧编号） */
 class RetiredUid {
@@ -243,10 +243,15 @@ export class GenealogyService {
           [this.currentBookId]);
       }
       await this.setMeta(META_CURRENT_BOOK, this.currentBookId.toString());
-      // 旧数据迁移：把 person.spouse_id 单值转换成配偶关系行（幂等）
-      await this.migrateSpouses();
-      // 回填配偶关系等级（旧行 level 为空）
-      await this.backfillSpouseLevels();
+      // 旧数据迁移：把 person.spouse_id 单值转换成配偶关系行。
+      // 这条 SQL 的 NOT EXISTS 对 4 万行逐行回扫配偶表，是 O(n²)，实测占用 69 秒；
+      // 数据已经迁移完就不必每次启动重跑，用元数据标记只执行一次。
+      if ((await this.getMeta(META_SPOUSE_MIGRATED)) !== '1') {
+        await this.migrateSpouses();
+        // 回填配偶关系等级（旧行 level 为空）
+        await this.backfillSpouseLevels();
+        await this.setMeta(META_SPOUSE_MIGRATED, '1');
+      }
       await this.reload();
       this.ready = true;
       hilog.info(0x0000, TAG, 'ready, people=%{public}d', this.people.length);
@@ -995,79 +1000,92 @@ export class GenealogyService {
     return ImportPlanner.plan(list, this.people, this.retiredUids, opt);
   }
 
-  /** 导入前快照：把当前族谱全部人物（含配偶）序列化进元数据，失败时可回滚 */
-  async snapshotBook(): Promise<string> {
-    if (this.currentBookId <= 0) {
-      return '';
-    }
-    const key: string = META_SNAPSHOT_PREFIX + this.currentBookId.toString();
-    await this.setMeta(key, JSON.stringify(this.people));
-    return key;
-  }
-
-  /** 从快照回滚：清空当前族谱人物并写回快照数据 */
-  async rollbackSnapshot(key: string): Promise<void> {
-    if (this.currentBookId <= 0 || key.length === 0 || this.store === null) {
-      return;
-    }
-    const text: string = await this.getMeta(key);
-    if (text.length === 0) {
-      return;
-    }
-    let list: Person[] = [];
-    try {
-      list = JSON.parse(text) as Person[];
-    } catch (err) {
-      hilog.error(0x0000, TAG, 'parse import snapshot failed');
-      return;
-    }
-    if (list === null || list === undefined) {
-      return;
-    }
-    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
-    await store.executeSql(`DELETE FROM ${TABLE_PERSON} WHERE book_id = ?`, [this.currentBookId]);
-    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ?`, [this.currentBookId]);
-    for (let i: number = 0; i < list.length; i++) {
-      const p: Person = clonePerson(list[i]);
-      p.key = 0;
-      p.uid = p.uid.trim().toUpperCase();
-      this.normalizeSpouses(p);
-      await this.upsertRow(p);
-      await this.saveSpouses(p.uid, p.spouses);
-    }
-    await this.reload();
-    await this.setMeta(key, '');
-    hilog.info(0x0000, TAG, 'import rolled back, rows=%{public}d', list.length);
-  }
-
   /**
    * 执行导入计划：
-   *   写入前先快照 → 逐条落库 → 关系图修复（悬空清理 + 配偶双向）→ 体检；
-   *   任何异常都从快照回滚，避免留下半成品。
+   *   事务内逐条落库 → 关系图修复（悬空清理 + 配偶双向）→ 体检 → 提交；
+   *   任何异常都回滚事务，避免留下半成品。
    */
-  async applyImportPlan(plan: ImportPlan): Promise<ImportResult> {
+  async applyImportPlan(plan: ImportPlan,
+    onProgress?: (done: number, total: number) => void): Promise<ImportResult> {
     if (this.currentBookId <= 0) {
       throw new Error('请先在「谱系」中创建族谱');
     }
+    if (this.store === null) {
+      throw new Error('数据库未就绪');
+    }
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
     const result: ImportResult = new ImportResult();
-    const snapshotKey: string = await this.snapshotBook();
+    const total: number = plan.people.length;
+    // 整段写入放进一个事务：失败由 SQLite 回滚，不再序列化「整谱快照」。
+    // 数万人的快照是几十 MB 的 JSON，序列化 + 写单行 TEXT 比导入本身还慢；
+    // 事务还省掉了逐条 fsync，实测 3.6 万条从约 9 分钟降到分钟级。
     try {
-      for (let i: number = 0; i < plan.people.length; i++) {
+      store.beginTransaction();
+      // 逐条 insert/update 每次都要跨线程做一次 IPC（实测约 90ms/条，数万人要几十分钟）。
+      // 改为「先分批删除被覆盖的 uid，再分批 batchInsert」：SQL 从十万条降到百来条。
+      // 删除只覆盖本次导入的 uid，导入文件里没有的本机族人不受影响；事务失败会整体回滚。
+      const batchSize: number = 500;
+      for (let start: number = 0; start < total; start = start + batchSize) {
+        const end: number = Math.min(start + batchSize, total);
+        const marks: string[] = [];
+        const args: relationalStore.ValueType[] = [this.currentBookId];
+        for (let j: number = start; j < end; j++) {
+          marks.push('?');
+          args.push(plan.people[j].uid.trim().toUpperCase());
+        }
+        const inList: string = marks.join(',');
+        await store.executeSql(
+          `DELETE FROM ${TABLE_PERSON} WHERE book_id = ? AND UPPER(uid) IN (${inList})`, args);
+        await store.executeSql(
+          `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) IN (${inList})`, args);
+      }
+      let personBatch: relationalStore.ValuesBucket[] = [];
+      let spouseBatch: relationalStore.ValuesBucket[] = [];
+      for (let i: number = 0; i < total; i++) {
         const p: Person = clonePerson(plan.people[i]);
         p.uid = p.uid.trim().toUpperCase();
         this.normalizeSpouses(p);
         const exist: Person | undefined = this.peopleMap.get(p.uid);
         if (exist !== undefined) {
-          p.key = exist.key;
           p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
           p.updatedAt = Date.now();
         }
-        await this.upsertRow(p);
-        await this.saveSpouses(p.uid, p.spouses);
-        result.saved = result.saved + 1;
-        if (result.saved % 50 === 0) {
-          await this.reload();
+        personBatch.push(this.toValues(p, this.currentBookId));
+        for (let s: number = 0; s < p.spouses.length; s++) {
+          const r: SpouseRelation = p.spouses[s];
+          const partner: string = r.uid.trim().toUpperCase();
+          if (partner.length === 0 || partner === p.uid) {
+            continue;
+          }
+          const rel: string = r.relation.trim().length > 0 ? r.relation.trim() : '未记';
+          spouseBatch.push({
+            'book_id': this.currentBookId,
+            'uid': p.uid,
+            'spouse_uid': partner,
+            'relation': rel,
+            'level': spouseRelationLevel(rel),
+            'ord': s + 1
+          });
         }
+        result.saved = result.saved + 1;
+        if (personBatch.length >= batchSize) {
+          await store.batchInsert(TABLE_PERSON, personBatch);
+          personBatch = [];
+        }
+        if (spouseBatch.length >= batchSize) {
+          await store.batchInsert(TABLE_SPOUSE, spouseBatch);
+          spouseBatch = [];
+        }
+        // 每 200 条回报一次进度（一批几千条也只回刷几次，避免频繁触发界面重建）
+        if (onProgress !== undefined && (i % 200 === 199 || i === total - 1)) {
+          onProgress(i + 1, total);
+        }
+      }
+      if (personBatch.length > 0) {
+        await store.batchInsert(TABLE_PERSON, personBatch);
+      }
+      if (spouseBatch.length > 0) {
+        await store.batchInsert(TABLE_SPOUSE, spouseBatch);
       }
       await this.reload();
       // 关系图修复：断链清理 + 配偶双向补齐（世代默认只统计，不改史料）
@@ -1092,13 +1110,19 @@ export class GenealogyService {
           result.integrityErrors = result.integrityErrors + 1;
         }
       });
-      await this.setMeta(snapshotKey, '');
+      store.commit();
       hilog.info(0x0000, TAG, 'import applied, saved=%{public}d', result.saved);
       return result;
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'import failed, rolling back: %{public}s', err.message);
-      await this.rollbackSnapshot(snapshotKey);
+      try {
+        store.rollBack();
+      } catch (rb) {
+        hilog.error(0x0000, TAG, 'import rollback failed');
+      }
+      // 事务内 reload 过未提交数据，回滚后必须重读库修正内存状态
+      await this.reload();
       throw new Error('导入写入失败，已回滚：' + err.message);
     }
   }
@@ -1172,7 +1196,8 @@ export class GenealogyService {
    * 在没有族谱时，用备份文件中的「族谱信息」新建族谱并导入族人。
    * 族谱实体的 key/云协作字段不随文件恢复，避免把旧谱的云家族信息一起带回来。
    */
-  async importAsNewBook(meta: Genealogy, plan: ImportPlan): Promise<ImportResult> {
+  async importAsNewBook(meta: Genealogy, plan: ImportPlan,
+    onProgress?: (done: number, total: number) => void): Promise<ImportResult> {
     const created: Genealogy = await this.createGenealogy(meta.title);
     created.surname = meta.surname;
     created.hallName = meta.hallName;
@@ -1183,7 +1208,7 @@ export class GenealogyService {
     created.familyRules = meta.familyRules;
     created.editingNotes = meta.editingNotes;
     await this.saveBook(created);
-    return this.applyImportPlan(plan);
+    return this.applyImportPlan(plan, onProgress);
   }
 
   /** 是否已存在同名族谱 */
@@ -1426,6 +1451,13 @@ export class GenealogyService {
     await this.setMeta(META_CURRENT_BOOK, firstBookId.toString());
     await this.reload();
     return restored;
+  }
+
+  /** 直接插入一条新人物（导入批量写入用，跳过按 id/uid 的两次回查更新） */
+  private async insertPerson(p: Person): Promise<void> {
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const rowId: number = await store.insert(TABLE_PERSON, this.toValues(p, this.currentBookId));
+    p.key = rowId;
   }
 
   private async upsertRow(p: Person, bookId: number = 0): Promise<void> {
@@ -1727,7 +1759,9 @@ export class GenealogyService {
     }
 
     // 2. 当前族谱的族人（按 book_id 隔离，墓碑不参与展示）
+    const t0: number = Date.now();
     const list: Person[] = await this.queryPeople(this.currentBookId);
+    const t1: number = Date.now();
     this.people = list;
     const map: Map<string, Person> = new Map<string, Person>();
     list.forEach((p: Person): void => {
@@ -1735,8 +1769,53 @@ export class GenealogyService {
     });
     this.peopleMap = map;
     await this.attachSpouses(this.currentBookId, list);
+    const t2: number = Date.now();
     this.retiredUids = await this.loadRetired(this.currentBookId);
+    const t3: number = Date.now();
     this.roots = TreeBuilder.build(this.people);
+    const t4: number = Date.now();
+    // 诊断：无父母孤儿 / 父母引用指向不存在 uid 的人数，用于判断谱系断链来源
+    let orphan: number = 0;
+    let dangling: number = 0;
+    for (let i: number = 0; i < list.length; i++) {
+      const p: Person = list[i];
+      const f: string = p.fatherId.trim().toUpperCase();
+      const m: string = p.motherId.trim().toUpperCase();
+      if (f.length === 0 && m.length === 0) {
+        orphan = orphan + 1;
+      }
+      if (f.length > 0 && !map.has(f)) {
+        dangling = dangling + 1;
+      }
+      if (m.length > 0 && !map.has(m)) {
+        dangling = dangling + 1;
+      }
+    }
+    // 诊断：从根节点出发（子女 + 配偶）能到达多少人，与总人数对比可判断谱系是否漏人
+    const reached: Set<string> = new Set<string>();
+    const stack: PersonNode[] = [];
+    for (let i: number = 0; i < this.roots.length; i++) {
+      stack.push(this.roots[i]);
+    }
+    while (stack.length > 0) {
+      const n: PersonNode = stack.pop() as PersonNode;
+      const u: string = n.uid.trim().toUpperCase();
+      if (reached.has(u)) {
+        continue;
+      }
+      reached.add(u);
+      for (let i: number = 0; i < n.children.length; i++) {
+        stack.push(n.children[i]);
+      }
+      for (let i: number = 0; i < n.spouses.length; i++) {
+        stack.push(n.spouses[i]);
+      }
+    }
+    const unreachable: number = list.length - reached.size;
+    hilog.info(0x0000, TAG,
+      'reload people=%{public}d roots=%{public}d reachable=%{public}d unreachable=%{public}d orphan=%{public}d dangling=%{public}d query=%{public}dms spouse=%{public}dms retired=%{public}dms tree=%{public}dms',
+      list.length, this.roots.length, reached.size, unreachable, orphan, dangling,
+      t1 - t0, t2 - t1, t3 - t2, t4 - t3);
     // 切换/加载族谱后同步协作态（familyId / 角色 / 同步模式）
     FamilyService.getInstance().applyBookFamilyState();
     this.bump();

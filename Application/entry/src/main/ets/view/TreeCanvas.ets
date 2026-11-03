@@ -1,6 +1,6 @@
 import { PersonNode } from '../model/PersonNode';
 import { Person } from '../model/Person';
-import { TreeStyle, TREE_STYLES, TreeStyleMeta, generationLabel } from '../model/Enums';
+import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';
 import { SuTree } from '../components/tree/SuTree';
 import { PagodaTree } from '../components/tree/PagodaTree';
@@ -19,8 +19,12 @@ import { suRootCenterX } from '../service/TreeLayout';
 @Component
 export struct TreeCanvas {
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
-  @Prop @Watch('onRootsChanged') roots: PersonNode[] = [];
-  @Prop people: Person[] = [];
+  /**
+   * 谱树与人物列表是上万节点的大对象图，不能使用 @Prop（单向同步会做整棵树的深拷贝，
+   * 大谱导入后直接卡死主线程）。这里按普通成员传入引用，由父组件在版本变化时重建本组件。
+   */
+  roots: PersonNode[] = [];
+  people: Person[] = [];
   @Prop highlightUid: string = '';
   @Prop showPrivate: boolean = true;
   @Prop windowWidth: number = 360;
@@ -57,12 +61,6 @@ export struct TreeCanvas {
     this.centerSuIfReady();
   }
 
-  /** 宗支数量/结构变化后画布宽度会变，需重新取最大值 */
-  onRootsChanged(): void {
-    this.canvasW = 0;
-    this.canvasH = 0;
-  }
-
   /** 缩放变化后可用可视范围随之改变，把平移偏移重新夹回边界内 */
   onZoomChanged(): void {
     this.offsetX = this.clampX(this.offsetX);
@@ -81,7 +79,8 @@ export struct TreeCanvas {
       return;
     }
     this.pendingCenter = false;
-    const cx: number = suRootCenterX([this.roots[0]], this.cardWidth(), this.isNarrow());
+    const cx: number = suRootCenterX([this.roots[0]], this.cardWidth(),
+      this.isNarrow() ? 62 : 74, this.isNarrow() ? 14 : 24);
     this.offsetX = this.viewW / 2 - cx;
     this.offsetY = 0;
   }
@@ -240,6 +239,8 @@ export struct TreeCanvas {
                         offsetX: $offsetX,
                         offsetY: $offsetY,
                         viewWidth: this.viewW,
+                        viewHeight: this.viewH,
+                        zoom: this.zoom,
                         onTapPerson: (uid: string): void => {
                           this.onTapPerson(uid);
                         },
@@ -257,6 +258,9 @@ export struct TreeCanvas {
                         showSpouse: true,
                         offsetX: $offsetX,
                         offsetY: $offsetY,
+                        viewWidth: this.viewW,
+                        viewHeight: this.viewH,
+                        zoom: this.zoom,
                         onTapPerson: (uid: string): void => {
                           this.onTapPerson(uid);
                         },
@@ -332,21 +336,6 @@ export struct TreeCanvas {
     const scaledH: number = this.canvasH * this.zoom;
     const max: number = Math.max(scaledH - this.viewH + 120, 160);
     return Math.min(Math.max(v, -max), 240);
-  }
-
-  /** 欧式/苏式画布宽度：按“世代数 × 列宽”估算，保证内容不被压缩 */
-  private estimateWidth(): number {
-    const svc: GenealogyService = GenealogyService.getInstance();
-    let maxGen: number = 1;
-    svc.getPeople().forEach((p: Person): void => {
-      if (p.generation > maxGen) {
-        maxGen = p.generation;
-      }
-    });
-    if (this.style === TreeStyle.SU) {
-      return this.windowWidth;
-    }
-    return Math.max(this.windowWidth, maxGen * (this.cardWidth() + 30) + 40);
   }
 
   /** 宝塔式：把树按世代扁平化为“层” */

@@ -216,6 +216,13 @@ export class EuCanvas {
   lines: LineSeg[] = [];
   width: number = 0;
   height: number = 0;
+  /** 始祖卡片中心：上万人的谱系画布极宽，初始视野必须定位到这里，否则落在空白区 */
+  rootCx: number = 0;
+  rootCy: number = 0;
+  /** 按纵向条带分桶的索引：谱系是纵向堆叠，画布高达上百万像素，每帧只扫视口覆盖的条带 */
+  bucketH: number = 1000;
+  buckets: EuBox[][] = [];
+  lineBuckets: LineSeg[][] = [];
 }
 
 /**
@@ -230,6 +237,36 @@ export class EuCanvas {
  *  - 子女按生母分组引出：各组独立母线，组内兄弟相连，不同母的子女经父母相连。
  */
 export class EuLayout {
+  /** 跨组件实例的布局缓存：切页会重建 EuTree，没有缓存时每次都要重算 4 万人（约 450ms） */
+  private static cacheRoots: PersonNode[] | null = null;
+  private static cacheWidth: number = 0;
+  private static cacheRow: number = 0;
+  private static cacheGap: number = 0;
+  private static cacheSpouse: boolean = false;
+  private static cacheStartY: number = 0;
+  private static cacheCanvas: EuCanvas | null = null;
+
+  /** 带缓存的布局：roots 引用与布局参数都没变时直接复用上次结果 */
+  static computeCached(roots: PersonNode[], cardWidth: number, rowHeight: number, colGap: number,
+    showSpouse: boolean, startY: number): EuCanvas {
+    const hit: boolean = EuLayout.cacheCanvas !== null && EuLayout.cacheRoots === roots &&
+      EuLayout.cacheWidth === cardWidth && EuLayout.cacheRow === rowHeight &&
+      EuLayout.cacheGap === colGap && EuLayout.cacheSpouse === showSpouse &&
+      EuLayout.cacheStartY === startY;
+    if (hit) {
+      return EuLayout.cacheCanvas as EuCanvas;
+    }
+    const computed: EuCanvas = EuLayout.compute(roots, cardWidth, rowHeight, colGap, showSpouse, startY);
+    EuLayout.cacheRoots = roots;
+    EuLayout.cacheWidth = cardWidth;
+    EuLayout.cacheRow = rowHeight;
+    EuLayout.cacheGap = colGap;
+    EuLayout.cacheSpouse = showSpouse;
+    EuLayout.cacheStartY = startY;
+    EuLayout.cacheCanvas = computed;
+    return computed;
+  }
+
   static compute(roots: PersonNode[], cardWidth: number, rowHeight: number, colGap: number,
     showSpouse: boolean, startY: number): EuCanvas {
     const canvas: EuCanvas = new EuCanvas();
@@ -464,6 +501,53 @@ export class EuLayout {
     });
     canvas.width = maxX + colGap;
     canvas.height = maxY + startY + 24;
+    // 始祖卡片中心：4 万人的谱系画布宽达数百万像素，初始视野据此定位，否则落在空白区
+    if (roots.length > 0) {
+      const rb: EuBox | undefined = placed.get(roots[0].uid);
+      if (rb !== undefined) {
+        canvas.rootCx = rb.x + rb.w / 2;
+        canvas.rootCy = rb.y + rb.h / 2;
+      }
+    }
+    // 分桶索引：按纵向条带切分。谱系是纵向堆叠的（4 万人的画布宽仅约 3500px、高约 200 万px），
+    // 按 x 分桶只能切出个位数桶，等于没裁剪；按 y 分桶后每帧只扫视口覆盖的几条带。
+    const bucketH: number = 600;
+    const bucketCount: number = Math.max(1,
+      Math.ceil((canvas.height > 0 ? canvas.height : bucketH) / bucketH));
+    for (let i: number = 0; i < bucketCount; i++) {
+      canvas.buckets.push([]);
+      canvas.lineBuckets.push([]);
+    }
+    canvas.bucketH = bucketH;
+    for (let i: number = 0; i < canvas.boxes.length; i++) {
+      const b: EuBox = canvas.boxes[i];
+      let k: number = Math.floor(b.y / bucketH);
+      if (k < 0) {
+        k = 0;
+      }
+      if (k >= bucketCount) {
+        k = bucketCount - 1;
+      }
+      canvas.buckets[k].push(b);
+    }
+    for (let i: number = 0; i < canvas.lines.length; i++) {
+      const s: LineSeg = canvas.lines[i];
+      const ya: number = Math.min(s.y1, s.y2);
+      const yb: number = Math.max(s.y1, s.y2);
+      let k0: number = Math.floor(ya / bucketH);
+      let k1: number = Math.floor(yb / bucketH);
+      if (k0 < 0) {
+        k0 = 0;
+      }
+      if (k1 >= bucketCount) {
+        k1 = bucketCount - 1;
+      }
+      // 竖向母线可能横跨成千上万像素，必须铺满它覆盖的所有条带，
+      // 否则视口停在中间时这条线会被整条裁掉，谱系看起来断线
+      for (let k: number = k0; k <= k1; k++) {
+        canvas.lineBuckets[k].push(s);
+      }
+    }
     return canvas;
   }
 }
@@ -499,19 +583,23 @@ export class SuLayout {
   /** 苏式布局左起始边距 */
   static readonly START_X: number = 8;
 
-  static compute(roots: PersonNode[], cardWidth: number, dense: boolean, showSpouse: boolean): SuCanvas {
+  /**
+   * 布局入口。
+   * 卡片尺寸完全由调用方给定：屏幕大画布用 112×62/74，纸质分页用 34×15，
+   * 不再用 dense 布尔值隐式决定尺寸，以便同一套算法同时服务两种场景。
+   */
+  static compute(roots: PersonNode[], cardWidth: number, cardHeight: number, rowGap: number,
+    colGap: number, showSpouse: boolean): SuCanvas {
     const canvas: SuCanvas = new SuCanvas();
     const placed: Map<string, SuBox> = new Map<string, SuBox>();
     /** 正在递归下钻的节点：父链若成环，下钻会无限递归导致栈溢出 */
     const visiting: Set<string> = new Set<string>();
-    const colGap: number = SuLayout.COL_GAP;
     const startX: number = SuLayout.START_X;
-    const rowGap: number = dense ? 14 : 24;
     // 卡片高度按实际内容高度取值（渲染时卡片固定为该高度，连线才能与卡框对齐）
-    const cardH: number = dense ? 62 : 74;
+    const cardH: number = Math.max(8, cardHeight);
 
-    // 大屏（平板 / 2in1 / PC）卡片更宽，连线间距随卡宽等比放大，避免线在宽卡间显得过细过密
-    const scale: number = Math.max(1, cardWidth / 120);
+    // 连线间距随卡宽等比缩放：纸面卡片仅 34 宽，固定的 6/8/14 会显得过密
+    const scale: number = Math.max(0.4, cardWidth / 120);
     // 配偶卡与主卡同宽，避免窄卡片内容被压缩 / 裁切
     const spouseW: number = cardWidth;
     const spouseH: number = cardH;
@@ -782,11 +870,13 @@ export class SuLayout {
  * 苏式谱首棵树“深度 0 根节点”的中心横坐标。
  * 竖式吊线图里始祖居中于子孙，画布宽度远大于屏幕，切换谱式后据此把始祖居中显示。
  */
-export function suRootCenterX(roots: PersonNode[], cardWidth: number, dense: boolean): number {
+export function suRootCenterX(roots: PersonNode[], cardWidth: number, cardHeight: number,
+  rowGap: number): number {
   if (roots.length === 0) {
     return 0;
   }
-  const canvas: SuCanvas = SuLayout.compute([roots[0]], cardWidth, dense, true);
+  const canvas: SuCanvas = SuLayout.compute([roots[0]], cardWidth, cardHeight, rowGap,
+    SuLayout.COL_GAP, true);
   let cx: number = 0;
   canvas.boxes.forEach((b: SuBox): void => {
     if (b.node.uid === roots[0].uid) {
@@ -795,3 +885,4 @@ export function suRootCenterX(roots: PersonNode[], cardWidth: number, dense: boo
   });
   return cx;
 }
+

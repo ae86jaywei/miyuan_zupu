@@ -83,3 +83,60 @@ export class IdGenerator {
     return true;
   }
 }
+
+/**
+ * 批量编号分配器。
+ *
+ * `IdGenerator.next()` 每次调用都要把整谱 + 黑名单重扫一遍并逐条正则匹配，
+ * 单人新增时无所谓；但导入 4 万人时会被调用数万次，退化成 O(n²)，
+ * 主线程连续阻塞超过 6 秒就会被系统判定 THREAD_BLOCK_6S 并强杀进程。
+ *
+ * 这里改为：先把所有已占用编号一次性建索引，之后按前缀维护一个只前进的游标，
+ * 单次分配摊销到 O(1)。语义与原 `next()` 一致：优先复用最小空号。
+ */
+export class UidAllocator {
+  /** 前缀（F/M） → 已占用编号 */
+  private used: Map<string, Set<number>> = new Map<string, Set<number>>();
+  /** 前缀（F/M） → 下一个候选编号（只会前进，不回退） */
+  private cursor: Map<string, number> = new Map<string, number>();
+
+  /** 登记一个已占用编号：本机、已删除黑名单、悬空引用、本批已分配的都要登记 */
+  reserve(uid: string): void {
+    const id: string = uid.trim().toUpperCase();
+    const m: RegExpMatchArray | null = id.match(/^([FM])([0-9]+)$/);
+    if (m === null) {
+      return;
+    }
+    const num: number = parseInt(m[2], 10);
+    if (isNaN(num) || num <= 0) {
+      return;
+    }
+    this.setOf(m[1]).add(num);
+  }
+
+  /** 占用并返回下一个可用编号（女 M / 其余 F，与 next 规则一致） */
+  take(gender: string): string {
+    const prefix: string = gender === '女' ? 'M' : 'F';
+    const set: Set<number> = this.setOf(prefix);
+    const start: number | undefined = this.cursor.get(prefix);
+    let num: number = start === undefined ? 1 : start;
+    while (set.has(num)) {
+      num = num + 1;
+    }
+    set.add(num);
+    this.cursor.set(prefix, num + 1);
+    return IdGenerator.format(prefix, num);
+  }
+
+  /** 取指定前缀的已占用集合，不存在则初始化（游标同时置 1） */
+  private setOf(prefix: string): Set<number> {
+    const found: Set<number> | undefined = this.used.get(prefix);
+    if (found !== undefined) {
+      return found;
+    }
+    const created: Set<number> = new Set<number>();
+    this.used.set(prefix, created);
+    this.cursor.set(prefix, 1);
+    return created;
+  }
+}

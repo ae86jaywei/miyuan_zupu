@@ -446,18 +446,21 @@ struct Index {
   TreePane() {
     Column() {
       this.TreeToolbar()
-      TreeCanvas({
-        style: this.styleName,
-        roots: GenealogyService.getInstance().getRoots(),
-        people: GenealogyService.getInstance().getPeople(),
-        highlightUid: this.selectedUid,
-        showPrivate: this.showPrivate && !this.publicMode,
-        windowWidth: this.windowWidth,
-        zoom: this.zoom,
-        onTapPerson: (uid: string): void => {
-          this.openPerson(uid);
-        }
-      })
+      // 谱树/人物为大对象，组件内按引用接收；用版本号作为 key，数据变化时重建画布以刷新
+      ForEach([this.version], (ver: number) => {
+        TreeCanvas({
+          style: this.styleName,
+          roots: GenealogyService.getInstance().getRoots(),
+          people: GenealogyService.getInstance().getPeople(),
+          highlightUid: this.selectedUid,
+          showPrivate: this.showPrivate && !this.publicMode,
+          windowWidth: this.windowWidth,
+          zoom: this.zoom,
+          onTapPerson: (uid: string): void => {
+            this.openPerson(uid);
+          }
+        })
+      }, (ver: number) => 'tree_v' + ver.toString())
     }
     .width('100%')
     .height('100%')

@@ -167,6 +167,19 @@ export function parseHistoricalDate(text: string): ParsedDate {
     return result;
   }
   const t: string = text.trim();
+  // 快速路径：纯公历写法（1400-03-12 / 1400/3/12）不含中文「年月日」，
+  // 直接取年份后返回，跳过下面的年号表遍历与多次正则。
+  // 统计面板会对数万人逐条解析出生/逝世年份，这条快捷路径把整谱统计从秒级降到毫秒级；
+  // 含「年/月/日」的文本（1980年5月20日、光绪三十一年）仍走完整解析，避免丢月日。
+  if (t.indexOf('年') < 0 && t.indexOf('月') < 0 && t.indexOf('日') < 0) {
+    const fast: RegExpMatchArray | null = t.match(/^([0-9]{3,4})[-/.]/);
+    if (fast !== null) {
+      const yv: number = parseInt(fast[1], 10);
+      result.year = yv;
+      result.convertible = yv >= 1 && yv <= 9999;
+      return result;
+    }
+  }
   // 纪年（年号 / 民国）
   for (let i: number = 0; i < ERA_TABLE.length; i++) {
     const era: string = ERA_TABLE[i][0];
