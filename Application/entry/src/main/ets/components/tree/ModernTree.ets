@@ -232,7 +232,7 @@ export struct ModernTree {
         row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString())
     }
     .width('100%')
-    .layoutWeight(1)
+    .height(LayoutPolicy.matchParent)
     .cachedCount(this.rows.length > 20 ? 2 : 3)
     .contentEndOffset(16)
     .scrollBar(BarState.Auto)

@@ -275,7 +275,7 @@ struct Index {
         .onClick((): void => {
           this.switchTab(idx, false);
         })
-      }, (item: NavItem) => 'nav_' + item.key)
+      }, (item: NavItem) => 'nav_' + item.key + '_' + (collapsed ? '1' : '0'))
 
       Blank()
 
@@ -304,7 +304,7 @@ struct Index {
       Column().height(Spacing.M)
     }
     .width(collapsed ? 68 : 190)
-    .height('100%')
+    .height(LayoutPolicy.matchParent)
     .padding({ top: Spacing.L, left: Spacing.S, right: Spacing.S })
     .backgroundColor(Theme.card)
     .border({ width: { right: 0.5 }, color: Theme.line })
@@ -850,11 +850,14 @@ struct Index {
             this.TreePane()
           }
           .layoutWeight(2)
+          .height(LayoutPolicy.matchParent)
           Column() {
             this.DetailPane()
           }
           .width(340)
-          .margin({ left: Spacing.L, top: Spacing.M })
+          .height(LayoutPolicy.matchParent)
+          .margin({ left: Spacing.L })
+          .padding({ top: Spacing.M })
         }
         .width('100%')
         .height('100%')
@@ -869,10 +872,12 @@ struct Index {
             this.CatalogPane()
           }
           .layoutWeight(1)
+          .height(LayoutPolicy.matchParent)
           Column() {
             this.DetailPane()
           }
           .width(Math.max(300, Math.min(380, this.windowWidth * 0.36)))
+          .height(LayoutPolicy.matchParent)
           .margin({ left: Spacing.L })
         }
         .width('100%')
