@@ -2,7 +2,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { GenealogyService } from '../service/GenealogyService';
-import { ExportService } from '../service/ExportService';
+import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress } from '../service/PdfExportService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
@@ -28,11 +28,32 @@ struct ImportExport {
   @State mergeStrategy: string = 'auto';
   @State previewText: string = '';
   @State parsedCount: number = 0;
-  @State pendingPeople: Person[] = [];
+  /** 解析结果可能有数万人，不能放到 @State/@Prop 里（状态同步会深拷贝导致卡死） */
+  private pendingPeople: Person[] = [];
   @State pendingBook: Genealogy | null = null;
+  /** 进度条：0~100 与当前阶段文案（数万条导入要跨分钟，没有进度会被当成卡死） */
+  @State progress: number = 0;
+  @State progressText: string = '';
+  @State showProgress: boolean = false;
 
   private svc(): GenealogyService {
     return GenealogyService.getInstance();
+  }
+
+  /** 更新进度条 */
+  private setProgress(text: string, percent: number): void {
+    this.progressText = text;
+    this.progress = percent > 100 ? 100 : (percent < 0 ? 0 : percent);
+    this.showProgress = true;
+  }
+
+  /** 让出主线程一帧，保证进度文案先渲染出来（后面紧跟同步大计算时用） */
+  private yieldFrame(): Promise<void> {
+    return new Promise<void>((resolve: (v: void) => void): void => {
+      setTimeout((): void => {
+        resolve();
+      }, 40);
+    });
   }
 
   private async doExport(kind: string): Promise<void> {
@@ -47,6 +68,9 @@ struct ImportExport {
       const stamp: string = new Date().getFullYear().toString() +
         (new Date().getMonth() + 1).toString().padStart(2, '0') +
         new Date().getDate().toString().padStart(2, '0');
+      // 生成几十 MB 文本是同步计算，先让进度条画出来再开工
+      this.setProgress('正在生成导出内容…', 10);
+      await this.yieldFrame();
       if (kind === 'json-full') {
         content = ExportService.toJson(people, this.svc().getBook(), true);
         fileName = '族谱备份_' + stamp + '.json';
@@ -61,10 +85,13 @@ struct ImportExport {
         fileName = '族谱谱文_' + stamp + '.md';
       }
       this.previewText = content.length > 1200 ? content.substring(0, 1200) + '\n……' : content;
+      this.setProgress('正在保存 ' + fileName + '…', 80);
       await ExportService.saveAsFile(GenealogyScope.context(), fileName, content);
+      this.setProgress('已导出 ' + fileName, 100);
       this.getUIContext().getPromptAction().showToast({ message: '已导出 ' + fileName });
     } catch (e) {
       const err = e as BusinessError;
+      this.setProgress('导出失败：' + err.message, 100);
       if (err.code !== 13900042) {
         this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + err.message });
       }
@@ -79,18 +106,24 @@ struct ImportExport {
     }
     this.busy = true;
     this.previewText = '正在渲染，请稍候……';
+    this.setProgress('正在排版 PDF…', 2);
     try {
       const people: Person[] = this.svc().getPeople();
       const path: string = await PdfExportService.exportPdf(GenealogyScope.context(),
         people, this.svc().getBook(), { includeCover: true },
         (p: PdfExportProgress): void => {
           this.previewText = p.message;
+          const pct: number = p.total > 0 ? Math.round(p.current * 96 / p.total) : 0;
+          this.setProgress(p.message, pct);
         });
       const name: string = path.substring(path.lastIndexOf('/') + 1);
+      this.setProgress('正在保存 ' + name + '…', 98);
       await ExportService.saveBinaryAsFile(GenealogyScope.context(), path, name);
+      this.setProgress('已导出 ' + name, 100);
       this.getUIContext().getPromptAction().showToast({ message: '已导出 ' + name });
     } catch (e) {
       const err = e as BusinessError;
+      this.setProgress('导出失败：' + (err.message ?? String(e)), 100);
       this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + (err.message ?? String(e)) });
     } finally {
       this.busy = false;
@@ -103,22 +136,38 @@ struct ImportExport {
     }
     this.busy = true;
     try {
+      this.setProgress('正在选择文件…', 5);
       const text: string = await ExportService.pickFileText(GenealogyScope.context(),
         kind === 'json' ? ['.json'] : ['.csv', '.txt']);
       if (text.length === 0) {
+        this.showProgress = false;
         return;
       }
+      // 数十 MB 备份的 JSON.parse 是同步的，先让进度条画出来再解析
+      this.setProgress('正在解析 ' + (kind === 'json' ? 'JSON' : 'CSV') + ' 文件…', 35);
+      await this.yieldFrame();
       this.previewText = text.length > 1200 ? text.substring(0, 1200) + '\n……' : text;
-      const list: Person[] = kind === 'json' ? ExportService.parseJson(text) : ExportService.parseCsv(text);
-      this.pendingBook = kind === 'json' ? ExportService.parseBook(text) : null;
+      let list: Person[] = [];
+      let book: Genealogy | null = null;
+      if (kind === 'json') {
+        // 大备份（数万人约 37MB）只解析一次，同时取出人物与族谱信息
+        const bundle: JsonBundle = ExportService.parseJsonBundle(text);
+        list = bundle.people;
+        book = bundle.book;
+      } else {
+        list = ExportService.parseCsv(text);
+      }
+      this.pendingBook = book;
       this.pendingPeople = list;
       this.parsedCount = list.length;
+      this.setProgress('解析完成，共 ' + list.length.toString() + ' 条记录', 100);
       const tip: string = this.pendingBook !== null ? '，含族谱信息「' + this.pendingBook.title + '」' : '';
       this.getUIContext().getPromptAction().showToast({
         message: '解析到 ' + list.length.toString() + ' 条记录' + tip + '，请确认导入'
       });
     } catch (e) {
       const err = e as BusinessError;
+      this.setProgress('导入失败：' + err.message, 100);
       this.getUIContext().getPromptAction().showToast({ message: '导入失败：' + err.message });
     } finally {
       this.busy = false;
@@ -129,6 +178,11 @@ struct ImportExport {
     if (this.pendingPeople.length === 0 || this.busy) {
       return;
     }
+    // 身份匹配 + ID 重映射是同步计算，数万条时也会占用主线程一段时间。
+    // 先让界面把进度画出来，并拦住重复点击。
+    this.busy = true;
+    this.setProgress('正在匹配族人身份（' + this.pendingPeople.length.toString() + ' 条）…', 20);
+    await this.yieldFrame();
     // 先生成导入计划（身份匹配 + ID 重映射），让用户看到合并/新增/跳过的人数再执行
     const plan: ImportPlan = this.svc().planImport(this.pendingPeople, this.mergeStrategy);
     const willCreateBook: boolean = !this.svc().hasBook();
@@ -136,7 +190,10 @@ struct ImportExport {
     let text: string = willCreateBook
       ? '当前没有族谱，将先按文件中的族谱信息新建「' + meta.title + '」再导入。\n\n'
       : '导入到当前族谱「' + this.svc().getBook().title + '」，文件中的族谱信息不会覆盖现有设置。\n\n';
-    text = text + plan.summary() + '\n\n确认后先做整谱快照，写入失败会自动回滚。';
+    text = text + plan.summary() + '\n\n导入过程整体在一个事务里，写入失败会自动回滚。';
+    // 计划已算完，恢复可点击状态：弹窗的「开始导入」会走 executeImport
+    this.busy = false;
+    this.showProgress = false;
     this.getUIContext().showAlertDialog({
       title: '导入合并预览',
       message: text,
@@ -160,17 +217,28 @@ struct ImportExport {
       return;
     }
     this.busy = true;
+    this.setProgress('正在写入族谱…', 3);
     try {
+      // 数万条写入要跨分钟，进度条按已写入条数推进（3%~93%），重建谱系占 95%
+      const onProgress: (done: number, total: number) => void = (done: number, total: number): void => {
+        const denom: number = total > 0 ? total : 1;
+        this.setProgress('正在写入 ' + done.toString() + ' / ' + total.toString() + ' 人…',
+          3 + Math.round(done * 90 / denom));
+      };
       const result: ImportResult = this.svc().hasBook()
-        ? await this.svc().applyImportPlan(plan)
-        : await this.svc().importAsNewBook(this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy(), plan);
+        ? await this.svc().applyImportPlan(plan, onProgress)
+        : await this.svc().importAsNewBook(this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy(),
+          plan, onProgress);
+      this.setProgress('正在重建谱系…', 95);
       GenealogyStore.notifyChanged();
       this.pendingPeople = [];
       this.pendingBook = null;
       this.parsedCount = 0;
+      this.setProgress('导入完成：' + result.summary(), 100);
       this.getUIContext().getPromptAction().showToast({ message: '导入完成：' + result.summary() });
     } catch (e) {
       const err = e as BusinessError;
+      this.setProgress('导入失败，已回滚：' + err.message, 100);
       this.getUIContext().getPromptAction().showToast({ message: '导入失败，已回滚：' + err.message });
     } finally {
       this.busy = false;
@@ -209,9 +277,62 @@ struct ImportExport {
     })
   }
 
-  build() {
+  /** 导入/导出进行中拦截返回键，避免页面被销毁导致流程中断 */
+  onBackPress(): boolean {
+    return this.busy;
+  }
+
+  /** 全屏进度弹窗：盖住页面并显示阶段文案，避免用户以为卡死或中途切走 */
+  @Builder
+  ProgressOverlay() {
     Column() {
-      Row() {
+      Column() {
+        LoadingProgress().width(34).height(34).color(Theme.primary)
+        Text(this.progressText)
+          .fontSize(13)
+          .fontColor(Theme.ink)
+          .margin({ top: 12 })
+          .maxLines(3)
+          .textAlign(TextAlign.Center)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+
+        Progress({ value: this.progress, total: 100, type: ProgressType.Linear })
+          .color(Theme.primary)
+          .backgroundColor(Theme.field)
+          .width('100%')
+          .height(6)
+          .margin({ top: 14 })
+        Text(this.progress.toString() + '%')
+          .fontSize(12)
+          .fontColor(Theme.primary)
+          .margin({ top: 6 })
+        Text('请停在此页，完成前不要退出或切换')
+          .fontSize(10.5)
+          .fontColor(Theme.inkTertiary)
+          .margin({ top: 10 })
+      }
+      .width('78%')
+      .padding({ left: 24, right: 24, top: 24, bottom: 20 })
+      .backgroundColor(Theme.card)
+      .borderRadius(16)
+      .alignItems(HorizontalAlign.Center)
+    }
+    .width('100%')
+    .height('100%')
+    .backgroundColor('#99000000')
+    .justifyContent(FlexAlign.Center)
+    .alignItems(HorizontalAlign.Center)
+    .hitTestBehavior(HitTestMode.Block)
+    .onClick((): void => {
+      // 吞掉点击，防止穿透到下层页面
+    })
+  }
+
+  build() {
+    // 用 Stack 在最上层盖一层遮罩：导入/导出进行中禁止点其它入口、禁止返回
+    Stack() {
+      Column() {
+        Row() {
         Text('‹')
           .fontSize(22)
           .fontColor(Theme.ink)
@@ -434,9 +555,16 @@ struct ImportExport {
       .width('100%')
       .scrollBar(BarState.Off)
       .align(Alignment.Top)
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(Theme.paper)
+
+      if (this.busy && this.showProgress) {
+        this.ProgressOverlay()
+      }
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(Theme.paper)
   }
 }

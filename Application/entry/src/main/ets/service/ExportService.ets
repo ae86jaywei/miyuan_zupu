@@ -10,6 +10,12 @@ import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
 
+/** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
+export class JsonBundle {
+  people: Person[] = [];
+  book: Genealogy | null = null;
+}
+
 /**
  * 导入导出服务：JSON 全量备份、JSON 公开分享（脱敏）、CSV 表格、Markdown 谱文。
  */
@@ -261,13 +267,24 @@ export class ExportService {
     return decoder.decodeToString(new Uint8Array(buffer));
   }
 
-  /** 解析 JSON 备份为人物列表 */
-  static parseJson(text: string): Person[] {
-    const result: Person[] = [];
+  /**
+   * 解析 JSON 备份：只做一次 JSON.parse，同时取出人物列表与族谱信息。
+   * 5 万人的备份约 37MB，解析两遍会让主线程耗时翻倍。
+   */
+  static parseJsonBundle(text: string): JsonBundle {
+    const bundle: JsonBundle = new JsonBundle();
     if (!text || text.trim().length === 0) {
-      return result;
+      return bundle;
     }
     const data: Record<string, Object> = JSON.parse(text) as Record<string, Object>;
+    bundle.people = ExportService.peopleFrom(data);
+    bundle.book = ExportService.bookFrom(data);
+    return bundle;
+  }
+
+  /** 从已解析的 JSON 对象中取出人物列表 */
+  private static peopleFrom(data: Record<string, Object>): Person[] {
+    const result: Person[] = [];
     const arr: Object[] = data['people'] as Object[];
     if (arr === undefined || arr === null) {
       return result;
@@ -311,12 +328,8 @@ export class ExportService {
     return result;
   }
 
-  /** 解析 JSON 备份中的「族谱信息」段（无该段时返回 null） */
-  static parseBook(text: string): Genealogy | null {
-    if (!text || text.trim().length === 0) {
-      return null;
-    }
-    const data: Record<string, Object> = JSON.parse(text) as Record<string, Object>;
+  /** 从已解析的 JSON 对象中取出「族谱信息」段（无该段时返回 null） */
+  private static bookFrom(data: Record<string, Object>): Genealogy | null {
     const raw: Object | undefined = data['book'];
     if (raw === undefined || raw === null) {
       return null;

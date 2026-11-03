@@ -10,7 +10,8 @@ import { GenealogyService } from '../../service/GenealogyService';
  */
 @Component
 export struct DieRecord {
-  @Prop person: Person;
+  /** 大列表场景下逐人深拷贝 Person 开销巨大，改用普通成员传引用 */
+  person: Person = new Person();
   @Prop index: number = 0;
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
 

@@ -19,11 +19,30 @@ export struct GenealogyStatsPanel {
   }
   @Prop windowWidth: number = 360;
 
+  /**
+   * 统计结果按版本缓存。
+   * build / 各 @Builder 里会多次调用 stats()，数万人时每次全量重算都会阻塞主线程，
+   * 实测 4 万人首次渲染会把主线程卡到 THREAD_BLOCK_6S 被杀。
+   */
+  private cachedStats: GenealogyStats | null = null;
+  private statsVersion: number = -1;
+  private cachedChars: Array<string[]> = [];
+  private charsVersion: number = -1;
+
   private stats(): GenealogyStats {
-    return GenealogyService.getInstance().computeStats();
+    if (this.cachedStats !== null && this.statsVersion === this.version) {
+      return this.cachedStats;
+    }
+    const computed: GenealogyStats = GenealogyService.getInstance().computeStats();
+    this.cachedStats = computed;
+    this.statsVersion = this.version;
+    return computed;
   }
 
   private charDistribution(): Array<string[]> {
+    if (this.charsVersion === this.version) {
+      return this.cachedChars;
+    }
     const svc: GenealogyService = GenealogyService.getInstance();
     const map: Map<string, number> = new Map<string, number>();
     svc.getPeople().forEach((p: Person): void => {
@@ -39,7 +58,9 @@ export struct GenealogyStatsPanel {
       arr.push([k, v.toString()]);
     });
     arr.sort((a: string[], b: string[]): number => parseInt(b[1], 10) - parseInt(a[1], 10));
-    return arr.slice(0, 12);
+    this.cachedChars = arr.slice(0, 12);
+    this.charsVersion = this.version;
+    return this.cachedChars;
   }
 
   @Builder

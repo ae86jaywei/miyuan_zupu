@@ -12,8 +12,9 @@ import { GenealogyService } from '../../service/GenealogyService';
  */
 @Component
 export struct ModernTree {
-  @Prop groups: Person[][];
-  @Prop groupLabels: string[];
+  /** 分组数据量可达数万人，不能用 @Prop（深拷贝会卡死主线程） */
+  groups: Person[][] = [];
+  groupLabels: string[] = [];
   @Prop highlightUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
 
