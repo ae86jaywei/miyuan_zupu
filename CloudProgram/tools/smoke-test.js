@@ -6,9 +6,18 @@
 const fs = require('fs');
 const path = require('path');
 const Module = require('module');
+const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');  // CloudProgram/
 const FN_DIR = path.join(ROOT, 'cloudfunctions');
+const SYNC_SCRIPT = path.join(FN_DIR, '_shared', 'install-into-function.js');
+
+for (const entry of fs.readdirSync(FN_DIR, { withFileTypes: true })) {
+  if (!entry.isDirectory() || entry.name === '_shared') continue;
+  const fnDir = path.join(FN_DIR, entry.name);
+  if (!fs.existsSync(path.join(fnDir, 'index.js'))) continue;
+  execFileSync(process.execPath, [SYNC_SCRIPT], { cwd: fnDir, stdio: 'ignore' });
+}
 
 // ---- 1. 读取云端表定义，得到每个类型的主键字段 ----
 const PK = {};

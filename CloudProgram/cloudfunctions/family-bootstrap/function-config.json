@@ -1,7 +1,7 @@
 {
   "name": "family-bootstrap",
   "version": "1.0.0",
-  "description": "首次把谱主本地全量基线分页发布到协作 Zone（幂等，≤200 条/次）",
+  "description": "首次把谱主本地全量基线分页发布到协作 Zone（幂等，≤100 条/次）",
   "handler": "index.handler",
   "memorySize": 500,
   "timeout": 30,

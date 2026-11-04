@@ -198,11 +198,14 @@ entry/src/main/ets/
 | `service/DirectoryService.ets` | 黄页搜索与上架 |
 | `service/PrivacyService.ets` | 谱主读取隐私字段（其他人拿不到） |
 
-云侧代码在 `CloudProgram/`（**23 个云函数 + 零依赖共享库 `_shared`**）。部署前先跑：
+云侧代码在 `CloudProgram/`（**23 个云函数 + 零依赖共享库 `_shared`**）。
+DevEco 部署云函数时会执行 `npm install`，每个函数通过 `preinstall` 自动把 `_shared`
+和 `agconnect-credential.json` 复制到自己的 `shared/`/凭据文件，**不再需要手动同步或打包 zip**。
+
+需要本地跑冒烟测试时直接执行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File CloudProgram/tools/sync-shared.ps1   # 把 _shared 复制为各函数的 shared/
-node CloudProgram/tools/smoke-test.js                                        # 44 项冒烟测试，全绿再部署
+node CloudProgram/tools/smoke-test.js   # 会自动同步所有函数的 shared/，再跑 44 项测试
 ```
 
 **需要在 AGC 控制台手动完成的部分**（建 Zone、建 13 张表、配权限、部署 23 个函数、回归验证），
@@ -219,11 +222,12 @@ node CloudProgram/tools/smoke-test.js                                        # 4
    DevEco 构建时会执行 npm 安装，把未写入 `package.json` dependencies 的多余目录清掉，
    部署包里就没有该模块，线上报 `Cannot find module '_zupu_shared'`。
    `shared/` 是函数源码目录内的普通文件夹，打包会原样带上。
-2. **改了 `_shared` 必须重跑 `sync-shared.ps1` 再部署**；23 个函数都依赖它，改动后要全部重传。
+2. **每个函数 `package.json` 都有 `preinstall: node ../_shared/install-into-function.js`**；
+   修改 `_shared` 后直接在 DevEco 部署即可，安装依赖时会自动重建 `shared/`。
 3. **谱元信息直写**（uid 为空串）与**新增族人**（`op=ADD`）都由 `member-direct-write` 处理；
    云端缺记录时 ADD 会建档，只有 `UPDATE` 到不存在的 uid 才报「族人不存在」。
-4. **`agconnect-credential.json`（含 `client_secret`）不入库**，每个函数目录各自放一份，从 AGC 控制台下载。
-5. **`shared/` 是生成物，也不入库**；克隆仓库后先跑一次脚本再构建/部署。
+4. **`agconnect-credential.json`（含 `client_secret`）不入库**，`preinstall` 会在文件存在时自动复制到函数目录。
+5. **`shared/` 是生成物，也不入库**；每次 `npm install` 或冒烟测试都会自动重建。
 
 ---
 

@@ -38,7 +38,7 @@ E:\HarmonyOS\zupu\          ← 用 DevEco 打开「这个目录」会提示"不
 ├── CloudProgram\              ← 云侧工程（22 个云函数）
 │   ├── cloud-config.json
 │   ├── cloudfunctions\
-│   └── tools\sync-shared.ps1
+│   └── tools\smoke-test.js
 ├── zhengshu\                  ← 签名证书（不入库）
 └── docs\  *.md
 ```
@@ -55,9 +55,9 @@ E:\HarmonyOS\zupu\          ← 用 DevEco 打开「这个目录」会提示"不
 ```powershell
 cd E:\HarmonyOS\zupu
 
-# 1) 应有 22 个云函数目录（+ _shared）
+# 1) 应有 23 个云函数目录（+ _shared）
 (Get-ChildItem CloudProgram\cloudfunctions -Directory |
-  Where-Object { $_.Name -ne '_shared' }).Count     # 期望输出 22
+  Where-Object { $_.Name -ne '_shared' }).Count     # 期望输出 23
 
 # 2) 每个函数都应有三件套：index.js / package.json / function-config.json
 Get-ChildItem CloudProgram\cloudfunctions -Directory |
@@ -73,14 +73,13 @@ Get-ChildItem CloudProgram\cloudfunctions -Directory |
     node --check (Join-Path $_.FullName 'index.js')
   }                                                   # 期望：无报错
 
-# 4) 同步共享库到每个函数（部署前必须做）
-powershell -ExecutionPolicy Bypass -File CloudProgram\tools\sync-shared.ps1
+# 4) 共享库由每个函数的 npm preinstall 自动同步，DevEco 部署无需手动执行脚本
 ```
 
-✅ 上面四步全绿，说明云侧代码完整。
+✅ 上面三步全绿，说明云侧代码完整。
 
-> ⚠️ **每次修改 `CloudProgram/cloudfunctions/_shared/` 或重新 `npm install` 之后，都要重跑第 4 步**，
-> 否则新代码不会进到各函数的 `node_modules/_zupu_shared`。
+> DevEco 部署会执行 npm install，并通过每个函数的 `preinstall` 自动重建 `shared/`；
+> `smoke-test.js` 也会自动同步，无需再运行任何 PowerShell 脚本。
 
 ---
 
@@ -533,14 +532,11 @@ AGC 的 ACL 只有 `World / Authenticated / Creator / Administrator` 四类角�
 
 ---
 
-## 7. 第 6 步：部署 22 个云函数
+## 7. 第 6 步：部署 23 个云函数
 
 ### 7.1 部署前
 
-```powershell
-cd E:\HarmonyOS\zupu
-powershell -ExecutionPolicy Bypass -File CloudProgram\tools\sync-shared.ps1
-```
+在 DevEco 云开发面板直接部署即可。npm install 会自动执行 `preinstall` 并生成每个函数的 `shared/` 与凭据文件，无需手工同步或打包 zip。
 
 ### 7.2 函数清单
 
@@ -664,7 +660,7 @@ await col.delete(rows);            // 按主键删
 `CloudProgram/tools/` 之外的本地验证方式：项目根执行
 
 ```powershell
-node CloudProgram\tools\smoke-test.js
+node CloudProgram\tools\smoke-test.js   # 自动同步 shared 后执行全部冒烟测试
 ```
 
 它会用**内存版 CloudDB 假 SDK** 跑通 22 个云函数里的核心链路（建家族 → 加入 → 发布 → 同步 →
@@ -726,16 +722,9 @@ AGC 控制台 → 开发者管理 → 凭证 → 项目级凭证 → 「API 客�
 ### 7.9.3 放进工程并分发
 
 ```powershell
-# 1) 保存为 CloudProgram/agconnect-credential.json
-# 2) 分发到 22 个函数目录（脚本会先校验 type）
-powershell -ExecutionPolicy Bypass -File CloudProgram\tools\sync-credential.ps1
-# 3) 同步共享库 + 凭据
-powershell -ExecutionPolicy Bypass -File CloudProgram\tools\sync-shared.ps1
-# 4) 重新打包
-powershell -ExecutionPolicy Bypass -File CloudProgram\tools\pack.ps1
+# 保存为 CloudProgram/agconnect-credential.json
+# 之后执行 npm install 或直接在 DevEco 部署；preinstall 会校验 type 并复制到每个函数
 ```
-
-`pack.ps1` 会把 `agconnect-credential.json` 一起打进每个 zip。
 
 ### 7.9.4 凭据的三种来源（代码已全部支持）
 
@@ -811,8 +800,8 @@ await db.collection('Family').upsert([go]);   // 或 delete([go])
 
 ### 配套脚本变化
 
-`sync-shared.ps1` 现在复制 `_shared` 下**所有文件**（原先只复制 `*.js`，
-会漏掉 `schema-meta.json`）。
+`_shared/install-into-function.js` 会复制 `_shared` 下所有文件（含 `schema-meta.json`），
+并校验、复制 AGC 项目凭据。
 
 ---
 
@@ -1213,9 +1202,9 @@ B query **老 Zone（`miyuanzupu`）** 的 `FamilyMember`。
 | 端侧提示「未登录或登录已失效」 | 云函数拿不到可信身份 | 回 §8 |
 | `1008230002 Schema config error` | schema.json 与控制台不一致 | 回 §9 重新导出 |
 | `2001015 permission denied` | 云函数写入被拒 | 检查 Administrator 权限三项全勾 |
-| 云函数日志 `Cannot find module '_zupu_shared'` | 没执行共享库同步 | 回 §7.1 |
+| 云函数日志 `Cannot find module './shared'` | preinstall 未执行或部署包已过期 | 删除函数 `shared/` 后重新执行 npm install / 部署 |
 | 云函数日志 `云数据库 SDK 未安装` | 函数依赖缺 `@hw-agconnect/cloud-server` | 在函数目录 `npm install` 后重新部署 |
-| 云函数日志 `云数据库 SDK 形态不符合预期` | SDK 初始化方式与代码假设不同 | **只改 `_shared/db.js` 的 `ensureCloud()`**，改完重跑 `sync-shared.ps1` |
+| 云函数日志 `云数据库 SDK 形态不符合预期` | SDK 初始化方式与代码假设不同 | **只改 `_shared/db.js` 的 `ensureCloud()`**，改完重新执行 npm install / 部署 |
 | 墓葬照片上传失败 `state:65` | 云存储 403 | 签名方式、云存储安全策略设「始终可读写」、AuthProvider 凭据 |
 | 报「相差 N 米 > 50m」 | 就近优先规则 | 录入页填「位置变更依据」 |
 

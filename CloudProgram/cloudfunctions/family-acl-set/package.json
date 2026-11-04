@@ -8,6 +8,9 @@
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "preinstall": "node ../_shared/install-into-function.js"
+  },
   "dependencies": {
     "@hw-agconnect/cloud-server": "^1.0.0"
   }

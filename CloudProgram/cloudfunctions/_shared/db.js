@@ -312,7 +312,7 @@ function toBizError(e) {
     }
     return new BizError(CODE.INTERNAL,
       '云数据库未初始化：缺少项目凭据。请把 AGC「项目设置 → 项目凭据」下载的 JSON 存为 ' +
-      'CloudProgram/agconnect-credential.json，运行 tools/sync-credential.ps1 后重新打包部署' + hint, 'no_credential');
+      'CloudProgram/agconnect-credential.json。保存后重新执行 npm install 或直接在 DevEco 部署' + hint, 'no_credential');
   }
   return new BizError(CODE.INTERNAL, msg, 'db_error');
 }

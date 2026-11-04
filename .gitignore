@@ -55,7 +55,7 @@ zhengshu/
 CloudProgram/dist/
 CloudProgram/agconnect-credential.json
 **/agconnect-credential.json
-# 共享库副本：由 CloudProgram/tools/sync-shared.ps1 生成，不入库
+# 共享库副本：由各函数 npm preinstall 自动生成，不入库
 CloudProgram/cloudfunctions/*/shared/
 
 # ---------------- 临时素材 ----------------
