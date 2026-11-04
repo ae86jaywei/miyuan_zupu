@@ -253,7 +253,8 @@ export class AccountService {
    * - 统一把 \`{code,message,data}\` 的 JSON 串解析出来；
    * - code ≠ 200 时抛出 Error（message 为云函数给的中文提示），业务层可直接展示。
    */
-  async callFunction(name: string, data: Record<string, Object>): Promise<Record<string, Object> | null> {
+  async callFunction(name: string, data: Record<string, Object>,
+    timeoutMs: number = 20 * 1000): Promise<Record<string, Object> | null> {
     this.ensureCloudReady();
     const payload: Record<string, Object> = {};
     const keys: string[] = Object.keys(data);
@@ -267,7 +268,7 @@ export class AccountService {
     const request: cloudFunction.FunctionParams = {
       name: name,
       version: '$latest',
-      timeout: 20 * 1000,
+      timeout: timeoutMs,
       data: payload
     };
     let result: cloudFunction.FunctionResult;
@@ -329,7 +330,9 @@ export class AccountService {
     if (msg.indexOf('not found') >= 0 || msg.indexOf('NOT_FOUND') >= 0) {
       return '云函数不存在：请在 AGC 控制台或 DevEco 云侧工程中部署该函数';
     }
-    return '云函数调用失败：' + msg;
+    const hasCode: boolean = be.code !== undefined && be.code !== 0;
+    const code: string = hasCode ? '（' + String(be.code) + '）' : '';
+    return '云函数调用失败' + code + '：' + msg;
   }
 
   private ensureCloudReady(): void {

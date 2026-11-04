@@ -182,6 +182,7 @@ struct FamilyHome {
       }
     }
     this.busy = true;
+    const publishingBookKey: number = GenealogyService.getInstance().getBook().key;
     this.progressText = '正在发布到云端…';
     try {
       const result: SyncResult = await FamilyBootstrapService.getInstance().publishCurrent(
@@ -190,9 +191,23 @@ struct FamilyHome {
         });
       this.progressText = result.message;
       this.toast(result.message);
-      if (result.ok) {
-        const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-bootstrap');
-        this.showIntegrity(synced);
+      const currentBook: Genealogy = GenealogyService.getInstance().getBook();
+      if (result.ok && currentBook.key === publishingBookKey && currentBook.familyId === result.familyId) {
+        this.progressText = '发布完成，正在同步云端数据…';
+        try {
+          const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-bootstrap');
+          this.progressText = synced.ok ?
+            (synced.message.length > 0 ? synced.message : '发布并同步完成') :
+            (synced.message.length > 0 ? synced.message : '发布成功，但后续同步未完成');
+          if (!synced.ok) {
+            this.toast(this.progressText);
+          }
+          this.showIntegrity(synced);
+        } catch (syncErr) {
+          const syncBe: BusinessError = syncErr as BusinessError;
+          this.progressText = '发布成功，但后续同步失败：' + syncBe.message;
+          this.toast(this.progressText);
+        }
       }
     } catch (err) {
       const be: BusinessError = err as BusinessError;

@@ -14,6 +14,7 @@ import { IntegrityIssue, IntegrityReport } from '../model/Integrity';
 
 const TAG: string = '[Genealogy][FamilySync]';
 const PAGE_SIZE: number = 200;
+const BOOK_CHANGED: string = 'SYNC_BOOK_CHANGED';
 
 /**
  * 家族协作同步（方案 §七 FamilySyncService）。
@@ -45,6 +46,7 @@ export class FamilySyncService {
     const svc: GenealogyService = GenealogyService.getInstance();
     const book: Genealogy = svc.getBook();
     const familyId: string = book.familyId;
+    const bookKey: number = book.key;
     if (familyId.length === 0) {
       result.message = '本谱尚未接入云家族';
       return result;
@@ -57,17 +59,18 @@ export class FamilySyncService {
       result.message = AccountService.getInstance().getCloudMessage();
       return result;
     }
-    if (this.running) {
-      result.message = '正在同步中';
+    if (this.running || AppStorage.get<boolean>('gpCloudBusy') === true) {
+      result.message = '正在发布或同步中';
       return result;
     }
     this.running = true;
+    AppStorage.setOrCreate<boolean>('gpCloudBusy', true);
     FamilyService.getInstance().setSyncStatus('同步中…');
     try {
       if (book.syncMode !== SyncMode.CLOUD_PENDING) {
-        await this.flushOutbox(familyId, result);
+        await this.flushOutbox(familyId, bookKey, result);
       }
-      await this.pullAndReplay(familyId, result);
+      await this.pullAndReplay(familyId, bookKey, result);
       // 以 outbox 实际剩余为准，避免「已同步完成」与「还有待传」同时出现
       const store0: relationalStore.RdbStore | null = svc.getStore();
       const remaining: number = store0 === null ? 0
@@ -94,11 +97,16 @@ export class FamilySyncService {
       FamilyService.getInstance().setOffline(false);
     } catch (err) {
       const msg: string = FamilySyncService.describe(err);
-      result.message = '同步失败：' + msg;
-      FamilyService.getInstance().setOffline(true);
+      if (msg.indexOf(BOOK_CHANGED) >= 0) {
+        result.message = '同步已中止：同步期间已切换族谱';
+      } else {
+        result.message = '同步失败：' + msg;
+        FamilyService.getInstance().setOffline(true);
+      }
       hilog.warn(0x0000, TAG, 'sync failed (%{public}s): %{public}s', reason, msg);
     } finally {
       this.running = false;
+      AppStorage.setOrCreate<boolean>('gpCloudBusy', false);
       FamilyService.getInstance().setSyncStatus(result.message);
       const store: relationalStore.RdbStore | null = svc.getStore();
       if (store !== null) {
@@ -117,7 +125,14 @@ export class FamilySyncService {
   }
 
   /** 推送 outbox（在线才推，离线直接返回） */
-  private async flushOutbox(familyId: string, result: SyncResult): Promise<void> {
+  private ensureSameBook(bookKey: number, familyId: string): void {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    if (svc.getCurrentBookId() !== bookKey || svc.getBook().familyId !== familyId) {
+      throw new Error(BOOK_CHANGED);
+    }
+  }
+
+  private async flushOutbox(familyId: string, bookKey: number, result: SyncResult): Promise<void> {
     const svc: GenealogyService = GenealogyService.getInstance();
     const store: relationalStore.RdbStore | null = svc.getStore();
     if (store === null) {
@@ -130,6 +145,7 @@ export class FamilySyncService {
     }
     const book: Genealogy = svc.getBook();
     for (let i: number = 0; i < items.length; i++) {
+      this.ensureSameBook(bookKey, familyId);
       const item: OutboxItem = items[i];
       const baseRev: number = item.baseRev <= 0 ? book.cloudRev : item.baseRev;
       try {
@@ -173,9 +189,10 @@ export class FamilySyncService {
   }
 
   /** 拉取并回放 */
-  private async pullAndReplay(familyId: string, result: SyncResult): Promise<void> {
+  private async pullAndReplay(familyId: string, bookKey: number, result: SyncResult): Promise<void> {
     const svc: GenealogyService = GenealogyService.getInstance();
     const book: Genealogy = svc.getBook();
+    this.ensureSameBook(bookKey, familyId);
     let since: number = book.cloudRev;
     let committedRev: number = since;
     let offset: number = 0;
@@ -186,6 +203,7 @@ export class FamilySyncService {
       const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('sync-pull', {
         'familyId': familyId, 'sinceRev': since, 'limit': PAGE_SIZE, 'offset': offset
       });
+      this.ensureSameBook(bookKey, familyId);
       if (data === null) {
         break;
       }
@@ -195,13 +213,16 @@ export class FamilySyncService {
       const graves: Record<string, Object>[] = objectList(data, 'graves');
       const fullSnapshot: boolean = bool(data, 'fullSnapshot');
       for (let i: number = 0; i < members.length; i++) {
+        this.ensureSameBook(bookKey, familyId);
         const changed: boolean = await this.replayMember(members[i], result);
         if (changed) {
           result.applied++;
         }
       }
+      this.ensureSameBook(bookKey, familyId);
       offset = num(data, 'nextOffset');
       await GraveService.getInstance().cacheRows(graves);
+      this.ensureSameBook(bookKey, familyId);
       result.graves += graves.length;
       const bookRaw: Record<string, Object> | undefined = data['book'] as Record<string, Object> | undefined;
       if (bookRaw !== undefined && bookRaw !== null) {
@@ -216,6 +237,7 @@ export class FamilySyncService {
       }
     }
     // 存在编号冲突时基线停在上一次已确认的 rev，下次同步会再次拉取并提示
+    this.ensureSameBook(bookKey, familyId);
     svc.setBookCloudState(familyId, SyncMode.CLOUD_READY, FamilyService.getInstance().roleOf(familyId), committedRev);
     await svc.reloadAfterReplay();
     // 有变更被应用或存在编号冲突时才体检，避免每次同步重复弹历史提示

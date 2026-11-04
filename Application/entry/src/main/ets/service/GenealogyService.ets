@@ -1354,6 +1354,9 @@ export class GenealogyService {
     if (bookId <= 0 || bookId === this.currentBookId) {
       return;
     }
+    if (AppStorage.get<boolean>('gpCloudBusy') === true) {
+      throw new Error('云发布或同步进行中，请完成后再切换族谱');
+    }
     let exists: boolean = false;
     for (let i: number = 0; i < this.books.length; i++) {
       if (this.books[i].key === bookId) {
@@ -1364,9 +1367,14 @@ export class GenealogyService {
     if (!exists) {
       return;
     }
-    this.currentBookId = bookId;
-    await this.setMeta(META_CURRENT_BOOK, bookId.toString());
-    await this.reload();
+    AppStorage.setOrCreate<boolean>('gpCloudBusy', true);
+    try {
+      this.currentBookId = bookId;
+      await this.setMeta(META_CURRENT_BOOK, bookId.toString());
+      await this.reload();
+    } finally {
+      AppStorage.setOrCreate<boolean>('gpCloudBusy', false);
+    }
   }
 
   /**

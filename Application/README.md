@@ -192,7 +192,7 @@ entry/src/main/ets/
 | --- | --- |
 | `service/FamilyService.ets` | 云函数调用封装 + 家族身份/角色 + 写路径编排 |
 | `service/FamilySyncService.ets` | outbox 上传 → sync-pull 增量拉取 → 回放 RDB（唯一读取通道） |
-| `service/FamilyBootstrapService.ets` | 首次把本地全量谱分页发布（≤100 条/次，幂等） |
+| `service/FamilyBootstrapService.ets` | 首次把本地全量谱分页发布（≤200 条/次，限速重试，幂等断点续传） |
 | `service/OutboxService.ets` | 断网可编辑：本地变更排队，联网后补传 |
 | `service/GraveService.ets` | 公开墓葬查询 + 本地 `grave_location` 缓存 |
 | `service/DirectoryService.ets` | 黄页搜索与上架 |

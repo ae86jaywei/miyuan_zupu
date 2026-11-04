@@ -63,7 +63,7 @@ const MEMBER_COUNT_BANDS = ['0-50', '50-100', '100-500', '500-1000', '1000+'];
 /** 单次请求 payload 上限（2MB 对象限制之内的安全值） */
 const MAX_PAYLOAD_BYTES = 900 * 1024;
 /** 单次批量写入上限 */
-const MAX_BATCH = 100;
+const MAX_BATCH = 200;
 
 /** 门槛①「申请认证」默认期限：180 天（§13.7 W11 已决） */
 const VIEW_APPLY_DEFAULT_DAYS = 180;
