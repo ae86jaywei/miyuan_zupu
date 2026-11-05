@@ -670,13 +670,13 @@ node CloudProgram\tools\smoke-test.js   # 自动同步 shared 后执行全部冒
 
 ## 7.8 部署后的自检清单
 
-| 检查项 | 期望 |
-|---|---|
-| 22 个函数都存在 | AGC 云函数列表 22 条 |
-| 每个函数认证类型 | **API客户端鉴权（Client适用）** |
-| 函数入口 | `index.handler` |
-| 运行时 | Node.js 18 |
-| 函数体积 | 每包约 1.3 MB（含 `node_modules` 全量依赖，**不要删**） |
+| 检查项 | 期望                                                                               |
+|---|----------------------------------------------------------------------------------|
+| 22 个函数都存在 | AGC 云函数列表 23 条                                                                   |
+| 每个函数认证类型 | **API客户端鉴权（Client适用）**                                                           |
+| 函数入口 | `index.handler`                                                                  |
+| 运行时 | Node.js 18                                                                       |
+| 函数体积 | 每包约 1.3 MB（含 `node_modules` 全量依赖，**不要删**）                                        |
 | 关键依赖 | zip 内必须含 `node_modules/@hw-agconnect/cloud-server` 与 `node_modules/_zupu_shared` |
 
 ---
