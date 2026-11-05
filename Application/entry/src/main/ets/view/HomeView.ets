@@ -18,8 +18,46 @@ import { BirthdayItem } from '../model/TimerSession';
  */
 @Component
 export struct HomeView {
-  @Prop version: number = 0;
+  @Prop @Watch('onVersionChange') version: number = 0;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
+
+  /**
+   * 概览页的派生数据缓存。
+   * build 内原先把 stats() 调用了 9 次、birthdays() 3 次、warnings() 3 次，
+   * 8 万人时等于十几次全量遍历，同步占满主线程（THREAD_BLOCK_6S 强杀）。
+   * 改为进入页面时按版本号计算一次，build 只读字段；完整性校验更慢，放到首帧之后。
+   */
+  @State statsView: GenealogyStats = new GenealogyStats();
+  @State birthdayView: BirthdayItem[] = [];
+  @State recentView: Person[] = [];
+  @State warnView: string[][] = [];
+  private warnVersion: number = -1;
+
+  aboutToAppear(): void {
+    this.rebuildCache();
+  }
+
+  onVersionChange(): void {
+    this.rebuildCache();
+  }
+
+  private rebuildCache(): void {
+    const svc: GenealogyService = this.svc();
+    this.statsView = svc.computeStats();
+    const now: Date = new Date();
+    this.birthdayView = InsightService.birthdaysOfMonth(svc.getPeople(), now.getMonth() + 1, now.getDate());
+    const list: Person[] = svc.getPeople().slice();
+    list.sort((a: Person, b: Person): number => b.updatedAt - a.updatedAt);
+    this.recentView = list.slice(0, 6);
+    // 世系与ID校验要跑三套全量检查，推迟到首帧渲染之后执行，避免进入概览时卡住
+    this.warnVersion = this.version;
+    setTimeout((): void => {
+      if (this.warnVersion !== this.version) {
+        return;
+      }
+      this.warnView = this.computeWarnings();
+    }, 0);
+  }
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
@@ -35,10 +73,6 @@ export struct HomeView {
 
   private book(): Genealogy {
     return this.svc().getBook();
-  }
-
-  private stats(): GenealogyStats {
-    return this.svc().computeStats();
   }
 
   private isWide(): boolean {
@@ -78,7 +112,7 @@ export struct HomeView {
             .fontSize(11)
             .fontColor(Theme.goldLight)
           Blank()
-          Text('已录 ' + this.stats().total.toString() + ' 人')
+          Text('已录 ' + this.statsView.total.toString() + ' 人')
             .fontSize(11)
             .fontColor(Theme.goldLight)
         }
@@ -94,7 +128,7 @@ export struct HomeView {
             .fontColor(Theme.goldLight)
             .margin({ top: 6 })
           Text((this.book().ancestorName.length > 0 ? '始迁祖 ' + this.book().ancestorName + ' 公' : '') +
-            ' · 历 ' + this.stats().maxGeneration.toString() + ' 世')
+            ' · 历 ' + this.statsView.maxGeneration.toString() + ' 世')
             .fontSize(12)
             .fontColor('#E9D6B4')
             .margin({ top: 4 })
@@ -117,22 +151,22 @@ export struct HomeView {
   StatsGrid() {
     Grid() {
       GridItem() {
-        StatCard({ label: '族众总人数', value: this.stats().total.toString(), unit: '人', icon: '👥' })
+        StatCard({ label: '族众总人数', value: this.statsView.total.toString(), unit: '人', icon: '👥' })
       }
       GridItem() {
-        StatCard({ label: '男子', value: this.stats().male.toString(), unit: '人', icon: '♂', accent: Theme.male })
+        StatCard({ label: '男子', value: this.statsView.male.toString(), unit: '人', icon: '♂', accent: Theme.male })
       }
       GridItem() {
-        StatCard({ label: '女子', value: this.stats().female.toString(), unit: '人', icon: '♀', accent: Theme.female })
+        StatCard({ label: '女子', value: this.statsView.female.toString(), unit: '人', icon: '♀', accent: Theme.female })
       }
       GridItem() {
-        StatCard({ label: '在世', value: this.stats().alive.toString(), unit: '人', icon: '🌱', accent: Theme.alive })
+        StatCard({ label: '在世', value: this.statsView.alive.toString(), unit: '人', icon: '🌱', accent: Theme.alive })
       }
       GridItem() {
-        StatCard({ label: '已故', value: this.stats().deceased.toString(), unit: '人', icon: '🕯', accent: Theme.deceased })
+        StatCard({ label: '已故', value: this.statsView.deceased.toString(), unit: '人', icon: '🕯', accent: Theme.deceased })
       }
       GridItem() {
-        StatCard({ label: '世数', value: this.stats().maxGeneration.toString(), unit: '世', icon: '🪜', accent: Theme.gold })
+        StatCard({ label: '世数', value: this.statsView.maxGeneration.toString(), unit: '世', icon: '🪜', accent: Theme.gold })
       }
     }
     .columnsTemplate(this.windowWidth >= Breakpoint.LG ? '1fr 1fr 1fr 1fr 1fr 1fr' :
@@ -146,7 +180,7 @@ export struct HomeView {
   @Builder
   GenerationChart() {
     Column() {
-      ForEach(this.stats().generations, (g: GenerationStat) => {
+      ForEach(this.statsView.generations, (g: GenerationStat) => {
         Row() {
           Text(g.label)
             .fontSize(11)
@@ -222,7 +256,7 @@ export struct HomeView {
   @Builder
   RecentList() {
     Column() {
-      ForEach(this.recentPeople(), (p: Person) => {
+      ForEach(this.recentView, (p: Person) => {
         Row() {
           Text(p.name.substring(0, 1))
             .fontSize(13)
@@ -258,18 +292,7 @@ export struct HomeView {
     .width('100%')
   }
 
-  private recentPeople(): Person[] {
-    const list: Person[] = this.svc().getPeople().slice();
-    list.sort((a: Person, b: Person): number => b.updatedAt - a.updatedAt);
-    return list.slice(0, 6);
-  }
-
-  private birthdays(): BirthdayItem[] {
-    const now: Date = new Date();
-    return InsightService.birthdaysOfMonth(this.svc().getPeople(), now.getMonth() + 1, now.getDate());
-  }
-
-  private warnings(): Array<string[]> {
+  private computeWarnings(): string[][] {
     const report: IntegrityReport = IntegrityService.check(this.svc().getPeople());
     report.merge(IntegrityService.reused(this.svc().getPeople(), this.svc().getRetiredMap()));
     report.merge(IntegrityService.reusedReferences(this.svc().getPeople(), this.svc().getRetiredMap()));
@@ -287,19 +310,19 @@ export struct HomeView {
       Row() {
         Text('🎂 本月寿辰').fontSize(14).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
         Blank()
-        Text(this.birthdays().length.toString() + ' 人')
+        Text(this.birthdayView.length.toString() + ' 人')
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
       }
       .width('100%')
 
-      if (this.birthdays().length === 0) {
+      if (this.birthdayView.length === 0) {
         Text('本月暂无在世族人寿辰记录')
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 8 })
       } else {
-        ForEach(this.birthdays().slice(0, 5), (b: BirthdayItem) => {
+        ForEach(this.birthdayView.slice(0, 5), (b: BirthdayItem) => {
           Row() {
             Text(b.day.toString() + '日')
               .fontSize(11)
@@ -331,13 +354,13 @@ export struct HomeView {
 
   @Builder
   WarningStrip() {
-    if (this.warnings().length > 0) {
+    if (this.warnView.length > 0) {
       Column() {
-        Text('⚠ 世系与ID校验提示（' + this.warnings().length.toString() + ' 条）')
+        Text('⚠ 世系与ID校验提示（' + this.warnView.length.toString() + ' 条）')
           .fontSize(13)
           .fontColor(Theme.lost)
           .width('100%')
-        ForEach(this.warnings().slice(0, 4), (w: string[]) => {
+        ForEach(this.warnView.slice(0, 4), (w: string[]) => {
           Text(w[0] + '（' + w[1] + '）：' + w[2])
             .fontSize(11.5)
             .fontColor(Theme.inkSecondary)

@@ -82,6 +82,9 @@ export class GenealogyService {
   /** 编辑前快照（uid → Person），用于生成字段级 diff */
   private beforeSnapshots: Map<string, Person> = new Map<string, Person>();
   private version: number = 0;
+  /** 全量统计缓存：概览页 build 内会多次调用 computeStats，8 万人单次需数百毫秒，按版本号复用 */
+  private statsCache: GenealogyStats | null = null;
+  private statsCacheVersion: number = -1;
   private ready: boolean = false;
   private initPromise: Promise<void> | null = null;
 
@@ -726,6 +729,10 @@ export class GenealogyService {
   // ---------------------------------------------------------------- 统计
 
   computeStats(filterFn?: (p: Person) => boolean): GenealogyStats {
+    // 全量统计按版本号缓存：比例页/概览页会在 build 内反复调用，切页重建组件时也要能命中
+    if (filterFn === undefined && this.statsCache !== null && this.statsCacheVersion === this.version) {
+      return this.statsCache as GenealogyStats;
+    }
     const stats: GenealogyStats = new GenealogyStats();
     const filtered: Person[] = filterFn === undefined ? this.people : this.people.filter(filterFn);
     const genMap: Map<number, GenerationStat> = new Map<number, GenerationStat>();
@@ -824,6 +831,10 @@ export class GenealogyService {
       gens.push(gs);
     });
     stats.generations = gens;
+    if (filterFn === undefined) {
+      this.statsCache = stats;
+      this.statsCacheVersion = this.version;
+    }
     return stats;
   }
 
