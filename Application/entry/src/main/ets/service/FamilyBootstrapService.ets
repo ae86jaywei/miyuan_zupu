@@ -9,7 +9,8 @@ import { Person } from '../model/Person';
 import { SyncMode, SyncResult } from '../model/FamilyDomain';
 
 const TAG: string = '[Genealogy][Bootstrap]';
-const MAX_BATCH_SIZE: number = 200;
+/** 单批人数必须与云端 family-bootstrap 的 MAX_BATCH（100）保持一致，否则云端返回 400 */
+const MAX_BATCH_SIZE: number = 100;
 const MAX_BATCH_CHARS: number = 220000;
 const MAX_BOOK_CHARS: number = 300000;
 const BATCH_INTERVAL_MS: number = 150;
