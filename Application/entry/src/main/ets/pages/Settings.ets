@@ -1,5 +1,6 @@
 import { Theme, Spacing } from '../theme/Theme';
 import { SettingsView } from '../view/SettingsView';
+import { BackButton } from '../components/BackButton';
 
 /**
  * 独立设置页（大屏 / 从顶栏进入时使用）。
@@ -13,15 +14,11 @@ struct Settings {
   build() {
     Column() {
       Row() {
-        Text('‹')
-          .fontSize(22)
-          .fontColor(Theme.ink)
-          .width(32)
-          .height(32)
-          .textAlign(TextAlign.Center)
-          .onClick((): void => {
+        BackButton({
+          onBack: (): void => {
             this.getUIContext().getRouter().back();
-          })
+          }
+        })
         Text('设置')
           .fontSize(17)
           .fontWeight(FontWeight.Medium)

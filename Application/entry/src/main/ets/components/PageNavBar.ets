@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { BackButton } from './BackButton';
 
 /**
  * 二级页面统一顶栏（返回 / 标题 / 右侧操作文字 / 加载态）。
@@ -14,15 +15,11 @@ export struct PageNavBar {
 
   build() {
     Row() {
-      Text('‹')
-        .fontSize(22)
-        .fontColor(Theme.ink)
-        .width(32)
-        .height(32)
-        .textAlign(TextAlign.Center)
-        .onClick((): void => {
+      BackButton({
+        onBack: (): void => {
           this.onBack();
-        })
+        }
+      })
       Column() {
         Text(this.title)
           .fontSize(17)

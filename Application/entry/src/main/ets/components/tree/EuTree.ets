@@ -2,11 +2,12 @@ import { PersonNode } from '../../model/PersonNode';
 import { EuBox, EuCanvas, LineSeg } from '../../service/TreeLayout';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
 import { TreeCuller } from '../../service/TreeCuller';
-import { ViewRect, ViewportMath } from '../../service/TreeViewport';
+import { ViewRect } from '../../service/TreeViewport';
 import { TreeMiniCard } from './TreeMiniCard';
 import { Theme } from '../../theme/Theme';
-import { GenealogyService } from '../../service/GenealogyService';
 import { TreePerf } from '../../util/TreePerf';
+import { contentViewRect, findRootNode, isHorizontalSeg, lineThicknessOf, TreeViewportKeyInput,
+  treeViewKey } from './TreeCanvasShared';
 
 /**
  * 欧式谱（横轴世系图）画布。
@@ -45,21 +46,15 @@ export struct EuTree {
   }
 
   private lineThickness(): number {
-    return 1.5 / (this.zoom > 0 ? this.zoom : 1);
+    return lineThicknessOf(this.zoom);
   }
 
   private isHorizontal(seg: LineSeg): boolean {
-    return Math.abs(seg.y2 - seg.y1) <= 0.5;
+    return isHorizontalSeg(seg);
   }
 
   private root(): PersonNode | null {
-    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
-    for (let i: number = 0; i < roots.length; i = i + 1) {
-      if (roots[i].uid === this.rootUid) {
-        return roots[i];
-      }
-    }
-    return null;
+    return findRootNode(this.rootUid);
   }
 
   private canvas(): EuCanvas {
@@ -70,10 +65,20 @@ export struct EuTree {
   }
 
   private viewKey(): string {
-    return this.rootUid + '|' + this.offsetX.toString() + '|' + this.offsetY.toString() + '|' +
-      this.viewWidth.toString() + '|' + this.viewHeight.toString() + '|' +
-      this.zoom.toString() + '|' + this.layoutVersion.toString() + '|' + this.contentTop.toString() +
-      '|' + this.cardWidth.toString() + '|' + this.dense.toString() + '|' + this.showSpouse.toString();
+    const input: TreeViewportKeyInput = {
+      rootUid: this.rootUid,
+      offsetX: this.offsetX,
+      offsetY: this.offsetY,
+      viewWidth: this.viewWidth,
+      viewHeight: this.viewHeight,
+      zoom: this.zoom,
+      layoutVersion: this.layoutVersion,
+      contentTop: this.contentTop,
+      cardWidth: this.cardWidth,
+      dense: this.dense,
+      showSpouse: this.showSpouse
+    };
+    return treeViewKey(input);
   }
 
   /** 只做裁剪，不做布局；同一视口 key 下重复调用直接返回 */
@@ -89,9 +94,8 @@ export struct EuTree {
     const canvas: EuCanvas = this.canvas();
     this.contentW = canvas.width;
     this.contentH = canvas.height;
-    const view: ViewRect = ViewportMath.contentRect(this.offsetX,
-      this.offsetY + this.contentTop,
-      this.viewWidth, this.viewHeight, this.zoom, this.viewWidth * 0.5);
+    const view: ViewRect = contentViewRect(this.offsetX, this.offsetY, this.contentTop,
+      this.viewWidth, this.viewHeight, this.zoom);
     TreePerf.begin('cull_eu');
     this.visibleBoxes = TreeCuller.euBoxes(canvas.boxes, view);
     this.visibleLines = TreeCuller.lines(canvas.lines, view);

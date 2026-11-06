@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { BackButton } from '../components/BackButton';
 import { Person } from '../model/Person';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { AccountService } from '../service/AccountService';
@@ -186,15 +187,11 @@ struct SharedView {
   build() {
     Column() {
       Row() {
-        Text('‹')
-          .fontSize(22)
-          .fontColor(Theme.ink)
-          .width(32)
-          .height(32)
-          .textAlign(TextAlign.Center)
-          .onClick((): void => {
+        BackButton({
+          onBack: (): void => {
             this.getUIContext().getRouter().back();
-          })
+          }
+        })
         Text('分享的族谱')
           .fontSize(17)
           .fontWeight(FontWeight.Medium)

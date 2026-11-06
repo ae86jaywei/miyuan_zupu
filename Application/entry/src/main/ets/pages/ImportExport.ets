@@ -1,6 +1,7 @@
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
+import { BackButton } from '../components/BackButton';
 import { GenealogyService } from '../service/GenealogyService';
 import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress } from '../service/PdfExportService';
@@ -340,15 +341,11 @@ struct ImportExport {
     Stack() {
       Column() {
         Row() {
-        Text('‹')
-          .fontSize(22)
-          .fontColor(Theme.ink)
-          .width(32)
-          .height(32)
-          .textAlign(TextAlign.Center)
-          .onClick((): void => {
+        BackButton({
+          onBack: (): void => {
             this.getUIContext().getRouter().back();
-          })
+          }
+        })
         Text('导入 / 导出')
           .fontSize(17)
           .fontWeight(FontWeight.Medium)

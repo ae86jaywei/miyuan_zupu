@@ -1,5 +1,6 @@
 import { common } from '@kit.AbilityKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
+import { BackButton } from '../components/BackButton';
 import { AccountService, LoginOutcome } from '../service/AccountService';
 
 /**
@@ -102,15 +103,11 @@ struct Login {
   build() {
     Column() {
       Row() {
-        Text('‹')
-          .fontSize(22)
-          .fontColor(Theme.ink)
-          .width(32)
-          .height(32)
-          .textAlign(TextAlign.Center)
-          .onClick((): void => {
+        BackButton({
+          onBack: (): void => {
             this.getUIContext().getRouter().back();
-          })
+          }
+        })
         Text('华为账号登录')
           .fontSize(17)
           .fontWeight(FontWeight.Medium)

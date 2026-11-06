@@ -4,6 +4,28 @@
  */
 const S = require('./shared');
 
+/**
+ * 取字段值：入参显式提供则用入参；否则沿用已有记录；最后退回默认值。
+ * 与原先散落的 `x === undefined ? (existing ? existing.x : def) : x` 完全等价。
+ */
+function pick(obj, existing, key, def) {
+  if (obj[key] !== undefined) {
+    return obj[key];
+  }
+  return existing ? existing[key] : def;
+}
+
+/**
+ * 取文本字段：入参优先；否则沿用已有记录（空值回退空串）。
+ * 等价于 `x === undefined ? ((existing && existing.x) || '') : x`。
+ */
+function pickText(obj, existing, key) {
+  if (obj[key] !== undefined) {
+    return obj[key];
+  }
+  return (existing && existing[key]) || '';
+}
+
 module.exports.handler = S.createHandler('grave-update', async (params, event, log, context) => {
 
   const userId = await S.requireUserId(event, params);
@@ -21,8 +43,8 @@ module.exports.handler = S.createHandler('grave-update', async (params, event, l
   const person = S.personOf(memberRow);
   const grave = (params.grave && typeof params.grave === 'object') ? params.grave : {};
   const existing = await S.queryOne(S.T.GRAVE, [['graveId', '=', S.graveRef(familyId, uid)]]);
-  const lng = Number(grave.lng === undefined ? (existing ? existing.lng : 0) : grave.lng);
-  const lat = Number(grave.lat === undefined ? (existing ? existing.lat : 0) : grave.lat);
+  const lng = Number(pick(grave, existing, 'lng', 0));
+  const lat = Number(pick(grave, existing, 'lat', 0));
   const visibility = S.str(params, 'visibility', (existing && existing.visibility) || 'PUBLIC');
   const precision = S.str(params, 'precision', (existing && existing.precision) || 'EXACT');
   // §九 墓葬坐标：不做 LWW，做「就近优先 + 复议」。相距 > 50m 视为位置变更，必须附证据
@@ -50,16 +72,16 @@ module.exports.handler = S.createHandler('grave-update', async (params, event, l
         graveInfo: grave.graveName || person.graveInfo,
         graveLng: lng,
         graveLat: lat,
-        graveAltitude: grave.altitude === undefined ? (existing ? existing.altitude : 0) : grave.altitude
+        graveAltitude: pick(grave, existing, 'altitude', 0)
       },
       bookTitle: family.title,
       personName: person.name,
       generation: person.generation,
-      graveName: grave.graveName === undefined ? ((existing && existing.graveName) || '') : grave.graveName,
-      facing: grave.facing === undefined ? ((existing && existing.facing) || '') : grave.facing,
-      bearing: grave.bearing === undefined ? ((existing && existing.bearing) || '') : grave.bearing,
-      routeNote: grave.routeNote === undefined ? ((existing && existing.routeNote) || '') : grave.routeNote,
-      photoRefs: grave.photoRefs === undefined ? ((existing && existing.photoRefs) || '') : grave.photoRefs,
+      graveName: pickText(grave, existing, 'graveName'),
+      facing: pickText(grave, existing, 'facing'),
+      bearing: pickText(grave, existing, 'bearing'),
+      routeNote: pickText(grave, existing, 'routeNote'),
+      photoRefs: pickText(grave, existing, 'photoRefs'),
       rev: newRev,
       actor: userId,
       visibility: visibility,

@@ -6,6 +6,7 @@ import { geoLocationManager } from '@kit.LocationKit';
 import { sensor } from '@kit.SensorServiceKit';
 import { picker } from '@kit.CoreFileKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
+import { BackButton } from '../components/BackButton';
 import { Breakpoint } from '../common/Constants';
 import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, FIELD_GROUPS, FIELD_METAS, FieldMeta, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
@@ -2249,15 +2250,11 @@ struct PersonEdit {
     Column() {
       // 顶栏
       Row() {
-        Text('‹')
-          .fontSize(22)
-          .fontColor(Theme.ink)
-          .width(32)
-          .height(32)
-          .textAlign(TextAlign.Center)
-          .onClick((): void => {
+        BackButton({
+          onBack: (): void => {
             this.getUIContext().getRouter().back();
-          })
+          }
+        })
         Text(this.originalUid.length > 0 ? '编辑族人' : (this.mode === 'child' ? '添加子女' : '新增族人'))
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
