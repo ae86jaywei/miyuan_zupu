@@ -9,9 +9,9 @@ import { GenealogyService } from '../service/GenealogyService';
 import { Genealogy } from '../model/Genealogy';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
-import { PersonNode } from '../model/PersonNode';
+
 import { Person } from '../model/Person';
-import { GenealogyStats } from '../model/Stats';
+
 import { HomeView } from '../view/HomeView';
 import { TreeCanvas } from '../view/TreeCanvas';
 import { StyleSwitcher } from '../view/StyleSwitcher';

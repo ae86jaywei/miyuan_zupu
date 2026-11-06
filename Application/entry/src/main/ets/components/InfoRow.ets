@@ -1,4 +1,4 @@
-import { Theme, Spacing } from '../theme/Theme';
+import { Theme } from '../theme/Theme';
 
 /** 详情页“标签：值”行 */
 @Component

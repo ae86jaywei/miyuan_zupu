@@ -1,7 +1,7 @@
 import { Person } from '../model/Person';
 import { GenealogyStats, GenerationStat } from '../model/Stats';
 import { GenealogyService } from '../service/GenealogyService';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing } from '../theme/Theme';
 import { StatCard } from '../components/StatCard';
 import { TS } from '../components/TS';
 import { Breakpoint } from '../common/Constants';

@@ -549,10 +549,12 @@ export class PdfExportService {
         try {
           fileIo.unlinkSync(dir + '/' + f);
         } catch (_e) {
+          // 忽略单个临时文件删除失败
         }
       });
       fileIo.rmdirSync(dir);
     } catch (_e) {
+      // 忽略临时目录清理失败
     }
   }
 }

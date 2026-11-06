@@ -5,8 +5,7 @@ import { BusinessError, request } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { preferences } from '@kit.ArkData';
 import { cloudCommon, cloudFunction } from '@kit.CloudFoundationKit';
-import auth from '@hw-agconnect/auth';
-import { AuthUser, HwIdCredentialInfo, SignInParam } from '@hw-agconnect/auth';
+import auth, { AuthUser, HwIdCredentialInfo, SignInParam } from '@hw-agconnect/auth';
 
 const TAG: string = '[Genealogy][Account]';
 

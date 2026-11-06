@@ -10,7 +10,7 @@ import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { ImportPlan, ImportResult } from '../service/ImportPlanner';
-import { Breakpoint } from '../common/Constants';
+
 
 /**
  * 导入 / 导出中心。

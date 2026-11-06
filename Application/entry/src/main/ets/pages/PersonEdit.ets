@@ -8,17 +8,16 @@ import { picker } from '@kit.CoreFileKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { BackButton } from '../components/BackButton';
 import { Breakpoint } from '../common/Constants';
-import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, FIELD_GROUPS, FIELD_METAS, FieldMeta, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
+import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilyService } from '../service/FamilyService';
 import { EditParams } from '../model/Scope';
 import { IdGenerator } from '../util/IdGenerator';
 import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, generationLabel } from '../model/Enums';
-import { parseDate } from '../util/DateUtil';
 import { isBlank } from '../util/StringUtil';
-import { ParsedDate, parseHistoricalDate, composeDate, cnYearText, ERA_TABLE, cnToNumber } from '../util/DateUtil';
-import { huangLiText, HuangLi, LunarConst, SolarTerms } from '../util/LunarUtil';
+import { parseDate, ParsedDate, parseHistoricalDate, composeDate, cnYearText, ERA_TABLE } from '../util/DateUtil';
+import { huangLiText, HuangLi } from '../util/LunarUtil';
 
 /** 第一世（始祖）的排行称谓 */
 const ANCESTOR_RANK: string = '第一世（始祖）';

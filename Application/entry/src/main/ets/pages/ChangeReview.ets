@@ -72,7 +72,7 @@ struct ChangeReview {
     }
     this.busy = true;
     try {
-      const note: string = await FamilyService.getInstance().reviewChange(r.requestId, approve, this.noteText);
+      await FamilyService.getInstance().reviewChange(r.requestId, approve, this.noteText);
       this.toast(approve ? '已合入，新的修订号已生成' : '已退回提交者');
       this.noteText = '';
       this.expandedId = '';

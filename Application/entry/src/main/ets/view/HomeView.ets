@@ -7,7 +7,7 @@ import { StatCard } from '../components/StatCard';
 import { TS } from '../components/TS';
 import { Breakpoint } from '../common/Constants';
 import { generationLabel } from '../model/Enums';
-import { RouterUtil } from '../util/RouterUtil';
+
 import { InsightService } from '../service/InsightService';
 import { IntegrityService } from '../service/IntegrityService';
 import { IntegrityIssue, IntegrityReport } from '../model/Integrity';

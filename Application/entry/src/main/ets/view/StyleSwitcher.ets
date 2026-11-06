@@ -1,5 +1,5 @@
 import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
-import { Theme, Spacing } from '../theme/Theme';
+import { Theme } from '../theme/Theme';
 import { Breakpoint } from '../common/Constants';
 
 /**

@@ -1,5 +1,4 @@
-import { mediaquery } from '@kit.ArkUI';
-import { display } from '@kit.ArkUI';
+import { mediaquery, display } from '@kit.ArkUI';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { Breakpoint, DeviceForm } from '../common/Constants';
 

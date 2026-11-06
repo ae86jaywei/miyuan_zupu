@@ -1,11 +1,11 @@
 import { fileIo, picker } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { UIContext } from '@kit.ArkUI';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
 import { Person, SpouseRelation, spouseRelationLevel, childStatusLabel } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
-import { GenealogyService } from './GenealogyService';
+
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
@@ -229,6 +229,7 @@ export class ExportService {
     try {
       fileIo.unlinkSync(srcPath);
     } catch (_e) {
+      // 忽略临时文件删除失败（best-effort 清理）
     }
   }
 
@@ -546,7 +547,7 @@ export class ExportService {
 
   static toast(msg: string): void {
     try {
-      
+
     } catch (e) {
       const err = e as BusinessError;
       console.error('toast failed ' + err.message);

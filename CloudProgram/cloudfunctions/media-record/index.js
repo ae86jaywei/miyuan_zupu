@@ -35,7 +35,7 @@ module.exports.handler = S.createHandler('media-record', async (params, event, l
   const userId = await S.requireUserId(event, params);
   const familyId = S.str(params, 'familyId');
   await S.requireMember(familyId, userId, S.ROLE.EDITOR, log);
-  const family = await S.getFamily(familyId);
+  await S.getFamily(familyId);
   const media = params.media && typeof params.media === 'object' ? params.media : {};
   const cloudPath = safeCloudPath(S.str(media, 'cloudPath'));
   if (cloudPath.length === 0) {
