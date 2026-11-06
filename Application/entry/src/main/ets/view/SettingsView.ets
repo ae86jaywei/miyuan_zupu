@@ -14,6 +14,7 @@ import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service
 
 import { FamilySyncService } from '../service/FamilySyncService';
 import { SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
+import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
 
 /**
  * 设置：族谱信息编辑、展示偏好、隐私开关、设备适配说明、关于。
@@ -54,6 +55,9 @@ export struct SettingsView {
   @State bookNotes: string = '';
   @State familyModeText: string = '';
   @State syncing: boolean = false;
+  /** 同步进度浮层：与导入/导出页同款，含阶段文案与百分比 */
+  @State syncPercent: number = 0;
+  @State syncText: string = '';
 
   aboutToAppear(): void {
     Theme.use(this.darkMode);
@@ -89,8 +93,14 @@ export struct SettingsView {
       return;
     }
     this.syncing = true;
+    this.syncPercent = 0;
+    this.syncText = '正在准备同步…';
     try {
-      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('settings');
+      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('settings',
+        (message: string, percent: number): void => {
+          this.syncText = message;
+          this.syncPercent = percent;
+        });
       this.getUIContext().getPromptAction().showToast({ message: result.message });
       if (result.integrityIssues.length > 0) {
         const shown: string[] = result.integrityIssues.slice(0, 5);
@@ -469,6 +479,14 @@ export struct SettingsView {
     .width('100%')
   }
 
+  /** 同步进度浮层：盖住设置页，防止同步中切页或重复点击 */
+  @Builder
+  SyncMask() {
+    if (this.syncing) {
+      SyncProgressOverlay({ text: this.syncText, percent: this.syncPercent })
+    }
+  }
+
   build() {
     Scroll() {
       Column() {
@@ -673,6 +691,7 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Off)
+    .overlay(this.SyncMask())
   }
 
 

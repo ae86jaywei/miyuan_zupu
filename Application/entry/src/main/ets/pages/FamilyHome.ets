@@ -12,6 +12,7 @@ import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilySummary, Role, SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
 import { Genealogy } from '../model/Genealogy';
 import { RouterUtil } from '../util/RouterUtil';
+import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
 
 /** 本版是否开启「加入别人的家族」入口 */
 const ALLOW_JOIN: boolean = true;
@@ -39,6 +40,10 @@ struct FamilyHome {
 
   @State busy: boolean = false;
   @State progressText: string = '';
+  /** 同步进度浮层：与导入/导出页同款，含阶段文案与百分比 */
+  @State syncVisible: boolean = false;
+  @State syncPercent: number = 0;
+  @State syncText: string = '';
   @State bookTitle: string = '';
   @State familyId: string = '';
   @State createTitle: string = '';
@@ -260,8 +265,13 @@ struct FamilyHome {
       return;
     }
     this.busy = true;
+    this.startSyncProgress('正在准备同步…');
     try {
-      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('manual');
+      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('manual',
+        (message: string, percent: number): void => {
+          this.syncText = message;
+          this.syncPercent = percent;
+        });
       this.progressText = result.message +
         (result.applied > 0 ? '（应用 ' + result.applied.toString() + ' 条变更）' : '');
       this.toast(result.message);
@@ -269,7 +279,42 @@ struct FamilyHome {
       this.showIntegrity(result);
     } finally {
       this.busy = false;
+      this.syncVisible = false;
     }
+  }
+
+  /** 重新全量拉取：同样展示进度浮层，避免无反馈被误认为卡死 */
+  private async doFullResync(): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    this.busy = true;
+    this.startSyncProgress('正在准备全量拉取…');
+    try {
+      const result: SyncResult = await FamilySyncService.getInstance().fullResync(
+        (message: string, percent: number): void => {
+          this.syncText = message;
+          this.syncPercent = percent;
+        });
+      this.progressText = result.message;
+      this.toast(result.message);
+      this.refreshHeader();
+      this.showIntegrity(result);
+    } catch (err) {
+      const be: BusinessError = err as BusinessError;
+      this.progressText = '全量拉取失败：' + be.message;
+      this.toast(this.progressText);
+    } finally {
+      this.busy = false;
+      this.syncVisible = false;
+    }
+  }
+
+  /** 打开同步进度浮层 */
+  private startSyncProgress(text: string): void {
+    this.syncText = text;
+    this.syncPercent = 0;
+    this.syncVisible = true;
   }
 
   /** 同步/合并后发现ID与亲属关系异常时弹窗说明 */
@@ -516,7 +561,7 @@ struct FamilyHome {
             .fontColor(Theme.primary)
             .enabled(!this.busy)
             .onClick((): void => {
-              FamilySyncService.getInstance().fullResync();
+              this.doFullResync();
             })
         }
         .width('100%')
@@ -718,6 +763,14 @@ struct FamilyHome {
     }
   }
 
+  /** 同步进度浮层：盖住页面，防止同步中切页或重复点击 */
+  @Builder
+  SyncMask() {
+    if (this.syncVisible) {
+      SyncProgressOverlay({ text: this.syncText, percent: this.syncPercent })
+    }
+  }
+
   build() {
     Column() {
       PageNavBar({
@@ -803,5 +856,6 @@ struct FamilyHome {
     .width('100%')
     .height('100%')
     .backgroundColor(Theme.paper)
+    .overlay(this.SyncMask())
   }
 }

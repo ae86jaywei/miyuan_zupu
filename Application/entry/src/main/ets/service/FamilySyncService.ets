@@ -16,6 +16,9 @@ const TAG: string = '[Genealogy][FamilySync]';
 const PAGE_SIZE: number = 200;
 const BOOK_CHANGED: string = 'SYNC_BOOK_CHANGED';
 
+/** 同步进度回调：message 为当前阶段文案，percent 为 0~100 的整数 */
+export type FamilySyncProgress = (message: string, percent: number) => void;
+
 /**
  * 家族协作同步（方案 §七 FamilySyncService）。
  *
@@ -40,13 +43,31 @@ export class FamilySyncService {
     return this.running;
   }
 
-  /** 全量同步当前打开的族谱 */
-  async syncCurrent(reason: string): Promise<SyncResult> {
+  /** 安全上报进度：percent 夹在 0~100 */
+  private static report(onProgress: FamilySyncProgress | undefined, message: string, percent: number): void {
+    if (onProgress === undefined) {
+      return;
+    }
+    onProgress(message, percent < 0 ? 0 : (percent > 100 ? 100 : percent));
+  }
+
+  /** 全量同步当前打开的族谱；onProgress 用于界面展示进度条与阶段文案 */
+  async syncCurrent(reason: string, onProgress?: FamilySyncProgress): Promise<SyncResult> {
     const result: SyncResult = new SyncResult();
     const svc: GenealogyService = GenealogyService.getInstance();
+    // 数据初始化/重载期间 currentBookId 与 book 可能短暂不同步，此时同步必然误判为“切换族谱”，
+    // 应先让本地数据就绪，避免产生 SYNC_BOOK_CHANGED 的中止日志。
+    if (!svc.isReady()) {
+      result.message = '族谱数据正在加载，请稍后重试';
+      return result;
+    }
     const book: Genealogy = svc.getBook();
+    const bookKey: number = svc.getCurrentBookId();
     const familyId: string = book.familyId;
-    const bookKey: number = book.key;
+    if (bookKey <= 0 || book.key !== bookKey) {
+      result.message = '族谱数据尚未就绪，请稍后重试';
+      return result;
+    }
     if (familyId.length === 0) {
       result.message = '本谱尚未接入云家族';
       return result;
@@ -66,11 +87,12 @@ export class FamilySyncService {
     this.running = true;
     AppStorage.setOrCreate<boolean>('gpCloudBusy', true);
     FamilyService.getInstance().setSyncStatus('同步中…');
+    FamilySyncService.report(onProgress, '正在准备同步…', 2);
     try {
       if (book.syncMode !== SyncMode.CLOUD_PENDING) {
-        await this.flushOutbox(familyId, bookKey, result);
+        await this.flushOutbox(familyId, bookKey, result, onProgress);
       }
-      await this.pullAndReplay(familyId, bookKey, result);
+      await this.pullAndReplay(familyId, bookKey, result, onProgress);
       // 以 outbox 实际剩余为准，避免「已同步完成」与「还有待传」同时出现
       const store0: relationalStore.RdbStore | null = svc.getStore();
       const remaining: number = store0 === null ? 0
@@ -94,6 +116,7 @@ export class FamilySyncService {
         result.message = result.message + '（发现 ' + result.integrityIssues.length.toString() +
           ' 项ID/关系异常）';
       }
+      FamilySyncService.report(onProgress, result.message.length > 0 ? result.message : '同步完成', 100);
       FamilyService.getInstance().setOffline(false);
     } catch (err) {
       const msg: string = FamilySyncService.describe(err);
@@ -118,10 +141,10 @@ export class FamilySyncService {
   }
 
   /** 首次同步 / 重新安装：sinceRev=0 触发全量基线 */
-  async fullResync(): Promise<SyncResult> {
+  async fullResync(onProgress?: FamilySyncProgress): Promise<SyncResult> {
     const svc: GenealogyService = GenealogyService.getInstance();
     svc.setBookCloudState(svc.getBook().familyId, svc.getBook().syncMode, svc.getBook().familyRole, 0);
-    return await this.syncCurrent('full');
+    return await this.syncCurrent('full', onProgress);
   }
 
   /** 推送 outbox（在线才推，离线直接返回） */
@@ -132,7 +155,8 @@ export class FamilySyncService {
     }
   }
 
-  private async flushOutbox(familyId: string, bookKey: number, result: SyncResult): Promise<void> {
+  private async flushOutbox(familyId: string, bookKey: number, result: SyncResult,
+                            onProgress?: FamilySyncProgress): Promise<void> {
     const svc: GenealogyService = GenealogyService.getInstance();
     const store: relationalStore.RdbStore | null = svc.getStore();
     if (store === null) {
@@ -144,8 +168,12 @@ export class FamilySyncService {
       return;
     }
     const book: Genealogy = svc.getBook();
+    const total: number = items.length;
     for (let i: number = 0; i < items.length; i++) {
       this.ensureSameBook(bookKey, familyId);
+      FamilySyncService.report(onProgress,
+        '正在上传本地变更 ' + (i + 1).toString() + '/' + total.toString() + '…',
+        4 + Math.round(((i + 1) / total) * 31));
       const item: OutboxItem = items[i];
       const baseRev: number = item.baseRev <= 0 ? book.cloudRev : item.baseRev;
       try {
@@ -189,7 +217,8 @@ export class FamilySyncService {
   }
 
   /** 拉取并回放 */
-  private async pullAndReplay(familyId: string, bookKey: number, result: SyncResult): Promise<void> {
+  private async pullAndReplay(familyId: string, bookKey: number, result: SyncResult,
+                              onProgress?: FamilySyncProgress): Promise<void> {
     const svc: GenealogyService = GenealogyService.getInstance();
     const book: Genealogy = svc.getBook();
     this.ensureSameBook(bookKey, familyId);
@@ -198,6 +227,7 @@ export class FamilySyncService {
     let offset: number = 0;
     result.fromRev = since;
     let guard: number = 0;
+    FamilySyncService.report(onProgress, '正在读取云端更新…', 38);
     while (guard < 20) {
       guard++;
       const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('sync-pull', {
@@ -221,6 +251,9 @@ export class FamilySyncService {
       }
       this.ensureSameBook(bookKey, familyId);
       offset = num(data, 'nextOffset');
+      FamilySyncService.report(onProgress,
+        '正在拉取云端更新（第 ' + guard.toString() + ' 批，已应用 ' + result.applied.toString() + ' 条）…',
+        38 + Math.min(42, guard * 4));
       await GraveService.getInstance().cacheRows(graves);
       this.ensureSameBook(bookKey, familyId);
       result.graves += graves.length;
@@ -238,8 +271,10 @@ export class FamilySyncService {
     }
     // 存在编号冲突时基线停在上一次已确认的 rev，下次同步会再次拉取并提示
     this.ensureSameBook(bookKey, familyId);
+    FamilySyncService.report(onProgress, '正在重建谱系…', 84);
     svc.setBookCloudState(familyId, SyncMode.CLOUD_READY, FamilyService.getInstance().roleOf(familyId), committedRev);
     await svc.reloadAfterReplay();
+    FamilySyncService.report(onProgress, '正在校验数据一致性…', 90);
     // 有变更被应用或存在编号冲突时才体检，避免每次同步重复弹历史提示
     if (result.applied > 0 || result.integrityBlocked > 0) {
       this.collectIntegrity(result);
