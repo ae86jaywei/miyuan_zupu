@@ -1,0 +1,22 @@
+{
+  "name": "access-request",
+  "version": "1.0.0",
+  "description": "提交访问申请（申请查看 / 申请成为族人）",
+  "handler": "index.handler",
+  "memorySize": 500,
+  "timeout": 30,
+  "triggers": [
+    {
+      "type": "http",
+      "properties": {
+        "enableUrlDecode": true,
+        "authFlag": "true",
+        "authAlgor": "HDA-SYSTEM",
+        "authType": "apigw-client",
+        "methods": [
+          "POST"
+        ]
+      }
+    }
+  ]
+}
