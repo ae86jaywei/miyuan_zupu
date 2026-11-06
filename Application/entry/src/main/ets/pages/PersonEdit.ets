@@ -142,6 +142,222 @@ struct SelectField {
   }
 }
 
+/** 亲属选择器最多展示的搜索结果条数（避免一次渲染数万节点导致页面卡死） */
+const PICKER_MAX_RESULTS: number = 40;
+
+/**
+ * 亲属选择字段（搜索式）。
+ *
+ * 早先的实现把整部族谱（5 万+ 族人）一次性塞进原生 Select：
+ * 打开编辑页要创建数万个 SelectOption / 文本节点，返回时又要逐个析构，
+ * 真机上主线程阻塞超过 6 秒，被系统看门狗以 THREAD_BLOCK_6S 强杀。
+ * 这里改为“点击 → 底部弹层 → 输入关键字 → 最多展示 40 条命中”的搜索选择，
+ * 渲染量与族谱规模无关。
+ */
+@Component
+struct PersonPickerField {
+  @Prop label: string = '';
+  @Prop hint: string = '';
+  @Prop value: string = '';
+  /** 性别过滤：'男' / '女' / ''（不限） */
+  @Prop genderFilter: string = '';
+  /** 需要排除的编号（通常传本人编号，避免选到自己） */
+  @Prop excludeUid: string = '';
+  @Prop clearable: boolean = false;
+  @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
+  onValue: (v: string) => void = (v: string): void => {};
+  @State showSheet: boolean = false;
+  @State keyword: string = '';
+  /** 搜索结果（只在输入变化时算一次，build 内不做全表过滤） */
+  @State results: Person[] = [];
+
+  onDark(): void {
+    Theme.use(this.darkMode);
+  }
+
+  /** 字段上显示的文字：编号能查到时显示“姓名（编号）”，否则原样显示编号 */
+  private displayText(): string {
+    if (this.value.length === 0) {
+      return this.clearable ? '未选择' : '请选择';
+    }
+    const p: Person | null = GenealogyService.getInstance().getPerson(this.value);
+    return p === null ? this.value : p.name + '（' + p.uid + '）';
+  }
+
+  private searchPersons(keyword: string): void {
+    const k: string = keyword.trim();
+    if (k.length === 0) {
+      this.results = [];
+      return;
+    }
+    const hits: Person[] = GenealogyService.getInstance().search(k);
+    const exclude: string = this.excludeUid.trim().toUpperCase();
+    const list: Person[] = [];
+    for (let i: number = 0; i < hits.length && list.length < PICKER_MAX_RESULTS; i++) {
+      const p: Person = hits[i];
+      if (exclude.length > 0 && p.uid.trim().toUpperCase() === exclude) {
+        continue;
+      }
+      if (this.genderFilter.length > 0 && p.gender !== this.genderFilter) {
+        continue;
+      }
+      list.push(p);
+    }
+    this.results = list;
+  }
+
+  private openPicker(): void {
+    this.keyword = '';
+    this.results = [];
+    this.showSheet = true;
+  }
+
+  private choose(p: Person): void {
+    this.onValue(p.uid);
+    this.showSheet = false;
+    this.keyword = '';
+    this.results = [];
+  }
+
+  @Builder
+  pickerSheet() {
+    Column() {
+      TextInput({ text: this.keyword, placeholder: '输入谱名 / 曾用名 / 唯一ID 搜索' })
+        .height(40)
+        .fontSize(14)
+        .fontColor(Theme.ink)
+        .placeholderColor(Theme.inkTertiary)
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .onChange((v: string): void => {
+          this.keyword = v;
+          this.searchPersons(v);
+        })
+
+      if (this.keyword.trim().length === 0) {
+        Text('输入关键字后显示匹配的族人（最多 ' + PICKER_MAX_RESULTS.toString() + ' 条）')
+          .fontSize(12)
+          .fontColor(Theme.inkTertiary)
+          .width('100%')
+          .margin({ top: Spacing.L })
+      } else if (this.results.length === 0) {
+        Text('没有匹配的族人')
+          .fontSize(12)
+          .fontColor(Theme.inkTertiary)
+          .width('100%')
+          .margin({ top: Spacing.L })
+      } else {
+        List() {
+          ForEach(this.results, (p: Person) => {
+            ListItem() {
+              Row() {
+                Column() {
+                  Text(p.name + '（' + p.uid + '）')
+                    .fontSize(14)
+                    .fontColor(Theme.ink)
+                    .fontWeight(FontWeight.Medium)
+                  Text(generationLabel(p.generation) + ' · ' + p.gender +
+                    (p.alias.length > 0 ? ' · ' + p.alias : ''))
+                    .fontSize(11)
+                    .fontColor(Theme.inkTertiary)
+                    .margin({ top: 2 })
+                }
+                .alignItems(HorizontalAlign.Start)
+                .layoutWeight(1)
+
+                if (p.uid.trim().toUpperCase() === this.value.trim().toUpperCase()) {
+                  Text('当前')
+                    .fontSize(11)
+                    .fontColor(Theme.primary)
+                }
+              }
+              .width('100%')
+              .padding({ top: 10, bottom: 10 })
+              .alignItems(VerticalAlign.Center)
+            }
+            .onClick((): void => {
+              this.choose(p);
+            })
+          }, (p: Person) => p.uid)
+        }
+        .width('100%')
+        .layoutWeight(1)
+        .margin({ top: Spacing.S })
+        .divider({ strokeWidth: 0.5, color: Theme.line, startMargin: 0 })
+      }
+    }
+    .width('100%')
+    .height('100%')
+    .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.S, bottom: Spacing.L })
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  build() {
+    Column() {
+      Column() {
+        Row() {
+          Text(this.label).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+        }
+        .width('100%')
+        if (this.hint.length > 0) {
+          Text(this.hint)
+            .fontSize(10.5)
+            .fontColor(Theme.inkTertiary)
+            .width('100%')
+            .margin({ top: 1 })
+        }
+      }
+      .width('100%')
+      .margin({ bottom: 4 })
+
+      Row() {
+        Row() {
+          Text(this.displayText())
+            .fontSize(14)
+            .fontColor(this.value.length > 0 ? Theme.ink : Theme.inkTertiary)
+            .fontWeight(this.value.length > 0 ? FontWeight.Medium : FontWeight.Normal)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+          Text('搜索')
+            .fontSize(12)
+            .fontColor(Theme.primary)
+        }
+        .layoutWeight(1)
+        .height(40)
+        .padding({ left: 10, right: 10 })
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .alignItems(VerticalAlign.Center)
+        .onClick((): void => {
+          this.openPicker();
+        })
+
+        if (this.clearable && this.value.length > 0) {
+          Text('清除')
+            .fontSize(12)
+            .fontColor(Theme.inkTertiary)
+            .padding({ left: Spacing.M, top: 10, bottom: 10 })
+            .onClick((): void => {
+              this.onValue('');
+            })
+        }
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .margin({ bottom: Spacing.M })
+    .bindSheet($$this.showSheet, this.pickerSheet(), {
+      height: SheetSize.LARGE,
+      dragBar: true,
+      backgroundColor: Theme.paper,
+      showClose: true,
+      title: { title: '选择' + this.label }
+    })
+  }
+}
+
 /**
  * 日期输入 + “选择”按钮。
  * 同样使用 @Prop 绑定，日历面板确认后父组件状态变化会立即回填到输入框。
@@ -1502,36 +1718,6 @@ struct PersonEdit {
     .borderRadius({ topLeft: 20, topRight: 20 })
   }
 
-  /** 亲属下拉的唯一ID列表（第 0 项为空串，代表“未选择”） */
-  private relationUids(genderFilter: string): string[] {
-    const uids: string[] = [''];
-    this.svc().getPeople().forEach((p: Person): void => {
-      if (p.uid === this.originalUid) {
-        return;
-      }
-      if (genderFilter.length > 0 && p.gender !== genderFilter) {
-        return;
-      }
-      uids.push(p.uid);
-    });
-    return uids;
-  }
-
-  /** 亲属下拉的显示文案，与 relationUids 一一对应 */
-  private relationLabels(genderFilter: string): string[] {
-    const labels: string[] = ['未选择'];
-    this.svc().getPeople().forEach((p: Person): void => {
-      if (p.uid === this.originalUid) {
-        return;
-      }
-      if (genderFilter.length > 0 && p.gender !== genderFilter) {
-        return;
-      }
-      labels.push(p.name + '（' + p.uid + '）· ' + generationLabel(p.generation));
-    });
-    return labels;
-  }
-
   /** 名分下拉文案：称谓（等级），keys 仍为 SPOUSE_RELATIONS */
   private spouseRelationOptions(): string[] {
     const labels: string[] = [];
@@ -1599,12 +1785,11 @@ struct PersonEdit {
         Column() {
           Row() {
             Column() {
-              SelectField({
+              PersonPickerField({
                 label: '配偶' + (idx + 1).toString(),
-                hint: '选择配偶的唯一ID',
-                options: this.relationLabels(''),
-                keys: this.relationUids(''),
+                hint: '点击搜索并选择配偶，不可选本人',
                 value: rel.uid,
+                excludeUid: this.fUid,
                 clearable: true,
                 onValue: (v: string): void => {
                   this.updateSpouse(idx, v, rel.relation);
@@ -1901,23 +2086,23 @@ struct PersonEdit {
 
       // 亲属关系
       this.GroupHeader('亲属关系', '👪')
-      SelectField({
+      PersonPickerField({
         label: '父亲ID',
-        hint: '选择父亲的唯一ID，如：F000；妻/妾等无父母者可留空',
-        options: this.relationLabels('男'),
-        keys: this.relationUids('男'),
+        hint: '点击搜索并选择父亲，如：F000；妻/妾等无父母者可留空',
         value: this.fFatherId,
+        genderFilter: '男',
+        excludeUid: this.fUid,
         clearable: true,
         onValue: (v: string): void => {
           this.fFatherId = v;
         }
       })
-      SelectField({
+      PersonPickerField({
         label: '母亲ID',
-        hint: '选择母亲的唯一ID，如：M050；妻/妾等无父母者可留空',
-        options: this.relationLabels('女'),
-        keys: this.relationUids('女'),
+        hint: '点击搜索并选择母亲，如：M050；妻/妾等无父母者可留空',
         value: this.fMotherId,
+        genderFilter: '女',
+        excludeUid: this.fUid,
         clearable: true,
         onValue: (v: string): void => {
           this.fMotherId = v;

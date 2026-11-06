@@ -364,47 +364,52 @@ export function createEmptyPerson(): Person {
   return p;
 }
 
+/** 原地拷贝字段（保持 target 的对象引用不变，供已缓存的谱系节点/列表继续引用） */
+export function copyPersonInto(target: Person, src: Person): void {
+  target.key = src.key;
+  target.uid = src.uid;
+  target.generation = src.generation;
+  target.name = src.name;
+  target.alias = src.alias;
+  target.gender = src.gender;
+  target.generationChar = src.generationChar;
+  target.lifeStatus = src.lifeStatus;
+  target.childStatus = src.childStatus;
+  target.birthDate = src.birthDate;
+  target.birthCalendar = src.birthCalendar;
+  target.deathDate = src.deathDate;
+  target.deathCalendar = src.deathCalendar;
+  target.birthPlace = src.birthPlace;
+  target.residence = src.residence;
+  target.fatherId = src.fatherId;
+  target.motherId = src.motherId;
+  target.spouseId = src.spouseId;
+  target.spouses = src.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
+  target.rank = src.rank;
+  target.adoption = src.adoption;
+  target.education = src.education;
+  target.occupation = src.occupation;
+  target.biography = src.biography;
+  target.graveInfo = src.graveInfo;
+  target.graveLng = src.graveLng;
+  target.graveLat = src.graveLat;
+  target.graveAltitude = src.graveAltitude;
+  target.phone = src.phone;
+  target.wechat = src.wechat;
+  target.avatar = src.avatar;
+  target.videos = src.videos;
+  target.photos = src.photos;
+  target.createdAt = src.createdAt;
+  target.updatedAt = src.updatedAt;
+  target.rev = src.rev;
+  target.baseRev = src.baseRev;
+  target.dirty = src.dirty;
+  target.deletedAt = src.deletedAt;
+}
+
 /** 深拷贝人物（避免状态引用串改） */
 export function clonePerson(src: Person): Person {
   const p: Person = new Person();
-  p.key = src.key;
-  p.uid = src.uid;
-  p.generation = src.generation;
-  p.name = src.name;
-  p.alias = src.alias;
-  p.gender = src.gender;
-  p.generationChar = src.generationChar;
-  p.lifeStatus = src.lifeStatus;
-  p.childStatus = src.childStatus;
-  p.birthDate = src.birthDate;
-  p.birthCalendar = src.birthCalendar;
-  p.deathDate = src.deathDate;
-  p.deathCalendar = src.deathCalendar;
-  p.birthPlace = src.birthPlace;
-  p.residence = src.residence;
-  p.fatherId = src.fatherId;
-  p.motherId = src.motherId;
-  p.spouseId = src.spouseId;
-  p.spouses = src.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
-  p.rank = src.rank;
-  p.adoption = src.adoption;
-  p.education = src.education;
-  p.occupation = src.occupation;
-  p.biography = src.biography;
-  p.graveInfo = src.graveInfo;
-  p.graveLng = src.graveLng;
-  p.graveLat = src.graveLat;
-  p.graveAltitude = src.graveAltitude;
-  p.phone = src.phone;
-  p.wechat = src.wechat;
-  p.avatar = src.avatar;
-  p.videos = src.videos;
-  p.photos = src.photos;
-  p.createdAt = src.createdAt;
-  p.updatedAt = src.updatedAt;
-  p.rev = src.rev;
-  p.baseRev = src.baseRev;
-  p.dirty = src.dirty;
-  p.deletedAt = src.deletedAt;
+  copyPersonInto(p, src);
   return p;
 }

@@ -2,7 +2,7 @@ import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, createEmptyPerson, spouseRelationLevel } from '../model/Person';
+import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, spouseRelationLevel } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { PersonNode } from '../model/PersonNode';
 import { GenerationStat, GenealogyStats } from '../model/Stats';
@@ -33,6 +33,13 @@ const META_CURRENT_BOOK: string = 'current_book_id';
 const META_RETIRED_PREFIX: string = 'retired_uids_';
 /** 元数据：旧库配偶关系迁移是否已完成（迁移 SQL 是 O(n²)，只能在首次启动跑一次） */
 const META_SPOUSE_MIGRATED: string = 'spouse_migrated_v1';
+/**
+ * 单次查询最多读取的行数。
+ * 关系型数据库的 ResultSet 由默认 2MB 的共享内存块承载（行偏移表上限 16384 行），
+ * 一次性查询数万行会触发 SharedBlock 分配失败（Alloc/AllocRow 报错）并在主线程反复回填，
+ * 因此大表读取必须按主键分批进行。
+ */
+const QUERY_PAGE_SIZE: number = 1000;
 
 /** 已删除人员的编号记录（用于防止新族人沿用旧编号） */
 class RetiredUid {
@@ -113,6 +120,8 @@ export class GenealogyService {
   }
 
   private async doInit(context: common.Context): Promise<void> {
+    // 初始化/重新加载期间不对外宣称就绪，避免同步等调用方读到半初始化状态
+    this.ready = false;
     try {
       const cfg: relationalStore.StoreConfig = {
         name: DB_NAME,
@@ -855,7 +864,7 @@ export class GenealogyService {
     this.normalizeSpouses(person);
     await this.upsertRow(person);
     await this.saveSpouses(person.uid, person.spouses);
-    await this.reload();
+    this.applySavedPerson(person, '');
     // 协作：本机先落库（唯一真相源），再按在线/离线走「云函数 / outbox」
     await this.notifyPersonChange('ADD', person, null);
     return person;
@@ -891,10 +900,183 @@ export class GenealogyService {
         [person.uid, this.currentBookId, originalUid.trim().toUpperCase()]);
     }
     await this.saveSpouses(person.uid, person.spouses);
-    await this.reload();
+    this.applySavedPerson(person, originalUid);
     // 协作：同一人物的多次本地修改合并成一条 outbox（diff 相对编辑前快照）
     await this.notifyPersonChange('UPDATE', person, originalUid);
     return person;
+  }
+
+  /**
+   * 保存后的内存增量刷新。
+   *
+   * 早先实现是 `await this.reload()`：每次保存都全表回读（5 万族人 + 8 万配偶关系）
+   * 并重建整棵谱系树，真机上要数秒，主线程阻塞超过 6 秒会被系统看门狗强杀。
+   * 这里按变化性质分两类处理：
+   *  - 仅普通字段变化：原地改写 Person 对象（谱系节点持有同一引用），只递增版本号；
+   *  - 编号 / 父母 / 配偶关系变化：在内存数组上打补丁，重建索引与谱系树。
+   */
+  private applySavedPerson(person: Person, originalUid: string): void {
+    const prevUid: string = originalUid.trim().toUpperCase();
+    const nextUid: string = person.uid.trim().toUpperCase();
+    const old: Person | undefined = this.peopleMap.get(prevUid.length > 0 ? prevUid : nextUid);
+    const structural: boolean = old === undefined
+      || prevUid !== nextUid
+      || old.fatherId.trim().toUpperCase() !== person.fatherId.trim().toUpperCase()
+      || old.motherId.trim().toUpperCase() !== person.motherId.trim().toUpperCase()
+      || this.spouseLinksChanged(old.spouses, person.spouses);
+    if (!structural && old !== undefined) {
+      // 普通字段：原地改写，谱系节点持有的对象引用不变，无需重建树
+      copyPersonInto(old, person);
+      this.bump();
+      return;
+    }
+    const oldObj: Person | null = old === undefined ? null : old;
+    // 1. 在内存列表中定位并替换（新增时追加）
+    let index: number = -1;
+    for (let i: number = 0; i < this.people.length; i++) {
+      const u: string = this.people[i].uid.trim().toUpperCase();
+      if (u === prevUid || u === nextUid) {
+        index = i;
+        break;
+      }
+    }
+    if (index >= 0) {
+      this.people[index] = person;
+    } else {
+      this.people.push(person);
+    }
+    // 2. 编号变更：同步其他族人的父母ID / 配偶ID
+    if (prevUid.length > 0 && prevUid !== nextUid) {
+      for (let i: number = 0; i < this.people.length; i++) {
+        const p: Person = this.people[i];
+        if (p.uid.trim().toUpperCase() === nextUid) {
+          continue;
+        }
+        if (p.fatherId.trim().toUpperCase() === prevUid) {
+          p.fatherId = nextUid;
+        }
+        if (p.motherId.trim().toUpperCase() === prevUid) {
+          p.motherId = nextUid;
+        }
+        if (p.spouseId.trim().toUpperCase() === prevUid) {
+          p.spouseId = nextUid;
+        }
+        for (let j: number = 0; j < p.spouses.length; j++) {
+          if (p.spouses[j].uid.trim().toUpperCase() === prevUid) {
+            p.spouses[j].uid = nextUid;
+          }
+        }
+      }
+    }
+    // 3. 重建索引
+    const map: Map<string, Person> = new Map<string, Person>();
+    this.people.forEach((p: Person): void => {
+      map.set(p.uid.trim().toUpperCase(), p);
+    });
+    this.peopleMap = map;
+    // 4. 同步配偶反向引用（对方向本人的记录）
+    this.syncSpouseBackRefs(person, oldObj, prevUid);
+    // 5. 重建谱系树并发布新版本
+    this.roots = TreeBuilder.build(this.people);
+    this.bump();
+  }
+
+  /** 配偶关系是否有变化：数量、对象编号或称谓不同都算结构变化 */
+  private spouseLinksChanged(a: SpouseRelation[], b: SpouseRelation[]): boolean {
+    if (a.length !== b.length) {
+      return true;
+    }
+    for (let i: number = 0; i < a.length; i++) {
+      if (a[i].uid.trim().toUpperCase() !== b[i].uid.trim().toUpperCase()
+        || a[i].relation !== b[i].relation) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 同步配偶的反向引用（仅内存态）：A 的配偶表里写了 B 时，B 的配偶表里也应写上 A。
+   * 数据库侧由 saveSpouses 负责，这里避免为了这一处引用再去全表重载。
+   */
+  private syncSpouseBackRefs(person: Person, old: Person | null, prevUid: string): void {
+    const self: string = person.uid.trim().toUpperCase();
+    const prev: string = prevUid.trim().toUpperCase();
+    // 1. 本次保存后的配偶集合
+    const next: Set<string> = new Set<string>();
+    person.spouses.forEach((r: SpouseRelation): void => {
+      const id: string = r.uid.trim().toUpperCase();
+      if (id.length > 0 && id !== self) {
+        next.add(id);
+      }
+    });
+    // 2. 处理旧关系：仍保留的改编号，已移除的从对方配偶表里删掉本人
+    if (old !== null) {
+      old.spouses.forEach((r: SpouseRelation): void => {
+        const partnerUid: string = r.uid.trim().toUpperCase();
+        if (partnerUid.length === 0 || partnerUid === self) {
+          return;
+        }
+        const partner: Person | undefined = this.peopleMap.get(partnerUid);
+        if (partner === undefined) {
+          return;
+        }
+        if (next.has(partnerUid)) {
+          if (prev.length > 0 && prev !== self) {
+            partner.spouses.forEach((x: SpouseRelation): void => {
+              if (x.uid.trim().toUpperCase() === prev) {
+                x.uid = self;
+              }
+            });
+            if (partner.spouseId.trim().toUpperCase() === prev) {
+              partner.spouseId = self;
+            }
+          }
+          return;
+        }
+        const kept: SpouseRelation[] = partner.spouses.filter((x: SpouseRelation): boolean => {
+          const id: string = x.uid.trim().toUpperCase();
+          return id !== prev && id !== self;
+        });
+        if (kept.length !== partner.spouses.length) {
+          kept.forEach((x: SpouseRelation, i: number): void => {
+            x.order = i + 1;
+          });
+          partner.spouses = kept;
+          partner.spouseId = kept.length > 0 ? kept[0].uid : '';
+        }
+      });
+    }
+    // 3. 新关系：对方配偶表里没有本人时补一条
+    person.spouses.forEach((r: SpouseRelation): void => {
+      const partnerUid: string = r.uid.trim().toUpperCase();
+      if (partnerUid.length === 0 || partnerUid === self) {
+        return;
+      }
+      const partner: Person | undefined = this.peopleMap.get(partnerUid);
+      if (partner === undefined) {
+        return;
+      }
+      let found: boolean = false;
+      for (let i: number = 0; i < partner.spouses.length; i++) {
+        if (partner.spouses[i].uid.trim().toUpperCase() === self) {
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        return;
+      }
+      const nr: SpouseRelation = new SpouseRelation();
+      nr.uid = self;
+      nr.relation = partner.gender === '女' ? '夫' : (r.relation === '夫' ? '元配' : r.relation);
+      nr.level = spouseRelationLevel(nr.relation);
+      nr.order = partner.spouses.length + 1;
+      partner.spouses.push(nr);
+      if (partner.spouseId.trim().length === 0) {
+        partner.spouseId = self;
+      }
+    });
   }
 
   /** 删除人物（其子女自动上提为无父/无母，不删除其他人物） */
@@ -1888,54 +2070,64 @@ export class GenealogyService {
       return list;
     }
     const store: relationalStore.RdbStore = this.store;
-    const resultSet: relationalStore.ResultSet = await store.querySql(
-      `SELECT * FROM ${TABLE_PERSON} WHERE book_id = ? AND (deleted_at IS NULL OR deleted_at = 0)`, [bookId]);
-    try {
-      while (resultSet.goToNextRow()) {
-        const p: Person = createEmptyPerson();
-        p.key = resultSet.getLong(resultSet.getColumnIndex('id'));
-        p.uid = resultSet.getString(resultSet.getColumnIndex('uid'));
-        p.generation = resultSet.getLong(resultSet.getColumnIndex('generation'));
-        p.name = resultSet.getString(resultSet.getColumnIndex('name'));
-        p.alias = resultSet.getString(resultSet.getColumnIndex('alias'));
-        p.gender = resultSet.getString(resultSet.getColumnIndex('gender'));
-        p.generationChar = resultSet.getString(resultSet.getColumnIndex('generation_char'));
-        p.lifeStatus = resultSet.getString(resultSet.getColumnIndex('life_status'));
-        const cs: string = resultSet.getString(resultSet.getColumnIndex('child_status'));
-        p.childStatus = (cs === null || cs.length === 0) ? '未记' : cs;
-        p.birthDate = resultSet.getString(resultSet.getColumnIndex('birth_date'));
-        p.birthCalendar = resultSet.getString(resultSet.getColumnIndex('birth_calendar'));
-        p.deathDate = resultSet.getString(resultSet.getColumnIndex('death_date'));
-        p.deathCalendar = resultSet.getString(resultSet.getColumnIndex('death_calendar'));
-        p.birthPlace = resultSet.getString(resultSet.getColumnIndex('birth_place'));
-        p.residence = resultSet.getString(resultSet.getColumnIndex('residence'));
-        p.fatherId = resultSet.getString(resultSet.getColumnIndex('father_id'));
-        p.motherId = resultSet.getString(resultSet.getColumnIndex('mother_id'));
-        p.spouseId = resultSet.getString(resultSet.getColumnIndex('spouse_id'));
-        p.rank = resultSet.getString(resultSet.getColumnIndex('rank'));
-        p.adoption = resultSet.getString(resultSet.getColumnIndex('adoption'));
-        p.education = resultSet.getString(resultSet.getColumnIndex('education'));
-        p.occupation = resultSet.getString(resultSet.getColumnIndex('occupation'));
-        p.biography = resultSet.getString(resultSet.getColumnIndex('biography'));
-        p.graveInfo = resultSet.getString(resultSet.getColumnIndex('grave_info'));
-        p.graveLng = resultSet.getDouble(resultSet.getColumnIndex('grave_lng'));
-        p.graveLat = resultSet.getDouble(resultSet.getColumnIndex('grave_lat'));
-        p.graveAltitude = resultSet.getDouble(resultSet.getColumnIndex('grave_altitude'));
-        p.phone = resultSet.getString(resultSet.getColumnIndex('phone'));
-        p.wechat = resultSet.getString(resultSet.getColumnIndex('wechat'));
-        p.avatar = resultSet.getString(resultSet.getColumnIndex('avatar'));
-        p.videos = resultSet.getString(resultSet.getColumnIndex('videos'));
-        p.photos = resultSet.getString(resultSet.getColumnIndex('photos'));
-        p.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
-        p.updatedAt = resultSet.getLong(resultSet.getColumnIndex('updated_at'));
-        p.rev = readColumnLong(resultSet, 'rev');
-        p.baseRev = readColumnLong(resultSet, 'base_rev');
-        p.deletedAt = readColumnLong(resultSet, 'deleted_at');
-        p.dirty = readColumnLong(resultSet, 'dirty') > 0;
-        list.push(p);
+    // 族人可达数万行：按 id 递增分批读取，避免单次 ResultSet 超过共享内存块的行数/容量上限
+    let lastId: number = 0;
+    let more: boolean = true;
+    while (more) {
+      const resultSet: relationalStore.ResultSet = await store.querySql(
+        `SELECT * FROM ${TABLE_PERSON} WHERE book_id = ? AND (deleted_at IS NULL OR deleted_at = 0) AND id > ? ORDER BY id LIMIT ${QUERY_PAGE_SIZE}`,
+        [bookId, lastId]);
+      let readRows: number = 0;
+      try {
+        while (resultSet.goToNextRow()) {
+          const p: Person = createEmptyPerson();
+          p.key = resultSet.getLong(resultSet.getColumnIndex('id'));
+          p.uid = resultSet.getString(resultSet.getColumnIndex('uid'));
+          p.generation = resultSet.getLong(resultSet.getColumnIndex('generation'));
+          p.name = resultSet.getString(resultSet.getColumnIndex('name'));
+          p.alias = resultSet.getString(resultSet.getColumnIndex('alias'));
+          p.gender = resultSet.getString(resultSet.getColumnIndex('gender'));
+          p.generationChar = resultSet.getString(resultSet.getColumnIndex('generation_char'));
+          p.lifeStatus = resultSet.getString(resultSet.getColumnIndex('life_status'));
+          const cs: string = resultSet.getString(resultSet.getColumnIndex('child_status'));
+          p.childStatus = (cs === null || cs.length === 0) ? '未记' : cs;
+          p.birthDate = resultSet.getString(resultSet.getColumnIndex('birth_date'));
+          p.birthCalendar = resultSet.getString(resultSet.getColumnIndex('birth_calendar'));
+          p.deathDate = resultSet.getString(resultSet.getColumnIndex('death_date'));
+          p.deathCalendar = resultSet.getString(resultSet.getColumnIndex('death_calendar'));
+          p.birthPlace = resultSet.getString(resultSet.getColumnIndex('birth_place'));
+          p.residence = resultSet.getString(resultSet.getColumnIndex('residence'));
+          p.fatherId = resultSet.getString(resultSet.getColumnIndex('father_id'));
+          p.motherId = resultSet.getString(resultSet.getColumnIndex('mother_id'));
+          p.spouseId = resultSet.getString(resultSet.getColumnIndex('spouse_id'));
+          p.rank = resultSet.getString(resultSet.getColumnIndex('rank'));
+          p.adoption = resultSet.getString(resultSet.getColumnIndex('adoption'));
+          p.education = resultSet.getString(resultSet.getColumnIndex('education'));
+          p.occupation = resultSet.getString(resultSet.getColumnIndex('occupation'));
+          p.biography = resultSet.getString(resultSet.getColumnIndex('biography'));
+          p.graveInfo = resultSet.getString(resultSet.getColumnIndex('grave_info'));
+          p.graveLng = resultSet.getDouble(resultSet.getColumnIndex('grave_lng'));
+          p.graveLat = resultSet.getDouble(resultSet.getColumnIndex('grave_lat'));
+          p.graveAltitude = resultSet.getDouble(resultSet.getColumnIndex('grave_altitude'));
+          p.phone = resultSet.getString(resultSet.getColumnIndex('phone'));
+          p.wechat = resultSet.getString(resultSet.getColumnIndex('wechat'));
+          p.avatar = resultSet.getString(resultSet.getColumnIndex('avatar'));
+          p.videos = resultSet.getString(resultSet.getColumnIndex('videos'));
+          p.photos = resultSet.getString(resultSet.getColumnIndex('photos'));
+          p.createdAt = resultSet.getLong(resultSet.getColumnIndex('created_at'));
+          p.updatedAt = resultSet.getLong(resultSet.getColumnIndex('updated_at'));
+          p.rev = readColumnLong(resultSet, 'rev');
+          p.baseRev = readColumnLong(resultSet, 'base_rev');
+          p.deletedAt = readColumnLong(resultSet, 'deleted_at');
+          p.dirty = readColumnLong(resultSet, 'dirty') > 0;
+          list.push(p);
+          lastId = p.key;
+          readRows = readRows + 1;
+        }
+      } finally {
+        resultSet.close();
       }
-    } finally {
-      resultSet.close();
+      more = readRows >= QUERY_PAGE_SIZE;
     }
     list.sort((a: Person, b: Person): number => {
       if (a.generation !== b.generation) {
@@ -1966,26 +2158,43 @@ export class GenealogyService {
     const store: relationalStore.RdbStore = this.store;
     const lists: Map<string, SpouseRelation[]> = new Map<string, SpouseRelation[]>();
     const seen: Map<string, Set<string>> = new Map<string, Set<string>>();
-    const rs: relationalStore.ResultSet = await store.querySql(
-      `SELECT uid, spouse_uid, relation, level, ord FROM ${TABLE_SPOUSE} WHERE book_id = ? ORDER BY uid, ord`,
-      [bookId]);
-    try {
-      while (rs.goToNextRow()) {
-        const a: string = rs.getString(rs.getColumnIndex('uid')).trim().toUpperCase();
-        const b: string = rs.getString(rs.getColumnIndex('spouse_uid')).trim().toUpperCase();
-        const relation: string = rs.getString(rs.getColumnIndex('relation'));
-        const ord: number = rs.getLong(rs.getColumnIndex('ord'));
-        // 直接记录
-        this.pushRelation(lists, seen, a, b, relation, ord, true);
-        // 反向记录（名分未知，用于对方详情展示）
-        this.pushRelation(lists, seen, b, a, '未记', ord, false);
+    // 配偶关系行可达数万行：按主键 (uid, spouse_uid) 递增分批读取，避免单次 ResultSet 撑爆共享内存块
+    let lastUid: string = '';
+    let lastSpouseUid: string = '';
+    let more: boolean = true;
+    while (more) {
+      const rs: relationalStore.ResultSet = await store.querySql(
+        `SELECT uid, spouse_uid, relation, level, ord FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (uid > ? OR (uid = ? AND spouse_uid > ?)) ORDER BY uid, spouse_uid LIMIT ${QUERY_PAGE_SIZE}`,
+        [bookId, lastUid, lastUid, lastSpouseUid]);
+      let readRows: number = 0;
+      try {
+        while (rs.goToNextRow()) {
+          const rawUid: string = rs.getString(rs.getColumnIndex('uid'));
+          const rawSpouseUid: string = rs.getString(rs.getColumnIndex('spouse_uid'));
+          const a: string = rawUid.trim().toUpperCase();
+          const b: string = rawSpouseUid.trim().toUpperCase();
+          const relation: string = rs.getString(rs.getColumnIndex('relation'));
+          const ord: number = rs.getLong(rs.getColumnIndex('ord'));
+          // 直接记录
+          this.pushRelation(lists, seen, a, b, relation, ord, true);
+          // 反向记录（名分未知，用于对方详情展示）
+          this.pushRelation(lists, seen, b, a, '未记', ord, false);
+          lastUid = rawUid;
+          lastSpouseUid = rawSpouseUid;
+          readRows = readRows + 1;
+        }
+      } finally {
+        rs.close();
       }
-    } finally {
-      rs.close();
+      more = readRows >= QUERY_PAGE_SIZE;
     }
     people.forEach((p: Person): void => {
       const u: string = p.uid.trim().toUpperCase();
       const list: SpouseRelation[] | undefined = lists.get(u);
+      if (list !== undefined) {
+        // 原查询按 uid, ord 排序；分批按主键取回后恢复按 ord 的顺序，保证主配偶（spouses[0]）不变
+        list.sort((x: SpouseRelation, y: SpouseRelation): number => x.order - y.order);
+      }
       p.spouses = list !== undefined ? list : [];
       p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
     });
