@@ -170,9 +170,13 @@ function createHandler(name, body) {
       const data = await body(params, event, log, context);
       return reply(core.ok(data === undefined ? null : data), callback);
     } catch (e) {
-      const biz = e instanceof core.BizError ? e : new core.BizError(core.CODE.INTERNAL, (e && e.message) || '服务异常');
-      log.error('[zupu][' + name + '] ' + biz.code + ' ' + biz.message);
-      return reply(core.fail(biz.code, biz.message, biz.reason), callback);
+      if (e instanceof core.BizError) {
+        log.error('[zupu][' + name + '] ' + e.code + ' ' + e.message);
+        return reply(core.fail(e.code, e.message, e.reason), callback);
+      }
+      // [SEC-FIX] CWE-209：内部异常详情只写日志，不回传客户端，避免泄露堆栈/路径/查询细节。
+      log.error('[zupu][' + name + '] INTERNAL ' + ((e && e.stack) || (e && e.message) || 'unknown'));
+      return reply(core.fail(core.CODE.INTERNAL, '服务暂时不可用，请稍后重试', 'internal'), callback);
     }
   };
 }

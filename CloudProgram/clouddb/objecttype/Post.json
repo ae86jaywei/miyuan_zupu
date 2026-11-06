@@ -6,7 +6,7 @@
       "fieldType": "Integer",
       "isNeedEncrypt": false,
       "notNull": true,
-      "isSensitive":false,
+      "isSensitive": false,
       "belongPrimaryKey": true
     },
     {
@@ -14,7 +14,7 @@
       "fieldType": "String",
       "isNeedEncrypt": false,
       "notNull": true,
-      "isSensitive":false,
+      "isSensitive": false,
       "defaultValue": "",
       "belongPrimaryKey": false
     },
@@ -23,7 +23,7 @@
       "fieldType": "String",
       "isNeedEncrypt": false,
       "notNull": true,
-      "isSensitive":false,
+      "isSensitive": false,
       "defaultValue": "",
       "belongPrimaryKey": false
     },
@@ -32,7 +32,7 @@
       "fieldType": "String",
       "isNeedEncrypt": false,
       "notNull": false,
-      "isSensitive":false,
+      "isSensitive": false,
       "belongPrimaryKey": false
     },
     {
@@ -40,7 +40,7 @@
       "fieldType": "String",
       "isNeedEncrypt": false,
       "notNull": false,
-      "isSensitive":false,
+      "isSensitive": false,
       "belongPrimaryKey": false
     },
     {
@@ -48,7 +48,7 @@
       "fieldType": "Date",
       "isNeedEncrypt": false,
       "notNull": false,
-      "isSensitive":false,
+      "isSensitive": false,
       "belongPrimaryKey": false
     },
     {
@@ -56,7 +56,7 @@
       "fieldType": "String",
       "isNeedEncrypt": false,
       "notNull": true,
-      "isSensitive":false,
+      "isSensitive": false,
       "defaultValue": "[]",
       "belongPrimaryKey": false
     },
@@ -65,34 +65,60 @@
       "fieldType": "Integer",
       "isNeedEncrypt": false,
       "notNull": true,
-      "isSensitive":false,
+      "isSensitive": false,
       "defaultValue": "0",
       "belongPrimaryKey": false
     }
   ],
   "indexes": [
     {
-      "indexName": "insertDate", "indexList": [{ "fieldName": "insertDate", "sortType": "DESC" }]
+      "indexName": "insertDate",
+      "indexList": [
+        {
+          "fieldName": "insertDate",
+          "sortType": "DESC"
+        }
+      ]
     },
     {
-      "indexName": "likeCount", "indexList": [{ "fieldName": "likeCount", "sortType": "DESC" }]
+      "indexName": "likeCount",
+      "indexList": [
+        {
+          "fieldName": "likeCount",
+          "sortType": "DESC"
+        }
+      ]
     },
     {
-      "indexName": "userId", "indexList": [{ "fieldName": "userId", "sortType": "ASC" }]
+      "indexName": "userId",
+      "indexList": [
+        {
+          "fieldName": "userId",
+          "sortType": "ASC"
+        }
+      ]
     }
   ],
   "permissions": [
     {
-      "role": "World", "rights": ["Read", "Upsert", "Delete"]
+      "role": "World",
+      "rights": []
     },
     {
-      "role": "Authenticated", "rights": ["Read", "Upsert", "Delete"]
+      "role": "Authenticated",
+      "rights": []
     },
     {
-      "role": "Creator", "rights": ["Read", "Upsert", "Delete"]
+      "role": "Creator",
+      "rights": []
     },
     {
-      "role": "Administrator", "rights": ["Read", "Upsert", "Delete"]
+      "role": "Administrator",
+      "rights": [
+        "Read",
+        "Upsert",
+        "Delete"
+      ]
     }
   ]
 }

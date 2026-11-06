@@ -63,11 +63,20 @@ module.exports.handler = S.createHandler('access-review', async (params, event, 
   }
 
   const isJoin = req.kind === S.ACCESS_KIND.JOIN_CLAIM;
-  const role = S.str(params, 'grantedRole',
-    req.grantedRole || (isJoin ? S.ROLE.EDITOR : S.ROLE.VIEWER));
+  // [SEC-FIX] CWE-269：审批只能授予 VIEWER / EDITOR，禁止通过 grantedRole 参数授予 OWNER。
+  const fallbackRole = isJoin ? S.ROLE.EDITOR : S.ROLE.VIEWER;
+  const requestedRole = S.str(params, 'grantedRole', req.grantedRole || fallbackRole);
+  const role = (requestedRole === S.ROLE.VIEWER || requestedRole === S.ROLE.EDITOR)
+    ? requestedRole : fallbackRole;
+  // [SEC-FIX] CWE-613：非加入类授权不允许永久有效，且期限上限 3650 天，防止客户端放大授权期。
+  const MAX_EXPIRE_MS = 3650 * 24 * 3600 * 1000;
   let expireAt = S.num(params, 'expireAt', -1);
-  if (expireAt < 0) {
-    expireAt = isJoin ? 0 : now + S.VIEW_APPLY_DEFAULT_DAYS * 24 * 3600 * 1000;
+  if (isJoin && expireAt === 0) {
+    expireAt = 0;
+  } else if (expireAt <= 0) {
+    expireAt = now + S.VIEW_APPLY_DEFAULT_DAYS * 24 * 3600 * 1000;
+  } else if (expireAt > now + MAX_EXPIRE_MS) {
+    expireAt = now + MAX_EXPIRE_MS;
   }
 
   const existing = await S.findMembership(familyId, req.applicantId);

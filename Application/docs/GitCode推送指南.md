@@ -24,7 +24,7 @@
 ## 三、提交并推送
 
 ```powershell
-cd E:\HarmonyOS\zupu
+cd <项目根目录>
 
 # 1) 提交「取消跟踪 + 忽略规则」这次变更
 git add -A
@@ -70,16 +70,15 @@ GitCode 支持私有仓库。私有仓库下证书泄露风险可控，但**仍�
 ## 五、`build-profile.json5` 里的口令
 
 ```json5
-"storeFile": "E:/HarmonyOS/zupu/zhengshu/miyuan.p12",
-"storePassword": "0000001E9323...",
+"storeFile": "./zhengshu/miyuan.p12",
+"storePassword": "<REDACTED>",
 "keyAlias": "miyuan",
-"keyPassword": "0000001EA093..."
+"keyPassword": "<REDACTED>"
 ```
 
-- 这两串是 DevEco 加密后的密文，**单独泄露无法直接还原口令**；
-- 但配合 `miyuan.p12` 与本地加密材料，存在被还原的可能；
-- 换证书后这里会一并更新，风险自然消除；
-- 也可把 `storeFile` 改为相对路径 `./zhengshu/miyuan.p12`，避免暴露本机绝对路径。
+- 口令已从本文档脱敏，切勿再把真实口令写进任何会被提交的文件；
+- 建议通过本地 `local.properties` 或 CI Secret 注入，`build-profile.json5` 只保留占位符；
+- 换证书后这里会一并更新，风险自然消除。
 
 ---
 

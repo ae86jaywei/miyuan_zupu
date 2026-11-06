@@ -157,9 +157,7 @@
   "permissions": [
     {
       "role": "World",
-      "rights": [
-        "Read"
-      ]
+      "rights": []
     },
     {
       "role": "Authenticated",

@@ -61,39 +61,27 @@ function fromGateway(event) {
     const v = pickPath(event, fixedPath);
     return v.length > 0 ? v : '';
   }
-  // 未配置时按候选位置探测：headers / event 顶层 / event.user / event.auth
-  const containers = [event && event.headers, event, event && event.user, event && event.auth];
-  for (let c = 0; c < containers.length; c++) {
-    for (let k = 0; k < GATEWAY_ID_KEYS.length; k++) {
-      const v = pickInsensitive(containers[c], GATEWAY_ID_KEYS[k]);
-      if (v.length > 0) {
-        return v;
-      }
+  // [SEC-FIX] CWE-290：未配置固定身份路径时，只允许从网关注入的 headers 读取。
+  // 原先会回退探测 event 顶层 / event.user / event.auth，而这些位置可能被
+  // HTTP 触发器的请求体参数合并污染，客户端可伪造 x-user-id 冒充他人。
+  const headers = event ? event.headers : null;
+  for (let k = 0; k < GATEWAY_ID_KEYS.length; k++) {
+    const v = pickInsensitive(headers, GATEWAY_ID_KEYS[k]);
+    if (v.length > 0) {
+      return v;
     }
   }
   return '';
 }
 
-/** ② 校验 AGC 服务端令牌；失败返回空串 */
+/** ② 本地不再解析令牌；一律交由 AGC 服务端校验（verifyTokenRemote） */
 function verifyTokenCandidate(token) {
   if (!token || token.length < 16) {
     return '';
   }
-  // 调试/兜底开关：仅在「已确认真机令牌可被 AGC 接受的真实字段」后启用
-  const tokenHeader = envValue('TOKEN_CLAIM_HEADER', ''); // 例如 jwt:sub
-  if (tokenHeader.length > 0 && tokenHeader.indexOf('jwt:') === 0) {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      try {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-        const claim = tokenHeader.substring(4);
-        return payload && payload[claim] ? String(payload[claim]) : '';
-      } catch (e) {
-        return '';
-      }
-    }
-  }
-  // 默认：交给 AGC 服务端校验接口（需配置 AGC_VERIFY_URL），结果按 accessToken 短时缓存
+  // [SEC-FIX] CWE-347 / CWE-290：原实现允许按 TOKEN_CLAIM_HEADER 直接 base64 解 JWT
+  // payload 并取 sub 作为 uid，未校验签名，攻击者可伪造任意用户身份。
+  // 因此本地不产生任何可信 uid，统一走服务端校验。
   return '';
 }
 

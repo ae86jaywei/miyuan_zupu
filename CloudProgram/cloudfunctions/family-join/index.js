@@ -22,6 +22,10 @@ module.exports.handler = S.createHandler('family-join', async (params, event, lo
     throw new S.BizError(S.CODE.FORBIDDEN, '加入码已过期，请联系谱主重新获取', 'invite_expired');
   }
   const existing = await S.effectiveMembership(family.familyId, userId, log);
+  // [SEC-FIX] CWE-863：被移出（REVOKED）的成员不得凭同一邀请码自动恢复，需谱主显式恢复。
+  if (existing !== null && existing.status === S.MEMBERSHIP_STATUS.REVOKED) {
+    throw new S.BizError(S.CODE.FORBIDDEN, '你已被移出该族谱，请联系谱主恢复', 'membership_revoked');
+  }
   if (existing !== null && existing.status === S.MEMBERSHIP_STATUS.ACTIVE) {
     return { familyId: family.familyId, title: family.title, role: existing.role, already: true };
   }
@@ -32,7 +36,8 @@ module.exports.handler = S.createHandler('family-join', async (params, event, lo
     userId: userId,
     role: inviteRole,
     status: S.MEMBERSHIP_STATUS.ACTIVE,
-    branchRootUid: S.str(params, 'branchRootUid'),
+    // [SEC-FIX] CWE-639：加入时不允许自选分支，默认全谱；分支授权由谱主单独分配。
+    branchRootUid: '',
     expireAt: 0,
     nickName: S.str(params, 'nickName'),
     source: 'INVITE',
