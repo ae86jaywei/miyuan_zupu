@@ -221,7 +221,10 @@ export struct ModernTree {
 
                 if (row.count === 1) {
                   // 单列时直接渲染，避免 Flex 换行测量在 List 中产生空位
-                  this.PersonCard(row.values()[0])
+                  Column() {
+                    this.PersonCard(row.values()[0])
+                  }
+                  .margin({ bottom: 12 })
                 } else {
                   Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start, alignItems: ItemAlign.Start }) {
                     ForEach(row.values(), (p: Person) => {
@@ -231,7 +234,7 @@ export struct ModernTree {
                       .flexGrow(1)
                       .flexBasis(this.minCardWidth)
                       .constraintSize({ minWidth: this.minCardWidth })
-                      .padding({ right: 10, bottom: 10 })
+                      .padding({ right: 10, bottom: 12 })
                     }, (p: Person) => 'mc_' + this.layoutVersion.toString() + '_' + p.uid)
                   }
                   .width('100%')
