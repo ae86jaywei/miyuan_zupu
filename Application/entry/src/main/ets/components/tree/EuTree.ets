@@ -95,7 +95,7 @@ export struct EuTree {
       zoom: this.zoom,
       layoutVersion: this.layoutVersion,
       contentTop: this.contentTop,
-      cardWidth: this.cardWidth(),
+      cardWidth: this.cardWidth,
       dense: this.dense,
       showSpouse: this.showSpouse,
       interacting: this.interacting
