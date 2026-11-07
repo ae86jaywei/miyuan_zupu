@@ -76,6 +76,12 @@ export struct ModernTree {
     return Math.max(1, Math.min(4, Math.floor((this.windowWidth - 32) / (this.minCardWidth + 10))));
   }
 
+  /** 单卡最大宽度：多列时不把最后一张拉伸成整行，避免浪费横向空间 */
+  private maxCardWidth(): number {
+    const usable: number = this.windowWidth - 32;
+    return Math.max(this.minCardWidth, usable / this.columnCount() - 12);
+  }
+
   private rebuildRows(): void {
     TreePerf.begin('modern_rows');
     const map: Map<number, Person[]> = GenealogyService.getInstance().groupByGeneration();
@@ -166,9 +172,7 @@ export struct ModernTree {
     .border({ width: 0.5, color: p.uid === this.highlightUid ? Theme.gold : Theme.line })
     .shadow({ radius: 8, color: Theme.shadow, offsetY: 2 })
     .alignItems(HorizontalAlign.Start)
-    .flexGrow(1)
-    .flexBasis(this.minCardWidth)
-    .constraintSize({ minWidth: this.minCardWidth })
+    .width('100%')
     .onClick((): void => {
       this.onTapPerson(p.uid);
     })
@@ -216,6 +220,9 @@ export struct ModernTree {
                   Column() {
                     this.PersonCard(p)
                   }
+                  .flexGrow(1)
+                  .flexBasis(this.minCardWidth)
+                  .constraintSize({ minWidth: this.minCardWidth, maxWidth: this.maxCardWidth() })
                   .padding({ right: 10, bottom: 10 })
                 }, (p: Person) => 'mc_' + this.layoutVersion.toString() + '_' + p.uid)
               }

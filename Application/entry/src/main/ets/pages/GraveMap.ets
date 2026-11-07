@@ -7,6 +7,7 @@ import { GenealogyService } from '../service/GenealogyService';
 import { Person } from '../model/Person';
 import { GraveEntry, Role } from '../model/FamilyDomain';
 import { RouterUtil } from '../util/RouterUtil';
+import { FlatListSource } from '../util/FlatListSource';
 
 /**
  * 祭祖寻墓（方案 §五.8、§七 GraveMap）。
@@ -24,7 +25,8 @@ struct GraveMap {
 
   @State keyword: string = '';
   @State onlyMine: boolean = true;
-  @State graves: GraveEntry[] = [];
+  /** 仅内部使用；列表渲染走 graveSource，避免状态变化触发整页重建 */
+  private graves: GraveEntry[] = [];
   @State loading: boolean = false;
   @State message: string = '';
   @State familyId: string = '';
@@ -40,6 +42,10 @@ struct GraveMap {
   @State editPrecision: string = 'EXACT';
   @State editEvidence: string = '';
   @State busy: boolean = false;
+  /** 族人选择列表按需展开：避免进入页面就为全部族人创建 UI 导致主线程卡死 */
+  @State pickerOpen: boolean = false;
+  private graveSource: FlatListSource<GraveEntry> = new FlatListSource<GraveEntry>();
+  private peopleSource: FlatListSource<Person> = new FlatListSource<Person>();
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
@@ -48,6 +54,8 @@ struct GraveMap {
   aboutToAppear(): void {
     Theme.use(this.darkMode);
     this.familyId = GenealogyService.getInstance().getBook().familyId;
+    // 只持有引用，不拷贝、不创建 UI；展开选择器时再由 LazyForEach 按需渲染
+    this.peopleSource.setData(GenealogyService.getInstance().getPeople());
     this.load();
   }
 
@@ -61,6 +69,7 @@ struct GraveMap {
     try {
       const scope: string = this.onlyMine && this.familyId.length > 0 ? this.familyId : '';
       this.graves = await GraveService.getInstance().loadPublic(scope, this.keyword);
+      this.graveSource.setData(this.graves);
       if (this.graves.length === 0) {
         this.message = this.onlyMine
           ? '本谱还没有公开的墓葬位置。谱主可在下方录入（录入前请知悉：坐标对任何登录用户可见）。'
@@ -86,6 +95,7 @@ struct GraveMap {
       return;
     }
     this.editingUid = uid;
+    this.pickerOpen = false;
     this.editLng = p.graveLng !== 0 ? p.graveLng.toString() : '';
     this.editLat = p.graveLat !== 0 ? p.graveLat.toString() : '';
     this.editAltitude = p.graveAltitude !== 0 ? p.graveAltitude.toString() : '';
@@ -385,123 +395,153 @@ struct GraveMap {
           this.getUIContext().getRouter().back();
         }
       })
-      Scroll() {
-        Column() {
-          Row() {
-            TextInput({ text: this.keyword, placeholder: '人物名 / 谱名 / 墓地名' })
-              .height(38)
-              .fontSize(13.5)
-              .layoutWeight(1)
-              .backgroundColor(Theme.field)
-              .borderRadius(10)
-              .onChange((v: string): void => {
-                this.keyword = v;
-              })
-            Button('查询')
-              .fontSize(13)
-              .height(38)
-              .margin({ left: Spacing.S })
-              .backgroundColor(Theme.primary)
-              .fontColor('#FFFFFF')
-              .onClick((): void => {
-                this.load();
-              })
-          }
-          .width('100%')
-          Row() {
-            Text('只看本谱')
-              .fontSize(12)
-              .fontColor(Theme.inkSecondary)
-            Toggle({ type: ToggleType.Switch, isOn: this.onlyMine })
-              .selectedColor(Theme.primary)
-              .margin({ left: 6 })
-              .onChange((isOn: boolean): void => {
-                this.onlyMine = isOn;
-                this.load();
-              })
-            Blank()
-            Text('离线可用：已读取的记录会缓存在本机')
-              .fontSize(10)
-              .fontColor(Theme.inkTertiary)
-          }
-          .width('100%')
-          .margin({ top: Spacing.S, bottom: Spacing.M })
-
-          if (this.canEdit()) {
-            TS({ title: '录入墓葬位置', subtitle: '仅谱主/编辑者 · 需先在本机族人资料里录入过坐标', icon: '📍' })
-            Column() {
-              if (this.editingUid.length === 0) {
-                Text('从本机族人中选择一位，把已有的坐标与墓葬说明发布到公开墓葬表（或改为仅族人可见）。')
-                  .fontSize(11.5)
-                  .fontColor(Theme.inkTertiary)
-                  .width('100%')
-                Scroll() {
-                  Column() {
-                    ForEach(GenealogyService.getInstance().getPeople(), (p: Person) => {
-                      Row() {
-                        Text(p.uid + '  ' + p.name)
-                          .fontSize(12.5)
-                          .fontColor(Theme.ink)
-                          .layoutWeight(1)
-                        Text(p.graveLng !== 0 ? '已有坐标' : '未录坐标')
-                          .fontSize(10)
-                          .fontColor(p.graveLng !== 0 ? Theme.alive : Theme.inkTertiary)
-                          .margin({ right: Spacing.S })
-                        Text('录入 ›')
-                          .fontSize(11.5)
-                          .fontColor(Theme.primary)
-                          .onClick((): void => {
-                            this.startEdit(p.uid);
-                          })
-                      }
-                      .width('100%')
-                      .padding({ top: 6, bottom: 6 })
-                    }, (p: Person) => 'gsel_' + p.uid)
-                  }
-                  .width('100%')
-                }
-                .constraintSize({ maxHeight: 200 })
-                .scrollBar(BarState.Off)
-              } else {
-                this.EditPanel()
-              }
+      List() {
+        ListItem() {
+          Column() {
+            Row() {
+              TextInput({ text: this.keyword, placeholder: '人物名 / 谱名 / 墓地名' })
+                .height(38)
+                .fontSize(13.5)
+                .layoutWeight(1)
+                .backgroundColor(Theme.field)
+                .borderRadius(10)
+                .onChange((v: string): void => {
+                  this.keyword = v;
+                })
+              Button('查询')
+                .fontSize(13)
+                .height(38)
+                .margin({ left: Spacing.S })
+                .backgroundColor(Theme.primary)
+                .fontColor('#FFFFFF')
+                .onClick((): void => {
+                  this.load();
+                })
             }
             .width('100%')
-            .padding(Spacing.L)
-            .backgroundColor(Theme.card)
-            .borderRadius(Radius.L)
-            .border({ width: 0.5, color: Theme.line })
-            .margin({ bottom: Spacing.L })
-          }
-
-          if (this.message.length > 0) {
-            Text(this.message)
-              .fontSize(12)
-              .fontColor(Theme.inkSecondary)
-              .width('100%')
-              .padding(Spacing.M)
-              .backgroundColor(Theme.highlightBg)
-              .borderRadius(Radius.S)
-              .margin({ bottom: Spacing.M })
-          }
-          ForEach(this.graves, (g: GraveEntry) => {
-            this.GraveCard(g)
-          }, (g: GraveEntry) => 'grave_' + g.graveId)
-
-          Text('说明：墓葬位置属于公开数据（便于族人祭祖寻墓，不需要先加入家族）。谱主可对个别墓穴关闭公开或做约30米模糊处理；关闭后该记录会从公开表中真正移除。')
-            .fontSize(10.5)
-            .fontColor(Theme.inkTertiary)
+            Row() {
+              Text('只看本谱')
+                .fontSize(12)
+                .fontColor(Theme.inkSecondary)
+              Toggle({ type: ToggleType.Switch, isOn: this.onlyMine })
+                .selectedColor(Theme.primary)
+                .margin({ left: 6 })
+                .onChange((isOn: boolean): void => {
+                  this.onlyMine = isOn;
+                  this.load();
+                })
+              Blank()
+              Text('离线可用：已读取的记录会缓存在本机')
+                .fontSize(10)
+                .fontColor(Theme.inkTertiary)
+            }
             .width('100%')
-            .lineHeight(16)
-          Column().height(60)
+            .margin({ top: Spacing.S, bottom: Spacing.M })
+
+            if (this.canEdit()) {
+              TS({ title: '录入墓葬位置', subtitle: '仅谱主/编辑者 · 需先在本机族人资料里录入过坐标', icon: '📍' })
+              Column() {
+                if (this.editingUid.length === 0) {
+                  Text('从本机族人中选择一位，把已有的坐标与墓葬说明发布到公开墓葬表（或改为仅族人可见）。')
+                    .fontSize(11.5)
+                    .fontColor(Theme.inkTertiary)
+                    .width('100%')
+                  Row() {
+                    Text(this.pickerOpen ? '收起族人列表' : '展开族人列表选择')
+                      .fontSize(12)
+                      .fontColor(Theme.primary)
+                    Blank()
+                    Text(this.peopleSource.totalCount().toString() + ' 人')
+                      .fontSize(10.5)
+                      .fontColor(Theme.inkTertiary)
+                  }
+                  .width('100%')
+                  .padding({ top: 8, bottom: 8 })
+                  .onClick((): void => {
+                    this.pickerOpen = !this.pickerOpen;
+                  })
+                  if (this.pickerOpen) {
+                    List() {
+                      LazyForEach(this.peopleSource, (p: Person) => {
+                        ListItem() {
+                          Row() {
+                            Text(p.uid + '  ' + p.name)
+                              .fontSize(12.5)
+                              .fontColor(Theme.ink)
+                              .layoutWeight(1)
+                            Text(p.graveLng !== 0 ? '已有坐标' : '未录坐标')
+                              .fontSize(10)
+                              .fontColor(p.graveLng !== 0 ? Theme.alive : Theme.inkTertiary)
+                              .margin({ right: Spacing.S })
+                            Text('录入 ›')
+                              .fontSize(11.5)
+                              .fontColor(Theme.primary)
+                              .onClick((): void => {
+                                this.startEdit(p.uid);
+                              })
+                          }
+                          .width('100%')
+                          .padding({ top: 6, bottom: 6 })
+                        }
+                      }, (p: Person) => 'gsel_' + p.uid)
+                    }
+                    .width('100%')
+                    .height(200)
+                    .cachedCount(4)
+                    .scrollBar(BarState.Off)
+                    .edgeEffect(EdgeEffect.None)
+                  }
+                } else {
+                  this.EditPanel()
+                }
+              }
+              .width('100%')
+              .padding(Spacing.L)
+              .backgroundColor(Theme.card)
+              .borderRadius(Radius.L)
+              .border({ width: 0.5, color: Theme.line })
+              .margin({ bottom: Spacing.L })
+            }
+
+            if (this.message.length > 0) {
+              Text(this.message)
+                .fontSize(12)
+                .fontColor(Theme.inkSecondary)
+                .width('100%')
+                .padding(Spacing.M)
+                .backgroundColor(Theme.highlightBg)
+                .borderRadius(Radius.S)
+                .margin({ bottom: Spacing.M })
+            }
+          }
+          .width('100%')
         }
-        .width('100%')
-        .padding(Spacing.L)
+
+        LazyForEach(this.graveSource, (g: GraveEntry) => {
+          ListItem() {
+            this.GraveCard(g)
+          }
+        }, (g: GraveEntry) => 'grave_' + g.graveId)
+
+        ListItem() {
+          Column() {
+            Text('说明：墓葬位置属于公开数据（便于族人祭祖寻墓，不需要先加入家族）。谱主可对个别墓穴关闭公开或做约30米模糊处理；关闭后该记录会从公开表中真正移除。')
+              .fontSize(10.5)
+              .fontColor(Theme.inkTertiary)
+              .width('100%')
+              .lineHeight(16)
+            Column().height(60)
+          }
+          .width('100%')
+        }
       }
-      .layoutWeight(1)
       .width('100%')
+      .layoutWeight(1)
+      .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L })
+      .cachedCount(3)
+      .contentEndOffset(16)
       .scrollBar(BarState.Off)
-      .align(Alignment.Top)
+      .edgeEffect(EdgeEffect.None)
     }
     .width('100%')
     .height('100%')

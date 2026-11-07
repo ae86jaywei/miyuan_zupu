@@ -63,7 +63,6 @@ struct Index {
   @StorageProp('gpStyle') styleName: string = 'eu';
   @StorageProp('gpTab') currentTab: number = 1;
   @StorageProp('gpSelection') selectedUid: string = '';
-  @StorageProp('gpZoom') zoom: number = 1;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
   @StorageProp('gpLogin') loggedIn: boolean = false;
@@ -157,9 +156,6 @@ struct Index {
     }
     if (AppStorage.get<string>('gpFilterStatus') === undefined) {
       AppStorage.setOrCreate<string>('gpFilterStatus', '');
-    }
-    if (AppStorage.get<number>('gpZoom') === undefined) {
-      AppStorage.setOrCreate<number>('gpZoom', 1);
     }
     if (AppStorage.get<boolean>('gpPublicMode') === undefined) {
       AppStorage.setOrCreate<boolean>('gpPublicMode', false);
@@ -431,18 +427,6 @@ struct Index {
       .width('100%')
 
       Row() {
-        Text('缩放 ' + Math.round(this.zoom * 100).toString() + '%')
-          .fontSize(11)
-          .fontColor(Theme.inkTertiary)
-        // 下限放到 20%：大树（多支/多代）也能整体缩到一屏查看
-        Slider({ value: this.zoom * 100, min: 20, max: 150, step: 5 })
-          .layoutWeight(1)
-          .selectedColor(Theme.primary)
-          .blockColor(Theme.primary)
-          .margin({ left: Spacing.S, right: Spacing.S })
-          .onChange((value: number): void => {
-            AppStorage.setOrCreate<number>('gpZoom', Math.max(0.2, value / 100));
-          })
         Text('新增族人')
           .fontSize(12)
           .fontColor(Theme.primary)
@@ -458,6 +442,7 @@ struct Index {
           })
       }
       .width('100%')
+      .justifyContent(FlexAlign.End)
       .margin({ top: 6 })
     }
     .width('100%')
@@ -472,7 +457,6 @@ struct Index {
         highlightUid: this.selectedUid,
         showPrivate: this.showPrivate && !this.publicMode,
         windowWidth: this.windowWidth,
-        zoom: this.zoom,
         onTapPerson: (uid: string): void => {
           this.openPerson(uid);
         }
