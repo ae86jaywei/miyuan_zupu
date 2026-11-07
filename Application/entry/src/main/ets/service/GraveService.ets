@@ -173,15 +173,26 @@ export class GraveService {
       return;
     }
     await GraveService.ensureTable(store);
-    for (let i: number = 0; i < list.length; i++) {
-      const g: GraveEntry = list[i];
-      await store.executeSql(`INSERT OR REPLACE INTO ${TABLE_GRAVE}
+    // 500 行逐条 await 会在主线程产生大量 IPC；统一放进一个事务，失败整体回滚
+    store.beginTransaction();
+    let committed: boolean = false;
+    try {
+      for (let i: number = 0; i < list.length; i = i + 1) {
+        const g: GraveEntry = list[i];
+        await store.executeSql(`INSERT OR REPLACE INTO ${TABLE_GRAVE}
         (grave_id, family_id, uid, person_name, generation, book_title, grave_name, lng, lat, altitude,
          facing, bearing, route_note, photo_refs, visibility, precision, rev, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [g.graveId, g.familyId, g.uid, g.personName, g.generation, g.bookTitle, g.graveName, g.lng, g.lat,
-          g.altitude, g.facing, g.bearing, g.routeNote, g.photoRefs, g.visibility, g.precision, g.rev,
-          g.updatedAt]);
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [g.graveId, g.familyId, g.uid, g.personName, g.generation, g.bookTitle, g.graveName, g.lng, g.lat,
+            g.altitude, g.facing, g.bearing, g.routeNote, g.photoRefs, g.visibility, g.precision, g.rev,
+            g.updatedAt]);
+      }
+      store.commit();
+      committed = true;
+    } finally {
+      if (!committed) {
+        store.rollBack();
+      }
     }
   }
 
