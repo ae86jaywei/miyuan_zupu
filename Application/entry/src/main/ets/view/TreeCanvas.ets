@@ -55,6 +55,9 @@ export struct TreeCanvas {
   /** 容器可视区尺寸 */
   @State viewW: number = 0;
   @State viewH: number = 0;
+  /** 画布在应用窗口中的位置：把手指的窗口坐标换算成画布坐标，避免 local 坐标系不确定 */
+  private viewGlobalX: number = 0;
+  private viewGlobalY: number = 0;
   /** 当前族谱的宗支根 uid 列表 */
   @State rootUids: string[] = [];
   @State peopleCount: number = 0;
@@ -74,6 +77,12 @@ export struct TreeCanvas {
   private pinchStartOffsetY: number = 0;
   private pinchStartCenterX: number = 0;
   private pinchStartCenterY: number = 0;
+  /** 锚点是否已锁定：首帧中心可能为 0，等拿到有效双指中心再开始缩放 */
+  private pinchAnchorReady: boolean = false;
+  /** 捏合点所在宗支索引，以及该点在支内容坐标系中的位置（不随缩放变化） */
+  private pinchAnchorIndex: number = 0;
+  private pinchAnchorContentX: number = 0;
+  private pinchAnchorContentY: number = 0;
   /** 各宗支内容尺寸（未缩放），用于任意缩放比下即时计算边界 */
   private branchW: number[] = [];
   private branchH: number[] = [];
@@ -154,8 +163,8 @@ export struct TreeCanvas {
     this.dieSource.setData(people);
   }
 
-  /** 只在数据/谱式/宽度/缩放变化时调用，手势中也可调用（仅重算边界，不重算布局） */
-  private rebuildCanvasSize(): void {
+  /** 只在数据/谱式/宽度/缩放变化时调用；手势中可传 false 跳过边界钳制，避免把锚点硬拉回 */
+  private rebuildCanvasSize(clamp: boolean = true): void {
     if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
       return;
     }
@@ -193,8 +202,11 @@ export struct TreeCanvas {
     // canvasW/canvasH 统一存“屏幕尺寸”（已含 zoom），与多宗支标题/间隔的真实占位一致
     this.canvasW = w * this.scaleValue;
     this.canvasH = screenCursor;
-    this.offsetX = this.clampX(this.offsetX);
-    this.offsetY = this.clampY(this.offsetY);
+    // 手势过程中不夹边界：锚点计算出的 offset 若被这里的边界钳制覆盖，视觉焦点会被硬拉走
+    if (clamp) {
+      this.offsetX = this.clampX(this.offsetX);
+      this.offsetY = this.clampY(this.offsetY);
+    }
   }
 
   private collectSize(w: number, h: number): void {
@@ -256,6 +268,75 @@ export struct TreeCanvas {
     // 屏幕坐标 = 内容坐标 × zoom + offset，因此居中的偏移要乘 zoom
     this.offsetX = this.clampX(this.viewW / 2 - cx * this.scaleValue);
     this.offsetY = 0;
+  }
+
+  /** 双指中心：用两指相对应用窗口的 globalX/globalY 减去画布窗口位置，得到确定的画布坐标 */
+  private pinchCenterOf(event: GestureEvent): number[] {
+    const fingers: FingerInfo[] = event.fingerList;
+    if (fingers !== undefined && fingers.length >= 2 &&
+      fingers[0].globalX !== undefined && fingers[1].globalX !== undefined) {
+      const gx: number = (fingers[0].globalX + fingers[1].globalX) / 2;
+      const gy: number = (fingers[0].globalY + fingers[1].globalY) / 2;
+      return [gx - this.viewGlobalX, gy - this.viewGlobalY];
+    }
+    if (event.pinchCenterX > 0 || event.pinchCenterY > 0) {
+      return [event.pinchCenterX, event.pinchCenterY];
+    }
+    return [-1, -1];
+  }
+
+  /**
+   * 捏合点所在的宗支索引。多宗支堆叠时各支的屏幕起点不同，锚点必须按所在支换算，
+   * 否则缩放会把内容带向第一支。
+   */
+  private anchorIndexAt(centerY: number, offsetY: number, zoom: number): number {
+    if (this.branchTops.length === 0) {
+      return 0;
+    }
+    const y: number = centerY - offsetY;
+    let nearestIdx: number = 0;
+    let nearestDist: number = Number.MAX_VALUE;
+    for (let i: number = 0; i < this.branchTops.length; i = i + 1) {
+      const top: number = this.branchTops[i];
+      const bottom: number = top + (i < this.branchH.length ? this.branchH[i] : 0) * zoom;
+      if (y >= top && y <= bottom) {
+        return i;
+      }
+      const dist: number = y < top ? top - y : y - bottom;
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestIdx = i;
+      }
+    }
+    return nearestIdx;
+  }
+
+  /**
+   * 指定宗支在“目标缩放比”下的屏幕起点（不含平移）。
+   * 缩放时前一宗支的高度会变化，所以这个值必须按目标 zoom 重算，不能沿用起点快照。
+   */
+  private branchTopAt(index: number, zoom: number): number {
+    if (this.branchTops.length === 0) {
+      return 0;
+    }
+    const headerBlock: number = this.rootUids.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
+    let cursor: number = 0;
+    for (let i: number = 0; i < index; i = i + 1) {
+      const h: number = i < this.branchH.length ? this.branchH[i] : 0;
+      cursor = cursor + headerBlock + h * zoom + Spacing.XXL;
+    }
+    return cursor + headerBlock;
+  }
+
+  /** 锁定手指下的内容点：后续所有缩放都以它为中心，避免任何一帧重新取中心造成漂移 */
+  private lockAnchor(cx: number, cy: number): void {
+    const z: number = this.pinchStartScale > 0 ? this.pinchStartScale : 1;
+    const idx: number = this.anchorIndexAt(cy, this.pinchStartOffsetY, z);
+    const top: number = this.branchTopAt(idx, z);
+    this.pinchAnchorIndex = idx;
+    this.pinchAnchorContentX = (cx - this.pinchStartOffsetX) / z;
+    this.pinchAnchorContentY = (cy - top - this.pinchStartOffsetY) / z;
+    this.pinchAnchorReady = true;
   }
 
   private clampZoom(v: number): number {
@@ -521,6 +602,8 @@ export struct TreeCanvas {
             .onAreaChange((oldArea: Area, newArea: Area): void => {
               this.viewW = Number(newArea.width);
               this.viewH = Number(newArea.height);
+              this.viewGlobalX = Number(newArea.globalPosition.x);
+              this.viewGlobalY = Number(newArea.globalPosition.y);
               this.offsetX = this.clampX(this.offsetX);
               this.offsetY = this.clampY(this.offsetY);
               this.centerSuIfReady();
@@ -534,8 +617,8 @@ export struct TreeCanvas {
                     this.startY = this.offsetY;
                   })
                   .onActionUpdate((event: GestureEvent): void => {
-                    this.offsetX = this.clampX(this.startX + event.offsetX);
-                    this.offsetY = this.clampY(this.startY + event.offsetY);
+                    this.offsetX = this.clampXFree(this.startX + event.offsetX);
+                    this.offsetY = this.clampYFree(this.startY + event.offsetY);
                   })
                   .onActionEnd((event: GestureEvent): void => {
                     this.interacting = false;
@@ -546,24 +629,46 @@ export struct TreeCanvas {
                     this.pinchStartScale = this.scaleValue;
                     this.pinchStartOffsetX = this.offsetX;
                     this.pinchStartOffsetY = this.offsetY;
-                    // 部分设备极少数情况下中心点为 0，退回视口中心避免锚点飞到左上角
-                    this.pinchStartCenterX = event.pinchCenterX > 0 ? event.pinchCenterX : this.viewW / 2;
-                    this.pinchStartCenterY = event.pinchCenterY > 0 ? event.pinchCenterY : this.viewH / 2;
+                    this.pinchAnchorReady = false;
+                    this.pinchAnchorIndex = 0;
+                    const c: number[] = this.pinchCenterOf(event);
+                    if (c[0] >= 0) {
+                      // 首帧就拿到有效中心时直接锁定，避免 update 第一帧再跳一次
+                      this.pinchStartCenterX = c[0];
+                      this.pinchStartCenterY = c[1];
+                      this.lockAnchor(c[0], c[1]);
+                    }
                   })
                   .onActionUpdate((event: GestureEvent): void => {
+                    const c: number[] = this.pinchCenterOf(event);
+                    if (!this.pinchAnchorReady) {
+                      // 中心无效时等待下一帧：绝不能用视口中心冒充手指位置，否则必然丢焦点
+                      if (c[0] < 0) {
+                        return;
+                      }
+                      this.pinchStartCenterX = c[0];
+                      this.pinchStartCenterY = c[1];
+                      this.lockAnchor(c[0], c[1]);
+                    }
                     const target: number = this.clampZoom(this.pinchStartScale * event.scale);
-                    const ratio: number = target / (this.pinchStartScale > 0 ? this.pinchStartScale : 1);
-                    // 当前双指中心为锚点；中心相对起点移动时，内容随双指一起平移
-                    const cx: number = event.pinchCenterX > 0 ? event.pinchCenterX : this.pinchStartCenterX;
-                    const cy: number = event.pinchCenterY > 0 ? event.pinchCenterY : this.pinchStartCenterY;
-                    this.offsetX = cx - (this.pinchStartCenterX - this.pinchStartOffsetX) * ratio;
-                    this.offsetY = cy - (this.pinchStartCenterY - this.pinchStartOffsetY) * ratio;
+                    const cx: number = c[0] >= 0 ? c[0] : this.pinchStartCenterX;
+                    const cy: number = c[1] >= 0 ? c[1] : this.pinchStartCenterY;
+                    // 锚点内容点固定不动：屏幕 = 内容 × zoom + 宗支起点（随 zoom 重算） + offset
+                    const top: number = this.branchTopAt(this.pinchAnchorIndex, target);
+                    this.offsetX = cx - this.pinchAnchorContentX * target;
+                    this.offsetY = cy - top - this.pinchAnchorContentY * target;
                     this.scaleValue = target;
-                    this.rebuildCanvasSize();
+                    // 手势中不夹边界，抬手后再夹，避免锚点被边界钳制硬拉走
+                    this.rebuildCanvasSize(false);
                   })
                   .onActionEnd((event: GestureEvent): void => {
                     this.interacting = false;
-                    this.rebuildCanvasSize();
+                    // 抬手也不重新居中：内容小于视口时居中会把卡片从手指处拉走
+                    this.rebuildCanvasSize(false);
+                  })
+                  .onActionCancel((): void => {
+                    this.interacting = false;
+                    this.rebuildCanvasSize(false);
                   })
               )
             )
@@ -593,5 +698,14 @@ export struct TreeCanvas {
   /** 垂直平移边界：canvasH 已包含各宗支标题与间隔的屏幕高度 */
   private clampY(v: number): number {
     return ViewportMath.clampScreenOffset(v, this.canvasH, this.viewH, 24);
+  }
+
+  /** 拖动时的水平边界：内容小于视口时不强制居中，避免一松手就跳回屏幕中间 */
+  private clampXFree(v: number): number {
+    return ViewportMath.clampScreenOffsetFree(v, this.canvasW, this.viewW, 24);
+  }
+
+  private clampYFree(v: number): number {
+    return ViewportMath.clampScreenOffsetFree(v, this.canvasH, this.viewH, 24);
   }
 }

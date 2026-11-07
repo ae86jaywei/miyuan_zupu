@@ -213,7 +213,7 @@ export struct SuTree {
       }
       .width(this.contentW)
       .height(this.contentH)
-      .scale({ x: this.zoom, y: this.zoom, centerX: 0, centerY: 0 })
+      .scale({ x: this.zoom, y: this.zoom, centerX: '0%', centerY: '0%' })
     }
     .width(this.contentW * this.zoom)
     .height(this.contentH * this.zoom)

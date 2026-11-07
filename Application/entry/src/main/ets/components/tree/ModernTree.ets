@@ -73,13 +73,9 @@ export struct ModernTree {
   }
 
   private columnCount(): number {
-    return Math.max(1, Math.min(4, Math.floor((this.windowWidth - 32) / (this.minCardWidth + 10))));
-  }
-
-  /** 单卡最大宽度：多列时不把最后一张拉伸成整行，避免浪费横向空间 */
-  private maxCardWidth(): number {
-    const usable: number = this.windowWidth - 32;
-    return Math.max(this.minCardWidth, usable / this.columnCount() - 12);
+    // 可用宽度要扣除页面左右留白、时间轴与左间距，否则会把列数算多，导致一行放不下而出现空位
+    const usable: number = this.windowWidth - 32 - 16 - Spacing.M;
+    return Math.max(1, Math.min(4, Math.floor(usable / (this.minCardWidth + 10))));
   }
 
   private rebuildRows(): void {
@@ -179,70 +175,86 @@ export struct ModernTree {
   }
 
   build() {
-    List() {
-      LazyForEach(this.rowSource, (row: ModernRow) => {
-        ListItem() {
-          Row() {
-            Column() {
-              if (row.first) {
-                Stack() {
-                  Circle({ width: 14, height: 14 }).fill(Theme.primary)
-                  Circle({ width: 6, height: 6 }).fill(Color.White)
-                }
-              }
-              Row()
-                .width(2)
-                .layoutWeight(1)
-                .backgroundColor(row.lastOverall ? Color.Transparent : Theme.goldLight)
-            }
-            .width(16)
-            .height('100%')
-            .alignItems(HorizontalAlign.Center)
+    Stack() {
+      // 贯穿时间轴只画一条竖线：不再让每个 ListItem 用 height('100%') 撑高，避免产生空位
+      Column() {
+        Row()
+          .width(2)
+          .layoutWeight(1)
+          .backgroundColor(Theme.goldLight)
+      }
+      .width(2)
+      .height('100%')
+      .margin({ left: 7 })
+      .padding({ top: 24, bottom: 24 })
 
-            Column() {
-              if (row.first) {
-                Row() {
-                  Text(row.label)
-                    .fontSize(13)
-                    .fontWeight(FontWeight.Bold)
-                    .fontColor(Theme.primary)
-                  Text(row.people.length.toString() + ' 人')
-                    .fontSize(11)
-                    .fontColor(Theme.inkTertiary)
-                    .margin({ left: 6 })
-                }
-                .width('100%')
-                .margin({ bottom: Spacing.S })
-              }
-
-              Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start, alignItems: ItemAlign.Start }) {
-                ForEach(row.values(), (p: Person) => {
-                  Column() {
-                    this.PersonCard(p)
+      List() {
+        LazyForEach(this.rowSource, (row: ModernRow) => {
+          ListItem() {
+            Row() {
+              Column() {
+                if (row.first) {
+                  Stack() {
+                    Circle({ width: 14, height: 14 }).fill(Theme.primary)
+                    Circle({ width: 6, height: 6 }).fill(Color.White)
                   }
-                  .flexGrow(1)
-                  .flexBasis(this.minCardWidth)
-                  .constraintSize({ minWidth: this.minCardWidth, maxWidth: this.maxCardWidth() })
-                  .padding({ right: 10, bottom: 10 })
-                }, (p: Person) => 'mc_' + this.layoutVersion.toString() + '_' + p.uid)
+                }
               }
-              .width('100%')
+              .width(16)
+              .alignItems(HorizontalAlign.Center)
+
+              Column() {
+                if (row.first) {
+                  Row() {
+                    Text(row.label)
+                      .fontSize(13)
+                      .fontWeight(FontWeight.Bold)
+                      .fontColor(Theme.primary)
+                    Text(row.people.length.toString() + ' 人')
+                      .fontSize(11)
+                      .fontColor(Theme.inkTertiary)
+                      .margin({ left: 6 })
+                  }
+                  .width('100%')
+                  .margin({ bottom: Spacing.S })
+                }
+
+                if (row.count === 1) {
+                  // 单列时直接渲染，避免 Flex 换行测量在 List 中产生空位
+                  this.PersonCard(row.values()[0])
+                } else {
+                  Flex({ wrap: FlexWrap.Wrap, justifyContent: FlexAlign.Start, alignItems: ItemAlign.Start }) {
+                    ForEach(row.values(), (p: Person) => {
+                      Column() {
+                        this.PersonCard(p)
+                      }
+                      .flexGrow(1)
+                      .flexBasis(this.minCardWidth)
+                      .constraintSize({ minWidth: this.minCardWidth })
+                      .padding({ right: 10, bottom: 10 })
+                    }, (p: Person) => 'mc_' + this.layoutVersion.toString() + '_' + p.uid)
+                  }
+                  .width('100%')
+                }
+              }
+              .layoutWeight(1)
+              .alignItems(HorizontalAlign.Start)
+              .padding({ left: Spacing.M, bottom: row.last ? Spacing.XL : 0 })
             }
-            .layoutWeight(1)
-            .alignItems(HorizontalAlign.Start)
-            .padding({ left: Spacing.M, bottom: row.last ? Spacing.XL : 0 })
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
           }
-          .width('100%')
-          .alignItems(VerticalAlign.Top)
-        }
-      }, (row: ModernRow) => 'mg_' + this.layoutVersion.toString() + '_' + this.highlightUid + '_' +
-        row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString())
+        }, (row: ModernRow) => 'mg_' + this.layoutVersion.toString() + '_' + this.highlightUid + '_' +
+          row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString())
+      }
+      .width('100%')
+      .height(LayoutPolicy.matchParent)
+      .cachedCount(this.rows.length > 20 ? 2 : 3)
+      .contentEndOffset(16)
+      .scrollBar(BarState.Auto)
+      .edgeEffect(EdgeEffect.None)
     }
     .width('100%')
-    .height(LayoutPolicy.matchParent)
-    .cachedCount(this.rows.length > 20 ? 2 : 3)
-    .contentEndOffset(16)
-    .scrollBar(BarState.Auto)
-    .edgeEffect(EdgeEffect.None)
+    .height('100%')
   }
 }

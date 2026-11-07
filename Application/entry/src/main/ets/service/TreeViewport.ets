@@ -46,6 +46,36 @@ export class ViewportMath {
   }
 
   /**
+   * 平移边界（屏幕尺寸版），内容小于视口时不强制居中：
+   * 允许内容在视口内自由放置，避免缩放后一抬手就被拉回屏幕中央、导致手指下的卡片移位。
+   */
+  static clampScreenOffsetFree(value: number, contentScreenSize: number,
+    viewSize: number, pad: number): number {
+    if (contentScreenSize <= 0) {
+      return 0;
+    }
+    if (contentScreenSize <= viewSize) {
+      const max: number = viewSize - contentScreenSize;
+      if (value < 0) {
+        return 0;
+      }
+      if (value > max) {
+        return max;
+      }
+      return value;
+    }
+    const min: number = viewSize - contentScreenSize - pad;
+    const max: number = pad;
+    if (value < min) {
+      return min;
+    }
+    if (value > max) {
+      return max;
+    }
+    return value;
+  }
+
+  /**
    * 平移边界（屏幕尺寸版）：contentScreenSize 已乘过 zoom。
    * 多宗支堆叠时，每支标题/间隔不随 zoom 缩放，必须用这个版本才能精确到四角。
    */
