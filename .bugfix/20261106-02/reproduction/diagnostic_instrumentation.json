@@ -1,0 +1,23 @@
+{
+  "trace_prefix": "[BUGFIX_REPRO_TRACE]",
+  "instrumentation_added": true,
+  "instrumented_locations": [
+    {
+      "file": "E:\\HarmonyOS\\miyuan_yunkaifa\\Application\\entry\\src\\main\\ets\\service\\FamilySyncService.ets",
+      "location_type": "project_source",
+      "method_or_region": "FamilySyncService.ensureSameBook 的比较与抛错分支",
+      "debug_question": "同步运行时 bookKey、GenealogyService.currentBookId 与 familyId 是否一致？不一致时是否进入 BOOK_CHANGED 分支？",
+      "trace_kind": "state_and_control_flow",
+      "observed_values_or_branches": [
+        "bookKey=9",
+        "currentId=9",
+        "expectedFamily=a442c8d9-a995-43e2-9d9d-76b8bc5b1526",
+        "actualFamily=a442c8d9-a995-43e2-9d9d-76b8bc5b1526",
+        "正常同步时比较通过，未进入 throw 分支"
+      ]
+    }
+  ],
+  "trace_output_observed": true,
+  "diagnostic_output_path": ".bugfix/20261106-02/reproduction/diagnostic_observations.txt",
+  "summary": "真机诊断版本在「设置 → 立即同步」路径上连续命中 ensureSameBook，22:52:15~22:52:20 的 60 条 trace 均显示 bookKey=9、currentId=9、familyId 一致，说明该比较分支是同步每一步的必经路径；结合调试日志中 init 完成时间晚于 sync failed 的事实，可定位到“重载期间状态短暂不一致”这一运行时条件。本阶段仅记录运行时证据，不确认根因。"
+}

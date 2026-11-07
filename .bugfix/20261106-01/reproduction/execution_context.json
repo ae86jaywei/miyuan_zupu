@@ -1,0 +1,21 @@
+{
+  "dti_type": "CODE_INTERFACE",
+  "build_cmd": "",
+  "run_cmd": "node \"E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\repro_bootstrap_batch.js\"",
+  "artifacts": [
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\repro_bootstrap_batch.js",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\db_stub.js"
+  ],
+  "configs": [
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\CloudProgram\\cloudfunctions\\family-bootstrap\\index.js",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\CloudProgram\\cloudfunctions\\_shared\\index.js",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\CloudProgram\\cloudfunctions\\_shared\\constants.js",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\CloudProgram\\cloudfunctions\\_shared\\validate.js"
+  ],
+  "env": [
+    "Node.js v26.4.0",
+    "无需编译：复现脚本直接以 CommonJS 加载项目原始云函数源码",
+    "Cloud DB 以 db_stub.js 内存替身替代，避免访问真实云资源"
+  ],
+  "evidence": "项目无 src/test 目录，云侧仅有 CloudProgram/tools/smoke-test.js 冒烟脚本；采用 MINIMAL_MAIN 形式直接调用云函数 handler，仅替换数据库访问层。"
+}

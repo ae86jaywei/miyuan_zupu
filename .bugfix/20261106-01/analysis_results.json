@@ -1,0 +1,35 @@
+{
+  "preconditions": {
+    "inputs": {
+      "dataset_or_case": "本地已存在一部大规模族谱（日志显示 people=80856，roots=1，unreachable=0），用户在家族协作入口触发「发布本谱 / 同步」流程",
+      "size_or_boundary": "family-bootstrap 单次上传请求约 160 KB（约 200 条族人的分页批次）；本地族谱共 80856 人",
+      "other": "已完成 AGC 登录（AGC auth init success、cloudCommon init success），云函数调用链可用"
+    },
+    "environments": {
+      "version": "HarmonyOS 7.0.0(26.0.0)，设备 HUAWEI Pura 90 Pro Max，应用包名 com.zupu.ae86jay（进程 54920）",
+      "other": "云函数 family-bootstrap 通过 AGC CloudDevelopProxy 调用，HTTP 层返回 200，业务层返回 code=400"
+    }
+  },
+  "expected_behavior": {
+    "description": "点击「发布本谱」后，family-bootstrap 应成功把本地族谱分页发布到云家族并返回成功结果；若云端拒绝该批次，应返回可读的失败原因（非空 reason），且端侧不应在无退避、无上限的情况下每 1~2 秒无限重试同一失败请求。"
+  },
+  "actual_behavior": {
+    "description": "family-bootstrap 每次调用均返回 code=400 且 reason 为空字符串，端侧从 20:45:44.842 到 20:46:19.852 连续发起 23 次相同调用（间隔约 1.2~2.0 秒），发布流程始终未成功，日志中也没有任何可定位的失败原因。"
+  },
+  "possible_root_cause": "",
+  "reproduction_seed_snippet": "",
+  "minimal_reproduction_steps": "1. 在鸿蒙设备上启动 com.zupu.ae86jay（已有本地族谱数据并已登录 AGC 账号）。\n2. 进入家族协作入口，点击「发布本谱」（触发 family-bootstrap）。\n3. 观察日志：出现 `[Genealogy][Account] call family-bootstrap code=400 reason=`，且随后每隔约 1~2 秒重复出现同一条失败日志，发布未成功。",
+  "log_excerpt": "11-06 20:45:44.842   54920    com.zupu.ae86jay/[Genealogy][Account]  W     call family-bootstrap code=400 reason=",
+  "log_evidence": {
+    "log_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\Application\\DEBUG_LOG\\HiLog-HUAWEI Pura 90 Pro Max[6WX0226509003473] 7.0.0(26.0.0)-选中应用的全部日志-[54920]com.zupu.ae86jay-DEBUG-1793969184253.txt",
+    "start_line": "988",
+    "end_line": "1000",
+    "summary": "该窗口显示用户点击 Button 后发起 family-bootstrap 上传（请求体约 160 KB），HTTP 层成功返回 200，但业务层随即输出 code=400 且 reason 为空；下一行立即开始下一次相同调用，说明失败后进入无退避的连续重试。",
+    "content": "11-06 20:45:44.842   54920    com.zupu.ae86jay/NETSTACK       I     [http_client_task.cpp:1177] taskid=2, size:160549, dns:0.086, connect:0.000, tls:0.000, firstSend:0.815, firstRecv:1185.663, total:1186.743, redirect:0.000, no handover, errCode:0, RespCode:200, httpVer:2, method:POST\n11-06 20:45:44.842   54920    com.zupu.ae86jay/CloudDevelopProxyNet  I     [(operator():70)]http OnSuccess: httpCode: 200\n11-06 20:45:44.842   54920    com.zupu.ae86jay/CloudDevelopProxyNet  I     [(Intercept:93)]CallServerInterceptor end, retCode:0, httpCode:200\n11-06 20:45:44.842   54920    com.zupu.ae86jay/CloudDevelopProxyNet  I     [(Intercept:32)]<------POST, region:CN, serviceInfo:function, responseCode:0, costTime:1194\n11-06 20:45:44.842   54920    com.zupu.ae86jay/CloudDevelopProxyNAPI  I     [(Complete:205)]CallFunction complete\n11-06 20:45:44.842   54920    com.zupu.ae86jay/CloudDevelopProxyJs  I     callFunction reportEvent\n11-06 20:45:44.842   54920    com.zupu.ae86jay/CloudDevelopProxyNAPI  I     [(ReportEvent:194)]ReportEvent\n11-06 20:45:44.842   54920    com.zupu.ae86jay/[Genealogy][Account]  W     call family-bootstrap code=400 reason=\n11-06 20:45:44.994   54920    com.zupu.ae86jay/CloudDevelopProxyNAPI  I     [(CallFunction:211)]CallFunction start"
+  },
+  "candidate_service_call_chain": "entry(端侧 FamilyBootstrapService) -> family-bootstrap(云函数)",
+  "workflow_readiness": {
+    "decision": "PASS",
+    "missing_or_insufficient_information": ""
+  }
+}

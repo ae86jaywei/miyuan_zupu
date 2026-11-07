@@ -1,0 +1,14 @@
+{
+  "issue_number": "20261106-01",
+  "brt_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\repro_bootstrap_batch.js",
+  "run_cmd_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\run_repro.sh",
+  "evidence_path": [
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\stdout.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\stderr.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\diagnostic_observations.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\exit_code.txt"
+  ],
+  "diagnostic_instrumentation_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\diagnostic_instrumentation.json",
+  "reproduction_result": "REPRODUCED",
+  "reproduction_analysis": "以 Node.js 直接加载项目原始 CloudProgram/cloudfunctions/family-bootstrap/index.js，仅将 _shared/db.js 替换为内存替身（Membership=ACTIVE/OWNER、Family 存在），并按端侧 FamilyBootstrapService.MAX_BATCH_SIZE=200 组装单批 persons 调用 handler。stdout.txt 记录返回 {\"code\":400,\"message\":\"单次上传不超过 100 条，请分页调用\",\"reason\":\"\"}，diagnostic_observations.txt 记录 family-bootstrap batch_check persons=200 max_batch=100 over_limit=true 以及 createHandler biz_error code=400 reason= 空；stderr.txt 与 exit_code.txt 表明进程正常结束且复现判定为 1。该 400/reason 为空的返回形态与 analysis_results.json 中调试日志的 `call family-bootstrap code=400 reason=` 一致，故判定 REPRODUCED。复现仅证明该调用路径会产生相同失败签名，不在此阶段确认根因。"
+}

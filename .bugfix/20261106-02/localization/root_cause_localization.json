@@ -1,0 +1,11 @@
+{
+  "issue_name": "20261106-02",
+  "brt_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\repro_sync_book_changed.js",
+  "reproduction_result": "REPRODUCED",
+  "localization_mode": "static",
+  "trace_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\diagnostic_observations.txt",
+  "localization_result": "confirmed",
+  "root_cause_summary": "GenealogyService 在数据库初始化/重载期间没有把 ready 置为 false，且 FamilySyncService 未校验本地数据是否就绪，就直接用 syncCurrent 捕获的 bookKey/familyId 作为身份锚点。此时 reload() 过程中 currentBookId 与 book 可能短暂归零或换成另一部族谱，pullAndReplay 的每次 ensureSameBook() 都会判定“族谱已切换”，抛出 SYNC_BOOK_CHANGED，导致同步被中止并打印 sync failed (settings)。",
+  "affected_code": "Application/entry/src/main/ets/service/GenealogyService.ets：doInit() 未重置 ready，reload() 的 current===null 分支会改写 currentBookId/book；Application/entry/src/main/ets/service/FamilySyncService.ets：syncCurrent() 未校验 isReady() 且以 book.key 作为身份锚点，ensureSameBook() 在状态短暂不一致时抛 SYNC_BOOK_CHANGED。",
+  "localization_analysis": "真机日志（device_hilog.txt，进程 56209）显示 22:27:54.872 先出现 `[Genealogy][FamilySync] sync failed (settings): SYNC_BOOK_CHANGED`，而同进程的 `[Genealogy][Service] reload people=50000 ...` 与 `ready, people=50000` 直到 22:28:11.505 才出现，说明同步发起时 GenealogyService.doInit() 尚未完成。源码中 doInit() 只在 reload() 成功后才 `this.ready = true`，但进入 doInit 时没有先置 false；reload() 在 `current === null` 时会 `this.currentBookId = 0` 并把 book 置空。同步在 await 云函数期间若跨越这一状态，下一次 ensureSameBook() 即比较 `getCurrentBookId() !== bookKey` 或 `getBook().familyId !== familyId` 成立，抛出 BOOK_CHANGED。真机诊断版本（diagnostic_observations.txt，60 条）证明 ensureSameBook 是同步每一步的必经路径：正常时 bookKey=9、currentId=9、familyId 完全一致；一旦重载把 currentBookId 归零，同一比较必然失败。复现模型 repro_sync_book_changed.js 按上述状态迁移执行后输出与真机完全相同的 `sync failed (settings): SYNC_BOOK_CHANGED`，进一步支持该根因。"
+}

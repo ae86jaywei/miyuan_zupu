@@ -1,0 +1,1 @@
+node "E:\HarmonyOS\miyuan_yunkaifa\.bugfix\20261106-01\reproduction\repro_bootstrap_batch.js"

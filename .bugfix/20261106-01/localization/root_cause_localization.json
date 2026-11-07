@@ -1,0 +1,11 @@
+{
+  "issue_name": "20261106-01",
+  "brt_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\repro_bootstrap_batch.js",
+  "reproduction_result": "REPRODUCED",
+  "localization_mode": "dynamic",
+  "trace_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\reproduction\\diagnostic_observations.txt",
+  "localization_result": "confirmed",
+  "root_cause_summary": "端侧 FamilyBootstrapService 以 MAX_BATCH_SIZE=200 组装 family-bootstrap 单批数据，而云端 family-bootstrap 的共享常量 MAX_BATCH=100，云端在任何一批到达时就抛出 CODE.BAD_REQUEST=400（reason 为空）。因此「发布本谱」的每一批都被拒绝，发布流程永远无法推进，端侧日志持续出现 code=400 reason= 空。",
+  "affected_code": "Application/entry/src/main/ets/service/FamilyBootstrapService.ets：MAX_BATCH_SIZE=200 常量与 collectBatch()/sendBatch() 的批次切分；CloudProgram/cloudfunctions/family-bootstrap/index.js：if (persons.length > S.MAX_BATCH) 的批次上限校验；CloudProgram/cloudfunctions/_shared/constants.js：MAX_BATCH=100。",
+  "localization_analysis": "项目为 HarmonyOS ArkTS + Node.js 云函数，JaCoCo 不适用，因此以 Node.js 直接执行项目原始云函数源码作为动态执行证据。reproduction/diagnostic_observations.txt 记录 `family-bootstrap batch_check ... persons=200 max_batch=100 over_limit=true`，随后 `createHandler biz_error code=400 reason= message=单次上传不超过 100 条，请分页调用`；reproduction/stdout.txt 返回 {\"code\":400,\"message\":\"单次上传不超过 100 条，请分页调用\",\"reason\":\"\"}。该返回形态与调试日志 `call family-bootstrap code=400 reason=` 完全一致（reason 为空）。源码证据显示端侧 FamilyBootstrapService.MAX_BATCH_SIZE=200（Application/entry/src/main/ets/service/FamilyBootstrapService.ets），云端共享常量 MAX_BATCH=100（CloudProgram/cloudfunctions/_shared/constants.js），两者契约不一致，且端侧批次上限更大，故每一批必然被云端拒绝；这是共享的批次契约错误，而非单个失败实例。"
+}

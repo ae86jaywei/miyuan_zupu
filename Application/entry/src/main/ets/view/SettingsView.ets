@@ -479,15 +479,8 @@ export struct SettingsView {
     .width('100%')
   }
 
-  /** 同步进度浮层：盖住设置页，防止同步中切页或重复点击 */
-  @Builder
-  SyncMask() {
-    if (this.syncing) {
-      SyncProgressOverlay({ text: this.syncText, percent: this.syncPercent })
-    }
-  }
-
   build() {
+    Stack() {
     Scroll() {
       Column() {
         AccountCard()
@@ -691,7 +684,15 @@ export struct SettingsView {
     .width('100%')
     .height('100%')
     .scrollBar(BarState.Off)
-    .overlay(this.SyncMask())
+
+      // 同步进度浮层：仅在同步进行中挂载，结束后立即移除，
+      // 避免空 overlay 节点常驻在页面上拦截触摸事件
+      if (this.syncing) {
+        SyncProgressOverlay({ text: this.syncText, percent: this.syncPercent })
+      }
+    }
+    .width('100%')
+    .height('100%')
   }
 
 

@@ -1,0 +1,133 @@
+11-06 23:43:12.482   55918    appspawn/ffrt_hcs               E     1:ffrt_hcs_init:37 HcsStub init succ
+11-06 23:43:15.049   55918    com.zupu.ae86jay/APPSPAWN       W     errno:13 private mount to /mnt/sandbox/100/com.zupu.ae86jay/chip_prod/lib64/passthrough '524288' failed
+11-06 23:43:15.050   55918    com.zupu.ae86jay/APPSPAWN       W     check dir /data/app/el1/public/aot_compiler/ark_cache/com.zupu.ae86jay failed,strerror:No such file or directory
+11-06 23:43:15.052   55918    com.zupu.ae86jay/APPSPAWN       W     errno:2 bind mount /data/preload/app to /mnt/sandbox/100/com.zupu.ae86jay/data/preload/app
+11-06 23:43:15.058   55918    com.zupu.ae86jay/CODE_SIGN      E     [XpmIoctl]:Ioctl cmd 40087803 failed: Invalid argument (ignore)
+11-06 23:43:15.064   55918    com.zupu.ae86jay/IPCWorkThread  W     ThreadHandler: proto:0 policy:1 name:OS_IPC_0_56134 invoker:32629376
+11-06 23:43:15.065   55918    com.zupu.ae86jay/IPCWorkThread  W     ThreadHandler: proto:0 policy:0 name:OS_IPC_1_56135 invoker:4251143680
+11-06 23:43:15.070   55918    com.zupu.ae86jay/ffrt_acc       W     1:GetQosByUidImpl:445 use user-app qos level setting
+11-06 23:43:15.080   55918    com.zupu.ae86jay/ArkCompiler    E     [ecmascript] PandaFileSnapshotInterfaces::ReadCrossBundleHspInfo failed
+11-06 23:43:15.082   55918    com.zupu.ae86jay/IPCWorkThread  W     ThreadHandler: proto:0 policy:0 name:OS_IPC_2_56140 invoker:4251155200
+11-06 23:43:15.083   55918    com.zupu.ae86jay/JsRuntime      W     [CSM161]disCon
+11-06 23:43:15.089   55918    com.zupu.ae86jay/ResourceManager  W     update userId, currentUserId_= 0, userId= 100
+11-06 23:43:15.091   55918    com.zupu.ae86jay/NativePreferences  W     LoadFromDisk: The settingXml /***/el1/***/i18*** load failed.
+11-06 23:43:15.092   55918    com.zupu.ae86jay/CompatiblePolicyDeviceType  E     [calculateResourceType:81]deviceType is empty.
+11-06 23:43:15.097   55918    com.zupu.ae86jay/AppKit         W     [JAS1032]null stage
+11-06 23:43:15.097   55918    com.zupu.ae86jay/AppKit         W     [JAS254]Not found AbilityStage.js
+11-06 23:43:15.097   55918    com.zupu.ae86jay/AppKit         W     [JAS349]Not found AbilityStage.js
+11-06 23:43:15.105   55918    com.zupu.ae86jay/MMG            W     [NMM:1648]Module path conflict: core.deviceCloudGateway.cloudCommon
+11-06 23:43:15.109   55918    com.zupu.ae86jay/MMG            W     [NMM:1466] Name mismatch: core.deviceCloudGateway.cloudFunction != cloudFunction
+11-06 23:43:15.128   55918    com.zupu.ae86jay/MMG            W     [NMM:1466] Name mismatch: core.deviceCloudGateway.cloudDatabase != cloudDatabase
+11-06 23:43:15.129   55918    com.zupu.ae86jay/MMG            W     [NMM:1466] Name mismatch: core.deviceCloudGateway.cloudStorage != cloudStorage
+11-06 23:43:15.136   55918    com.zupu.ae86jay/NativePreferences  W     LoadFromDisk: The settingXml /***/el2/***/zupu***play load failed.
+11-06 23:43:15.137   55918    com.zupu.ae86jay/AppKit         W     [OH_APP1269]fontSize empty
+11-06 23:43:15.137   55918    com.zupu.ae86jay/AppKit         W     [OH_APP1304]language empty
+11-06 23:43:15.137   55918    com.zupu.ae86jay/AppKit         W     [OH_APP1323]language and locale empty
+11-06 23:43:15.137   55918    com.zupu.ae86jay/WMSAttribute   E     UpdateConfigurationSyncForAll: root is null
+11-06 23:43:15.138   55918    com.zupu.ae86jay/AppKit         W     [JAS919]Not found AbilityStage.js
+11-06 23:43:15.138   55918    com.zupu.ae86jay/AppKit         W     [JAS919]Not found AbilityStage.js
+11-06 23:43:15.138   55918    com.zupu.ae86jay/WMSAttribute   E     UpdateConfigurationForAll: root is null
+11-06 23:43:15.139   55918    com.zupu.ae86jay/NativePreferences  W     LoadFromDisk: The settingXml /***/el2/***/zupu***_map load failed.
+11-06 23:43:15.141   55918    com.zupu.ae86jay/UIAbility      E     [ui_ability_impl.cpp364]hasSaveData_: false
+11-06 23:43:15.141   55918    com.zupu.ae86jay/UIAbility      W     [JUA1378]formatRegex: []
+11-06 23:43:15.142   55918    com.zupu.ae86jay/WMS            E     SetWindowType: permission denied!
+11-06 23:43:15.143   55918    com.zupu.ae86jay/WMSLife        W     IsWindowSessionInvalid: id: 0 state_: 0
+11-06 23:43:15.143   55918    com.zupu.ae86jay/WindowSceneSessionImpl  W     AdjustWindowAnimationFlag: session invalid!
+11-06 23:43:15.146   55918    com.zupu.ae86jay/WMSCompat      E     ReadCombinedCompatibleConfig: combinedConfigSize: 0 fail to meet the conditions
+11-06 23:43:15.147   55918    com.zupu.ae86jay/WMSLayout      W     NotifySingleHandTransformChange: id:1451, uiContent is nullptr
+11-06 23:43:15.148   55918    com.zupu.ae86jay/WMSCompat      E     SendCombinedCompatibleConfigToArkUI: Combined compatible config size is less than 2!
+11-06 23:43:15.154   55918    com.zupu.ae86jay/ConnectionPool  W     Create:code:0 app[com.zupu.ae86jay:entry] area[el2] cfg[0,0,0,2,1,0,0,0]gen***.db:<DB,0x10ed9c,39186432,20020333,20020333,100660,1793709551,1793979725,1793979795><DWR,0x10ed9e,12288,20020333,20020333,100660,1793709551,1793979711,1793979711><SHM,0x10eda4,32768,20020333,20020333,100660,1793709551,1793979795,1793979795><WAL,0x10eda2,440872,20020333,20020333,100660,1793709551,1793979772,1793979772>, pathSize:49
+11-06 23:43:15.155   55918    com.zupu.ae86jay/GameController  W     [(GetKeyMappingSupportConfig:279)]it's empty.
+11-06 23:43:15.155   55918    com.zupu.ae86jay/WMSAttribute   W     RegisterGetWMSWindowListCallback: callback has registered
+11-06 23:43:15.155   55918    com.zupu.ae86jay/WMSPc          W     UpdateSidebarBlurStyleWhenColorModeChange: RSAnimatableProperty is null
+11-06 23:43:15.155   55918    com.zupu.ae86jay/WMS            E     singleton_container.cpp GetSingleton: cant get OHOS::Rosen::WindowInfoReporter
+11-06 23:43:15.156   55918    com.zupu.ae86jay/WindowSessionImpl  W     UpdateViewportConfig: uiContent is null!
+11-06 23:43:15.159   55918    com.zupu.ae86jay/WMSLife        E     NotifyUIExtHostRectChangeInGlobalDisplayListeners: uiContent is null
+11-06 23:43:15.159   55918    com.zupu.ae86jay/WMSLayout      W     NotifySingleHandTransformChange: id:1451, uiContent is nullptr
+11-06 23:43:15.159   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.159   55918    com.zupu.ae86jay/DMS            W     OnDisplayInfoChange: data is not changed.
+11-06 23:43:15.159   55918    com.zupu.ae86jay/IPCWorkThread  W     ThreadHandler: proto:0 policy:0 name:OS_IPC_3_56173 invoker:4252712832
+11-06 23:43:15.160   55918    com.zupu.ae86jay/data_share_manager_impl  E     RegisterClientDeathObserver: RegisterClientDeathObserver failed, bundleName is com.zupu.ae86jay
+11-06 23:43:15.160   55918    com.zupu.ae86jay/data_share_manager_impl  E     GetDataShareServiceProxy: RegisterClientDeathObserver failed
+11-06 23:43:15.162   55918    com.zupu.ae86jay/Ability        E     [page_config_manager.cpp62]configJson_ is empty
+11-06 23:43:15.163   55918    com.zupu.ae86jay/data_share_manager_impl  E     RegisterClientDeathObserver: RegisterClientDeathObserver failed, bundleName is com.zupu.ae86jay
+11-06 23:43:15.163   55918    com.zupu.ae86jay/data_share_manager_impl  E     GetDataShareServiceProxy: RegisterClientDeathObserver failed
+11-06 23:43:15.165   55918    com.zupu.ae86jay/APS_MANAGER    W     redo Connect
+11-06 23:43:15.165   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.166   55918    com.zupu.ae86jay/Ace            E     [(-2:-1:undefined)] ConfigParserBase read system UI correction config file failed
+11-06 23:43:15.166   55918    com.zupu.ae86jay/Ace            W     [(-2:-1:undefined)] ArkUiFeatureParamManager failed to load UI correction config file
+11-06 23:43:15.171   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.176   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.180   55918    com.zupu.ae86jay/Ace            W     [(-2:-1:undefined)] FeatureManager get config failed, key:UICorrectionStrategy ret:1
+11-06 23:43:15.180   55918    com.zupu.ae86jay/Ace            W     [(-2:-1:undefined)] FeatureParamManager get UICorrectionStrategy from FeatureManager failed
+11-06 23:43:15.182   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.186   55918    com.zupu.ae86jay/Ace            W     [(100000:100000:scope)] Invalid config:zh_CN-long-notround-vertical-light-phone-xxxhdpi
+11-06 23:43:15.187   55918    MUSL-LDSO                       W     load absolute_path /system/lib64/libtransform_interaction_ext.z.so: check ns accessible failed namespace=ndk.
+11-06 23:43:15.187   55918    MUSL-LDSO                       W     load /system/lib64/libtransform_interaction_ext.z.so failed, namespace=ndk no inherits, errno=2
+11-06 23:43:15.187   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.187   55918    MUSL-LDSO                       W     load /system/lib64/libtransform_interaction_ext.z.so failed, namespace=default, errno=2
+11-06 23:43:15.187   55918    MUSL-LDSO                       W     dlopen_impl load library header failed for /system/lib64/libtransform_interaction_ext.z.so caller namespace : default
+11-06 23:43:15.187   55918    com.zupu.ae86jay/AceUIEvent     E     [(100000:100000:scope)] AceTransform load failed: Error loading shared library /system/lib64/libtransform_interaction_ext.z.so: No such file or directory
+11-06 23:43:15.187   55918    com.zupu.ae86jay/Ace            W     [(100000:100000:scope)] not found systemTheme in HapModuleInfo, loading default OHOS_THEME
+11-06 23:43:15.187   55918    com.zupu.ae86jay/Ace            W     [(100000:100000:scope)] GetAsset failed: resources/styles/default.json
+11-06 23:43:15.193   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.198   55918    utils_base                      E     Failed to exec mmap, errno = 22
+11-06 23:43:15.198   55918    utils_base                      E     WriteToAshmem: invalid input or not map
+11-06 23:43:15.198   55918    utils_base                      E     ReadFromAshmem: invalid input or not map
+11-06 23:43:15.198   55918    com.zupu.ae86jay/Text           E     LoadThemeFont: Failed to load font default.ttf
+11-06 23:43:15.198   55918    com.zupu.ae86jay/AceFont        W     [(100000:100000:scope)] LoadGlobalThemeFont failed, familyName:default.ttf
+11-06 23:43:15.198   55918    com.zupu.ae86jay/WMS            E     GetUIContentRemoteObj: uiContent is nullptr
+11-06 23:43:15.198   55918    com.zupu.ae86jay/IMockSessionManager  E     [nodict]Read result failed, code is: 4.
+11-06 23:43:15.199   55918    com.zupu.ae86jay/IMockSessionManager  E     [nodict]Read result failed, code is: 4.
+11-06 23:43:15.201   55918    com.zupu.ae86jay/Ace            W     [(100000:100000:scope)] GetAsset failed: manifest.json
+11-06 23:43:15.204   55918    com.zupu.ae86jay/NAPI           W     [AddCleanupHook] AddCleanupHook Failed, data cannot register multiple times, enable cross-thread check for more information.
+11-06 23:43:15.205   55918    com.zupu.ae86jay/WMSRotation    W     HandleSetOrientationCommon: winId: 1451 policy has taken effect
+11-06 23:43:15.206   55918    com.zupu.ae86jay/AceFocus       W     [(100000:100000:scope)] Current focus view can not found!
+11-06 23:43:15.218   55918    com.zupu.ae86jay/AceMediaQuery  W     [js_media_query.cpp(214)-(100000:100000:scope)] on:(width<600vp) num=1
+11-06 23:43:15.219   55918    com.zupu.ae86jay/AceMediaQuery  W     [js_media_query.cpp(214)-(100000:100000:scope)] on:(600vp<=width<840vp) num=1
+11-06 23:43:15.219   55918    com.zupu.ae86jay/AceMediaQuery  W     [js_media_query.cpp(214)-(100000:100000:scope)] on:(840vp<=width<1200vp) num=1
+11-06 23:43:15.219   55918    com.zupu.ae86jay/AceMediaQuery  W     [js_media_query.cpp(214)-(100000:100000:scope)] on:(1200vp<=width) num=1
+11-06 23:43:15.221   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains sheet_pattern!
+11-06 23:43:15.222   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style sheet_pattern not contains corner_radius_none!
+11-06 23:43:15.222   55918    com.zupu.ae86jay/AceSheet       E     [(100000:100000:scope)] radius is not correct type
+11-06 23:43:15.223   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_pattern not contains linear_split_child_min_size!
+11-06 23:43:15.223   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style text_pattern not contains menu_celia_ask_is_support!
+11-06 23:43:15.223   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains app_theme_pattern!
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  W     by id=125835722 limitPaths is empty
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  E     ref <private> id not found
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  W     by id=125835722 limitPaths is empty
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  E     ref <private> id not found
+11-06 23:43:15.223   55918    com.zupu.ae86jay/AceResource    W     [(100000:100000:scope)] Get pattern by name error, name=app_theme_pattern, bundleName: com.zupu.ae86jay, moduleName: entry
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  W     by id=125835722 limitPaths is empty
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  E     ref <private> id not found
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  W     by id=125835722 limitPaths is empty
+11-06 23:43:15.223   55918    com.zupu.ae86jay/ResourceManager  E     ref <private> id not found
+11-06 23:43:15.223   55918    com.zupu.ae86jay/AceResource    W     [(100000:100000:scope)] Get pattern by name error, name=app_theme_pattern
+11-06 23:43:15.223   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style app_theme_pattern not contains app_theme_drag_distancethreshold!
+11-06 23:43:15.228   55918    com.zupu.ae86jay/AceVisualEffect  W     [(100000:100000:scope)] SettingDataManager::register observer key: immersive_transparency_level, userId: 100
+11-06 23:43:15.233   55918    com.zupu.ae86jay/2DGraphics     E     LoadFromTypeface: Drawing_Text [LoadFromTypeface] not variable font!
+11-06 23:43:15.236   55918    com.zupu.ae86jay/Ace            W     [(100000:100000:scope)] Material inactive: out of scope. Use component in navigation title bar or Tabbar.
+11-06 23:43:15.236   55918    com.zupu.ae86jay/Text           W     generatePaintRegion: Call generatePaintRegion when paragraph is not formatted
+11-06 23:43:15.237   55918    com.zupu.ae86jay/PARAM_WATCHER  E     [nodict]Read result failed, code is: 1.
+11-06 23:43:15.237   55918    PARAM_WATCHER                   E     Failed to add watcher for persist.rosen.animationtrace.enabled
+11-06 23:43:15.237   55918    PARAM_WATCHER                   E     SystemWatchParameter is failed!keyPrefix is:persist.rosen.animationtrace.enabled,errNum is:-1
+11-06 23:43:15.237   55918    BEGET                           E     [service_watcher.c:85]WatchParameter failed! the errNum is -1
+11-06 23:43:15.301   55918    com.zupu.ae86jay/Verify         W     [a92ab1f5933600e 0 0]invalid configName=
+11-06 23:43:15.303   55918    com.zupu.ae86jay/AceText        W     [(100000:100000:scope)] destroy TxtParagraph with placeholderCnt_ 0, textAlign_ 0, count 0
+11-06 23:43:15.304   55918    com.zupu.ae86jay/RdbStoreManager  W     [a92ab1f5933600e 0 0]IsConfigInvalidChanged:no bundleName
+11-06 23:43:15.305   55918    com.zupu.ae86jay/SilentProxy    E     [a92ab1f5933600e 0 0]IsSupportSilentFromService:GetRdbService failed, err is 27394049.
+11-06 23:43:15.309   55918    com.zupu.ae86jay/ConnectionPool  W     [a92ab1f5933600e 0 0]Create:code:0 app[:] area[el2] cfg[0,0,0,0,1,0,0,0]app***.db:<DB,0xa3616,40960,20020333,20020333,100660,1793743638,1793979780,1793979795><DWR,0xa3641,12288,20020333,20020333,100660,1793743638,1793975634,1793975634><SHM,0xa3651,32768,20020333,20020333,100660,1793743638,1793979795,1793979795><WAL,0xa364b,420272,20020333,20020333,100660,1793743638,1793979780,1793979780>, pathSize:61
+11-06 23:43:15.310   55918    com.zupu.ae86jay/Verify         W     [a92ab1f5933600e 0 0]invalid configName=
+11-06 23:43:15.310   55918    com.zupu.ae86jay/CL             W     OnAddSystemAbility# recoverTimer count:0
+11-06 23:43:15.825   55918    com.zupu.ae86jay/AceAnimation   W     [(100000:100000:scope)] Time decreases, skip ModifierAnimation, lastTime:341839556874787, nowTime:341839556871985
+11-06 23:43:18.792   55918    com.zupu.ae86jay/Vsync          W     PrintRequestTs: recv vsync timeout, from:WM_55918, now:341842524428126, fromRsTs:341841585191891, timeInterval:939236235ns
+11-06 23:43:18.794   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains slider_pattern!
+11-06 23:43:18.795   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style slider_pattern not contains block_outer_edge_color!
+11-06 23:43:18.795   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style slider_pattern get attr slider_pixels_per_inch error!
+11-06 23:43:18.797   55918    com.zupu.ae86jay/2DGraphics     E     LoadFromTypeface: Drawing_Text [LoadFromTypeface] not variable font!
+11-06 23:43:19.286   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains scroll_bar_pattern!
+11-06 23:43:19.286   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style scroll_bar_pattern get attr scroll_bar_interactive error!
+11-06 23:43:19.286   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style scroll_bar_pattern not contains arc_scroll_bar_normal_background_width!
+11-06 23:43:19.287   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style 125829872 not contains scrollable_pattern!
+11-06 23:43:19.287   55918    com.zupu.ae86jay/AceTheme       W     [(100000:100000:scope)] style scrollable_pattern not contains scroll_able_default_scrolling_distance!
+11-06 23:43:19.298   55918    com.zupu.ae86jay/Vsync          W     PrintRequestTs: recv vsync timeout, from:WM_55918, now:341843030253126, fromRsTs:341842533286758, timeInterval:496966368ns

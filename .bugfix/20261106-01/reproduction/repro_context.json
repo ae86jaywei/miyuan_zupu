@@ -1,0 +1,26 @@
+{
+  "dti_type": "CODE_INTERFACE",
+  "carrier_type": "MINIMAL_MAIN",
+  "entry_point": "CloudProgram/cloudfunctions/family-bootstrap/index.js#handler",
+  "invocation_shape": [
+    "构造云函数 event：headers 携带可信用户身份，value 携带 familyId/cursor/persons",
+    "按端侧 FamilyBootstrapService.MAX_BATCH_SIZE 组装单批 persons",
+    "调用 handler(event, context, callback, logger)",
+    "读取返回对象的 code 与 message"
+  ],
+  "required_setup": [
+    "将 _shared/db.js 替换为内存替身，使 Membership 为 ACTIVE/OWNER 且 Family 存在",
+    "通过 Module._load 将 family-bootstrap 的 ./shared 指向项目真实 _shared",
+    "以 Node.js 直接加载项目原始 family-bootstrap/index.js"
+  ],
+  "evidence_sources": [
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-01\\analysis_results.json",
+    "Application/DEBUG_LOG/HiLog-...-54920-...txt",
+    "Application/entry/src/main/ets/service/FamilyBootstrapService.ets",
+    "CloudProgram/cloudfunctions/family-bootstrap/index.js",
+    "CloudProgram/cloudfunctions/_shared/constants.js"
+  ],
+  "template_paths": [
+    "CloudProgram/tools/smoke-test.js"
+  ]
+}

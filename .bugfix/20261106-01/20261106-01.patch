@@ -1,0 +1,27 @@
+diff --git a/Application/README.md b/Application/README.md
+index 88bc439..d627279 100644
+--- a/Application/README.md
++++ b/Application/README.md
+@@ -192,7 +192,7 @@ entry/src/main/ets/
+ | --- | --- |
+ | `service/FamilyService.ets` | 云函数调用封装 + 家族身份/角色 + 写路径编排 |
+ | `service/FamilySyncService.ets` | outbox 上传 → sync-pull 增量拉取 → 回放 RDB（唯一读取通道） |
+-| `service/FamilyBootstrapService.ets` | 首次把本地全量谱分页发布（≤200 条/次，限速重试，幂等断点续传） |
++| `service/FamilyBootstrapService.ets` | 首次把本地全量谱分页发布（≤100 条/次，与云端 MAX_BATCH 一致；限速重试，幂等断点续传） |
+ | `service/OutboxService.ets` | 断网可编辑：本地变更排队，联网后补传 |
+ | `service/GraveService.ets` | 公开墓葬查询 + 本地 `grave_location` 缓存 |
+ | `service/DirectoryService.ets` | 黄页搜索与上架 |
+diff --git a/Application/entry/src/main/ets/service/FamilyBootstrapService.ets b/Application/entry/src/main/ets/service/FamilyBootstrapService.ets
+index 7f69763..26c3e26 100644
+--- a/Application/entry/src/main/ets/service/FamilyBootstrapService.ets
++++ b/Application/entry/src/main/ets/service/FamilyBootstrapService.ets
+@@ -9,7 +9,8 @@ import { Person } from '../model/Person';
+ import { SyncMode, SyncResult } from '../model/FamilyDomain';
+ 
+ const TAG: string = '[Genealogy][Bootstrap]';
+-const MAX_BATCH_SIZE: number = 200;
++/** 单批人数必须与云端 family-bootstrap 的 MAX_BATCH（100）保持一致，否则云端返回 400 */
++const MAX_BATCH_SIZE: number = 100;
+ const MAX_BATCH_CHARS: number = 220000;
+ const MAX_BOOK_CHARS: number = 300000;
+ const BATCH_INTERVAL_MS: number = 150;

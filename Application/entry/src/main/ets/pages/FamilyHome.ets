@@ -763,15 +763,8 @@ struct FamilyHome {
     }
   }
 
-  /** 同步进度浮层：盖住页面，防止同步中切页或重复点击 */
-  @Builder
-  SyncMask() {
-    if (this.syncVisible) {
-      SyncProgressOverlay({ text: this.syncText, percent: this.syncPercent })
-    }
-  }
-
   build() {
+    Stack() {
     Column() {
       PageNavBar({
         title: '我的家族',
@@ -856,6 +849,14 @@ struct FamilyHome {
     .width('100%')
     .height('100%')
     .backgroundColor(Theme.paper)
-    .overlay(this.SyncMask())
+
+      // 同步进度浮层：仅在同步进行中挂载，结束后立即移除，
+      // 避免空 overlay 节点常驻在页面上拦截触摸事件
+      if (this.syncVisible) {
+        SyncProgressOverlay({ text: this.syncText, percent: this.syncPercent })
+      }
+    }
+    .width('100%')
+    .height('100%')
   }
 }

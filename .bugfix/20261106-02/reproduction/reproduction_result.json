@@ -1,0 +1,15 @@
+{
+  "issue_number": "20261106-02",
+  "brt_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\repro_sync_book_changed.js",
+  "run_cmd_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\run_repro.sh",
+  "evidence_path": [
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\device_hilog.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\stdout.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\stderr.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\diagnostic_observations.txt",
+    "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\exit_code.txt"
+  ],
+  "diagnostic_instrumentation_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\.bugfix\\20261106-02\\reproduction\\diagnostic_instrumentation.json",
+  "reproduction_result": "REPRODUCED",
+  "reproduction_analysis": "device_hilog.txt 是用户在真机（进程 56209）上捕获的原始失败：22:27:54.872 `sync failed (settings): SYNC_BOOK_CHANGED`，而同一进程的数据库初始化日志 `reload people=50000` 与 `ready, people=50000` 直到 22:28:11 才出现，证明同步发起时 GenealogyService 仍在初始化/重载。由于 ArkTS 端侧逻辑无法在 Windows 直接执行，repro_sync_book_changed.js 按 FamilySyncService.ensureSameBook 与 GenealogyService.reload 的真实状态迁移构造最小并发时序，执行后 stdout.txt 输出 `[Genealogy][FamilySync] sync failed (settings): SYNC_BOOK_CHANGED` 且 `DEFECT_REPRODUCED=1`（exit_code.txt=0），与真机日志签名一致。diagnostic_observations.txt 为真机诊断版本上 ensureSameBook 的 60 条运行时取值，证明该比较分支是同步每一步的必经路径。"
+}

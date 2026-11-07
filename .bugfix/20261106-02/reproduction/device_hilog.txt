@@ -1,0 +1,1 @@
+﻿11-06 22:27:54.872   56209    com.zupu.ae86jay/[Genealogy][FamilySync]  W     sync failed (settings): SYNC_BOOK_CHANGED

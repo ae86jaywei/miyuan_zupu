@@ -1,0 +1,35 @@
+{
+  "preconditions": {
+    "inputs": {
+      "dataset_or_case": "本地存在多部族谱（日志上下文显示“共 2 部”，当前为韦氏宗谱），并已接入云家族（familyId=a442c8d9-a995-43e2-9d9d-76b8bc5b1526，角色=谱主）",
+      "size_or_boundary": "当前族谱 50000 人；同步前/同步期间一次 GenealogyService.reload 正在执行（people 查询与树构建耗时约 3.6 秒）",
+      "other": "用户在「设置 → 账号与云同步」点击「立即同步」"
+    },
+    "environments": {
+      "version": "HarmonyOS 7.0.0(26.0.0)，HUAWEI Pura 90 Pro Max，应用 com.zupu.ae86jay（进程 56209）",
+      "other": "数据库处于初始化/重新加载阶段：同一进程内 init 尚未完成，EntryAbility 在 22:28:11 才打印 database initialised"
+    }
+  },
+  "expected_behavior": {
+    "description": "点击「立即同步」后应正常拉取云端增量并完成同步；若本地族谱数据仍在加载，应提示“数据正在加载，请稍后重试”，而不是把同步判定为“同步期间已切换族谱”。"
+  },
+  "actual_behavior": {
+    "description": "同步立即中止并输出 `sync failed (settings): SYNC_BOOK_CHANGED`，界面提示“同步已中止：同步期间已切换族谱”；但用户并未切换族谱，随后（17 秒后）数据库初始化才完成并加载 50000 人。"
+  },
+  "possible_root_cause": "",
+  "reproduction_seed_snippet": "",
+  "minimal_reproduction_steps": "1. 在设备上让应用处于已登录、已接入云家族、含 50000 人族谱的状态。\n2. 触发 EntryAbility 重新创建/数据库重新初始化（例如系统回收 Ability 后重新拉起，使 init 在后台重新执行 reload）。\n3. 在 init/reload 尚未完成时进入「设置 → 账号与云同步」，点击「立即同步」。\n4. 观察日志：出现 `[Genealogy][FamilySync] sync failed (settings): SYNC_BOOK_CHANGED`，随后才出现 `[Genealogy][Service] reload people=50000 ...` 与 `ready, people=50000`。",
+  "log_excerpt": "11-06 22:27:54.872   56209   56209    W     A00000/com.zupu.ae86jay/[Genealogy][FamilySync]: sync failed (settings): SYNC_BOOK_CHANGED\n11-06 22:28:11.505   56209   56209    I     A00000/com.zupu.ae86jay/[Genealogy][Service]: reload people=50000 roots=1 reachable=50000 unreachable=0 orphan=16992 dangling=0 query=1926ms spouse=379ms retired=255ms tree=866ms",
+  "log_evidence": {
+    "log_path": "E:\\HarmonyOS\\miyuan_yunkaifa\\Application\\DEBUG_LOG\\HiLog-HUAWEI Pura 90 Pro Max[6WX0226509003473] 7.0.0(26.0.0)-选中应用的全部日志-[56209]com.zupu.ae86jay-WARN-1793975422552.txt",
+    "start_line": "31",
+    "end_line": "34",
+    "summary": "sync failed (settings): SYNC_BOOK_CHANGED 出现在 22:27:54，而数据库初始化完成日志（reload people=50000 + ready）出现在 22:28:11，说明同步是在 GenealogyService 初始化/重载尚未完成时发起的。",
+    "content": "11-06 22:27:54.872   56209   56209    W     A00000/com.zupu.ae86jay/[Genealogy][FamilySync]: sync failed (settings): SYNC_BOOK_CHANGED\n11-06 22:28:11.505   56209   56209    I     A00000/com.zupu.ae86jay/[Genealogy][Service]: reload people=50000 roots=1 reachable=50000 unreachable=0 orphan=16992 dangling=0 query=1926ms spouse=379ms retired=255ms tree=866ms\n11-06 22:28:11.505   56209   56209    I     A00000/com.zupu.ae86jay/[Genealogy][Service]: ready, people=50000"
+  },
+  "candidate_service_call_chain": "entry(SettingsView.doSyncNow) -> entry(FamilySyncService.syncCurrent) -> entry(FamilySyncService.ensureSameBook) -> entry(GenealogyService.reload)",
+  "workflow_readiness": {
+    "decision": "PASS",
+    "missing_or_insufficient_information": ""
+  }
+}

@@ -1,0 +1,38 @@
+diff --git a/Application/entry/src/main/ets/service/FamilySyncService.ets b/Application/entry/src/main/ets/service/FamilySyncService.ets
+index 95eeec2..1520987 100644
+--- a/Application/entry/src/main/ets/service/FamilySyncService.ets
++++ b/Application/entry/src/main/ets/service/FamilySyncService.ets
+@@ -44,9 +44,19 @@ export class FamilySyncService {
+   async syncCurrent(reason: string): Promise<SyncResult> {
+     const result: SyncResult = new SyncResult();
+     const svc: GenealogyService = GenealogyService.getInstance();
++    // 数据初始化/重载期间 currentBookId 与 book 可能短暂不同步，此时同步必然误判为“切换族谱”，
++    // 应先让本地数据就绪，避免产生 SYNC_BOOK_CHANGED 的中止日志。
++    if (!svc.isReady()) {
++      result.message = '族谱数据正在加载，请稍后重试';
++      return result;
++    }
+     const book: Genealogy = svc.getBook();
++    const bookKey: number = svc.getCurrentBookId();
+     const familyId: string = book.familyId;
+-    const bookKey: number = book.key;
++    if (bookKey <= 0 || book.key !== bookKey) {
++      result.message = '族谱数据尚未就绪，请稍后重试';
++      return result;
++    }
+     if (familyId.length === 0) {
+       result.message = '本谱尚未接入云家族';
+       return result;
+diff --git a/Application/entry/src/main/ets/service/GenealogyService.ets b/Application/entry/src/main/ets/service/GenealogyService.ets
+index 48f4bed..f752134 100644
+--- a/Application/entry/src/main/ets/service/GenealogyService.ets
++++ b/Application/entry/src/main/ets/service/GenealogyService.ets
+@@ -113,6 +113,8 @@ export class GenealogyService {
+   }
+ 
+   private async doInit(context: common.Context): Promise<void> {
++    // 初始化/重新加载期间不对外宣称就绪，避免同步等调用方读到半初始化状态
++    this.ready = false;
+     try {
+       const cfg: relationalStore.StoreConfig = {
+         name: DB_NAME,

@@ -1,0 +1,37 @@
+{
+  "trace_prefix": "[BUGFIX_REPRO_TRACE]",
+  "instrumentation_added": true,
+  "instrumented_locations": [
+    {
+      "file": "E:\\HarmonyOS\\miyuan_yunkaifa\\CloudProgram\\cloudfunctions\\family-bootstrap\\index.js",
+      "location_type": "project_source",
+      "method_or_region": "handler 内 persons 批次上限校验之前（persons.length > S.MAX_BATCH 判断处）",
+      "debug_question": "端侧一次上传的 persons 条数是否超过云端 S.MAX_BATCH，从而进入 400 分支？",
+      "trace_kind": "state_and_control_flow",
+      "observed_values_or_branches": [
+        "familyId=fam-repro-001",
+        "userId=hw-repro-user",
+        "cursor=0",
+        "persons=200",
+        "max_batch=100",
+        "over_limit=true"
+      ]
+    },
+    {
+      "file": "E:\\HarmonyOS\\miyuan_yunkaifa\\CloudProgram\\cloudfunctions\\_shared\\index.js",
+      "location_type": "project_source",
+      "method_or_region": "createHandler 的 BizError 捕获分支",
+      "debug_question": "云函数最终以哪个业务错误码、message 与 reason 返回给端侧？",
+      "trace_kind": "state",
+      "observed_values_or_branches": [
+        "name=family-bootstrap",
+        "code=400",
+        "reason=(空)",
+        "message=单次上传不超过 100 条，请分页调用"
+      ]
+    }
+  ],
+  "trace_output_observed": true,
+  "diagnostic_output_path": ".bugfix/20261106-01/reproduction/diagnostic_observations.txt",
+  "summary": "诊断 trace 显示复现请求单批 persons=200 超过云端 max_batch=100，createHandler 以 code=400、reason 为空返回中文 message；该结果与调试日志中的 code=400 reason= 现象一致。本阶段仅记录运行时证据，不确认根因。"
+}
