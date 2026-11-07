@@ -359,19 +359,6 @@ export struct TreeCanvas {
   }
 
   @Builder
-  StyleHint() {
-    if (this.style !== TreeStyle.DIE) {
-      Row() {
-        Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
-          .fontSize(11)
-          .fontColor(Theme.inkTertiary)
-      }
-      .width('100%')
-      .padding({ bottom: Spacing.S })
-    }
-  }
-
-  @Builder
   DieList() {
     List({ space: Spacing.M }) {
       LazyForEach(this.dieSource, (person: Person, index: number) => {
@@ -415,8 +402,6 @@ export struct TreeCanvas {
 
   build() {
     Column() {
-      this.StyleHint()
-
       if (this.peopleCount === 0) {
         EmptyHint({ icon: '🌱', title: '族谱暂无人物', desc: '点击右下角“＋”创建始祖，开启家族记录' })
       } else {

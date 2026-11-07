@@ -9,6 +9,7 @@ import { GenealogyService } from '../service/GenealogyService';
 import { Genealogy } from '../model/Genealogy';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
+import { TreeStyle } from '../model/Enums';
 
 import { Person } from '../model/Person';
 
@@ -427,6 +428,14 @@ struct Index {
       .width('100%')
 
       Row() {
+        if (this.styleName !== TreeStyle.DIE) {
+          Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
+            .fontSize(11)
+            .fontColor(Theme.inkTertiary)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .layoutWeight(1)
+        }
         Text('新增族人')
           .fontSize(12)
           .fontColor(Theme.primary)
