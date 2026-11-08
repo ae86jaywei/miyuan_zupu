@@ -79,6 +79,10 @@ export struct TreeCanvas {
   private pinchStartCenterY: number = 0;
   /** 锚点是否已锁定：首帧中心可能为 0，等拿到有效双指中心再开始缩放 */
   private pinchAnchorReady: boolean = false;
+  /** 双指捏合进行中：单指 Pan 必须让位，否则会用 startX + event.offsetX 覆盖锚点算出的 offset */
+  private pinching: boolean = false;
+  /** 捏合结束后 Pan 恢复的第一帧要用当前 offset 重设基准，避免把捏合期间的累计位移一次性加回来 */
+  private panResume: boolean = false;
   /** 捏合点所在宗支索引，以及该点在支内容坐标系中的位置（不随缩放变化） */
   private pinchAnchorIndex: number = 0;
   private pinchAnchorContentX: number = 0;
@@ -612,19 +616,36 @@ export struct TreeCanvas {
               GestureGroup(GestureMode.Parallel,
                 PanGesture({ fingers: 1, distance: 8, direction: PanDirection.All })
                   .onActionStart((event: GestureEvent): void => {
+                    // 双指捏合期间单指 Pan 会让位：fingers 是“最少手指数”，两根手指时 Pan 仍会回调
+                    if (this.pinching) {
+                      return;
+                    }
                     this.interacting = true;
                     this.startX = this.offsetX;
                     this.startY = this.offsetY;
                   })
                   .onActionUpdate((event: GestureEvent): void => {
+                    if (this.pinching) {
+                      return;
+                    }
+                    if (this.panResume) {
+                      // 恢复后的第一帧不产生位移：以当前 offset 为基准，吃掉捏合期间累计的 offsetX/offsetY
+                      this.panResume = false;
+                      this.startX = this.offsetX - event.offsetX;
+                      this.startY = this.offsetY - event.offsetY;
+                    }
                     this.offsetX = this.clampXFree(this.startX + event.offsetX);
                     this.offsetY = this.clampYFree(this.startY + event.offsetY);
                   })
                   .onActionEnd((event: GestureEvent): void => {
+                    if (this.pinching) {
+                      return;
+                    }
                     this.interacting = false;
                   }),
                 PinchGesture({ fingers: 2 })
                   .onActionStart((event: GestureEvent): void => {
+                    this.pinching = true;
                     this.interacting = true;
                     this.pinchStartScale = this.scaleValue;
                     this.pinchStartOffsetX = this.offsetX;
@@ -662,11 +683,15 @@ export struct TreeCanvas {
                     this.rebuildCanvasSize(false);
                   })
                   .onActionEnd((event: GestureEvent): void => {
+                    this.pinching = false;
+                    this.panResume = true;
                     this.interacting = false;
                     // 抬手也不重新居中：内容小于视口时居中会把卡片从手指处拉走
                     this.rebuildCanvasSize(false);
                   })
                   .onActionCancel((): void => {
+                    this.pinching = false;
+                    this.panResume = true;
                     this.interacting = false;
                     this.rebuildCanvasSize(false);
                   })
