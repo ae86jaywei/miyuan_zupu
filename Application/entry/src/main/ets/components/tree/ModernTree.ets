@@ -43,12 +43,15 @@ export struct ModernTree {
   @Prop @Watch('onDataChanged') layoutVersion: number = 0;
   @Prop @Watch('onLayoutChanged') windowWidth: number = 360;
   @Prop @Watch('onHighlightChanged') highlightUid: string = '';
+  /** 查找定位请求：收到后滚动到该族人所在行 */
+  @Prop @Watch('onFocusChanged') focusUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
   @Prop @Watch('onLayoutChanged') minCardWidth: number = 150;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
   private rows: ModernRow[] = [];
   private currentColumns: number = 0;
   private rowSource: FlatListSource<ModernRow> = new FlatListSource<ModernRow>();
+  private scroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
     this.rebuildRows();
@@ -60,6 +63,23 @@ export struct ModernTree {
 
   onHighlightChanged(): void {
     this.rowSource.setData(this.rows);
+  }
+
+  /** 定位到目标族人：找到包含它的行并居中滚动 */
+  onFocusChanged(): void {
+    if (this.focusUid.length === 0) {
+      return;
+    }
+    const target: string = this.focusUid.toUpperCase();
+    for (let i: number = 0; i < this.rows.length; i = i + 1) {
+      const row: ModernRow = this.rows[i];
+      for (let k: number = row.start; k < row.start + row.count; k = k + 1) {
+        if (row.people[k].uid.toUpperCase() === target) {
+          this.scroller.scrollToIndex(i, true, ScrollAlign.CENTER);
+          return;
+        }
+      }
+    }
   }
 
   onLayoutChanged(): void {
@@ -188,7 +208,7 @@ export struct ModernTree {
       .margin({ left: 7 })
       .padding({ top: 24, bottom: 24 })
 
-      List() {
+      List({ scroller: this.scroller }) {
         LazyForEach(this.rowSource, (row: ModernRow) => {
           ListItem() {
             Row() {

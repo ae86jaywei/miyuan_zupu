@@ -546,6 +546,10 @@ struct Index {
         windowWidth: this.windowWidth,
         onTapPerson: (uid: string): void => {
           this.openPerson(uid);
+        },
+        onFocusPerson: (uid: string): void => {
+          // 查找跳转：仅高亮定位，不打开人员卡片
+          AppStorage.setOrCreate<string>('gpSelection', uid);
         }
       })
         .width('100%')

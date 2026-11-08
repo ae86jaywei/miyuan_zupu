@@ -43,11 +43,14 @@ export struct PagodaTree {
   @Prop @Watch('onChanged') rootUids: string[] = [];
   @Prop @Watch('onChanged') layoutVersion: number = 0;
   @Prop @Watch('onHighlightChanged') highlightUid: string = '';
+  /** 查找定位请求：收到后滚动到该族人所在行 */
+  @Prop @Watch('onFocusChanged') focusUid: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
   @Prop @Watch('onChanged') compact: boolean = true;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
   private rows: PagodaRow[] = [];
   private rowSource: FlatListSource<PagodaRow> = new FlatListSource<PagodaRow>();
+  private scroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
     this.rebuildRows();
@@ -63,6 +66,23 @@ export struct PagodaTree {
 
   onHighlightChanged(): void {
     this.rowSource.setData(this.rows);
+  }
+
+  /** 定位到目标族人：找到包含它的行并居中滚动 */
+  onFocusChanged(): void {
+    if (this.focusUid.length === 0) {
+      return;
+    }
+    const target: string = this.focusUid.toUpperCase();
+    for (let i: number = 0; i < this.rows.length; i = i + 1) {
+      const row: PagodaRow = this.rows[i];
+      for (let k: number = row.start; k < row.start + row.count; k = k + 1) {
+        if (row.nodes[k].uid.toUpperCase() === target) {
+          this.scroller.scrollToIndex(i, true, ScrollAlign.CENTER);
+          return;
+        }
+      }
+    }
   }
 
   private rebuildRows(): void {
@@ -119,7 +139,7 @@ export struct PagodaTree {
   }
 
   build() {
-    List() {
+    List({ scroller: this.scroller }) {
       LazyForEach(this.rowSource, (row: PagodaRow) => {
         ListItem() {
           Column() {

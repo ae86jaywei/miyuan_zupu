@@ -14,6 +14,14 @@ import { ImportPlan, ImportResult } from '../service/ImportPlanner';
 /** 单卷人数上限：超过则按世系分卷，避免单文件近万页被系统判定无响应 */
 const PDF_VOLUME_MAX: number = 3000;
 
+/**
+ * 单部族谱在内存中的安全人数上限。
+ * 应用启动会把整谱读入内存并构建谱系树，实测 8 万人时堆已达到约 388MB
+ * （本机 JS 堆上限约 474MB）并在重建谱系时 OutOfMemoryError；
+ * 6 万以内可稳定运行，超过则阻止导入并提示改用覆盖/跳过或另立新谱。
+ */
+const MAX_PEOPLE_IN_MEMORY: number = 60000;
+
 
 /**
  * 导入 / 导出中心。
@@ -218,7 +226,26 @@ struct ImportExport {
     const isOtherBook: boolean = this.pendingBook !== null && meta.title.trim().length > 0
       && curTitle.length > 0 && meta.title.trim() !== curTitle.trim();
     const asNewBook: boolean = !this.svc().hasBook() || isOtherBook;
-    const plan: ImportPlan = this.svc().planImport(this.pendingPeople, this.mergeStrategy, asNewBook);
+    const plan: ImportPlan = await this.svc().planImport(this.pendingPeople, this.mergeStrategy, asNewBook,
+      (done: number, total: number): void => {
+        this.setProgress('正在匹配族人身份（' + done.toString() + '/' + total.toString() + '）…',
+          20 + Math.round(done * 40 / Math.max(total, 1)));
+      });
+    // 人数安全阀：合并进当前谱且总人数将超过内存上限时直接拦下，
+    // 否则写入完成后重读全谱 + 重建谱系会 OutOfMemoryError（应用被杀，数据也白导）
+    const curCount: number = this.svc().hasBook() ? this.svc().getPeople().length : 0;
+    const projected: number = asNewBook ? plan.people.length : curCount + plan.newCount();
+    if (projected > MAX_PEOPLE_IN_MEMORY) {
+      this.busy = false;
+      this.showProgress = false;
+      const tip: string = '导入后本族谱将达到 ' + projected.toString() + ' 人，超出本机内存安全上限 '
+        + MAX_PEOPLE_IN_MEMORY.toString() + ' 人（当前 ' + curCount.toString() + ' 人），'
+        + '继续导入会因内存不足被系统强制退出。\n\n'
+        + '建议：改用「覆盖」或「跳过重复」策略；如需保留两套编号，请先在「谱系」中新建族谱再导入。';
+      this.setProgress(tip, 100);
+      this.getUIContext().getPromptAction().showToast({ message: '人数超出内存安全上限，已取消导入' });
+      return;
+    }
     let text: string = '';
     if (isOtherBook) {
       text = '检测到文件属于另一部族谱「' + meta.title + '」，将新建独立族谱导入，'
@@ -256,6 +283,8 @@ struct ImportExport {
     }
     this.busy = true;
     this.setProgress('正在写入族谱…', 3);
+    // 计划已生成，解析出来的数万条原始人物不再需要，先释放以降低写入与重读阶段的堆压力
+    this.pendingPeople = [];
     try {
       // 数万条写入要跨分钟，进度条按已写入条数推进（3%~93%），重建谱系占 95%
       const onProgress: (done: number, total: number) => void = (done: number, total: number): void => {

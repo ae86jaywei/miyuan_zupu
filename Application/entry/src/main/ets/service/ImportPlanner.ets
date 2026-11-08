@@ -265,13 +265,19 @@ export class IdentityMatcher {
   }
 }
 
+/** 候选扫描结果（同世代优先、低分时退回全桶，两轮扫描共用） */
+class BestMatch {
+  score: number = 0;
+  person: Person | null = null;
+}
+
 /**
  * 导入计划生成器：身份匹配 → 全局 ID 重映射。
  * 全程只读内存，不落库。
  */
 export class ImportPlanner {
-  static plan(incoming: Person[], local: Person[], retired: Map<string, string>,
-    opt: ImportOptions): ImportPlan {
+  static async plan(incoming: Person[], local: Person[], retired: Map<string, string>,
+    opt: ImportOptions, onProgress?: (done: number, total: number) => void): Promise<ImportPlan> {
     const plan: ImportPlan = new ImportPlan();
     plan.incomingCount = incoming.length;
 
@@ -299,6 +305,8 @@ export class ImportPlanner {
     });
     // 本机同名同性别候选索引（用于指纹匹配召回）
     const byNameGender: Map<string, Person[]> = new Map<string, Person[]>();
+    // 再按世代分桶：谱内同名极多（如大量「韦氏」），只扫同世代能大幅减少候选量
+    const byNameGenderGen: Map<string, Person[]> = new Map<string, Person[]>();
     local.forEach((p: Person): void => {
       const nk: string = IdentityMatcher.normalizeName(p.name);
       if (nk.length === 0) {
@@ -311,6 +319,15 @@ export class ImportPlanner {
         byNameGender.set(key, arr);
       }
       arr.push(p);
+      if (p.generation > 0) {
+        const gKey: string = key + '|' + p.generation.toString();
+        let gArr: Person[] | undefined = byNameGenderGen.get(gKey);
+        if (gArr === undefined) {
+          gArr = [];
+          byNameGenderGen.set(gKey, gArr);
+        }
+        gArr.push(p);
+      }
     });
 
     // 已占用编号（本机 + 已删除黑名单 + 本批已分配）
@@ -379,31 +396,6 @@ export class ImportPlanner {
       }
 
       const existByUid: Person | undefined = p.uid.length > 0 ? localMap.get(p.uid) : undefined;
-      const fp: PersonFingerprint = IdentityMatcher.fingerprint(p, names);
-      let bestLocal: Person | null = null;
-      let bestScore: number = 0;
-      // 指纹召回始终执行：编号可能被人为改过，同一个人换了号就会「撞上别人」，
-      // 此时仍应优先按身份并入本机那个人，而不是草率地新建一个重复人物
-      const cands: Person[] | undefined = byNameGender.get(fp.nameKey + '|' + p.gender);
-      if (cands !== undefined) {
-        cands.forEach((c: Person): void => {
-          if (c.uid.trim().toUpperCase() === p.uid) {
-            return;
-          }
-          const key: string = ImportPlanner.up(c.uid);
-          const cached: PersonFingerprint | undefined = localFp.get(key);
-          const cfp: PersonFingerprint = cached === undefined ? IdentityMatcher.fingerprint(c, names) : cached;
-          if (cached === undefined) {
-            localFp.set(key, cfp);
-          }
-          const s: number = IdentityMatcher.score(fp, cfp);
-          if (s > bestScore) {
-            bestScore = s;
-            bestLocal = c;
-          }
-        });
-      }
-
       // 同编号身份比对：error 表示「编号相同但人物不同」
       let sameUidConflict: boolean = false;
       if (existByUid !== undefined) {
@@ -413,10 +405,33 @@ export class ImportPlanner {
             sameUidConflict = true;
           }
         });
-        if (!sameUidConflict) {
-          bestScore = 100;
-          bestLocal = existByUid;
+      }
+      let bestLocal: Person | null = null;
+      let bestScore: number = 0;
+      if (existByUid !== undefined && !sameUidConflict) {
+        // 同编号且身份一致：直接按同一人合并，不再扫描同名候选桶。
+        // 数万条重导入（本机已存在同一编号）时这是唯一的快速路径，
+        // 否则每条都要扫数千个同名候选，主线程必然超过 6 秒被系统强杀。
+        bestLocal = existByUid;
+        bestScore = 100;
+      } else {
+        const fp: PersonFingerprint = IdentityMatcher.fingerprint(p, names);
+        const best: BestMatch = new BestMatch();
+        // 先扫同世代候选桶；同世代没有达到自动合并线时再退回全桶，
+        // 兼顾「世代写错但确实是同一人」的数据。每扫 500 人让出一次主线程，
+        // 避免同名极多（如大量「韦氏」）时单个循环阻塞超过 6 秒被系统强杀。
+        const bucketKey: string = fp.nameKey + '|' + p.gender;
+        const allCands: Person[] | undefined = byNameGender.get(bucketKey);
+        const sameGenCands: Person[] | undefined = p.generation > 0
+          ? byNameGenderGen.get(bucketKey + '|' + p.generation.toString()) : undefined;
+        if (sameGenCands !== undefined) {
+          await ImportPlanner.scanBucket(sameGenCands, p.uid, fp, localFp, names, best);
         }
+        if (best.score < opt.autoMergeScore && allCands !== undefined) {
+          await ImportPlanner.scanBucket(allCands, p.uid, fp, localFp, names, best);
+        }
+        bestLocal = best.person;
+        bestScore = best.score;
       }
 
       let action: string = 'new';
@@ -522,13 +537,27 @@ export class ImportPlanner {
         }
       }
       matched.push(match);
+      if (i % 100 === 99) {
+        if (onProgress !== undefined) {
+          onProgress(i + 1, incoming.length);
+        }
+        await ImportPlanner.pause();
+      }
     }
 
     // 第二遍：全局改写引用（含 merge 到本机、new 新编号、指向文件外/本机外的引用）
+    const plannedList: Person[] = [];
     planned.forEach((p: Person): void => {
+      plannedList.push(p);
+    });
+    for (let i: number = 0; i < plannedList.length; i++) {
+      const p: Person = plannedList[i];
       ImportPlanner.applyRemap(p, remap, localSet, plan);
       plan.people.push(p);
-    });
+      if (i % 100 === 99) {
+        await ImportPlanner.pause();
+      }
+    }
 
     // 导出重映射表（便于排查）
     remap.forEach((newUid: string, oldUid: string): void => {
@@ -542,6 +571,44 @@ export class ImportPlanner {
 
     plan.matches = matched;
     return plan;
+  }
+
+  /** 扫描一桶候选并维护最高分；每 500 人让出一次主线程 */
+  private static async scanBucket(cands: Person[], pUid: string, fp: PersonFingerprint,
+    localFp: Map<string, PersonFingerprint>, names: Map<string, string>,
+    best: BestMatch): Promise<void> {
+    let scanned: number = 0;
+    for (let k: number = 0; k < cands.length; k++) {
+      const c: Person = cands[k];
+      const cKey: string = ImportPlanner.up(c.uid);
+      if (cKey === pUid) {
+        continue;
+      }
+      const cached: PersonFingerprint | undefined = localFp.get(cKey);
+      const cfp: PersonFingerprint = cached === undefined ? IdentityMatcher.fingerprint(c, names) : cached;
+      if (cached === undefined) {
+        localFp.set(cKey, cfp);
+      }
+      const s: number = IdentityMatcher.score(fp, cfp);
+      if (s > best.score) {
+        best.score = s;
+        best.person = c;
+      }
+      scanned++;
+      if (scanned >= 500) {
+        scanned = 0;
+        await ImportPlanner.pause();
+      }
+    }
+  }
+
+  /** 让出主线程，给界面刷新与 GC 留出时间（数万条导入时避免 THREAD_BLOCK_6S） */
+  private static pause(): Promise<void> {
+    return new Promise<void>((resolve: () => void): void => {
+      setTimeout((): void => {
+        resolve();
+      }, 0);
+    });
   }
 
   /** 被引用但本机已不存在的人物编号 → 视为已占用，不允许新人复用 */

@@ -156,6 +156,10 @@ export class ExportService {
       }
       return a.uid.localeCompare(b.uid);
     });
+    const nameMap: Map<string, string> = new Map<string, string>();
+    for (let i: number = 0; i < people.length; i++) {
+      nameMap.set(people[i].uid.trim().toUpperCase(), people[i].name);
+    }
     let lastGen: number = -1;
     sorted.forEach((p: Person): void => {
       if (p.generation !== lastGen) {
@@ -176,7 +180,7 @@ export class ExportService {
       if (p.childStatus.length > 0 && p.childStatus !== '未记') {
         text = text + '，' + childStatusLabel(p.childStatus, p.gender);
       }
-      const spText: string = ExportService.spouseMarkdown(p, people);
+      const spText: string = ExportService.spouseMarkdown(p, nameMap);
       if (spText.length > 0) {
         text = text + '，' + spText;
       }
@@ -538,19 +542,15 @@ export class ExportService {
   }
 
   /** Markdown 谱文中的配偶描述（名分 + 姓名） */
-  private static spouseMarkdown(p: Person, people: Person[]): string {
+  private static spouseMarkdown(p: Person, nameMap: Map<string, string>): string {
     if (p.spouses.length === 0) {
       return '';
     }
     const parts: string[] = [];
     p.spouses.forEach((r: SpouseRelation): void => {
-      let name: string = r.uid;
-      for (let i: number = 0; i < people.length; i++) {
-        if (people[i].uid.trim().toUpperCase() === r.uid.trim().toUpperCase()) {
-          name = people[i].name;
-          break;
-        }
-      }
+      const key: string = r.uid.trim().toUpperCase();
+      const found: string | undefined = nameMap.get(key);
+      const name: string = found !== undefined ? found : r.uid;
       const prefix: string = (r.relation === '元配' || r.relation === '未记' || r.relation === '配偶') ?
         '配' : r.relation;
       parts.push(prefix + name);

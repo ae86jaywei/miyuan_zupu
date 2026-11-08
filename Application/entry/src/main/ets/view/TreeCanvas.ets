@@ -1,4 +1,4 @@
-import { PersonNode } from '../model/PersonNode';
+﻿import { PersonNode } from '../model/PersonNode';
 import { Person } from '../model/Person';
 import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';
@@ -10,7 +10,7 @@ import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
 import { TreeLayoutCache } from '../service/TreeLayoutCache';
-import { EuCanvas, SuCanvas, suRootCenterX } from '../service/TreeLayout';
+import { EuCanvas, SuCanvas } from '../service/TreeLayout';
 import { ViewportMath } from '../service/TreeViewport';
 import { Breakpoint } from '../common/Constants';
 import { FlatListSource } from '../util/FlatListSource';
@@ -41,6 +41,8 @@ export struct TreeCanvas {
   @Prop showPrivate: boolean = true;
   @Prop @Watch('onWindowWidthChanged') windowWidth: number = 360;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
+  /** 查找定位：只把该族人设为高亮，不打开人员卡片 */
+  onFocusPerson: (uid: string) => void = (uid: string): void => {};
 
   /** 实际渲染缩放：双指捏合写入这里 */
   @State scaleValue: number = 1;
@@ -67,6 +69,19 @@ export struct TreeCanvas {
   @State genGroups: Person[][] = [];
   /** 每个宗支在全部宗支堆叠画布中的屏幕起点（已含 zoom） */
   @State branchTops: number[] = [];
+  /** 当前显示的宗支索引：一次只渲染一个宗支，避免多支堆叠导致越界不渲染 */
+  @State activeBranch: number = 0;
+  /** 宗支下拉面板开关（页面内浮层，不走系统弹窗，打开更快） */
+  @State branchMenuOpen: boolean = false;
+  /** 宗支名称与后代人数：数据刷新时一次算好，避免每次 build 重复遍历 */
+  @State branchNames: string[] = [];
+  @State branchCounts: number[] = [];
+  /** 查找定位请求：传给 Pagoda/Modern 等列表型谱式，由其滚动到目标人员 */
+  @State focusUid: string = '';
+  /** 人员查找：悬浮按钮打开的搜索面板 */
+  @State searchOpen: boolean = false;
+  @State searchQuery: string = '';
+  @State searchResults: Person[] = [];
 
   /** 手势起点 */
   private startX: number = 0;
@@ -94,10 +109,11 @@ export struct TreeCanvas {
   private pendingCenter: boolean = true;
   private dieSource: FlatListSource<Person> = new FlatListSource<Person>();
   private diePeople: Person[] = [];
+  private dieScroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
     this.refreshData();
-    this.centerSuIfReady();
+    this.centerOnRootIfReady();
   }
 
   private isNarrow(): boolean {
@@ -106,6 +122,7 @@ export struct TreeCanvas {
 
   /** 切换谱式后画布尺寸与布局完全变化，平移偏移必须归零 */
   onStyleChanged(): void {
+    this.branchMenuOpen = false;
     this.offsetX = 0;
     this.offsetY = 0;
     if (this.style === TreeStyle.DIE) {
@@ -113,7 +130,7 @@ export struct TreeCanvas {
     }
     this.rebuildCanvasSize();
     this.pendingCenter = true;
-    this.centerSuIfReady();
+    this.centerOnRootIfReady();
   }
 
   onHighlightChanged(): void {
@@ -129,7 +146,7 @@ export struct TreeCanvas {
     this.offsetX = 0;
     this.offsetY = 0;
     this.pendingCenter = true;
-    this.centerSuIfReady();
+    this.centerOnRootIfReady();
   }
 
   /** 断点/窗口宽度变化会改变卡片宽度与密度，画布尺寸与各支起点需重算 */
@@ -142,6 +159,11 @@ export struct TreeCanvas {
     const svc: GenealogyService = GenealogyService.getInstance();
     const roots: PersonNode[] = svc.getRoots();
     this.rootUids = roots.map((r: PersonNode): string => r.uid);
+    this.branchNames = roots.map((r: PersonNode): string => r.person.name.length > 0 ? r.person.name : r.uid);
+    this.branchCounts = roots.map((r: PersonNode): number => r.descendants);
+    if (this.activeBranch >= this.rootUids.length) {
+      this.activeBranch = 0;
+    }
     this.peopleCount = svc.getPeople().length;
     const map: Map<number, Person[]> = svc.groupByGeneration();
     const gens: number[] = Array.from(map.keys()).sort((a: number, b: number): number => a - b);
@@ -172,45 +194,119 @@ export struct TreeCanvas {
     if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
       return;
     }
-    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
     const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
-    const headerBlock: number = roots.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
-    let w: number = 0;
-    let screenCursor: number = 0;
-    const tops: number[] = [];
-    const ws: number[] = [];
-    const hs: number[] = [];
-    for (let i: number = 0; i < roots.length; i = i + 1) {
-      // tops 记录该支 EuTree/SuTree 在屏幕上的起点（标题之后，已含 zoom）
-      tops.push(screenCursor + headerBlock);
-      let cw: number = 0;
-      let ch: number = 0;
-      if (this.style === TreeStyle.SU) {
-        const c: SuCanvas = cache.su(roots[i].uid, [roots[i]], this.cardWidth(), this.isNarrow(), true);
-        cw = c.width;
-        ch = c.height;
-      } else {
-        const c: EuCanvas = cache.eu(roots[i].uid, [roots[i]], this.cardWidth(),
-          this.isNarrow() ? 66 : 78, true, 6);
-        cw = c.width;
-        ch = c.height;
-      }
-      ws.push(cw);
-      hs.push(ch);
-      w = Math.max(w, cw);
-      screenCursor = screenCursor + headerBlock + ch * this.scaleValue + Spacing.XXL;
+    if (roots.length === 0) {
+      this.canvasW = 0;
+      this.canvasH = 0;
+      this.branchW = [];
+      this.branchH = [];
+      this.branchTops = [];
+      return;
     }
-    this.branchW = ws;
-    this.branchH = hs;
-    this.branchTops = tops;
-    // canvasW/canvasH 统一存“屏幕尺寸”（已含 zoom），与多宗支标题/间隔的真实占位一致
-    this.canvasW = w * this.scaleValue;
-    this.canvasH = screenCursor;
+    const idx: number = this.clampBranchIndex();
+    const headerBlock: number = roots.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
+    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    let cw: number = 0;
+    let ch: number = 0;
+    if (this.style === TreeStyle.SU) {
+      const c: SuCanvas = cache.su(roots[idx].uid, [roots[idx]], this.cardWidth(), this.isNarrow(), true);
+      cw = c.width;
+      ch = c.height;
+    } else {
+      const c: EuCanvas = cache.eu(roots[idx].uid, [roots[idx]], this.cardWidth(),
+        this.isNarrow() ? 66 : 78, true, 6);
+      cw = c.width;
+      ch = c.height;
+    }
+    // 只显示当前宗支：画布即该支尺寸，起点在标题之后（含 zoom）
+    this.branchW = [cw];
+    this.branchH = [ch];
+    this.branchTops = [headerBlock];
+    this.canvasW = cw * this.scaleValue;
+    this.canvasH = headerBlock + ch * this.scaleValue + Spacing.XXL;
     // 手势过程中不夹边界：锚点计算出的 offset 若被这里的边界钳制覆盖，视觉焦点会被硬拉走
     if (clamp) {
       this.offsetX = this.clampX(this.offsetX);
       this.offsetY = this.clampY(this.offsetY);
     }
+  }
+
+  private clampBranchIndex(): number {
+    if (this.rootUids.length === 0) {
+      return 0;
+    }
+    return Math.min(Math.max(this.activeBranch, 0), this.rootUids.length - 1);
+  }
+
+  /** 当前显示的宗支根 uid（单支渲染，供 ForEach 使用） */
+  private visibleRootUids(): string[] {
+    if (this.rootUids.length === 0) {
+      return [];
+    }
+    return [this.rootUids[this.clampBranchIndex()]];
+  }
+
+  /** 切换宗支：单支渲染，切换后归零平移并重新居中 */
+  private switchBranch(i: number): void {
+    this.branchMenuOpen = false;
+    if (this.rootUids.length <= 1) {
+      return;
+    }
+    const idx: number = Math.min(Math.max(i, 0), this.rootUids.length - 1);
+    if (idx === this.activeBranch) {
+      return;
+    }
+    this.activeBranch = idx;
+    this.offsetX = 0;
+    this.offsetY = 0;
+    this.rebuildCanvasSize(false);
+    this.pendingCenter = true;
+    this.centerOnRootIfReady();
+  }
+
+  /** 宗支下拉菜单：点击标题行弹出，选中的宗支会成为当前显示的唯一宗支 */
+  private branchLabel(i: number): string {
+    const name: string = i < this.branchNames.length ? this.branchNames[i] : '';
+    const count: number = i < this.branchCounts.length ? this.branchCounts[i] : 0;
+    return '宗支 ' + (i + 1).toString() + '：' + name + '（' + count.toString() + '人）';
+  }
+
+  /** 当前宗支的标题文案 */
+  private currentBranchTitle(): string {
+    const i: number = this.clampBranchIndex();
+    const name: string = i < this.branchNames.length ? this.branchNames[i] : '';
+    return '宗支 ' + (i + 1).toString() + '：' + name + ' ▾';
+  }
+
+  /** 当前宗支的后代人数 */
+  private currentBranchCount(): number {
+    const i: number = this.clampBranchIndex();
+    return i < this.branchCounts.length ? this.branchCounts[i] : 0;
+  }
+
+  /** 沿父/母/配偶链上溯，找到该族人所属宗支索引 */
+  private branchIndexOf(uid: string): number {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const roots: PersonNode[] = svc.getRoots();
+    const seen: Set<string> = new Set<string>();
+    let cur: Person | null = svc.getPerson(uid);
+    while (cur !== null && !seen.has(cur.uid)) {
+      seen.add(cur.uid);
+      for (let i: number = 0; i < roots.length; i = i + 1) {
+        if (roots[i].uid === cur.uid) {
+          return i;
+        }
+      }
+      let nextId: string = cur.fatherId;
+      if (nextId.length === 0) {
+        nextId = cur.motherId;
+      }
+      if (nextId.length === 0) {
+        nextId = cur.spouseId;
+      }
+      cur = nextId.length > 0 ? svc.getPerson(nextId) : null;
+    }
+    return -1;
   }
 
   private collectSize(w: number, h: number): void {
@@ -223,21 +319,6 @@ export struct TreeCanvas {
     if (sh > this.canvasH) {
       this.canvasH = sh;
     }
-  }
-
-  private rootName(uid: string): string {
-    const p: Person | null = GenealogyService.getInstance().getPerson(uid);
-    return p === null ? '' : p.name;
-  }
-
-  private rootDescendants(uid: string): number {
-    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
-    for (let i: number = 0; i < roots.length; i = i + 1) {
-      if (roots[i].uid === uid) {
-        return roots[i].descendants;
-      }
-    }
-    return 0;
   }
 
   private cardWidth(): number {
@@ -253,25 +334,80 @@ export struct TreeCanvas {
   }
 
   /**
-   * 苏式谱的始祖居中于子孙，画布宽度远大于屏幕，默认停在 x=0 时始祖会落在屏幕外，
-   * 看起来像“空白”。可视区宽度就绪后把始祖横移到屏幕中间。
+   * 初始视角：把当前宗支的始祖（第一世）卡片居中。
+   * 首次进入欧式/苏式、切换谱式、切换宗支时都生效；可视区尺寸就绪后执行一次。
    */
-  private centerSuIfReady(): void {
-    if (!this.pendingCenter || this.style !== TreeStyle.SU) {
+  private centerOnRootIfReady(): void {
+    if (!this.pendingCenter) {
       return;
     }
-    if (this.viewW <= 0 || this.rootUids.length === 0) {
+    if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
+      return;
+    }
+    if (this.viewW <= 0 || this.viewH <= 0 || this.rootUids.length === 0) {
       return;
     }
     const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
     if (roots.length === 0) {
       return;
     }
+    const idx: number = this.clampBranchIndex();
+    const rootUid: string = roots[idx].uid;
+    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    let bx: number = -1;
+    let by: number = 0;
+    let bw: number = 0;
+    let bh: number = 0;
+    if (this.style === TreeStyle.SU) {
+      const c: SuCanvas = cache.su(rootUid, [roots[idx]], this.cardWidth(), this.isNarrow(), true);
+      for (let k: number = 0; k < c.boxes.length; k = k + 1) {
+        if (this.boxHasRoot(c.boxes[k].node, rootUid)) {
+          bx = c.boxes[k].x;
+          by = c.boxes[k].y;
+          bw = c.boxes[k].w;
+          bh = c.boxes[k].h;
+          break;
+        }
+      }
+    } else {
+      const c: EuCanvas = cache.eu(rootUid, [roots[idx]], this.cardWidth(),
+        this.isNarrow() ? 66 : 78, true, 6);
+      for (let k: number = 0; k < c.boxes.length; k = k + 1) {
+        if (this.boxHasRoot(c.boxes[k].node, rootUid)) {
+          bx = c.boxes[k].x;
+          by = c.boxes[k].y;
+          bw = c.boxes[k].w;
+          bh = c.boxes[k].h;
+          break;
+        }
+      }
+    }
     this.pendingCenter = false;
-    const cx: number = suRootCenterX([roots[0]], this.cardWidth(), this.isNarrow());
-    // 屏幕坐标 = 内容坐标 × zoom + offset，因此居中的偏移要乘 zoom
-    this.offsetX = this.clampX(this.viewW / 2 - cx * this.scaleValue);
-    this.offsetY = 0;
+    if (bx < 0) {
+      return;
+    }
+    const top: number = this.branchTops.length > 0 ? this.branchTops[0] : 0;
+    // 屏幕坐标 = 内容坐标 × zoom + 宗支起点 + offset
+    this.offsetX = this.clampX(this.viewW / 2 - (bx + bw / 2) * this.scaleValue);
+    this.offsetY = this.clampY(this.viewH / 2 - (by + bh / 2) * this.scaleValue - top);
+  }
+
+  /** 未选中族人时默认高亮当前宗支的始祖，作为进入欧式/苏式的初始焦点 */
+  private effectiveHighlight(rootUid: string): string {
+    return this.highlightUid.length > 0 ? this.highlightUid : rootUid;
+  }
+
+  /** 夫妻卡里是否包含该族人（本人或配偶） */
+  private boxHasRoot(node: PersonNode, uid: string): boolean {
+    if (node.uid === uid) {
+      return true;
+    }
+    for (let k: number = 0; k < node.spouses.length; k = k + 1) {
+      if (node.spouses[k].uid === uid) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** 双指中心：用两指相对应用窗口的 globalX/globalY 减去画布窗口位置，得到确定的画布坐标 */
@@ -394,6 +530,129 @@ export struct TreeCanvas {
     this.offsetY = this.clampY(this.viewH / 2 - contentY * this.scaleValue - contentTop);
   }
 
+  /** 按关键词在内存族谱中检索（姓名 / 曾用名 / 唯一ID / 字派），最多返回 40 条 */
+  private runSearch(q: string): void {
+    this.searchQuery = q;
+    const key: string = q.trim();
+    if (key.length === 0) {
+      this.searchResults = [];
+      return;
+    }
+    const keyUpper: string = key.toUpperCase();
+    const people: Person[] = GenealogyService.getInstance().getPeople();
+    const out: Person[] = [];
+    for (let i: number = 0; i < people.length; i = i + 1) {
+      const p: Person = people[i];
+      if (p.name.includes(key) || p.alias.includes(key) || p.generationChar.includes(key) ||
+        p.uid.toUpperCase().includes(keyUpper)) {
+        out.push(p);
+        if (out.length >= 40) {
+          break;
+        }
+      }
+    }
+    this.searchResults = out;
+  }
+
+  /**
+   * 跳转到指定族人：在所属宗支缓存布局里找到夫妻卡，把该卡居中。
+   * 布局全部来自 TreeLayoutCache（渲染时已算好），只做线性查找，不会在大谱上重算整树。
+   */
+  private focusOnUid(uid: string): void {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const target: string = uid.toUpperCase();
+    // 牒记式：按世代排序列表，直接滚动到目标条目
+    if (this.style === TreeStyle.DIE) {
+      if (this.diePeople.length === 0) {
+        this.rebuildDieSource();
+      }
+      for (let i: number = 0; i < this.diePeople.length; i = i + 1) {
+        if (this.diePeople[i].uid.toUpperCase() === target) {
+          this.onFocusPerson(uid);
+          this.dieScroller.scrollToIndex(i, true, ScrollAlign.CENTER);
+          return;
+        }
+      }
+      this.getUIContext().getPromptAction().showToast({ message: '未找到该族人' });
+      return;
+    }
+    // 宝塔式/现代谱式：组件内部按行/列表滚动定位
+    if (this.style === TreeStyle.PAGODA || this.style === TreeStyle.MODERN) {
+      this.onFocusPerson(uid);
+      this.focusUid = uid;
+      return;
+    }
+    const roots: PersonNode[] = svc.getRoots();
+    if (roots.length === 0) {
+      this.getUIContext().getPromptAction().showToast({ message: '未在谱系中找到该族人' });
+      return;
+    }
+    // 目标不在当前宗支时自动切换
+    const bi: number = this.branchIndexOf(uid);
+    if (bi >= 0 && bi !== this.activeBranch) {
+      this.activeBranch = bi;
+      this.offsetX = 0;
+      this.offsetY = 0;
+    }
+    this.rebuildCanvasSize(false);
+    const idx: number = this.clampBranchIndex();
+    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    let bx: number = 0;
+    let by: number = 0;
+    let bw: number = 0;
+    let bh: number = 0;
+    let hit: boolean = false;
+    if (this.style === TreeStyle.SU) {
+      const c: SuCanvas = cache.su(roots[idx].uid, [roots[idx]], this.cardWidth(), this.isNarrow(), true);
+      for (let k: number = 0; k < c.boxes.length; k = k + 1) {
+        if (this.coupleContains(c.boxes[k].node, target)) {
+          bx = c.boxes[k].x;
+          by = c.boxes[k].y;
+          bw = c.boxes[k].w;
+          bh = c.boxes[k].h;
+          hit = true;
+          break;
+        }
+      }
+    } else {
+      const c: EuCanvas = cache.eu(roots[idx].uid, [roots[idx]], this.cardWidth(),
+        this.isNarrow() ? 66 : 78, true, 6);
+      for (let k: number = 0; k < c.boxes.length; k = k + 1) {
+        if (this.coupleContains(c.boxes[k].node, target)) {
+          bx = c.boxes[k].x;
+          by = c.boxes[k].y;
+          bw = c.boxes[k].w;
+          bh = c.boxes[k].h;
+          hit = true;
+          break;
+        }
+      }
+    }
+    if (!hit) {
+      this.getUIContext().getPromptAction().showToast({ message: '未在谱系中找到该族人（可能不在当前谱式覆盖范围）' });
+      return;
+    }
+    this.scaleValue = Math.max(this.scaleValue, BUBBLE_ZOOM);
+    this.rebuildCanvasSize(false);
+    const top: number = this.branchTops.length > 0 ? this.branchTops[0] : 0;
+    this.offsetX = this.clampX(this.viewW / 2 - (bx + bw / 2) * this.scaleValue);
+    this.offsetY = this.clampY(this.viewH / 2 - (by + bh / 2) * this.scaleValue - top);
+    this.onFocusPerson(uid);
+  }
+
+  /** 夫妻卡里包含该族人（主卡本人或其任一配偶）即视为命中 */
+  private coupleContains(node: PersonNode, target: string): boolean {
+    if (node.uid.toUpperCase() === target) {
+      return true;
+    }
+    for (let k: number = 0; k < node.spouses.length; k = k + 1) {
+      if (node.spouses[k].uid.toUpperCase() === target) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** 渲染上下方向谱式的世系索引 */
   @Builder
   GenerationIndex() {
@@ -416,18 +675,20 @@ export struct TreeCanvas {
     .margin({ bottom: Spacing.M })
   }
 
-  /** 悬浮工具：当前缩放比例 + 一键全览（迷失时快速回中心） */
+  /** 悬浮工具：当前缩放比例 + 查找族人 + 一键全览（迷失时快速回中心） */
   @Builder
   ViewTools() {
     Column() {
-      Text(Math.round(this.scaleValue * 100).toString() + '%')
-        .fontSize(10)
-        .fontColor(Theme.inkTertiary)
-        .backgroundColor(Theme.glass)
-        .borderRadius(8)
-        .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-        .margin({ bottom: 6 })
-      Button('全览')
+      if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
+        Text(Math.round(this.scaleValue * 100).toString() + '%')
+          .fontSize(10)
+          .fontColor(Theme.inkTertiary)
+          .backgroundColor(Theme.glass)
+          .borderRadius(8)
+          .padding({ left: 6, right: 6, top: 2, bottom: 2 })
+          .margin({ bottom: 6 })
+      }
+      Button('查找')
         .fontSize(12)
         .fontColor(Theme.primary)
         .backgroundColor(Theme.glass)
@@ -435,17 +696,116 @@ export struct TreeCanvas {
         .borderRadius(16)
         .height(34)
         .padding({ left: 12, right: 12 })
+        .margin({ bottom: 6 })
         .onClick((): void => {
-          this.resetView();
+          this.searchOpen = !this.searchOpen;
         })
+      if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
+        Button('全览')
+          .fontSize(12)
+          .fontColor(Theme.primary)
+          .backgroundColor(Theme.glass)
+          .border({ width: 1, color: Theme.glassBorder })
+          .borderRadius(16)
+          .height(34)
+          .padding({ left: 12, right: 12 })
+          .onClick((): void => {
+            this.resetView();
+          })
+      }
     }
     .alignItems(HorizontalAlign.End)
     .margin({ right: 12, bottom: 12 })
   }
 
+  /** 查找面板：输入关键词 → 结果点选即跳转并居中 */
+  @Builder
+  SearchPanel() {
+    Column() {
+      Row() {
+        Text('查找族人')
+          .fontSize(15)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Theme.ink)
+          .layoutWeight(1)
+        Text('关闭')
+          .fontSize(13)
+          .fontColor(Theme.primary)
+          .padding({ left: 8, top: 4, bottom: 4 })
+          .onClick((): void => {
+            this.searchOpen = false;
+          })
+      }
+      .width('100%')
+      TextInput({ text: this.searchQuery, placeholder: '姓名 / 曾用名 / 唯一ID / 字派' })
+        .height(38)
+        .fontSize(14)
+        .margin({ top: 8 })
+        .onChange((v: string): void => {
+          this.runSearch(v);
+        })
+      if (this.searchQuery.trim().length === 0) {
+        Text('输入关键词自动匹配，点击结果即跳到该族人在谱系中的位置')
+          .fontSize(11)
+          .fontColor(Theme.inkTertiary)
+          .margin({ top: 8 })
+          .width('100%')
+      } else if (this.searchResults.length === 0) {
+        Text('未找到匹配的族人')
+          .fontSize(12)
+          .fontColor(Theme.inkTertiary)
+          .margin({ top: 10 })
+          .width('100%')
+      } else {
+        List({ space: 2 }) {
+          ForEach(this.searchResults, (p: Person) => {
+            ListItem() {
+              Row() {
+                Text(p.name)
+                  .fontSize(14)
+                  .fontColor(Theme.ink)
+                Text(generationLabel(p.generation) + ' · ' + p.uid)
+                  .fontSize(11)
+                  .fontColor(Theme.inkTertiary)
+                  .margin({ left: 8 })
+              }
+              .width('100%')
+              .padding({ top: 8, bottom: 8 })
+            }
+            .onClick((): void => {
+              this.searchOpen = false;
+              this.focusOnUid(p.uid);
+            })
+          }, (p: Person) => 'sr_' + p.uid)
+        }
+        .height(220)
+        .margin({ top: 6 })
+        .scrollBar(BarState.Auto)
+      }
+    }
+    .width('88%')
+    .padding(12)
+    .backgroundColor(Theme.card)
+    .borderRadius(14)
+    .border({ width: 1, color: Theme.glassBorder })
+    .margin({ top: 10 })
+  }
+
+  @Builder
+  SearchOverlay() {
+    Column() {
+      this.SearchPanel()
+      Blank()
+    }
+    .width('100%')
+    .height('100%')
+    .alignItems(HorizontalAlign.Center)
+    .backgroundColor('#33000000')
+  }
+
   @Builder
   DieList() {
-    List({ space: Spacing.M }) {
+    List({ space: Spacing.M, scroller: this.dieScroller }) {
       LazyForEach(this.dieSource, (person: Person, index: number) => {
         ListItem() {
           Column() {
@@ -485,27 +845,79 @@ export struct TreeCanvas {
     .edgeEffect(EdgeEffect.None)
   }
 
+  /**
+   * 宗支下拉面板：页面内浮层，点击标题行立即出现。
+   * 不用系统 bindMenu 弹窗，避免欧式大画布下弹窗创建被布局阻塞而出现明显等待。
+   */
+  @Builder
+  BranchDropdown() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(Color.Transparent)
+        .onClick((): void => {
+          this.branchMenuOpen = false;
+        })
+      Column() {
+        List() {
+          ForEach(this.rootUids, (uid: string, i: number) => {
+            ListItem() {
+              Row() {
+                Text((i === this.clampBranchIndex() ? '✓ ' : '') + this.branchLabel(i))
+                  .fontSize(13)
+                  .fontColor(i === this.clampBranchIndex() ? Theme.primary : Theme.ink)
+                  .fontWeight(i === this.clampBranchIndex() ? FontWeight.Medium : FontWeight.Normal)
+                  .maxLines(1)
+                  .textOverflow({ overflow: TextOverflow.Ellipsis })
+                  .layoutWeight(1)
+              }
+              .width('100%')
+              .height(40)
+              .padding({ left: 12, right: 12 })
+              .onClick((): void => {
+                this.switchBranch(i);
+              })
+            }
+          }, (uid: string, i: number) => 'bm_' + uid + '_' + i.toString())
+        }
+        .width('100%')
+        .height('100%')
+        .divider({ strokeWidth: 0.5, color: Theme.glassBorder })
+        .scrollBar(BarState.Auto)
+        .edgeEffect(EdgeEffect.None)
+      }
+      .width('92%')
+      .height(Math.min(this.rootUids.length * 40 + 2, 320))
+      .margin({ left: 12, top: BRANCH_HEADER_H + Spacing.S + 2 })
+      .backgroundColor(Theme.card)
+      .borderRadius(10)
+      .border({ width: 1, color: Theme.glassBorder })
+      .shadow({ radius: 14, color: '#33000000', offsetY: 5 })
+    }
+    .width('100%')
+    .height('100%')
+  }
+
   build() {
-    Column() {
-      if (this.peopleCount === 0) {
-        EmptyHint({ icon: '🌱', title: '族谱暂无人物', desc: '点击右下角“＋”创建始祖，开启家族记录' })
-      } else {
-        if (this.style === TreeStyle.DIE) {
+    Stack({ alignContent: Alignment.BottomEnd }) {
+      Column() {
+        if (this.peopleCount === 0) {
+          EmptyHint({ icon: '🌱', title: '族谱暂无人物', desc: '点击右下角“＋”创建始祖，开启家族记录' })
+        } else if (this.style === TreeStyle.DIE) {
           this.DieList()
         } else if (this.style === TreeStyle.PAGODA) {
-          Column() {
-            this.GenerationIndex()
-            PagodaTree({
-              rootUids: this.rootUids,
-              layoutVersion: this.dataVersion,
-              highlightUid: this.highlightUid,
-              compact: this.isNarrow(),
-              onTapPerson: (uid: string): void => {
-                this.onTapPerson(uid);
-              }
-            })
-            .layoutWeight(1)
-          }
+          this.GenerationIndex()
+          PagodaTree({
+            rootUids: this.rootUids,
+            layoutVersion: this.dataVersion,
+            highlightUid: this.highlightUid,
+            focusUid: this.focusUid,
+            compact: this.isNarrow(),
+            onTapPerson: (uid: string): void => {
+              this.onTapPerson(uid);
+            }
+          })
           .width('100%')
           .layoutWeight(1)
         } else if (this.style === TreeStyle.MODERN) {
@@ -513,38 +925,67 @@ export struct TreeCanvas {
             layoutVersion: this.dataVersion,
             windowWidth: this.windowWidth,
             highlightUid: this.highlightUid,
+            focusUid: this.focusUid,
             minCardWidth: this.windowWidth >= Breakpoint.MD ? 220 : (this.isNarrow() ? 150 : 180),
             onTapPerson: (uid: string): void => {
               this.onTapPerson(uid);
             }
           })
+          .width('100%')
           .layoutWeight(1)
         } else {
-          Stack({ alignContent: Alignment.BottomEnd }) {
-            Scroll() {
+          this.CanvasBody()
+        }
+      }
+      .width('100%')
+      .height('100%')
+      .alignItems(HorizontalAlign.Start)
+
+      if (this.peopleCount > 0) {
+        this.ViewTools()
+      }
+      if (this.searchOpen) {
+        this.SearchOverlay()
+      }
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  /** 欧式/苏式画布主体：一次只渲染当前宗支，避免多支堆叠越界导致整屏空白 */
+  @Builder
+  CanvasBody() {
+      Stack({ alignContent: Alignment.TopStart }) {
+        Stack({ alignContent: Alignment.TopStart }) {
               Column() {
-                ForEach(this.rootUids, (uid: string, ri: number) => {
+                ForEach(this.visibleRootUids(), (uid: string, ri: number) => {
                   Column() {
                     if (this.rootUids.length > 1) {
                       Row() {
-                        Text('宗支 ' + (ri + 1).toString() + '：' + this.rootName(uid))
+                        Text(this.currentBranchTitle())
                           .fontSize(13)
                           .fontWeight(FontWeight.Medium)
                           .fontColor(Theme.primary)
-                        Text('后代 ' + this.rootDescendants(uid).toString() + ' 人')
+                        Text('后代 ' + this.currentBranchCount().toString() + ' 人')
                           .fontSize(11)
                           .fontColor(Theme.inkTertiary)
                           .margin({ left: 6 })
                       }
                       .width('100%')
                       .height(BRANCH_HEADER_H)
+                      .padding({ left: 10, right: 10 })
                       .margin({ bottom: Spacing.S })
+                      .borderRadius(8)
+                      .backgroundColor(Theme.card)
+                      .onClick((): void => {
+                        this.branchMenuOpen = !this.branchMenuOpen;
+                      })
                     }
                     if (this.style === TreeStyle.EU) {
                       EuTree({
                         rootUid: uid,
                         layoutVersion: this.dataVersion,
-                        highlightUid: this.highlightUid,
+                        highlightUid: this.effectiveHighlight(uid),
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showSpouse: true,
@@ -569,7 +1010,7 @@ export struct TreeCanvas {
                       SuTree({
                         rootUid: uid,
                         layoutVersion: this.dataVersion,
-                        highlightUid: this.highlightUid,
+                        highlightUid: this.effectiveHighlight(uid),
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showGenMark: true,
@@ -602,7 +1043,9 @@ export struct TreeCanvas {
               .alignItems(HorizontalAlign.Start)
               .padding({ bottom: 16 })
             }
-            .scrollable(ScrollDirection.None)
+            .width('100%')
+            .height('100%')
+            .clip(true)
             .onAreaChange((oldArea: Area, newArea: Area): void => {
               this.viewW = Number(newArea.width);
               this.viewH = Number(newArea.height);
@@ -610,7 +1053,7 @@ export struct TreeCanvas {
               this.viewGlobalY = Number(newArea.globalPosition.y);
               this.offsetX = this.clampX(this.offsetX);
               this.offsetY = this.clampY(this.offsetY);
-              this.centerSuIfReady();
+              this.centerOnRootIfReady();
             })
             .parallelGesture(
               GestureGroup(GestureMode.Parallel,
@@ -697,23 +1140,16 @@ export struct TreeCanvas {
                   })
               )
             )
-            .scrollBar(BarState.Auto)
-            .edgeEffect(EdgeEffect.None)
-            .enableScrollInteraction(true)
             .align(Alignment.TopStart)
             .width('100%')
             .height('100%')
-
-            this.ViewTools()
-          }
-          .width('100%')
-          .layoutWeight(1)
+        if (this.branchMenuOpen && this.rootUids.length > 1) {
+          this.BranchDropdown()
         }
       }
+      .width('100%')
+      .height('100%')
     }
-    .width('100%')
-    .alignItems(HorizontalAlign.Start)
-  }
 
   /** 水平平移边界：canvasW 已是屏幕尺寸 */
   private clampX(v: number): number {

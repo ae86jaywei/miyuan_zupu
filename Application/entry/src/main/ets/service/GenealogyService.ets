@@ -1180,7 +1180,8 @@ export class GenealogyService {
    * asNewBook 为 true 时按「另立独立族谱」规划：不与当前谱人物做身份匹配，
    * 也不受当前谱已删除编号限制，避免把另一部族谱的人员并进当前谱导致编号冲突。
    */
-  planImport(list: Person[], strategy: string, asNewBook: boolean = false): ImportPlan {
+  async planImport(list: Person[], strategy: string, asNewBook: boolean = false,
+    onProgress?: (done: number, total: number) => void): Promise<ImportPlan> {
     const opt: ImportOptions = new ImportOptions();
     if (strategy === 'skip' || strategy === 'defer') {
       opt.conflictPolicy = 'defer';
@@ -1290,6 +1291,18 @@ export class GenealogyService {
       // 库里其实已有几万人，界面却显示 0 人，用户只能再导入一次才「看得见」。
       store.commit();
       committed = true;
+      // 提交后先把导入过程中的大对象全部释放，再重读库：
+      // 「另编号」会把整谱翻倍（4 万 → 8 万），若此时仍持有导入文件解析出的
+      // 人物、计划克隆副本和旧内存数据，重读 + 重建谱系会直接 OutOfMemoryError
+      //（实测堆已用到 447MB，本地堆上限约 474MB）。
+      plan.people = [];
+      plan.matches = [];
+      plan.remaps = [];
+      plan.warnings = [];
+      plan.errors = [];
+      this.people = [];
+      this.peopleMap = new Map<string, Person>();
+      this.roots = [];
       await this.reload();
       // 关系图修复：断链清理 + 配偶双向补齐（世代默认只统计，不改史料）
       const repaired: RepairReport = RelationGraph.repair(this.people, false);
