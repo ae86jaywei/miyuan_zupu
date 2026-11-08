@@ -1177,8 +1177,10 @@ export class GenealogyService {
    * 生成导入计划（纯内存，不落库）：身份匹配 + 全局 ID 重映射。
    * strategy 与旧界面保持一致：
    *   auto（智能匹配）/ skip（冲突跳过）/ replace（冲突覆盖）/ newId（冲突另编号）。
+   * asNewBook 为 true 时按「另立独立族谱」规划：不与当前谱人物做身份匹配，
+   * 也不受当前谱已删除编号限制，避免把另一部族谱的人员并进当前谱导致编号冲突。
    */
-  planImport(list: Person[], strategy: string): ImportPlan {
+  planImport(list: Person[], strategy: string, asNewBook: boolean = false): ImportPlan {
     const opt: ImportOptions = new ImportOptions();
     if (strategy === 'skip' || strategy === 'defer') {
       opt.conflictPolicy = 'defer';
@@ -1190,7 +1192,8 @@ export class GenealogyService {
     } else {
       opt.conflictPolicy = 'auto';
     }
-    return ImportPlanner.plan(list, this.people, this.retiredUids, opt);
+    return ImportPlanner.plan(list, asNewBook ? [] : this.people,
+      asNewBook ? new Map<string, string>() : this.retiredUids, opt);
   }
 
   /**

@@ -216,21 +216,90 @@ export class ExportService {
    * 成功后删除沙箱原文件。
    */
   static async saveBinaryAsFile(context: common.UIAbilityContext, srcPath: string,
-    fileName: string): Promise<void> {
+    fileName: string): Promise<boolean> {
     const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
     options.newFileNames = [fileName];
     options.fileSuffixChoices = [fileName.substring(fileName.lastIndexOf('.'))];
     const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
     const uris: string[] = await documentPicker.save(options);
     if (uris.length === 0) {
-      return;
+      return false;
     }
-    fileIo.copyFileSync(srcPath, uris[0]);
+    ExportService.copyToUri(srcPath, uris[0]);
     try {
       fileIo.unlinkSync(srcPath);
     } catch (_e) {
       // 忽略临时文件删除失败（best-effort 清理）
     }
+    return true;
+  }
+
+  /**
+   * 把沙箱文件写入选择器返回的目标 URI。
+   * copyFileSync 的 dest 只接受路径或已打开文件的 FD，直接传 file://docs/... URI 会报
+   * 「copy_file.cpp IsAllPath Failed to copy file, error code: 2」，因此先用 URI 打开再按 FD 拷贝。
+   */
+  private static copyToUri(srcPath: string, uri: string): void {
+    const dst: fileIo.File = fileIo.openSync(uri, fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+    try {
+      fileIo.copyFileSync(srcPath, dst.fd);
+    } finally {
+      fileIo.closeSync(dst);
+    }
+  }
+
+  /**
+   * 一次性把多个沙箱二进制文件保存到用户选择的位置（用于分卷导出）。
+   * 选择器未返回足量目标时，剩余文件逐个弹窗兜底。成功后删除沙箱原文件。
+   */
+  static async saveBinariesAsFiles(context: common.UIAbilityContext, srcPaths: string[],
+    names: string[]): Promise<number> {
+    if (srcPaths.length === 0) {
+      return 0;
+    }
+    if (srcPaths.length === 1) {
+      const one: boolean = await ExportService.saveBinaryAsFile(context, srcPaths[0], names[0]);
+      return one ? 1 : 0;
+    }
+    const options: picker.DocumentSaveOptions = new picker.DocumentSaveOptions();
+    options.newFileNames = names;
+    options.fileSuffixChoices = ['.pdf'];
+    const documentPicker: picker.DocumentViewPicker = new picker.DocumentViewPicker(context);
+    let uris: string[] = [];
+    try {
+      uris = await documentPicker.save(options);
+    } catch (_e) {
+      uris = [];
+    }
+    console.info('[PdfExport] picker files=' + srcPaths.length + ', uris=' + uris.length);
+    if (uris.length === 0) {
+      return 0; // 用户取消
+    }
+    let done: number = 0;
+    const paired: number = Math.min(uris.length, srcPaths.length);
+    for (let i: number = 0; i < paired; i++) {
+      try {
+        ExportService.copyToUri(srcPaths[i], uris[i]);
+        console.info('[PdfExport] saved ' + names[i] + ' -> ' + uris[i]);
+      } catch (e) {
+        const err = e as BusinessError;
+        console.error('[PdfExport] save failed ' + names[i] + ' -> ' + uris[i] + ' : ' + err.message);
+        throw new Error('保存文件失败：' + names[i] + '：' + err.message);
+      }
+      done++;
+      try {
+        fileIo.unlinkSync(srcPaths[i]);
+      } catch (_e) {
+        // 忽略临时文件删除失败（best-effort 清理）
+      }
+    }
+    for (let i: number = paired; i < srcPaths.length; i++) {
+      const ok: boolean = await ExportService.saveBinaryAsFile(context, srcPaths[i], names[i]);
+      if (ok) {
+        done++;
+      }
+    }
+    return done;
   }
 
   /** 弹出保存对话框并写入文件 */

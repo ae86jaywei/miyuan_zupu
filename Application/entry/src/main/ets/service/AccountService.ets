@@ -21,7 +21,8 @@ export class LoginOutcome {
  * 华为账号服务（单例）。
  *
  * 职责：
- * 1. 手动登录（forceLogin = true）与静默登录（forceLogin = false）；
+ * 1. 手动登录（forceLogin = true）走华为账号**授权请求**，每次都会弹出原生的“同意 / 拒绝”授权框；
+ *    静默登录（forceLogin = false）走普通登录请求，不打扰用户；
  * 2. UnionID → userId（hw-{unionID}）映射，作为云端数据的账号隔离字段；
  * 3. 登录成功后初始化 AGC 认证，供 Cloud DB / Cloud Storage 使用；
  * 4. 登录态与账号信息缓存（不落盘 authorizationCode，仅保存 UnionID 等非敏感标识）。
@@ -341,7 +342,7 @@ export class AccountService {
     }
   }
 
-  /** 手动登录：会拉起华为账号登录界面 */
+  /** 手动登录：走授权请求，每次都会拉起华为账号原生的“同意 / 拒绝”授权对话框 */
   login(): Promise<LoginOutcome> {
     return this.executeLogin(true);
   }
@@ -349,6 +350,22 @@ export class AccountService {
   /** 静默登录：华为账号已登录且与应用上次账号一致时不打扰用户 */
   trySilentLogin(): Promise<LoginOutcome> {
     return this.executeLogin(false);
+  }
+
+  /** 使用华为账号登录组件（LoginPanel）回调返回的 UnionID 完成登录 */
+  async loginWithUnionId(unionId: string): Promise<LoginOutcome> {
+    const outcome: LoginOutcome = new LoginOutcome();
+    if (this.initPromise !== null) {
+      await this.initPromise;
+    }
+    if (unionId.length === 0) {
+      outcome.message = '未能获取华为账号标识';
+      return outcome;
+    }
+    await this.applyLogin(unionId);
+    outcome.success = true;
+    outcome.message = '登录成功';
+    return outcome;
   }
 
   private async executeLogin(forceLogin: boolean): Promise<LoginOutcome> {
@@ -362,25 +379,47 @@ export class AccountService {
     }
     try {
       const provider: authentication.HuaweiIDProvider = new authentication.HuaweiIDProvider();
-      const loginRequest: authentication.LoginWithHuaweiIDRequest = provider.createLoginWithHuaweiIDRequest();
-      loginRequest.forceLogin = forceLogin;
-      loginRequest.state = util.generateRandomUUID();
-
       const controller: authentication.AuthenticationController =
         new authentication.AuthenticationController(this.context);
-      const response: authentication.AuthenticationResponse = await controller.executeRequest(loginRequest);
-      const loginResponse: authentication.LoginWithHuaweiIDResponse =
-        response as authentication.LoginWithHuaweiIDResponse;
-      if (loginResponse.state !== loginRequest.state) {
-        outcome.message = '登录状态校验失败，请重试';
-        return outcome;
+      let unionId: string = '';
+      if (forceLogin) {
+        // 手动登录改用授权请求并强制展示授权页：
+        // 即使用户此前已授权，每次登录也必须由用户在原生“同意 / 拒绝”对话框中重新确认。
+        const authRequest: authentication.AuthorizationWithHuaweiIDRequest =
+          provider.createAuthorizationWithHuaweiIDRequest();
+        authRequest.scopes = ['openid'];
+        authRequest.forceAuthorization = true;
+        authRequest.state = util.generateRandomUUID();
+        const authRaw: authentication.AuthenticationResponse = await controller.executeRequest(authRequest);
+        const authResponse: authentication.AuthorizationWithHuaweiIDResponse =
+          authRaw as authentication.AuthorizationWithHuaweiIDResponse;
+        if (authResponse.state !== authRequest.state) {
+          outcome.message = '登录状态校验失败，请重试';
+          return outcome;
+        }
+        const authCredential: authentication.AuthorizationWithHuaweiIDCredential | undefined = authResponse.data;
+        unionId = authCredential !== undefined && authCredential.unionID !== undefined
+          ? authCredential.unionID : '';
+      } else {
+        const loginRequest: authentication.LoginWithHuaweiIDRequest = provider.createLoginWithHuaweiIDRequest();
+        loginRequest.forceLogin = false;
+        loginRequest.state = util.generateRandomUUID();
+
+        const response: authentication.AuthenticationResponse = await controller.executeRequest(loginRequest);
+        const loginResponse: authentication.LoginWithHuaweiIDResponse =
+          response as authentication.LoginWithHuaweiIDResponse;
+        if (loginResponse.state !== loginRequest.state) {
+          outcome.message = '登录状态校验失败，请重试';
+          return outcome;
+        }
+        const credential: authentication.LoginWithHuaweiIDCredential | undefined = loginResponse.data;
+        unionId = credential !== undefined ? credential.unionID : '';
       }
-      const credential: authentication.LoginWithHuaweiIDCredential | undefined = loginResponse.data;
-      if (credential === undefined || credential.unionID.length === 0) {
+      if (unionId.length === 0) {
         outcome.message = '未能获取华为账号标识';
         return outcome;
       }
-      await this.applyLogin(credential.unionID);
+      await this.applyLogin(unionId);
       outcome.success = true;
       outcome.message = '登录成功';
       return outcome;

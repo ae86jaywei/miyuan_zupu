@@ -1,237 +1,135 @@
 import { common } from '@kit.AbilityKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
-import { BackButton } from '../components/BackButton';
+import { BusinessError } from '@kit.BasicServicesKit';
+import { loginComponentManager, LoginPanel } from '@kit.AccountKit';
 import { AccountService, LoginOutcome } from '../service/AccountService';
+import { RouterUtil } from '../util/RouterUtil';
 
 /**
  * 华为账号登录页。
  *
- * 交互：
- * 1. 进入页面先尝试静默登录（forceLogin = false），已授权用户无感完成登录；
- * 2. 静默登录失败（如 1001502001 华为账号未登录）时展示手动登录按钮；
- * 3. 首次使用可选择“暂不登录，先本地使用”，之后不再自动弹出登录页。
+ * 使用 Account Kit 提供的原生登录面板组件 LoginPanel：
+ * 1. 面板内由华为账号服务原生渲染「华为账号一键登录」按钮与协议勾选框（《用户协议》《隐私政策》《华为账号用户认证协议》）；
+ * 2. 协议状态每次进入都重置为未同意，用户必须主动勾选并点击登录，未勾选时由系统弹出原生协议对话框，满足每次登录都要确认协议的要求；
+ * 3. 页面不再自动静默登录，保证用户始终能看到并操作登录面板。
  */
 @Entry
 @Component
 struct Login {
-  @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
-  @StorageProp('gpLogin') loggedIn: boolean = false;
+  /** 是否显示原生登录面板，由组件内部关闭按钮置为 false */
+  @State showPanel: boolean = true;
 
-  @State agreed: boolean = false;
-  @State busy: boolean = false;
-  @State statusText: string = '';
-  @State autoTried: boolean = false;
+  private controller: loginComponentManager.LoginPanelController = new loginComponentManager.LoginPanelController();
 
-  onDarkModeChange(): void {
-    Theme.use(this.darkMode);
-  }
+  private panelParams: loginComponentManager.LoginPanelParams = {
+    appInfo: {
+      appIcon: $r('app.media.layered_image'),
+      appName: $r('app.string.EntryAbility_label'),
+      appDescription: $r('app.string.EntryAbility_desc')
+    },
+    privacyText: [
+      {
+        type: loginComponentManager.TextType.PLAIN_TEXT,
+        text: '我已阅读并同意'
+      },
+      {
+        type: loginComponentManager.TextType.RICH_TEXT,
+        text: '《用户协议》',
+        tag: 'user_agreement'
+      },
+      {
+        type: loginComponentManager.TextType.PLAIN_TEXT,
+        text: '、'
+      },
+      {
+        type: loginComponentManager.TextType.RICH_TEXT,
+        text: '《隐私政策》',
+        tag: 'privacy_policy'
+      },
+      {
+        type: loginComponentManager.TextType.PLAIN_TEXT,
+        text: '和'
+      },
+      {
+        type: loginComponentManager.TextType.RICH_TEXT,
+        text: '《华为账号用户认证协议》',
+        tag: 'hwid_agreement'
+      }
+    ],
+    loginType: loginComponentManager.LoginType.ID
+  };
 
   aboutToAppear(): void {
-    Theme.use(this.darkMode);
-    this.autoLogin();
-  }
-
-  private hostContext(): common.UIAbilityContext | null {
     const ctx = this.getUIContext().getHostContext();
-    if (ctx === undefined || ctx === null) {
-      return null;
+    if (ctx !== undefined && ctx !== null) {
+      AccountService.getInstance().init(ctx as common.UIAbilityContext);
     }
-    return ctx as common.UIAbilityContext;
+    // 协议状态每次重置为未同意，确保每次登录都需用户主动确认
+    this.controller.setAgreementStatus(loginComponentManager.AgreementStatus.NOT_ACCEPTED);
+    this.controller.onClickLoginWithHuaweiIDButton(
+      (err: BusinessError, data: loginComponentManager.HuaweiIDCredential): void => {
+        this.onLoginResult(err, data);
+      });
+    this.controller.onClickCloseButton((): void => {
+      this.showPanel = false;
+      this.getUIContext().getRouter().back();
+    });
+    this.controller.onClickPrivacyText((err: BusinessError, tag: string): void => {
+      if (tag === 'user_agreement') {
+        RouterUtil.agreement(this.getUIContext(), 'user');
+      } else if (tag === 'privacy_policy') {
+        RouterUtil.agreement(this.getUIContext(), 'privacy');
+      } else {
+        this.toast('《华为账号用户认证协议》由华为账号服务提供');
+      }
+    });
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    try {
+      this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    } catch (err) {
+      // 提示失败不影响登录流程
+    }
   }
 
-  /** 进入页面先尝试静默登录 */
-  private async autoLogin(): Promise<void> {
-    if (this.autoTried) {
+  private async onLoginResult(err: BusinessError, data: loginComponentManager.HuaweiIDCredential): Promise<void> {
+    if (err !== undefined && err !== null) {
+      if (err.code === 1001502012) {
+        this.toast('已取消登录');
+      } else if (err.code === 1005300001) {
+        this.toast('请先勾选并同意用户协议后再登录');
+      } else if (err.code === 1001502001) {
+        this.toast('华为账号未登录，请先在系统设置中登录华为账号');
+      } else {
+        this.toast('登录失败：' + (err.message !== undefined ? err.message : String(err.code)));
+      }
       return;
     }
-    this.autoTried = true;
-    const ctx: common.UIAbilityContext | null = this.hostContext();
-    if (ctx === null) {
-      this.statusText = '登录环境初始化失败';
+    const unionId: string = data !== undefined && data !== null ? data.unionID : '';
+    if (unionId.length === 0) {
+      this.toast('未能获取华为账号标识，请重试');
       return;
     }
-    await AccountService.getInstance().init(ctx);
-    this.busy = true;
-    this.statusText = '正在尝试静默登录…';
-    const outcome: LoginOutcome = await AccountService.getInstance().trySilentLogin();
-    this.busy = false;
+    const outcome: LoginOutcome = await AccountService.getInstance().loginWithUnionId(unionId);
     if (outcome.success) {
+      this.showPanel = false;
       this.toast('华为账号登录成功');
       this.getUIContext().getRouter().back();
-      return;
+    } else {
+      this.toast(outcome.message);
     }
-    this.statusText = outcome.needsManualLogin
-      ? '华为账号未登录，请点击下方按钮完成登录'
-      : outcome.message;
-  }
-
-  /** 手动登录：需先勾选协议 */
-  private async manualLogin(): Promise<void> {
-    if (this.busy) {
-      return;
-    }
-    if (!this.agreed) {
-      this.toast('请先阅读并同意用户协议与隐私政策');
-      return;
-    }
-    const ctx: common.UIAbilityContext | null = this.hostContext();
-    if (ctx === null) {
-      return;
-    }
-    await AccountService.getInstance().init(ctx);
-    this.busy = true;
-    this.statusText = '正在拉起华为账号登录…';
-    const outcome: LoginOutcome = await AccountService.getInstance().login();
-    this.busy = false;
-    this.statusText = outcome.message;
-    if (outcome.success) {
-      this.toast('华为账号登录成功');
-      this.getUIContext().getRouter().back();
-    }
-  }
-
-  /** 跳过登录，仅使用本地功能 */
-  private skip(): void {
-    AccountService.getInstance().setLoginSkipped(true);
-    this.getUIContext().getRouter().back();
   }
 
   build() {
-    Column() {
-      Row() {
-        BackButton({
-          onBack: (): void => {
-            this.getUIContext().getRouter().back();
-          }
-        })
-        Text('华为账号登录')
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Theme.ink)
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height(34)
-      .padding({ left: Spacing.S, right: Spacing.L })
-      .backgroundColor(Theme.card)
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
-
-      Scroll() {
-        Column() {
-          Column() {
-            Text('谱')
-              .fontSize(32)
-              .fontWeight(FontWeight.Bold)
-              .fontColor('#FFFFFF')
-              .width(72)
-              .height(72)
-              .textAlign(TextAlign.Center)
-              .backgroundColor(Theme.primary)
-              .borderRadius(20)
-            Text('登录后可云端备份族谱')
-              .fontSize(17)
-              .fontWeight(FontWeight.Medium)
-              .fontColor(Theme.ink)
-              .margin({ top: Spacing.L })
-            Text('使用华为账号一键登录，族谱成员、照片与视频将安全保存到云端，换机或重装后可恢复。')
-              .fontSize(12)
-              .fontColor(Theme.inkTertiary)
-              .textAlign(TextAlign.Center)
-              .margin({ top: Spacing.S })
-              .lineHeight(19)
-          }
-          .width('100%')
-          .padding({ top: Spacing.XXL, bottom: Spacing.XL })
-
-          Column() {
-            Row() {
-              Checkbox({ name: 'agreement', group: 'login' })
-                .select(this.agreed)
-                .selectedColor(Theme.primary)
-                .onChange((isSelected: boolean): void => {
-                  this.agreed = isSelected;
-                })
-              Text('我已阅读并同意')
-                .fontSize(12)
-                .fontColor(Theme.inkSecondary)
-                .margin({ left: Spacing.XS })
-              Text('《用户协议》')
-                .fontSize(12)
-                .fontColor(Theme.primary)
-              Text('与')
-                .fontSize(12)
-                .fontColor(Theme.inkSecondary)
-              Text('《隐私政策》')
-                .fontSize(12)
-                .fontColor(Theme.primary)
-            }
-            .width('100%')
-            .alignItems(VerticalAlign.Center)
-
-            Button(this.busy ? '登录中…' : '华为账号一键登录')
-              .width('100%')
-              .height(44)
-              .fontSize(15)
-              .fontColor('#FFFFFF')
-              .backgroundColor(this.agreed && !this.busy ? Theme.primary : Theme.inkTertiary)
-              .borderRadius(Radius.M)
-              .margin({ top: Spacing.L })
-              .enabled(this.agreed && !this.busy)
-              .onClick((): void => {
-                this.manualLogin();
-              })
-
-            Button('暂不登录，先本地使用')
-              .width('100%')
-              .height(44)
-              .fontSize(14)
-              .fontColor(Theme.inkSecondary)
-              .backgroundColor(Theme.field)
-              .borderRadius(Radius.M)
-              .margin({ top: Spacing.S })
-              .enabled(!this.busy)
-              .onClick((): void => {
-                this.skip();
-              })
-
-            if (this.statusText.length > 0) {
-              Text(this.statusText)
-                .fontSize(11)
-                .fontColor(Theme.inkTertiary)
-                .width('100%')
-                .textAlign(TextAlign.Center)
-                .margin({ top: Spacing.M })
-                .maxLines(3)
-            }
-
-            Text('登录状态由华为账号服务提供，应用仅保存 UnionID 作为账号标识，不保存 authorizationCode。')
-              .fontSize(10)
-              .fontColor(Theme.inkTertiary)
-              .width('100%')
-              .textAlign(TextAlign.Center)
-              .margin({ top: Spacing.L })
-              .lineHeight(16)
-          }
-          .width('100%')
-          .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
-          .backgroundColor(Theme.card)
-          .borderRadius(16)
-          .border({ width: 0.5, color: Theme.line })
-        }
-        .width('100%')
-        .constraintSize({ maxWidth: 480 })
-        .padding({ left: Spacing.L, right: Spacing.L, bottom: 60 })
-      }
-      .layoutWeight(1)
-      .width('100%')
-      .scrollBar(BarState.Off)
+    Stack() {
+      LoginPanel({
+        show: $showPanel,
+        params: this.panelParams,
+        controller: this.controller
+      })
     }
     .width('100%')
     .height('100%')
-    .backgroundColor(Theme.paper)
+    .backgroundColor('#F5F1E8')
   }
 }

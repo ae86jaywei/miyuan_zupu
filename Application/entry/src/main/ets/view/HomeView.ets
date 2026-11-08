@@ -13,6 +13,9 @@ import { IntegrityService } from '../service/IntegrityService';
 import { IntegrityIssue, IntegrityReport } from '../model/Integrity';
 import { BirthdayItem } from '../model/TimerSession';
 
+/** 「全部校验提示」面板每批展开的条数（大谱可能有上千条，分批创建组件避免卡顿） */
+const WARN_BATCH: number = 200;
+
 /**
  * 首页 / 概览：族谱封面、统计看板、字派谱、家训、谱序与世代分布。
  */
@@ -31,6 +34,10 @@ export struct HomeView {
   @State birthdayView: BirthdayItem[] = [];
   @State recentView: Person[] = [];
   @State warnView: string[][] = [];
+  /** 是否弹出「全部校验提示」半模态面板（卡片本身只显示前 4 条） */
+  @State showAllWarnings: boolean = false;
+  /** 面板内已展开的提示条数：大谱可能有上千条，分批渲染避免一次创建过多组件 */
+  @State warnLimit: number = 200;
   private warnVersion: number = -1;
 
   aboutToAppear(): void {
@@ -356,24 +363,133 @@ export struct HomeView {
   WarningStrip() {
     if (this.warnView.length > 0) {
       Column() {
-        Text('⚠ 世系与ID校验提示（' + this.warnView.length.toString() + ' 条）')
-          .fontSize(13)
-          .fontColor(Theme.lost)
-          .width('100%')
-        ForEach(this.warnView.slice(0, 4), (w: string[]) => {
+        Row() {
+          Text('⚠ 世系与ID校验提示（' + this.warnView.length.toString() + ' 条）')
+            .fontSize(13)
+            .fontColor(Theme.lost)
+          Blank()
+          Text('查看全部 ›')
+            .fontSize(11.5)
+            .fontColor(Theme.primary)
+        }
+        .width('100%')
+        ForEach(this.warnView.slice(0, 4), (w: string[], i: number) => {
           Text(w[0] + '（' + w[1] + '）：' + w[2])
             .fontSize(11.5)
             .fontColor(Theme.inkSecondary)
             .margin({ top: 4 })
             .width('100%')
-        }, (w: string[]) => 'wn_' + w[0] + w[2])
+        }, (w: string[], i: number) => 'wn_' + i.toString() + w[1] + w[2])
       }
       .width('100%')
       .padding(Spacing.L)
       .backgroundColor(Theme.highlightBg)
       .borderRadius(16)
       .margin({ bottom: Spacing.M })
+      .onClick((): void => {
+        this.warnLimit = WARN_BATCH;
+        this.showAllWarnings = true;
+      })
+      .bindSheet($$this.showAllWarnings, this.WarningSheet(), {
+        height: SheetSize.LARGE,
+        dragBar: true,
+        backgroundColor: Theme.paper,
+        showClose: false,
+        preferType: SheetType.CENTER
+      })
     }
+  }
+
+  /** 全部校验提示：列表可滚动，点任一条直接打开该族人详情 */
+  @Builder
+  WarningSheet() {
+    Column() {
+      Row() {
+        Column() {
+          Text('世系与ID校验提示').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
+          Text('共 ' + this.warnView.length.toString() + ' 条 · 点击任一条可查看该族人')
+            .fontSize(11.5)
+            .fontColor(Theme.inkTertiary)
+            .margin({ top: 3 })
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+        Text('关闭')
+          .fontSize(13)
+          .fontColor(Theme.primary)
+          .padding({ left: 10, top: 4, bottom: 4 })
+          .onClick((): void => {
+            this.showAllWarnings = false;
+          })
+      }
+      .width('100%')
+      .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.M })
+
+      List() {
+        ForEach(this.warnView.slice(0, this.warnLimit), (w: string[], i: number) => {
+          ListItem() {
+            Row() {
+              Text((i + 1).toString())
+                .fontSize(11)
+                .fontColor(Theme.inkTertiary)
+                .width(26)
+              Column() {
+                Text(w[0] + '（' + w[1] + '）')
+                  .fontSize(13)
+                  .fontColor(Theme.ink)
+                  .width('100%')
+                Text(w[2])
+                  .fontSize(11.5)
+                  .fontColor(Theme.inkSecondary)
+                  .margin({ top: 3 })
+                  .width('100%')
+              }
+              .alignItems(HorizontalAlign.Start)
+              .layoutWeight(1)
+              if (w[1].length > 0) {
+                Text('详情 ›')
+                  .fontSize(11.5)
+                  .fontColor(Theme.primary)
+                  .margin({ left: 8 })
+              }
+            }
+            .width('100%')
+            .padding({ left: Spacing.L, right: Spacing.L, top: 10, bottom: 10 })
+            .onClick((): void => {
+              // 校验提示可能对应不到具体族人（编号为空），此时只展示不跳转
+              if (w[1].length > 0) {
+                this.showAllWarnings = false;
+                this.onOpenPerson(w[1]);
+              }
+            })
+          }
+        }, (w: string[], i: number) => 'wall_' + i.toString() + w[1] + w[2])
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .divider({ strokeWidth: 0.5, color: Theme.line, startMargin: Spacing.L, endMargin: Spacing.L })
+
+      if (this.warnView.length > this.warnLimit) {
+        Text('显示更多（' + this.warnLimit.toString() + ' / ' + this.warnView.length.toString() + ' 条）')
+          .fontSize(12.5)
+          .fontColor(Theme.primary)
+          .width('100%')
+          .textAlign(TextAlign.Center)
+          .padding({ top: 12, bottom: 16 })
+          .onClick((): void => {
+            this.warnLimit = this.warnLimit + WARN_BATCH;
+          })
+      } else if (this.warnView.length > WARN_BATCH) {
+        Text('已显示全部 ' + this.warnView.length.toString() + ' 条')
+          .fontSize(11.5)
+          .fontColor(Theme.inkTertiary)
+          .width('100%')
+          .textAlign(TextAlign.Center)
+          .padding({ top: 12, bottom: 16 })
+      }
+    }
+    .width('100%')
+    .height('100%')
   }
 
   build() {

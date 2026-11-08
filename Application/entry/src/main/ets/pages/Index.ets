@@ -1,4 +1,4 @@
-import { uiMaterial } from '@kit.ArkUI';
+﻿import { uiMaterial } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -23,6 +23,8 @@ import { GenealogyStatsPanel } from '../view/GenealogyStatsPanel';
 import { RouterUtil } from '../util/RouterUtil';
 import { DeviceUtil } from '../util/DeviceUtil';
 import { AccountService } from '../service/AccountService';
+import { ConsentService } from '../service/ConsentService';
+import { PrivacyConsentDialog } from '../view/PrivacyConsentDialog';
 import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][Index]';
@@ -79,6 +81,11 @@ struct Index {
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   private switchingTab: boolean = false;
   private lastTabClickAt: number = 0;
+  /** 隐私同意状态是否已读取完成 */
+  private consentChecked: boolean = false;
+  /** 隐私同意弹窗是否正在显示 */
+  private consentDialogOpen: boolean = false;
+  private privacyDialog: CustomDialogController | null = null;
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
@@ -87,6 +94,10 @@ struct Index {
   /** 回到前台 / 页面显示时同步一次系统配色 */
   onPageShow(): void {
     this.syncDarkMode();
+    // 从协议页返回后，若仍未同意则重新弹出确认框
+    if (this.consentChecked && !ConsentService.getInstance().hasAgreed()) {
+      this.showPrivacyConsent();
+    }
   }
 
 
@@ -110,9 +121,76 @@ struct Index {
     this.ensureStorage();
     this.syncDarkMode();
     DeviceUtil.listenBreakpoints(this.getUIContext());
+    this.bootstrapAfterConsent();
+  }
+
+  /** 隐私合规：未同意协议前不初始化数据、不登录账号 */
+  private async bootstrapAfterConsent(): Promise<void> {
+    const ctx: Context | undefined = this.getUIContext().getHostContext();
+    if (ctx !== undefined && ctx !== null) {
+      await ConsentService.getInstance().init(ctx as common.UIAbilityContext);
+    }
+    this.consentChecked = true;
+    if (!ConsentService.getInstance().hasAgreed()) {
+      this.showPrivacyConsent();
+      return;
+    }
+    this.startNormalFlow();
+  }
+
+  /** 已同意协议后的正常启动流程 */
+  private startNormalFlow(): void {
     this.initData();
     this.initAccount();
     this.onPendingShare();
+  }
+
+  /** 首次启动 / 未同意协议时的隐私确认弹窗 */
+  private showPrivacyConsent(): void {
+    if (!this.consentChecked || ConsentService.getInstance().hasAgreed() || this.consentDialogOpen) {
+      return;
+    }
+    this.consentDialogOpen = true;
+    this.privacyDialog = new CustomDialogController({
+      builder: PrivacyConsentDialog({
+        onAgree: (): void => {
+          this.handleConsentAgree();
+        },
+        onReject: (): void => {
+          this.handleConsentReject();
+        },
+        onOpenDoc: (type: string): void => {
+          this.handleOpenDoc(type);
+        }
+      }),
+      autoCancel: false,
+      alignment: DialogAlignment.Center
+    });
+    this.privacyDialog.open();
+  }
+
+  private async handleConsentAgree(): Promise<void> {
+    this.consentDialogOpen = false;
+    await ConsentService.getInstance().accept();
+    this.startNormalFlow();
+  }
+
+  /** 不同意协议：直接退出应用，不进行任何数据处理 */
+  private handleConsentReject(): void {
+    this.consentDialogOpen = false;
+    const ctx: Context | undefined = this.getUIContext().getHostContext();
+    if (ctx !== undefined && ctx !== null) {
+      (ctx as common.UIAbilityContext).terminateSelf().catch((err: BusinessError): void => {
+        hilog.error(0x0000, TAG, 'terminateSelf failed: %{public}s', err.message);
+      });
+    }
+  }
+
+  /** 查看协议全文：关闭弹窗并跳转协议页，返回后会自动再次弹出确认框 */
+  private handleOpenDoc(type: string): void {
+    this.consentDialogOpen = false;
+    this.privacyDialog?.close();
+    RouterUtil.agreement(this.getUIContext(), type);
   }
 
   /** 已有登录记录时尝试静默登录，避免每次启动都打扰用户 */

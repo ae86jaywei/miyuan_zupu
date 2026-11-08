@@ -1,3 +1,4 @@
+import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
@@ -11,6 +12,9 @@ import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilySummary, Role, SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
 import { Genealogy } from '../model/Genealogy';
+import { CloudSyncService } from '../service/CloudSyncService';
+import { BackupResult } from '../model/CloudModels';
+import { ShareService } from '../service/ShareService';
 import { RouterUtil } from '../util/RouterUtil';
 import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
 
@@ -31,6 +35,7 @@ struct FamilyHome {
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   @StorageProp('windowWidth') windowWidth: number = 360;
   @StorageProp('gpLogin') loggedIn: boolean = false;
+  @StorageProp('gpUserId') userId: string = '';
   @StorageProp('gpCloudReady') cloudReady: boolean = false;
   @StorageProp('gpCloudMsg') cloudMsg: string = '';
   @StorageProp('gpSyncMode') @Watch('onSyncMode') syncMode: string = SyncMode.LOCAL;
@@ -89,6 +94,148 @@ struct FamilyHome {
       const be: BusinessError = err as BusinessError;
       this.progressText = '读取我的家族失败：' + be.message;
     }
+  }
+
+  // ---------------------------------------------------------------- 分享 / 邀请加入
+
+  private hostContext(): common.UIAbilityContext | null {
+    const ctx = this.getUIContext().getHostContext();
+    if (ctx === null) {
+      return null;
+    }
+    return ctx as common.UIAbilityContext;
+  }
+
+  /**
+   * 分享当前族谱：已接入云家族时分享**加入码**（对方加入后即获得成员身份）；
+   * 未接入时仍走旧的“邀请码只读查看”通道。
+   */
+  private async doShare(): Promise<void> {
+    if (!this.loggedIn) {
+      this.toast('请先登录华为账号');
+      RouterUtil.login(this.getUIContext());
+      return;
+    }
+    const bookKey: number = GenealogyService.getInstance().getCurrentBookId();
+    if (bookKey <= 0) {
+      this.toast('请先在「谱系」中创建族谱后再分享');
+      return;
+    }
+    const ctx: common.UIAbilityContext | null = this.hostContext();
+    if (ctx === null) {
+      return;
+    }
+    const book: Genealogy = GenealogyService.getInstance().getBook();
+    if (book.familyId.length > 0) {
+      await this.openShare(ctx, bookKey);
+      return;
+    }
+    // 旧只读分享内容读取自云端：先检测当前族谱是否已备份
+    let cloudCount: number = 0;
+    let queryFailed: boolean = false;
+    try {
+      cloudCount = await CloudSyncService.getInstance().countBookMembers(this.userId, bookKey);
+    } catch (err) {
+      queryFailed = true;
+    }
+    if (!queryFailed && cloudCount === 0) {
+      this.getUIContext().showAlertDialog({
+        title: '当前族谱尚未备份',
+        message: '分享内容读取自云端，当前族谱还没有备份，接收方将看不到任何族人。是否先备份再分享？',
+        primaryButton: {
+          value: '取消',
+          action: (): void => {
+          }
+        },
+        secondaryButton: {
+          value: '先备份并分享',
+          fontColor: Theme.primary,
+          action: async (): Promise<void> => {
+            await this.backupThenShare(ctx, bookKey);
+          }
+        }
+      });
+      return;
+    }
+    await this.openShare(ctx, bookKey);
+  }
+
+  /** 先备份当前族谱，确认云端已有数据后再分享 */
+  private async backupThenShare(ctx: common.UIAbilityContext, bookKey: number): Promise<void> {
+    if (this.busy) {
+      return;
+    }
+    if (!this.cloudReady) {
+      this.toast(this.cloudMsg.length > 0 ? this.cloudMsg : '云服务未就绪');
+      return;
+    }
+    this.busy = true;
+    this.progressText = '准备上传…';
+    try {
+      const result: BackupResult = await CloudSyncService.getInstance().backupAll(
+        (message: string, done: number, total: number): void => {
+          this.progressText = message + ' ' + done.toString() + '/' + total.toString();
+        });
+      this.progressText = '备份完成：成员 ' + result.memberCount.toString()
+        + ' 位，媒体 ' + result.mediaUploaded.toString() + ' 个';
+    } catch (err) {
+      const be: BusinessError = err as BusinessError;
+      this.progressText = '备份失败：' + (be.message !== undefined ? be.message : '请检查网络与云服务配置');
+      this.toast(this.progressText);
+      return;
+    } finally {
+      this.busy = false;
+    }
+    let count: number = 0;
+    try {
+      count = await CloudSyncService.getInstance().countBookMembers(this.userId, bookKey);
+    } catch (err) {
+      count = 0;
+    }
+    if (count === 0) {
+      this.toast('备份未完成，暂无法分享');
+      return;
+    }
+    await this.openShare(ctx, bookKey);
+  }
+
+  /** 拉起系统分享面板：云家族分享加入码，未接入时走旧只读分享 */
+  private async openShare(ctx: common.UIAbilityContext, bookKey: number): Promise<void> {
+    const book: Genealogy = GenealogyService.getInstance().getBook();
+    try {
+      if (book.familyId.length > 0) {
+        const code: string = await this.resolveInviteCode(book.familyId);
+        if (code.length === 0) {
+          this.toast('暂时取不到加入码，请到「成员与访问申请」里查看');
+          return;
+        }
+        await ShareService.shareJoinInvite(ctx, book.title, code);
+        return;
+      }
+      await ShareService.shareGenealogy(ctx, book.title,
+        AccountService.getInstance().getFamilyId(), this.userId, bookKey);
+    } catch (err) {
+      const be: BusinessError = err as BusinessError;
+      this.toast('分享未完成：' + (be.message !== undefined ? be.message : '用户取消'));
+    }
+  }
+
+  /** 取当前家族的加入码（仅谱主可读） */
+  private async resolveInviteCode(familyId: string): Promise<string> {
+    if (!FamilyService.getInstance().isOwnerCurrent()) {
+      return '';
+    }
+    try {
+      const list: FamilySummary[] = await FamilyService.getInstance().listMine();
+      for (let i: number = 0; i < list.length; i++) {
+        if (list[i].familyId === familyId && list[i].inviteCode.length > 0) {
+          return list[i].inviteCode;
+        }
+      }
+    } catch (err) {
+      return '';
+    }
+    return '';
   }
 
   // ---------------------------------------------------------------- 创建 / 加入
@@ -647,6 +794,40 @@ struct FamilyHome {
   }
 
   @Builder
+  ShareBlock() {
+    Column() {
+      Text('分享 / 邀请加入')
+        .fontSize(14)
+        .fontColor(Theme.ink)
+        .width('100%')
+      Text(this.familyId.length > 0
+        ? '把加入码发给亲戚：对方加入后即可共同补录，提交经你审核后合入。'
+        : '当前族谱尚未接入云家族：分享的是只读查看链接，接入后改为分享加入码。')
+        .fontSize(11)
+        .fontColor(Theme.inkTertiary)
+        .margin({ top: 3, bottom: Spacing.S })
+        .width('100%')
+        .maxLines(3)
+      Button('分享 / 邀请加入')
+        .fontSize(14)
+        .height(38)
+        .width('100%')
+        .backgroundColor(Theme.primary)
+        .fontColor('#FFFFFF')
+        .enabled(!this.busy)
+        .onClick((): void => {
+          this.doShare();
+        })
+    }
+    .width('100%')
+    .padding(Spacing.L)
+    .backgroundColor(Theme.card)
+    .borderRadius(Radius.L)
+    .border({ width: 0.5, color: Theme.line })
+    .margin({ top: Spacing.M })
+  }
+
+  @Builder
   MineBlock() {
     Column() {
       ForEach(this.myFamilies, (f: FamilySummary) => {
@@ -794,6 +975,10 @@ struct FamilyHome {
           } else {
             this.CloudBlock()
             this.ManageBlock()
+          }
+
+          if (this.loggedIn && this.cloudReady) {
+            this.ShareBlock()
           }
 
           if (this.myFamilies.length > 0) {

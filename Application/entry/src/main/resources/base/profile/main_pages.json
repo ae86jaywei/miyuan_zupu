@@ -11,6 +11,7 @@
     "pages/FamilyDirectoryView",
     "pages/AccessApply",
     "pages/GraveMap",
-    "pages/ChangeReview"
+    "pages/ChangeReview",
+    "pages/Agreement"
   ]
 }

@@ -1,6 +1,7 @@
 import { UIContext } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import { AccessParams, EditParams, GenealogyScope } from '../model/Scope';
+import { AgreementParams } from '../model/AgreementDoc';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
@@ -85,6 +86,16 @@ export class RouterUtil {
     ui.getRouter().pushUrl({ url: 'pages/ChangeReview' })
       .catch((err: BusinessError): void => {
         console.error('push ChangeReview failed: ' + err.message);
+      });
+  }
+
+  /** 打开协议页：type 为 user（用户协议）或 privacy（隐私政策） */
+  static agreement(ui: UIContext, type: string): void {
+    const params: AgreementParams = new AgreementParams();
+    params.type = type;
+    ui.getRouter().pushUrl({ url: 'pages/Agreement', params: params })
+      .catch((err: BusinessError): void => {
+        console.error('push Agreement failed: ' + err.message);
       });
   }
 

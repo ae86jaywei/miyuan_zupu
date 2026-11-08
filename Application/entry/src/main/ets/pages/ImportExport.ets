@@ -4,12 +4,15 @@ import { TS } from '../components/TS';
 import { BackButton } from '../components/BackButton';
 import { GenealogyService } from '../service/GenealogyService';
 import { ExportService, JsonBundle } from '../service/ExportService';
-import { PdfExportService, PdfExportProgress } from '../service/PdfExportService';
+import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfExportService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { ImportPlan, ImportResult } from '../service/ImportPlanner';
+
+/** 单卷人数上限：超过则按世系分卷，避免单文件近万页被系统判定无响应 */
+const PDF_VOLUME_MAX: number = 3000;
 
 
 /**
@@ -115,19 +118,37 @@ struct ImportExport {
     this.previewText = '正在渲染，请稍候……';
     this.setProgress('正在排版 PDF…', 2);
     try {
+      const ctx = GenealogyScope.context();
       const people: Person[] = this.svc().getPeople();
-      const path: string = await PdfExportService.exportPdf(GenealogyScope.context(),
-        people, this.svc().getBook(), { includeCover: true },
-        (p: PdfExportProgress): void => {
-          this.previewText = p.message;
-          const pct: number = p.total > 0 ? Math.round(p.current * 96 / p.total) : 0;
-          this.setProgress(p.message, pct);
-        });
-      const name: string = path.substring(path.lastIndexOf('/') + 1);
-      this.setProgress('正在保存 ' + name + '…', 98);
-      await ExportService.saveBinaryAsFile(GenealogyScope.context(), path, name);
-      this.setProgress('已导出 ' + name, 100);
-      this.getUIContext().getPromptAction().showToast({ message: '已导出 ' + name });
+      const book: Genealogy = this.svc().getBook();
+      // 数万人的整谱会接近万页，单文件渲染极慢且易被判无响应，按世系分卷导出
+      const planned: PdfVolume[] = PdfExportService.planVolumes(people, PDF_VOLUME_MAX);
+      const jobs: PdfVolume[] = planned.length > 0 ? planned : [{ title: '', people: people }];
+      const paths: string[] = [];
+      const names: string[] = [];
+      for (let i: number = 0; i < jobs.length; i++) {
+        const vol: PdfVolume = jobs[i];
+        const base: number = Math.floor(i * 96 / jobs.length);
+        const span: number = Math.floor(96 / jobs.length);
+        const path: string = await PdfExportService.exportPdf(ctx, vol.people, book,
+          { includeCover: true, volumeTitle: vol.title, kinSource: people },
+          (p: PdfExportProgress): void => {
+            this.previewText = p.message;
+            const pct: number = p.total > 0 ? base + Math.round(p.current * span / p.total) : base;
+            this.setProgress(p.message, pct);
+          });
+        paths.push(path);
+        names.push(path.substring(path.lastIndexOf('/') + 1));
+      }
+      this.setProgress('正在保存 ' + names.length + ' 个文件…', 98);
+      const saved: number = await ExportService.saveBinariesAsFiles(ctx, paths, names);
+      if (saved === 0) {
+        this.setProgress('已取消保存', 100);
+        return;
+      }
+      const msg: string = jobs.length > 1 ? '已导出 ' + saved + ' 卷 PDF' : '已导出 ' + names[0];
+      this.setProgress(msg, 100);
+      this.getUIContext().getPromptAction().showToast({ message: msg });
     } catch (e) {
       const err = e as BusinessError;
       this.setProgress('导出失败：' + (err.message ?? String(e)), 100);
@@ -191,12 +212,22 @@ struct ImportExport {
     this.setProgress('正在匹配族人身份（' + this.pendingPeople.length.toString() + ' 条）…', 20);
     await this.yieldFrame();
     // 先生成导入计划（身份匹配 + ID 重映射），让用户看到合并/新增/跳过的人数再执行
-    const plan: ImportPlan = this.svc().planImport(this.pendingPeople, this.mergeStrategy);
-    const willCreateBook: boolean = !this.svc().hasBook();
     const meta: Genealogy = this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy();
-    let text: string = willCreateBook
-      ? '当前没有族谱，将先按文件中的族谱信息新建「' + meta.title + '」再导入。\n\n'
-      : '导入到当前族谱「' + this.svc().getBook().title + '」，文件中的族谱信息不会覆盖现有设置。\n\n';
+    const curTitle: string = this.svc().hasBook() ? this.svc().getBook().title : '';
+    // 文件自带谱名且与当前谱不同：属于另一部族谱，必须另立新谱，不能并进当前谱
+    const isOtherBook: boolean = this.pendingBook !== null && meta.title.trim().length > 0
+      && curTitle.length > 0 && meta.title.trim() !== curTitle.trim();
+    const asNewBook: boolean = !this.svc().hasBook() || isOtherBook;
+    const plan: ImportPlan = this.svc().planImport(this.pendingPeople, this.mergeStrategy, asNewBook);
+    let text: string = '';
+    if (isOtherBook) {
+      text = '检测到文件属于另一部族谱「' + meta.title + '」，将新建独立族谱导入，'
+        + '不会与当前「' + curTitle + '」合并。\n\n';
+    } else if (asNewBook) {
+      text = '当前没有族谱，将先按文件中的族谱信息新建「' + meta.title + '」再导入。\n\n';
+    } else {
+      text = '导入到当前族谱「' + curTitle + '」，文件中的族谱信息不会覆盖现有设置。\n\n';
+    }
     text = text + plan.summary() + '\n\n导入过程整体在一个事务里，写入失败会自动回滚。';
     // 计划已算完，恢复可点击状态：弹窗的「开始导入」会走 executeImport
     this.busy = false;
@@ -232,10 +263,13 @@ struct ImportExport {
         this.setProgress('正在写入 ' + done.toString() + ' / ' + total.toString() + ' 人…',
           3 + Math.round(done * 90 / denom));
       };
-      const result: ImportResult = this.svc().hasBook()
-        ? await this.svc().applyImportPlan(plan, onProgress)
-        : await this.svc().importAsNewBook(this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy(),
-          plan, onProgress);
+      const meta: Genealogy = this.pendingBook !== null ? this.pendingBook : createEmptyGenealogy();
+      const curTitle: string = this.svc().hasBook() ? this.svc().getBook().title : '';
+      const isOtherBook: boolean = this.pendingBook !== null && meta.title.trim().length > 0
+        && curTitle.length > 0 && meta.title.trim() !== curTitle.trim();
+      const result: ImportResult = (!this.svc().hasBook() || isOtherBook)
+        ? await this.svc().importAsNewBook(meta, plan, onProgress)
+        : await this.svc().applyImportPlan(plan, onProgress);
       this.setProgress('正在重建谱系…', 95);
       GenealogyStore.notifyChanged();
       this.pendingPeople = [];

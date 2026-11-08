@@ -1,4 +1,3 @@
-import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
 import { GenealogyService } from '../service/GenealogyService';
 import { Genealogy } from '../model/Genealogy';
 import { Theme, Spacing } from '../theme/Theme';
@@ -6,8 +5,6 @@ import { TS } from '../components/TS';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { RouterUtil } from '../util/RouterUtil';
 import { AccountCard } from './AccountCard';
-import { Breakpoint } from '../common/Constants';
-import { DeviceUtil } from '../util/DeviceUtil';
 
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
@@ -17,7 +14,7 @@ import { SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
 import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
 
 /**
- * 设置：族谱信息编辑、展示偏好、隐私开关、设备适配说明、关于。
+ * 设置：族谱信息编辑、展示偏好、隐私开关、关于。
  */
 @Component
 export struct SettingsView {
@@ -32,7 +29,6 @@ export struct SettingsView {
   onSyncModeChange(): void {
     this.familyModeText = this.computeFamilyModeText();
   }
-  @StorageProp('gpStyle') styleName: string = 'eu';
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
   @StorageProp('gpOrientation') orientationMode: string = 'follow_system';
@@ -419,29 +415,6 @@ export struct SettingsView {
   }
 
   @Builder
-  StyleRow(meta: TreeStyleMeta) {
-    Row() {
-      Text(meta.name)
-        .fontSize(14)
-        .fontColor(Theme.ink)
-        .width(80)
-      Text(meta.feature)
-        .fontSize(11)
-        .fontColor(Theme.inkTertiary)
-        .layoutWeight(1)
-      Radio({ value: meta.key, group: 'styleGroup' })
-        .checked(this.styleName === meta.key)
-        .onChange((isChecked: boolean): void => {
-          if (isChecked) {
-            GenealogyStore.setStyle(meta.key);
-          }
-        })
-    }
-    .width('100%')
-    .padding({ top: 6, bottom: 6 })
-  }
-
-  @Builder
   OrientationRow(meta: OrientationMeta, enabled: boolean, showDivider: boolean) {
     Column() {
       Row() {
@@ -487,7 +460,7 @@ export struct SettingsView {
 
         TS({ title: '家族协作', subtitle: this.familyModeText, icon: '👨‍👩‍👧' })
         Column() {
-          this.NavRow('我的家族', '创建云家族 / 加入码加入 / 发布本谱 / 同步', (): void => {
+          this.NavRow('我的家族', '创建云家族 / 加入码加入 / 分享邀请 / 发布本谱 / 同步', (): void => {
             RouterUtil.familyHome(this.getUIContext());
           })
           Divider().color(Theme.line).strokeWidth(0.5)
@@ -542,20 +515,6 @@ export struct SettingsView {
           } else {
             this.BookOverview()
           }
-        }
-        .width('100%')
-        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
-        .backgroundColor(Theme.card)
-        .borderRadius(16)
-        .border({ width: 0.5, color: Theme.line })
-        .margin({ bottom: Spacing.M })
-        .clip(true)
-
-        TS({ title: '默认谱式', subtitle: '用于谱系页初始化', icon: '🎨' })
-        Column() {
-          ForEach(TREE_STYLES, (meta: TreeStyleMeta) => {
-            this.StyleRow(meta)
-          }, (meta: TreeStyleMeta) => 'st_' + meta.key)
         }
         .width('100%')
         .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
@@ -641,33 +600,19 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({
-          title: '设备适配',
-          subtitle: '当前窗口：' + Math.round(this.windowWidth).toString() + ' vp',
-          icon: '📱'
-        })
-        Column() {
-          this.InfoLine('设备类型', DeviceUtil.deviceType())
-          this.InfoLine('设备形态', DeviceUtil.formLabel(DeviceUtil.formOf(this.windowWidth, this.windowWidth * 1.6)))
-          this.InfoLine('断点', this.windowWidth >= Breakpoint.XL ? 'XL（宽屏/电脑）' :
-            this.windowWidth >= Breakpoint.LG ? 'LG（电脑/三折叠）' :
-              this.windowWidth >= Breakpoint.MD ? 'MD（平板/折叠展开）' :
-                this.windowWidth >= Breakpoint.SM ? 'SM（阔屏）' : 'XS（手机）')
-          this.InfoLine('适配说明', 'XS 底部导航 · SM 侧栏 · MD/LG/XL 三栏主从布局，支持折叠态/展开态无缝切换')
-        }
-        .width('100%')
-        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
-        .backgroundColor(Theme.card)
-        .borderRadius(16)
-        .border({ width: 0.5, color: Theme.line })
-        .margin({ bottom: Spacing.M })
-        .clip(true)
-
         TS({ title: '关于', icon: 'ℹ️' })
         Column() {
           this.InfoLine('应用名称', '觅源 v1.0.0（com.zupu.ae86jay）')
           this.InfoLine('支持谱式', '欧式 · 苏式 · 宝塔式 · 牒记式 · 现代创新式')
           this.InfoLine('适配设备', '手机 · 平板 · 电脑(2in1) · 双折叠 · 三折叠 · 阔屏 · 阔折叠')
+          Divider().color(Theme.line).strokeWidth(0.5).margin({ top: 6 })
+          this.NavRow('用户协议', '服务内容、用户行为规范与责任说明', (): void => {
+            RouterUtil.agreement(this.getUIContext(), 'user');
+          })
+          Divider().color(Theme.line).strokeWidth(0.5)
+          this.NavRow('隐私政策', '我们如何收集、使用、存储与保护个人信息', (): void => {
+            RouterUtil.agreement(this.getUIContext(), 'privacy');
+          })
         }
         .width('100%')
         .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })

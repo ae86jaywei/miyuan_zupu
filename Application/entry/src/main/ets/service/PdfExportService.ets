@@ -1,19 +1,21 @@
 import { pdfService } from '@kit.PDFKit';
-import { image } from '@kit.ImageKit';
+import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { Person, childStatusLabel } from '../model/Person';
+import { Person, SpouseRelation, childStatusLabel, spouseRelationLabel } from '../model/Person';
 import { Genealogy } from '../model/Genealogy';
-import { GenealogyService } from './GenealogyService';
 import { generationLabel } from '../model/Enums';
-import { parseYear } from '../util/DateUtil';
+import { displayDate } from '../util/DateUtil';
 
 /**
- * 族谱 PDF 导出服务（端侧原生渲染）。
+ * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
  *
- * 链路：OffscreenCanvas 离屏绘制（A4 尺寸，2 倍采样）
- *      → getImageData → image.createPixelMap → packToFile(JPEG)
- *      → pdfService 逐页 addImageObject → saveDocument
+ * 链路：OffscreenCanvas 仅用于 measureText 断行/居中度量
+ *      → pdfService 逐页 insertBlankPage + addTextObject（真实文本对象）
+ *      → saveDocument
+ *
+ * 产出 PDF 的文字可选中、可搜索、可编辑，且为矢量输出，印刷无锯齿、无 300dpi 位图限制。
+ * 排版为两遍：第一遍分页确定每人页码，第二遍回填「亲属/子嗣」页码互引。
  *
  * 页面：A4 竖版 595.28 × 841.89 pt；正文区左右各 56pt 边距。
  */
@@ -27,11 +29,10 @@ const MARGIN_BOTTOM: number = 52;
 const CONTENT_W: number = PAGE_W - MARGIN_LR * 2;
 const CONTENT_H: number = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM;
 
-// ─── 画布常量（px = pt × S 超采样） ────────────────────────
+// ─── 度量画布常量（px = pt × S） ──────────────────────────
 const S: number = 2;
 const CANVAS_W: number = 1191;
 const CANVAS_H: number = 1684;
-const JPEG_QUALITY: number = 92;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -39,12 +40,21 @@ const C_INK2: string = '#444444';
 const C_INK3: string = '#888888';
 const C_GOLD: string = '#9c7c2e';
 const C_FEMALE: string = '#a0527a';
-const C_LINE: string = '#cccccc';
 const C_BG: string = '#ffffff';
 
 // ─── 导出选项与进度 ────────────────────────────────────────
 export interface PdfExportOptions {
   includeCover: boolean;
+  /** 分卷标题（如「第3卷（第十一世至第十五世）」），不传则为整谱单卷 */
+  volumeTitle?: string;
+  /** 关系索引数据源：分卷导出时传全量人物，跨卷亲属姓名才显示得出来 */
+  kinSource?: Person[];
+}
+
+/** 分卷单元 */
+export interface PdfVolume {
+  title: string;
+  people: Person[];
 }
 
 export interface PdfExportProgress {
@@ -89,34 +99,27 @@ function pushAllPages(dst: PageSpec[], src: PageSpec[]): void {
   }
 }
 
-/** 中文环境按字符宽度逐字断行（依赖 ctx.measureText 实测宽度） */
-function wrapLines(ctx: OffscreenCanvasRenderingContext2D, text: string, font: number,
-  indent: number, color: string): TextLine[] {
+/** 中文按字符宽度断行（不逐字 measureText，避免数万人大谱卡死主线程） */
+function wrapLines(text: string, font: number, indent: number, color: string): TextLine[] {
   const out: TextLine[] = [];
-  const maxW: number = (CONTENT_W - indent) * S;
-  ctx.save();
-  ctx.font = (font * S).toString() + 'px sans-serif';
+  const maxChars: number = Math.floor((CONTENT_W - indent) / font * 0.98);
   const paras: string[] = text.split('\n');
   for (let pi: number = 0; pi < paras.length; pi++) {
     const para: string = paras[pi];
-    let cur: string = '';
-    for (let i: number = 0; i < para.length; i++) {
-      const ch: string = para.charAt(i);
-      if (ch === ' ') {
-        cur = cur + ch;
-        continue;
-      }
-      const test: string = cur + ch;
-      if (cur.length > 0 && ctx.measureText(test).width > maxW) {
-        out.push({ text: cur, font: font, lineH: lineHOf(font), color: color, bold: false, indent: indent, center: false });
-        cur = ch;
-      } else {
-        cur = test;
-      }
+    if (para.length === 0) {
+      out.push({ text: ' ', font: font, lineH: lineHOf(font), color: color, bold: false, indent: indent, center: false });
+      continue;
     }
-    out.push({ text: cur.length > 0 ? cur : ' ', font: font, lineH: lineHOf(font), color: color, bold: false, indent: indent, center: false });
+    let start: number = 0;
+    while (start < para.length) {
+      const end: number = Math.min(start + maxChars, para.length);
+      out.push({
+        text: para.substring(start, end),
+        font: font, lineH: lineHOf(font), color: color, bold: false, indent: indent, center: false
+      });
+      start = end;
+    }
   }
-  ctx.restore();
   return out;
 }
 
@@ -138,66 +141,236 @@ function countOfGeneration(people: Person[], gen: number): number {
   return n;
 }
 
-/** 一个人物的牒记条目（与 Markdown 谱文字段对齐） */
+/** 条目块：uid 用于页码互引（世代分隔头的 uid 为空串） */
+interface EntryBlock {
+  uid: string;
+  lines: TextLine[];
+}
+
+/** 分页结果：页内容 + 人物所在页码（1 起，含前置页偏移） */
+interface PaginateResult {
+  pages: PageSpec[];
+  uidPage: Map<string, number>;
+}
+
+/** 导出用关系索引：一次性建表，避免逐人 filter 全表导致 O(n²) 卡死主线程 */
+class KinshipIndex {
+  private byUid: Map<string, Person> = new Map<string, Person>();
+  private kids: Map<string, Person[]> = new Map<string, Person[]>();
+
+  constructor(people: Person[]) {
+    for (let i: number = 0; i < people.length; i++) {
+      this.byUid.set(people[i].uid.trim().toUpperCase(), people[i]);
+    }
+    for (let i: number = 0; i < people.length; i++) {
+      const p: Person = people[i];
+      this.link(p.fatherId, p);
+      this.link(p.motherId, p);
+    }
+  }
+
+  private link(parentUid: string, child: Person): void {
+    const k: string = parentUid.trim().toUpperCase();
+    if (k.length === 0) {
+      return;
+    }
+    const arr: Person[] | undefined = this.kids.get(k);
+    if (arr === undefined) {
+      this.kids.set(k, [child]);
+    } else {
+      arr.push(child);
+    }
+  }
+
+  person(uid: string): Person | null {
+    const p: Person | undefined = this.byUid.get(uid.trim().toUpperCase());
+    return p === undefined ? null : p;
+  }
+
+  childrenOf(uid: string): Person[] {
+    const arr: Person[] | undefined = this.kids.get(uid.trim().toUpperCase());
+    return arr === undefined ? [] : arr;
+  }
+}
+
+/** 关系人标注：姓名（UID·第N页）；第一遍排版用等宽占位页码，保证两遍折行数可比 */
+function refText(name: string, uid: string, refs: Map<string, number> | null): string {
+  const id: string = uid.trim().toUpperCase();
+  let text: string = name + '（' + id;
+  if (refs !== null) {
+    const n: number | undefined = refs.get(id);
+    // 分卷导出时 refs 只含本卷人物，查不到即说明在其它卷
+    text += n === undefined ? '·另卷' : '·第' + n.toString() + '页';
+  } else {
+    // 第一遍：占位串不短于真实页码，第二遍折行只会更少，再补空行对齐
+    text += '·第00000页';
+  }
+  return text + '）';
+}
+
+/** 配偶文本：名分（含正妻/平妻等层级）+ 姓名（UID·页码） */
+function spouseText(idx: KinshipIndex, p: Person, refs: Map<string, number> | null): string {
+  const parts: string[] = [];
+  for (let i: number = 0; i < p.spouses.length; i++) {
+    const r: SpouseRelation = p.spouses[i];
+    const rel: string = r.relation.length > 0 ? spouseRelationLabel(r.relation) : '配偶';
+    const sp: Person | null = idx.person(r.uid);
+    if (sp === null) {
+      parts.push(rel + ' ' + r.uid + '（未录入）');
+    } else {
+      parts.push(rel + ' ' + refText(sp.name, sp.uid, refs));
+    }
+  }
+  return parts.join('、');
+}
+
+// ─── 条目字号 ─────────────────────────────────────────────
+// PDF 默认 100% 缩放时原字号偏小；姓名加大一档，详情加大到原姓名的字号
+const F_NAME: number = 14;
+const H_NAME: number = 26;
+const F_DETAIL: number = 12.5;
+const H_DETAIL: number = 22;
+
+/** 普通详情行（可折行，内容不丢） */
+function detailLine(text: string, color: string): TextLine {
+  return { text: text, font: F_DETAIL, lineH: H_DETAIL, color: color, bold: false, indent: 10, center: false };
+}
+
+/** 补齐行：只占高度，不写文本对象（用于对齐两遍排版的行数） */
+function padLine(): TextLine {
+  return { text: ' ', font: F_DETAIL, lineH: H_DETAIL, color: C_BG, bold: false, indent: 0, center: false };
+}
+
+/** 一个人物的条目：字段与「个人信息」详情页一致 */
 function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
-  svc: GenealogyService): TextLine[] {
+  kinIndex: KinshipIndex, refs: Map<string, number> | null): TextLine[] {
   const lines: TextLine[] = [];
-  let head: string = p.name + '（' + generationLabel(p.generation) + '）';
+  const uid: string = p.uid.trim().toUpperCase();
+  let head: string = p.name + '（' + generationLabel(p.generation);
+  if (uid.length > 0) {
+    head += '，' + uid;
+  }
+  head += '）';
+  if (p.gender === '女') {
+    head += '，女';
+  }
   if (p.generationChar.length > 0) {
     head += '，字派“' + p.generationChar + '”';
   }
   lines.push({
-    text: head, font: 12.5, lineH: 23,
+    text: head, font: F_NAME, lineH: H_NAME,
     color: p.gender === '女' ? C_FEMALE : C_INK, bold: true, indent: 0, center: false
   });
-  const sp: string = svc.spouseTextOf(p.uid);
-  if (sp.length > 0) {
-    lines.push({ text: '配偶：' + sp, font: 10.5, lineH: 19, color: C_FEMALE, bold: false, indent: 10, center: false });
+  // 配偶：名分 + 姓名（UID·页码）
+  if (p.spouses.length > 0) {
+    pushAll(lines, wrapLines('配偶：' + spouseText(kinIndex, p, refs), F_DETAIL, 10, C_FEMALE));
+  }
+  // 亲属：父/母 + 页码互引
+  const kinParts: string[] = [];
+  if (p.fatherId.trim().length > 0) {
+    const f: Person | null = kinIndex.person(p.fatherId);
+    if (f !== null) {
+      kinParts.push('父 ' + refText(f.name, f.uid, refs));
+    }
+  }
+  if (p.motherId.trim().length > 0) {
+    const m: Person | null = kinIndex.person(p.motherId);
+    if (m !== null) {
+      kinParts.push('母 ' + refText(m.name, m.uid, refs));
+    }
+  }
+  if (kinParts.length > 0) {
+    pushAll(lines, wrapLines('亲属：' + kinParts.join('　'), F_DETAIL, 10, C_INK2));
+  }
+  // 子嗣：全部列出，一行放不下自动换行
+  const kids: Person[] = kinIndex.childrenOf(p.uid);
+  if (kids.length > 0) {
+    const parts: string[] = [];
+    for (let i: number = 0; i < kids.length; i++) {
+      parts.push(refText(kids[i].name, kids[i].uid, refs));
+    }
+    const txt: string = '子嗣：' + parts.join('、') + '（共' + kids.length.toString() + '人）';
+    pushAll(lines, wrapLines(txt, F_DETAIL, 10, C_INK2));
   }
   if (p.alias.length > 0) {
-    lines.push({ text: '曾用名/小名：' + p.alias, font: 10.5, lineH: 19, color: C_INK2, bold: false, indent: 10, center: false });
+    lines.push(detailLine('曾用名/小名：' + p.alias, C_INK2));
   }
-  const facts: string[] = [];
-  const by: number = parseYear(p.birthDate);
-  const dy: number = parseYear(p.deathDate);
-  if (by > 0) {
-    facts.push('生于' + by + '年');
-  }
-  if (dy > 0) {
-    facts.push('卒于' + dy + '年');
-  }
-  if (p.lifeStatus.length > 0) {
-    facts.push(p.lifeStatus);
+  // 身份：性别 / 排行 / 子女身份 / 过继 / 在世状态
+  const idParts: string[] = ['性别 ' + p.gender];
+  if (p.rank.length > 0) {
+    idParts.push('排行 ' + p.rank);
   }
   if (p.childStatus.length > 0 && p.childStatus !== '未记') {
-    facts.push(childStatusLabel(p.childStatus, p.gender));
-  }
-  if (p.birthPlace.length > 0) {
-    facts.push('籍' + p.birthPlace);
-  }
-  if (p.residence.length > 0) {
-    facts.push('居' + p.residence);
-  }
-  if (p.rank.length > 0) {
-    facts.push(p.rank);
-  }
-  if (p.education.length > 0) {
-    facts.push(p.education);
-  }
-  if (p.occupation.length > 0) {
-    facts.push(p.occupation);
+    idParts.push(childStatusLabel(p.childStatus, p.gender));
   }
   if (p.adoption.length > 0) {
-    facts.push(p.adoption);
+    idParts.push('过继/出嗣 ' + p.adoption);
   }
-  if (facts.length > 0) {
-    lines.push({ text: facts.join(' · '), font: 10.5, lineH: 18, color: C_INK2, bold: false, indent: 10, center: false });
+  if (p.lifeStatus.length > 0) {
+    idParts.push(p.lifeStatus);
   }
+  pushAll(lines, wrapLines('身份：' + idParts.join('　'), F_DETAIL, 10, C_INK2));
+  // 生卒：完整日期，保留公历/农历标注
+  const life: string[] = [];
+  const bd: string = displayDate(p.birthDate, p.birthCalendar);
+  const dd: string = displayDate(p.deathDate, p.deathCalendar);
+  if (bd.length > 0) {
+    life.push('生于 ' + bd);
+  }
+  if (dd.length > 0) {
+    life.push('卒于 ' + dd);
+  }
+  if (life.length > 0) {
+    pushAll(lines, wrapLines(life.join('　'), F_DETAIL, 10, C_INK2));
+  }
+  // 出生地 / 现居地
+  const places: string[] = [];
+  if (p.birthPlace.length > 0) {
+    places.push('出生地 ' + p.birthPlace);
+  }
+  if (p.residence.length > 0) {
+    places.push('现居 ' + p.residence);
+  }
+  if (places.length > 0) {
+    pushAll(lines, wrapLines(places.join('　'), F_DETAIL, 10, C_INK2));
+  }
+  // 学历 / 职业
+  const career: string[] = [];
+  if (p.education.length > 0) {
+    career.push('学历/学位 ' + p.education);
+  }
+  if (p.occupation.length > 0) {
+    career.push('职业/职务 ' + p.occupation);
+  }
+  if (career.length > 0) {
+    pushAll(lines, wrapLines(career.join('　'), F_DETAIL, 10, C_INK2));
+  }
+  // 墓葬（含 GPS 经纬度与海拔）
+  const grave: string[] = [];
   if (p.graveInfo.length > 0) {
-    pushAll(lines, wrapLines(ctx, '墓葬：' + p.graveInfo, 10.5, 10, C_INK2));
+    grave.push(p.graveInfo);
   }
+  if (p.graveLat !== 0) {
+    grave.push('GPS 东经 ' + p.graveLng.toFixed(6) + '° 北纬 ' + p.graveLat.toFixed(6)
+      + '° 海拔 ' + p.graveAltitude.toFixed(1) + 'm');
+  }
+  if (grave.length > 0) {
+    pushAll(lines, wrapLines('墓葬：' + grave.join('　'), F_DETAIL, 10, C_INK2));
+  }
+  // 生平简介
   if (p.biography.length > 0) {
-    pushAll(lines, wrapLines(ctx, p.biography, 11, 10, C_INK));
+    pushAll(lines, wrapLines('生平：' + p.biography, F_DETAIL, 10, C_INK));
+  }
+  // 联系方式（与 JSON/CSV 导出一致，默认包含）
+  const contact: string[] = [];
+  if (p.phone.length > 0) {
+    contact.push('手机 ' + p.phone);
+  }
+  if (p.wechat.length > 0) {
+    contact.push('微信 ' + p.wechat);
+  }
+  if (contact.length > 0) {
+    pushAll(lines, wrapLines('联系：' + contact.join('　'), F_DETAIL, 10, C_INK2));
   }
   lines.push({ text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false });
   return lines;
@@ -205,36 +378,42 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
 
 /** 世系条目：世代分隔头 + 逐人条目（按世代、UID 排序） */
 function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
-  svc: GenealogyService): TextLine[][] {
+  kinIndex: KinshipIndex, refs: Map<string, number> | null): EntryBlock[] {
   const sorted: Person[] = people.slice().sort((a: Person, b: Person): number => {
     if (a.generation !== b.generation) {
       return a.generation - b.generation;
     }
     return a.uid.localeCompare(b.uid);
   });
-  const entries: TextLine[][] = [];
+  const entries: EntryBlock[] = [];
   let lastGen: number = -1;
   for (let i: number = 0; i < sorted.length; i++) {
     const p: Person = sorted[i];
     if (p.generation !== lastGen) {
       lastGen = p.generation;
-      entries.push([{
-        text: generationLabel(p.generation) + '（' + countOfGeneration(people, p.generation).toString() + '人）',
-        font: 14, lineH: 30, color: C_GOLD, bold: true, indent: 0, center: false
-      }]);
+      entries.push({
+        uid: '',
+        lines: [{
+          text: generationLabel(p.generation) + '（' + countOfGeneration(people, p.generation).toString() + '人）',
+          font: 16, lineH: 32, color: C_GOLD, bold: true, indent: 0, center: false
+        }]
+      });
     }
-    entries.push(personEntryLines(ctx, p, svc));
+    entries.push({ uid: p.uid.trim().toUpperCase(), lines: personEntryLines(ctx, p, kinIndex, refs) });
   }
   return entries;
 }
 
 /** 封面 */
-function buildCover(book: Genealogy, count: number): TextLine[] {
+function buildCover(book: Genealogy, count: number, volumeTitle: string): TextLine[] {
   const lines: TextLine[] = [];
   for (let i: number = 0; i < 5; i++) {
     lines.push(bigSpacerLine());
   }
   lines.push({ text: book.title, font: 30, lineH: 46, color: C_GOLD, bold: true, indent: 0, center: true });
+  if (volumeTitle.length > 0) {
+    lines.push({ text: volumeTitle, font: 16, lineH: 30, color: C_INK, bold: true, indent: 0, center: true });
+  }
   lines.push(bigSpacerLine());
   if (book.hallName.length > 0 || book.junwang.length > 0) {
     lines.push({ text: book.hallName + ' · ' + book.junwang, font: 13, lineH: 22, color: C_INK2, bold: false, indent: 0, center: true });
@@ -256,7 +435,8 @@ function buildCover(book: Genealogy, count: number): TextLine[] {
     }
   }
   lines.push(bigSpacerLine(), bigSpacerLine(), bigSpacerLine());
-  lines.push({ text: '全谱共 ' + count.toString() + ' 人', font: 12, lineH: 20, color: C_INK, bold: false, indent: 0, center: true });
+  lines.push({ text: (volumeTitle.length > 0 ? '本卷共 ' : '全谱共 ') + count.toString() + ' 人',
+    font: 12, lineH: 20, color: C_INK, bold: false, indent: 0, center: true });
   lines.push({ text: '修于 ' + todayStr(), font: 11, lineH: 18, color: C_INK3, bold: false, indent: 0, center: true });
   return lines;
 }
@@ -268,7 +448,7 @@ function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): 
   if (book.preface.trim().length > 0) {
     lines.push({ text: '谱 序', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());
-    pushAll(lines, wrapLines(ctx, book.preface, 12, 0, C_INK));
+    pushAll(lines, wrapLines(book.preface, 12, 0, C_INK));
     has = true;
   }
   if (book.editingNotes.trim().length > 0) {
@@ -277,7 +457,7 @@ function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): 
     }
     lines.push({ text: '凡 例', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());
-    pushAll(lines, wrapLines(ctx, book.editingNotes, 12, 0, C_INK));
+    pushAll(lines, wrapLines(book.editingNotes, 12, 0, C_INK));
   }
   return lines;
 }
@@ -288,7 +468,7 @@ function buildBack(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): Tex
   if (book.familyRules.trim().length > 0) {
     lines.push({ text: '家 训', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());
-    pushAll(lines, wrapLines(ctx, book.familyRules, 12, 0, C_INK));
+    pushAll(lines, wrapLines(book.familyRules, 12, 0, C_INK));
   }
   lines.push(bigSpacerLine(), bigSpacerLine());
   lines.push({
@@ -307,16 +487,16 @@ interface PageSpec {
 
 /**
  * 流式分页：把「世代分隔头 + 条目」按自然断点切到 A4 页内。
- * 条目整体不拆页（一人一条不跨页）。
+ * 条目整体不拆页（一人一条不跨页），同时记录每人的最终页码。
  */
-function paginateEntries(ctx: OffscreenCanvasRenderingContext2D,
-  entries: TextLine[][]): PageSpec[] {
+function paginateEntries(entries: EntryBlock[], pageOffset: number): PaginateResult {
   const pages: PageSpec[] = [];
+  const uidPage: Map<string, number> = new Map<string, number>();
   let cur: TextLine[] = [];
   let used: number = 0;
   const keepHead: number = 36; // 顶部保留页眉区
   for (let i: number = 0; i < entries.length; i++) {
-    const block: TextLine[] = entries[i];
+    const block: TextLine[] = entries[i].lines;
     let bh: number = 0;
     for (let j: number = 0; j < block.length; j++) {
       bh += block[j].lineH;
@@ -327,13 +507,16 @@ function paginateEntries(ctx: OffscreenCanvasRenderingContext2D,
       cur = [];
       used = 0;
     }
+    if (entries[i].uid.length > 0) {
+      uidPage.set(entries[i].uid, pageOffset + pages.length + 1);
+    }
     pushAll(cur, block);
     used += bh;
   }
   if (cur.length > 0) {
     pages.push({ lines: cur, chapter: '世 系' });
   }
-  return pages;
+  return { pages: pages, uidPage: uidPage };
 }
 
 /**
@@ -363,86 +546,107 @@ function paginateLines(ctx: OffscreenCanvasRenderingContext2D,
   return pages;
 }
 
-/** 绘制一行文本 */
-function drawLine(ctx: OffscreenCanvasRenderingContext2D, ln: TextLine, yPt: number): void {
-  ctx.fillStyle = ln.color;
-  ctx.font = ln.bold ? 'bold ' + (ln.font * S).toString() + 'px sans-serif' : (ln.font * S).toString() + 'px sans-serif';
-  let x: number = (MARGIN_LR + ln.indent) * S;
-  if (ln.center) {
-    const w: number = ctx.measureText(ln.text).width;
-    x = (PAGE_W / 2) * S - w / 2;
-  }
-  ctx.fillText(ln.text, x, yPt * S);
+/** #RRGGBB → PDF 颜色数值 */
+function hexToNum(hex: string): number {
+  return parseInt(hex.replace('#', ''), 16);
 }
 
-/** 绘制整页：白底 → 页眉（封面除外）→ 行 → 页脚页码 */
-function drawPage(ctx: OffscreenCanvasRenderingContext2D, spec: PageSpec,
-  pageNo: number, total: number, isCover: boolean): void {
-  ctx.fillStyle = C_BG;
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+/** 系统字体信息（进程内缓存，避免逐行取字体路径） */
+let cachedFontInfo: pdfService.FontInfo | null = null;
+
+function pdfFontInfo(): pdfService.FontInfo {
+  if (cachedFontInfo === null) {
+    const fi: pdfService.FontInfo = new pdfService.FontInfo();
+    try {
+      const f: Font = new Font();
+      const info = f.getFontByName('HarmonyOS Sans');
+      fi.fontPath = info.path;
+    } catch (_e) {
+      // 取不到系统字体时交给 PDF 默认字体
+    }
+    fi.fontName = '';
+    cachedFontInfo = fi;
+  }
+  return cachedFontInfo;
+}
+
+/** 统一的 PDF 文本样式 */
+function textStyle(size: number, color: string, bold: boolean): pdfService.TextStyle {
+  return {
+    textSize: size,
+    textColor: hexToNum(color),
+    isBold: bold,
+    fontInfo: pdfFontInfo()
+  };
+}
+
+/** 用离屏 ctx 量出文本在页面上的宽度（pt） */
+function measurePt(ctx: OffscreenCanvasRenderingContext2D, text: string, font: number): number {
+  ctx.save();
+  ctx.font = (font * S).toString() + 'px sans-serif';
+  const w: number = ctx.measureText(text).width / S;
+  ctx.restore();
+  return w;
+}
+
+/**
+ * 把「距页面顶部的行顶 y」换算成 PDF 文本基线。
+ * PDF 坐标原点在页面左下角、y 向上，与本文自上而下的排版坐标相反，
+ * 不做换算会导致行序上下颠倒、内容从底部往上堆并溢出页顶。
+ */
+function baselineOf(yTop: number, font: number): number {
+  return PAGE_H - yTop - font;
+}
+
+/**
+ * 绘制一行：直接写入 PDF 文本对象（矢量文字，可选中、可编辑、印刷无损）。
+ */
+function addTextLine(ctx: OffscreenCanvasRenderingContext2D, page: pdfService.PdfPage,
+  ln: TextLine, yTop: number): void {
+  if (ln.text.trim().length === 0) {
+    return; // 空白占位行不写对象，保持 PDF 干净
+  }
+  const style: pdfService.TextStyle = textStyle(ln.font, ln.color, ln.bold);
+  let x: number = MARGIN_LR + ln.indent;
+  if (ln.center) {
+    x = PAGE_W / 2 - measurePt(ctx, ln.text, ln.font) / 2;
+  }
+  page.addTextObject(ln.text, x, baselineOf(yTop, ln.font), style);
+}
+
+/**
+ * 让出主线程一个时间片。
+ * 必须给非零延时：0ms 定时器会被连续排满，事件队列里没有空档，
+ * 系统看门狗与输入事件仍然得不到执行，最终仍会报 THREAD_BLOCK_6S。
+ */
+function yieldToUi(): Promise<void> {
+  return new Promise<void>((resolve: () => void): void => {
+    setTimeout(() => {
+      resolve();
+    }, 16);
+  });
+}
+
+/** 新增一页并把整页文本写入（封面不排页眉页脚） */
+function drawPageToPdf(ctx: OffscreenCanvasRenderingContext2D, doc: pdfService.PdfDocument,
+  spec: PageSpec, pageNo: number, total: number, isCover: boolean): void {
+  const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W, PAGE_H);
   let y: number = isCover ? 0 : MARGIN_TOP;
   if (!isCover && spec.chapter.length > 0) {
-    // 页眉：谱名左、章节右、分隔线
-    ctx.fillStyle = C_INK3;
-    ctx.font = (9 * S).toString() + 'px sans-serif';
-    const cw: number = ctx.measureText(spec.chapter).width;
-    ctx.fillText(spec.chapter, (PAGE_W - MARGIN_LR) * S - cw, (MARGIN_TOP - 24) * S);
-    ctx.strokeStyle = C_LINE;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(MARGIN_LR * S, MARGIN_TOP * S - 12);
-    ctx.lineTo((PAGE_W - MARGIN_LR) * S, MARGIN_TOP * S - 12);
-    ctx.stroke();
+    const style: pdfService.TextStyle = textStyle(9, C_INK3, false);
+    page.addTextObject(spec.chapter,
+      PAGE_W - MARGIN_LR - measurePt(ctx, spec.chapter, 9), baselineOf(MARGIN_TOP - 16, 9), style);
   }
   for (let i: number = 0; i < spec.lines.length; i++) {
     const ln: TextLine = spec.lines[i];
-    drawLine(ctx, ln, y + ln.lineH / 2);
+    addTextLine(ctx, page, ln, y);
     y += ln.lineH;
   }
   if (!isCover) {
-    ctx.fillStyle = C_INK3;
-    ctx.font = (9 * S).toString() + 'px sans-serif';
     const footer: string = pageNo.toString() + ' / ' + total.toString();
-    const fw: number = ctx.measureText(footer).width;
-    ctx.fillText(footer, (PAGE_W - MARGIN_LR) * S - fw, (PAGE_H - MARGIN_BOTTOM / 2) * S);
-    // 页脚分隔线
-    ctx.strokeStyle = C_LINE;
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(MARGIN_LR * S, (PAGE_H - MARGIN_BOTTOM + 8) * S);
-    ctx.lineTo((PAGE_W - MARGIN_LR) * S, (PAGE_H - MARGIN_BOTTOM + 8) * S);
-    ctx.stroke();
-  }
-}
-
-/** 整页 → JPEG 文件 */
-async function renderPageToJpeg(spec: PageSpec, pageNo: number, total: number,
-  isCover: boolean, outPath: string): Promise<void> {
-  const canvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
-  const ctx: OffscreenCanvasRenderingContext2D = canvas.getContext('2d');
-  drawPage(ctx, spec, pageNo, total, isCover);
-  const data: ImageData = ctx.getImageData(0, 0, CANVAS_W, CANVAS_H);
-  const buf: ArrayBuffer = new ArrayBuffer(data.data.byteLength);
-  const u8: Uint8Array = new Uint8Array(buf);
-  for (let i: number = 0; i < data.data.length; i++) {
-    u8[i] = data.data[i];
-  }
-  const opts: image.InitializationOptions = {
-    size: { width: CANVAS_W, height: CANVAS_H },
-    srcPixelFormat: image.PixelMapFormat.RGBA_8888,
-    pixelFormat: image.PixelMapFormat.RGBA_8888,
-    editable: false
-  };
-  const pm: image.PixelMap = await image.createPixelMap(buf, opts);
-  const file: fileIo.File = fileIo.openSync(outPath,
-    fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-  const packer: image.ImagePacker = image.createImagePacker();
-  try {
-    await packer.packToFile(pm, file.fd, { format: 'image/jpeg', quality: JPEG_QUALITY });
-  } finally {
-    packer.release();
-    pm.release();
-    fileIo.closeSync(file);
+    const style: pdfService.TextStyle = textStyle(9, C_INK3, false);
+    page.addTextObject(footer,
+      PAGE_W - MARGIN_LR - measurePt(ctx, footer, 9), MARGIN_BOTTOM / 2, style);
   }
 }
 
@@ -454,8 +658,54 @@ async function renderPageToJpeg(spec: PageSpec, pageNo: number, total: number,
 export class PdfExportService {
 
   /**
-   * 导出整本族谱为 PDF，返回沙箱文件路径。
+   * 分卷规划：按世代顺序聚合，单卷人数不超过 maxPerVolume；
+   * 单个世代本身超限时按人数硬切（同世代可分多卷）。
+   * 返回空数组表示无需分卷（人数未超限）。
    */
+  static planVolumes(people: Person[], maxPerVolume: number): PdfVolume[] {
+    if (people.length <= maxPerVolume || maxPerVolume <= 0) {
+      return [];
+    }
+    const sorted: Person[] = people.slice().sort((a: Person, b: Person): number => {
+      if (a.generation !== b.generation) {
+        return a.generation - b.generation;
+      }
+      return a.uid.localeCompare(b.uid);
+    });
+    const volumes: PdfVolume[] = [];
+    let start: number = 0;
+    while (start < sorted.length) {
+      let end: number = start;
+      while (end < sorted.length) {
+        const g: number = sorted[end].generation;
+        let k: number = end;
+        while (k < sorted.length && sorted[k].generation === g) {
+          k++;
+        }
+        if (end === start && k - start > maxPerVolume) {
+          end = start + maxPerVolume; // 首个世代自身就超限，只能按人数硬切
+          break;
+        }
+        if (end > start && k - start > maxPerVolume) {
+          break; // 再加一个完整世代就超限，收卷
+        }
+        end = k;
+        if (end - start >= maxPerVolume || k >= sorted.length) {
+          break;
+        }
+      }
+      const gStart: number = sorted[start].generation;
+      const gEnd: number = sorted[end - 1].generation;
+      const seq: string = (volumes.length + 1).toString();
+      const title: string = gStart === gEnd
+        ? '第' + seq + '卷（' + generationLabel(gStart) + '）'
+        : '第' + seq + '卷（' + generationLabel(gStart) + '至' + generationLabel(gEnd) + '）';
+      volumes.push({ title: title, people: sorted.slice(start, end) });
+      start = end;
+    }
+    return volumes;
+  }
+
   static async exportPdf(
     context: common.UIAbilityContext,
     people: Person[],
@@ -472,20 +722,46 @@ export class PdfExportService {
     if (!fileIo.accessSync(outDir)) {
       fileIo.mkdirSync(outDir);
     }
-    const imgDir: string = outDir + '/pages';
-    if (!fileIo.accessSync(imgDir)) {
-      fileIo.mkdirSync(imgDir);
-    }
 
     // 2. 排版（需要一个离屏 ctx 做 measureText）
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
     const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const ts: number = Date.now();
+    // 分卷导出时用全量人物建索引，本卷只负责排版
+    const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
+      ? options.kinSource : people;
+    const kinIndex: KinshipIndex = new KinshipIndex(kinPeople);
+    console.info('[PdfExport] index ' + (Date.now() - ts) + 'ms, kin=' + kinPeople.length + ', volume=' + people.length);
 
     const coverPages: PageSpec[] = options.includeCover
-      ? paginateLines(ctx, buildCover(book, people.length), '封 面', 0) : [];
+      ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0) : [];
     const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
-    const genealogyPages: PageSpec[] = paginateEntries(ctx, buildGenealogyEntries(ctx, people, svc));
+    const offset: number = coverPages.length + prefacePages.length;
+
+    // 第一遍：用等宽页码占位排版，确定「每人落在第几页」
+    const tA: number = Date.now();
+    const entries1: EntryBlock[] = buildGenealogyEntries(ctx, people, kinIndex, null);
+    const firstPass: PaginateResult = paginateEntries(entries1, offset);
+    console.info('[PdfExport] pass1 ' + (Date.now() - tA) + 'ms, pages=' + firstPass.pages.length);
+    // 第二遍：回填真实页码。占位串比真实页码长，折行数可能变少，
+    // 用空行补齐到第一遍的行数，保证分页结果与页码互引完全一致
+    const tB: number = Date.now();
+    const heights: Map<string, number> = new Map<string, number>();
+    for (let i: number = 0; i < entries1.length; i++) {
+      heights.set(entries1[i].uid, entries1[i].lines.length);
+    }
+    const entries2: EntryBlock[] = buildGenealogyEntries(ctx, people, kinIndex, firstPass.uidPage);
+    for (let i: number = 0; i < entries2.length; i++) {
+      const e: EntryBlock = entries2[i];
+      const want: number | undefined = heights.get(e.uid);
+      if (want !== undefined) {
+        while (e.lines.length < want) {
+          e.lines.push(padLine());
+        }
+      }
+    }
+    const genealogyPages: PageSpec[] = paginateEntries(entries2, offset).pages;
+    console.info('[PdfExport] pass2 ' + (Date.now() - tB) + 'ms, pages=' + genealogyPages.length);
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
 
     const all: PageSpec[] = [];
@@ -498,63 +774,52 @@ export class PdfExportService {
       throw new Error('排版结果为空');
     }
 
-    // 3. 逐页渲染为 JPEG
-    const imagePaths: string[] = [];
-    for (let i: number = 0; i < total; i++) {
-      if (onProgress) {
-        onProgress({ current: i + 1, total: total, message: '渲染第 ' + (i + 1) + '/' + total + ' 页' });
-      }
-      const path: string = imgDir + '/page_' + i.toString().padStart(3, '0') + '.jpg';
-      await renderPageToJpeg(all[i], i + 1, total, i < coverPages.length, path);
-      imagePaths.push(path);
-    }
-
-    // 4. 组装 PDF
-    if (onProgress) {
-      onProgress({ current: total + 1, total: total + 1, message: '生成 PDF 文件' });
-    }
+    // 3. 逐页写入 PDF 文本对象（矢量文字，可选中、可搜索、可编辑）
     const d: Date = new Date();
     const stamp: string = d.getFullYear().toString() +
       (d.getMonth() + 1).toString().padStart(2, '0') +
       d.getDate().toString().padStart(2, '0');
-    const outPath: string = outDir + '/' + book.title + '_' + stamp + '.pdf';
+    const vol: string = (options.volumeTitle !== undefined && options.volumeTitle.length > 0)
+      ? '_' + options.volumeTitle : '';
+    const outPath: string = outDir + '/' + book.title + vol + '_' + stamp + '.pdf';
 
     const doc: pdfService.PdfDocument = new pdfService.PdfDocument();
     if (!doc.createDocument(PAGE_W, PAGE_H)) {
       throw new Error('PDF 文档创建失败');
     }
-    for (let i: number = 0; i < imagePaths.length; i++) {
-      const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W, PAGE_H);
-      page.addImageObject(imagePaths[i], 0, 0, PAGE_W, PAGE_H);
+    // createDocument 会自带一个空白页，不删掉会让导出的 PDF 首页空白、后续内容整体后移一页
+    if (doc.getPageCount() === 1) {
+      doc.deletePage(0, 1);
     }
+    const t0: number = Date.now();
+    for (let i: number = 0; i < total; i++) {
+      drawPageToPdf(ctx, doc, all[i], i + 1, total, i < coverPages.length);
+      if (onProgress && (i % 5 === 0 || i === total - 1)) {
+        onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
+      }
+      if (i % 50 === 0) {
+        console.info('[PdfExport] page ' + i + '/' + total + ' cost ' + (Date.now() - t0) + 'ms');
+      }
+      await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应
+    }
+    const t1: number = Date.now();
     const saved: boolean = doc.saveDocument(outPath);
+    let savedSize: number = -1;
+    try {
+      savedSize = fileIo.statSync(outPath).size;
+    } catch (_e) {
+      savedSize = -1;
+    }
+    console.info('[PdfExport] save ' + saved + ' cost ' + (Date.now() - t1) + 'ms, pages=' + total
+      + ', size=' + savedSize);
     doc.releaseDocument();
     if (!saved) {
       throw new Error('PDF 保存失败');
     }
 
-    // 5. 清理临时图片
-    PdfExportService.cleanup(imgDir);
-
     if (onProgress) {
       onProgress({ current: total + 1, total: total + 1, message: '完成' });
     }
     return outPath;
-  }
-
-  private static cleanup(dir: string): void {
-    try {
-      const list: string[] = fileIo.listFileSync(dir);
-      list.forEach((f: string): void => {
-        try {
-          fileIo.unlinkSync(dir + '/' + f);
-        } catch (_e) {
-          // 忽略单个临时文件删除失败
-        }
-      });
-      fileIo.rmdirSync(dir);
-    } catch (_e) {
-      // 忽略临时目录清理失败
-    }
   }
 }
