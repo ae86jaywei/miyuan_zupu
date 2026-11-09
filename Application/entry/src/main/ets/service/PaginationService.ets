@@ -1,6 +1,6 @@
 import { PersonNode } from '../model/PersonNode';
 import { TreeStyle, generationLabel } from '../model/Enums';
-import { EuCanvas, EuLayout, SuCanvas, SuLayout } from './TreeLayout';
+import { EuCanvas, EuLayout, LineSeg, SuCanvas, SuLayout } from './TreeLayout';
 import { LayoutProfile, PageSpec } from './PrintLayout';
 import { GenealogyService } from './GenealogyService';
 
@@ -180,7 +180,7 @@ export class PaginationService {
     if (page === null) {
       return null;
     }
-    const content: PageContent = this.computeCanvas(page.rootNodes, page.uids, TreeStyle.EU, this.cached.profile);
+    const content: PageContent = this.computeCanvas(page.rootNodes, page.uids, TreeStyle.EU, this.cached.profile, this.cached.spec);
     if (content.eu === null) {
       return null;
     }
@@ -201,7 +201,7 @@ export class PaginationService {
     if (page === null) {
       return null;
     }
-    const content: PageContent = this.computeCanvas(page.rootNodes, page.uids, TreeStyle.SU, this.cached.profile);
+    const content: PageContent = this.computeCanvas(page.rootNodes, page.uids, TreeStyle.SU, this.cached.profile, this.cached.spec);
     if (content.su === null) {
       return null;
     }
@@ -310,16 +310,38 @@ export class PaginationService {
         }
       }
 
-      // 这一支的承接父卡不是本页页根：本页到此为止，下一页再排
-      if (cur.uids.size > 1 && unit.carry !== null && unit.carry.uid !== cur.rootNodes[0].uid) {
-        this.commitPending(queue, pending);
-        this.flushPage(cur, pages, nodeMap);
-        cur = new PagePlan();
-        cur.index = pages.length + 1;
-        continue;
+      // 这一支的承接父卡不在本页：把它作为新的独立片段放进本页；
+      // 连「父卡 + 这一支的根卡」都放不下时，才落页换新页。
+      const carry: PersonNode | null = unit.carry;
+      if (carry !== null && !cur.uids.has(carry.uid)) {
+        const set: Set<string> = this.copySet(cur.uids);
+        set.add(carry.uid);
+        set.add(unit.node.uid);
+        const roots2: PersonNode[] = [];
+        for (let i: number = 0; i < cur.rootNodes.length; i = i + 1) {
+          roots2.push(cur.rootNodes[i]);
+        }
+        roots2.push(carry);
+        const c: PageContent = this.computeCanvas(roots2, set, style, profile, spec);
+        if (!this.fits(c, spec)) {
+          this.commitPending(queue, pending);
+          this.flushPage(cur, pages, nodeMap);
+          cur = new PagePlan();
+          cur.index = pages.length + 1;
+          continue;
+        }
+        cur.rootNodes.push(carry);
+        cur.rootUids.push(carry.uid);
+        const ref: PageRootRef = new PageRootRef();
+        ref.uid = carry.uid;
+        ref.name = carry.person.name;
+        ref.fromPage = 0;
+        ref.relation = '承前页';
+        cur.roots.push(ref);
+        cur.uids = set;
       }
 
-      // 页根本身：直接向下递归填页
+      // 页根/承接父卡已在页内：向下递归填页
       if (cur.uids.has(unit.node.uid)) {
         this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending);
         if (queue[0] === unit) {
@@ -334,7 +356,7 @@ export class PaginationService {
       if (size <= slots - cur.uids.size) {
         const trial: Set<string> = this.copySet(cur.uids);
         this.collectSubtree(unit.node, trial);
-        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile);
+        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
         if (this.fits(c, spec)) {
           cur.uids = trial;
           queue.shift();
@@ -342,26 +364,17 @@ export class PaginationService {
         }
       }
 
-      // 整支放不下：本页已有内容或已满，先落页，下一页从同一单元重试
-      if (cur.uids.size > 1 || cur.uids.size >= slots) {
-        this.commitPending(queue, pending);
-        this.flushPage(cur, pages, nodeMap);
-        cur = new PagePlan();
-        cur.index = pages.length + 1;
-        continue;
-      }
-
-      // 本页只有页根：深挖这一支，直到装满
+      // 整支放不下：把这一支的根卡先放进本页，再逐层填；连根卡都放不进才换页
       const before: number = cur.uids.size;
       this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending);
-      if (cur.uids.size === before && !cur.uids.has(unit.node.uid)) {
-        // 连根卡都放不进：本页到此为止，下一页重试，不消费这个单元
-        this.flushPage(cur, pages, nodeMap);
-        cur = new PagePlan();
-        cur.index = pages.length + 1;
+      if (cur.uids.size > before) {
+        queue.shift();
         continue;
       }
-      queue.shift();
+      this.commitPending(queue, pending);
+      this.flushPage(cur, pages, nodeMap);
+      cur = new PagePlan();
+      cur.index = pages.length + 1;
     }
     if (cur.uids.size > 0 && pages.length < MAX_PAGES) {
       this.flushPage(cur, pages, nodeMap);
@@ -372,6 +385,13 @@ export class PaginationService {
     book.pages = pages;
     book.pageCount = pages.length;
     this.buildIndex(book, nodeMap);
+    let totalUids: number = 0;
+    for (let pi: number = 0; pi < pages.length; pi = pi + 1) {
+      totalUids = totalUids + pages[pi].uids.size;
+    }
+    console.info('[PGPLAN] pages=' + pages.length.toString() + ' uids=' + totalUids.toString() +
+      ' trunc=' + (book.truncated ? '1' : '0') + ' p1=' + (pages.length > 0 ? pages[0].uids.size.toString() : '0') +
+      ' roots=' + (pages.length > 0 ? pages[0].rootNodes.length.toString() : '0'));
   }
 
   /**
@@ -385,7 +405,7 @@ export class PaginationService {
       if (size <= slots - cur.uids.size) {
         const trial: Set<string> = this.copySet(cur.uids);
         this.collectSubtree(node, trial);
-        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile);
+        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
         if (this.fits(c, spec)) {
           cur.uids = trial;
           return;
@@ -394,7 +414,7 @@ export class PaginationService {
       // 整支放不下：先把根卡放进来，线由页根/承接父卡连到它
       const set: Set<string> = this.copySet(cur.uids);
       set.add(node.uid);
-      const cc: PageContent = this.computeCanvas(cur.rootNodes, set, style, profile);
+      const cc: PageContent = this.computeCanvas(cur.rootNodes, set, style, profile, spec);
       if (!this.fits(cc, spec)) {
         return;
       }
@@ -413,14 +433,12 @@ export class PaginationService {
         return;
       }
       const next: PersonNode[] = [];
-      let stop: boolean = false;
-      for (let f: number = 0; f < frontier.length && !stop; f = f + 1) {
+      for (let f: number = 0; f < frontier.length; f = f + 1) {
         const parent: PersonNode = frontier[f];
-        let start: number = 0;
+        let start: number = -1;
         for (let i: number = 0; i < parent.children.length; i = i + 1) {
           if (cur.uids.size >= slots) {
             start = i;
-            stop = true;
             break;
           }
           const child: PersonNode = parent.children[i];
@@ -430,25 +448,25 @@ export class PaginationService {
           }
           const set: Set<string> = this.copySet(cur.uids);
           set.add(child.uid);
-          const c: PageContent = this.computeCanvas(cur.rootNodes, set, style, profile);
+          const c: PageContent = this.computeCanvas(cur.rootNodes, set, style, profile, spec);
           if (this.fits(c, spec)) {
             cur.uids = set;
             next.push(child);
           } else {
+            if (cur.index <= 2) {
+              console.info('[PGFITFAIL] p=' + cur.index.toString() + ' d=' + level.toString() +
+                ' n=' + cur.uids.size.toString() + ' w=' + c.width.toFixed(1) + ' h=' + c.height.toFixed(1) +
+                ' limitW=' + spec.contentWidth().toString() + ' limitH=' + spec.contentHeight().toString());
+            }
+            // 这一支放不下：只切这个父卡的剩余子女，同层其他房支继续尝试，
+            // 避免一条支失败就把整层兄弟都推到下一页（碎片页的主因）。
             start = i;
-            stop = true;
             break;
           }
         }
-        if (stop) {
+        if (start >= 0) {
           this.cutChildren(parent, parent.children, start, cur, pending);
-          for (let k: number = f + 1; k < frontier.length; k = k + 1) {
-            this.cutChildren(frontier[k], frontier[k].children, 0, cur, pending);
-          }
         }
-      }
-      if (stop) {
-        return;
       }
       frontier = next;
     }
@@ -569,7 +587,8 @@ export class PaginationService {
       const page: PagePlan = book.pages[i];
       for (let r: number = 0; r < page.roots.length; r = r + 1) {
         const home: number = book.pageOf(page.roots[r].uid);
-        if (home > 0) {
+        // 承接父卡：取它首次出现页；同页下方新片段已显式记过来源页，不再覆盖
+        if (home > 0 && page.roots[r].fromPage <= 0) {
           page.roots[r].fromPage = home;
         }
       }
@@ -603,21 +622,83 @@ export class PaginationService {
     }
   }
 
-  /** 只排一棵子树：用于容量试排 */
+  /** 只排本页的树：多个页根按「货架」横向拼接，把右侧空白用起来 */
   private computeCanvas(roots: PersonNode[], allowed: Set<string>, style: string,
-    profile: LayoutProfile): PageContent {
+    profile: LayoutProfile, spec: PageSpec): PageContent {
     const content: PageContent = new PageContent();
     if (style === TreeStyle.SU) {
       const c: SuCanvas = SuLayout.compute(roots, profile.cardW, false, profile.showSpouse, allowed, profile.metrics());
       content.su = c;
       content.width = c.width;
       content.height = c.height;
-    } else {
+    } else if (roots.length <= 1) {
       const c: EuCanvas = EuLayout.compute(roots, profile.cardW, profile.cardH, profile.colGap,
         profile.showSpouse, 0, allowed, profile.metrics());
       content.eu = c;
       content.width = c.width;
       content.height = c.height;
+    } else {
+      // 多个互不相连的闭合片段：先各自布局，再按货架（先右后下）拼进同一版心。
+      // 单页只有一个页根时，右侧会留下大量空白，正是「几个人一页」的主因。
+      const merged: EuCanvas = new EuCanvas();
+      const limitW: number = spec.contentWidth();
+      const limitH: number = spec.contentHeight();
+      const gap: number = 4;
+      let cursorX: number = 0;
+      let cursorY: number = 0;
+      let shelfH: number = 0;
+      let usedW: number = 0;
+      let usedH: number = 0;
+      let first: boolean = true;
+      for (let i: number = 0; i < roots.length; i = i + 1) {
+        const c: EuCanvas = EuLayout.compute([roots[i]], profile.cardW, profile.cardH, profile.colGap,
+          profile.showSpouse, 0, allowed, profile.metrics());
+        if (c.boxes.length === 0) {
+          continue;
+        }
+        if (cursorX > 0 && cursorX + c.width > limitW + FIT_EPS) {
+          cursorX = 0;
+          cursorY = cursorY + shelfH + gap;
+          shelfH = 0;
+        }
+        // 超出底部：保留这一片段，但版面高度会被 fits 判为超高，由装箱端换页
+        for (let b: number = 0; b < c.boxes.length; b = b + 1) {
+          const box = c.boxes[b];
+          box.x = box.x + cursorX;
+          box.y = box.y + cursorY;
+          box.centerY = box.centerY + cursorY;
+          merged.boxes.push(box);
+          if (first) {
+            merged.rootBox = box;
+            first = false;
+          }
+        }
+        for (let l: number = 0; l < c.lines.length; l = l + 1) {
+          const seg: LineSeg = new LineSeg();
+          seg.x1 = c.lines[l].x1 + cursorX;
+          seg.y1 = c.lines[l].y1 + cursorY;
+          seg.x2 = c.lines[l].x2 + cursorX;
+          seg.y2 = c.lines[l].y2 + cursorY;
+          seg.red = c.lines[l].red;
+          seg.id = merged.lines.length;
+          merged.lines.push(seg);
+        }
+        if (cursorX + c.width > usedW) {
+          usedW = cursorX + c.width;
+        }
+        if (cursorY + c.height > usedH) {
+          usedH = cursorY + c.height;
+        }
+        cursorX = cursorX + c.width + gap;
+        if (c.height > shelfH) {
+          shelfH = c.height;
+        }
+      }
+      merged.width = usedW;
+      merged.height = usedH;
+      content.eu = merged;
+      content.width = usedW;
+      content.height = usedH;
     }
     return content;
   }

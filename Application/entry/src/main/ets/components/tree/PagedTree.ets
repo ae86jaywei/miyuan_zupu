@@ -4,6 +4,7 @@ import { Theme } from '../../theme/Theme';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
 import { PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
+import { DeviceUtil } from '../../util/DeviceUtil';
 
 /**
  * 印刷版人物卡：白底细框、无圆角，姓名 + 世次 + 配偶文字。
@@ -184,16 +185,26 @@ export struct PagedTree {
       }
     }
     this.updateScale();
+    console.info('[PGBOX] p=' + idx.toString() + ' boxes=' + this.euBoxes.length.toString() +
+      ' su=' + this.suBoxes.length.toString() + ' lines=' + this.lines.length.toString() +
+      ' roots=' + page.roots.length.toString());
   }
 
-  /** 页面适配窗口：k = 每毫米多少 vp（含用户缩放） */
+  /** 页面适配窗口：k = 每毫米多少 vp（含用户缩放）；横竖屏切换也要按屏幕宽度重新收口 */
   private updateScale(): void {
     if (this.viewW <= 0 || this.viewH <= 0) {
       return;
     }
-    const availH: number = Math.max(80, this.viewH - 46);
-    const fit: number = Math.min(this.viewW / this.spec.trimW, availH / this.spec.trimH) * 0.96;
+    // viewW 可能来自比屏幕更宽的滚动内容，横屏时会把整页撑出右边屏幕；
+    // 这里用物理屏幕宽度再夹一次，保证 100% 时整页始终落在屏幕内。
+    const screenW: number = DeviceUtil.screenWidthVp();
+    const baseW: number = screenW > 0 ? Math.min(this.viewW, screenW) : this.viewW;
+    const availW: number = Math.max(80, baseW - 16);
+    const availH: number = Math.max(80, this.viewH - 40);
+    const fit: number = Math.min(availW / this.spec.trimW, availH / this.spec.trimH) * 0.96;
     this.k = Math.max(0.2, fit) * this.zoom;
+    console.info('[PGSIZE] viewW=' + this.viewW.toFixed(1) + ' viewH=' + this.viewH.toFixed(1) +
+      ' screenW=' + screenW.toFixed(1) + ' k=' + this.k.toFixed(2));
   }
 
   private goto(n: number): void {
@@ -244,11 +255,14 @@ export struct PagedTree {
     return this.page !== null && this.page.recto;
   }
 
-  /** 卡片次要文字：世次 + 配偶；印刷版配偶并入卡片文字 */
+  /** 卡片次要文字：世次 + ID + 配偶名（配偶已单独成卡时不再重复整段配偶信息） */
   private detailOf(node: PersonNode): string {
     let text: string = generationLabel(node.person.generation);
+    if (node.uid.length > 0) {
+      text = text + ' · ' + node.uid;
+    }
     const sp: string = node.spouseText();
-    if (sp.length > 0) {
+    if (sp.length > 0 && !this.profile.showSpouse) {
       text = text + '｜' + sp;
     }
     return text;
@@ -270,7 +284,7 @@ export struct PagedTree {
         .height('100%')
         .backgroundColor('#F4EFE3')
         .position({
-          x: this.isRecto() ? 0 : this.mm(this.spec.trimW - this.spec.gutter),
+          x: 0,
           y: 0
         })
 
@@ -309,7 +323,7 @@ export struct PagedTree {
 
       // 欧式卡片
       if (this.style !== TreeStyle.SU) {
-        ForEach(this.euBoxes, (b: EuBox) => {
+        ForEach(this.euBoxes, (b: EuBox, idx: number) => {
           PrintCard({
             name: b.node.person.name.length > 0 ? b.node.person.name : b.node.uid,
             detail: this.detailOf(b.node),
@@ -328,10 +342,10 @@ export struct PagedTree {
               x: this.contentX() + b.x * this.k,
               y: this.contentY() + b.y * this.k
             })
-        }, (b: EuBox) => 'eu_' + this.pageNo.toString() + '_' + b.node.uid)
+        }, (b: EuBox, idx: number) => 'eu_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
       } else {
         // 苏式卡片
-        ForEach(this.suBoxes, (b: SuBox) => {
+        ForEach(this.suBoxes, (b: SuBox, idx: number) => {
           PrintCard({
             name: b.node.person.name.length > 0 ? b.node.person.name : b.node.uid,
             detail: this.detailOf(b.node),
@@ -350,7 +364,7 @@ export struct PagedTree {
               x: this.contentX() + b.x * this.k,
               y: this.contentY() + b.y * this.k
             })
-        }, (b: SuBox) => 'su_' + this.pageNo.toString() + '_' + b.node.uid)
+        }, (b: SuBox, idx: number) => 'su_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
       }
 
       // 页脚接续 + 页码
@@ -359,15 +373,20 @@ export struct PagedTree {
           .fontSize(this.pt(6.5))
           .fontColor('#8C2F1E')
           .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .width(this.mm(this.spec.trimW - 78))
           .position({
             x: this.mm(this.innerX()),
             y: this.mm(this.spec.trimH - 8)
           })
       }
-      Text('第 ' + this.pageNo.toString() + ' / ' + this.pageCount.toString() + ' 页')
-        .fontSize(this.pt(7))
-        .fontColor('#7A6A57')
-        .position({ x: this.mm(this.spec.trimW / 2 - 12), y: this.mm(this.spec.trimH - 8) })
+      Text('第 ' + this.pageNo.toString() + ' 页 / 共 ' + this.pageCount.toString() + ' 页')
+        .fontSize(this.pt(8))
+        .fontColor('#5E5041')
+        .fontWeight(FontWeight.Medium)
+        .textAlign(TextAlign.Center)
+        .width(this.mm(this.spec.trimW))
+        .position({ x: 0, y: this.mm(this.spec.trimH - 9) })
     }
     .width(this.mm(this.spec.trimW))
     .height(this.mm(this.spec.trimH))
@@ -447,7 +466,7 @@ export struct PagedTree {
           })
       }
       .width('100%')
-      .height(44)
+      .height(36)
       .padding({ left: 10, right: 10 })
       .backgroundColor(Theme.paper)
 
@@ -456,11 +475,11 @@ export struct PagedTree {
         Column() {
           this.PageSheet()
         }
-        .width(Math.max(this.viewW, this.mm(this.spec.trimW)))
-        .height(Math.max(this.viewH - 46, this.mm(this.spec.trimH)))
+        .width(Math.max(this.mm(this.spec.trimW), Math.min(this.viewW, DeviceUtil.screenWidthVp())))
+        .height(Math.max(this.viewH - 38, this.mm(this.spec.trimH)))
         .alignItems(HorizontalAlign.Center)
-        .justifyContent(FlexAlign.Center)
-        .padding({ top: 6, bottom: 6 })
+        .justifyContent(FlexAlign.Start)
+        .padding({ top: 2, bottom: 4 })
       }
       .layoutWeight(1)
       .width('100%')

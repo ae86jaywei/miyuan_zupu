@@ -134,6 +134,7 @@ export struct TreeCanvas {
     this.offsetY = 0;
     if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
       this.pagedMode = false;
+      AppStorage.setOrCreate<boolean>('pagedMode', false);
     }
     this.pageNo = 1;
     if (this.style === TreeStyle.DIE) {
@@ -723,6 +724,7 @@ export struct TreeCanvas {
         .border({ width: 1, color: Theme.glassBorder })
         .borderRadius(16)
         .height(34)
+        .width(96)
         .padding({ left: 12, right: 12 })
         .margin({ bottom: 6 })
         .onClick((): void => {
@@ -736,10 +738,12 @@ export struct TreeCanvas {
           .border({ width: 1, color: Theme.glassBorder })
           .borderRadius(16)
           .height(34)
+          .width(96)
           .padding({ left: 12, right: 12 })
           .margin({ bottom: 6 })
           .onClick((): void => {
             this.pagedMode = !this.pagedMode;
+            AppStorage.setOrCreate<boolean>('pagedMode', this.pagedMode);
             this.pageNo = 1;
             if (!this.pagedMode) {
               this.pendingCenter = true;
@@ -755,6 +759,7 @@ export struct TreeCanvas {
           .border({ width: 1, color: Theme.glassBorder })
           .borderRadius(16)
           .height(34)
+          .width(96)
           .padding({ left: 12, right: 12 })
           .margin({ bottom: 0 })
           .enabled(!this.pagedMode)
@@ -764,6 +769,7 @@ export struct TreeCanvas {
           })
       }
     }
+    .width(96)
     .alignItems(HorizontalAlign.End)
     .margin({ right: 12, bottom: 12 })
   }

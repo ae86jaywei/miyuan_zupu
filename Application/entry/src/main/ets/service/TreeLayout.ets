@@ -294,6 +294,8 @@ export class EuLayout {
     const spouseH: number = cardH;
     // 夫妻卡之间留出间距，保证双线符号看得清
     const spouseGap: number = metrics !== null ? metrics.spouseGap : 12;
+    // 婚约双线各自偏离中轴的距离：按卡高比例收口，纸质横版小卡上不能再用大画布的 4mm
+    const marriageGap: number = Math.min(MARRIAGE_LINE_GAP, Math.max(0.45, spouseH * 0.08));
     const stackGap: number = metrics !== null ? metrics.stackGap : 6;
     /** 连线与卡框之间的留白，避免线条贴着卡片 */
     const lineGap: number = metrics !== null ? metrics.lineGap : 6;
@@ -426,7 +428,7 @@ export class EuLayout {
           slot = slot + 1;
           canvas.boxes.push(sb);
           placed.set(sp.uid, sb);
-          pushDoubleLine(canvas.lines, pb.x + pb.w, sb.centerY, sb.x, sb.centerY, MARRIAGE_LINE_GAP);
+          pushDoubleLine(canvas.lines, pb.x + pb.w, sb.centerY, sb.x, sb.centerY, marriageGap);
           if (sb.centerY > lastCy) {
             lastCy = sb.centerY;
           }
@@ -437,10 +439,10 @@ export class EuLayout {
           spine.red = true;
           spine.x1 = pb.x + pb.w;
           // 竖线起点对齐婚约双线中靠下的那一条，而不是卡中心，避免向上错位
-          spine.y1 = pb.centerY + MARRIAGE_LINE_GAP;
+          spine.y1 = pb.centerY + marriageGap;
           spine.x2 = pb.x + pb.w;
           // 竖线末端同样对齐最下一位配偶婚约双线中靠下的那一条，避免下端开口
-          spine.y2 = lastCy + MARRIAGE_LINE_GAP;
+          spine.y2 = lastCy + marriageGap;
           canvas.lines.push(spine);
         }
       }
@@ -590,6 +592,8 @@ export class SuLayout {
     const spouseH: number = cardH;
     /** 单妻横排时夫卡与妻卡的横向间隔 */
     const spouseGap: number = metrics !== null ? metrics.spouseGap : 12;
+    /** 婚约双线各自偏离中轴的距离：按卡高比例收口，小卡上不再用大画布的 4mm */
+    const marriageGap: number = Math.min(MARRIAGE_LINE_GAP, Math.max(0.45, spouseH * 0.08));
     /** 多妻竖排时夫卡与妻妾卡之间的竖向间隔：留出位置画红色双线 */
     const stackGap: number = metrics !== null ? metrics.stackGap : 10;
     /** 连线与卡框之间的留白：竖线离开卡框一段距离，再用短横线引出 */
@@ -747,10 +751,10 @@ export class SuLayout {
           placed.set(sp.uid, sb);
           if (pending === 1) {
             const scy: number = sb.y + sb.h / 2;
-            pushDoubleLine(canvas.lines, pb.x + pb.w, scy, sb.x, scy, MARRIAGE_LINE_GAP);
+            pushDoubleLine(canvas.lines, pb.x + pb.w, scy, sb.x, scy, marriageGap);
           } else {
             // 夫卡底 → 原配卡顶，之后每位续配 / 妾室与其上一张卡相连
-            pushDoubleLine(canvas.lines, cx, prevBottom, cx, sb.y, MARRIAGE_LINE_GAP);
+            pushDoubleLine(canvas.lines, cx, prevBottom, cx, sb.y, marriageGap);
             prevBottom = sb.y + sb.h;
           }
         }

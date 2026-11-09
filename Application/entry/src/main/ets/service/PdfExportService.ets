@@ -49,6 +49,10 @@ export interface PdfExportOptions {
   volumeTitle?: string;
   /** 关系索引数据源：分卷导出时传全量人物，跨卷亲属姓名才显示得出来 */
   kinSource?: Person[];
+  /** 导出谱式：die=牒记式（默认），eu=欧式分页，su=苏式分页 */
+  style?: string;
+  /** 跨卷位置索引：uid →「第2卷358页」，分卷导出时由 prepareCrossRefs 预先算好 */
+  crossRef?: Map<string, string>;
 }
 
 /** 分卷单元 */
@@ -193,17 +197,27 @@ class KinshipIndex {
   }
 }
 
+/** 跨卷位置：uid →「第2卷358页」。由 prepareCrossRefs 在生成 PDF 前算好并回填 */
+let gCrossRef: Map<string, string> | null = null;
+
 /** 关系人标注：姓名（UID·第N页）；第一遍排版用等宽占位页码，保证两遍折行数可比 */
 function refText(name: string, uid: string, refs: Map<string, number> | null): string {
   const id: string = uid.trim().toUpperCase();
   let text: string = name + '（' + id;
   if (refs !== null) {
     const n: number | undefined = refs.get(id);
-    // 分卷导出时 refs 只含本卷人物，查不到即说明在其它卷
-    text += n === undefined ? '·另卷' : '·第' + n.toString() + '页';
+    if (n !== undefined) {
+      text += '·第' + n.toString() + '页';
+    } else if (gCrossRef !== null) {
+      // 分卷导出：本卷 refs 查不到时，用预先算好的跨卷「第N卷M页」
+      const cross: string | undefined = gCrossRef.get(id);
+      text += cross === undefined ? '·另卷' : '·' + cross;
+    } else {
+      text += '·另卷';
+    }
   } else {
     // 第一遍：占位串不短于真实页码，第二遍折行只会更少，再补空行对齐
-    text += '·第00000页';
+    text += '·第00卷0000页';
   }
   return text + '）';
 }
@@ -376,15 +390,83 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   return lines;
 }
 
-/** 世系条目：世代分隔头 + 逐人条目（按世代、UID 排序） */
-function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
-  kinIndex: KinshipIndex, refs: Map<string, number> | null): EntryBlock[] {
+/**
+ * 排序：世代升序；同一世代内把夫妻排在一起。
+ * 配偶在数据里是独立人物条目，按 UID 排序会把「夫在第2页、妻排到第100页」，
+ * 这里以夫（被配偶引用的那一方）为锚点，先出夫条目，紧接着把它在本卷内的配偶条目全部输出。
+ */
+function orderPeopleByFamily(people: Person[]): Person[] {
   const sorted: Person[] = people.slice().sort((a: Person, b: Person): number => {
     if (a.generation !== b.generation) {
       return a.generation - b.generation;
     }
     return a.uid.localeCompare(b.uid);
   });
+  const out: Person[] = [];
+  let start: number = 0;
+  while (start < sorted.length) {
+    const gen: number = sorted[start].generation;
+    let end: number = start;
+    while (end < sorted.length && sorted[end].generation === gen) {
+      end++;
+    }
+    const group: Person[] = sorted.slice(start, end);
+    const byUid: Map<string, Person> = new Map<string, Person>();
+    for (let i: number = 0; i < group.length; i++) {
+      byUid.set(group[i].uid.trim().toUpperCase(), group[i]);
+    }
+    const anchorOf: Map<string, string> = new Map<string, string>();
+    for (let i: number = 0; i < group.length; i++) {
+      const p: Person = group[i];
+      for (let j: number = 0; j < p.spouses.length; j++) {
+        const spUid: string = p.spouses[j].uid.trim().toUpperCase();
+        if (byUid.has(spUid) && !anchorOf.has(spUid)) {
+          anchorOf.set(spUid, p.uid.trim().toUpperCase());
+        }
+      }
+    }
+    const emitted: Set<string> = new Set<string>();
+    const emitOne = (p: Person): void => {
+      const uid: string = p.uid.trim().toUpperCase();
+      if (emitted.has(uid)) {
+        return;
+      }
+      emitted.add(uid);
+      out.push(p);
+      for (let k: number = 0; k < p.spouses.length; k++) {
+        const sp: Person | undefined = byUid.get(p.spouses[k].uid.trim().toUpperCase());
+        if (sp !== undefined) {
+          const spUid: string = sp.uid.trim().toUpperCase();
+          if (!emitted.has(spUid) && anchorOf.get(spUid) === uid) {
+            emitted.add(spUid);
+            out.push(sp);
+          }
+        }
+      }
+    };
+    for (let i: number = 0; i < group.length; i++) {
+      const p: Person = group[i];
+      const uid: string = p.uid.trim().toUpperCase();
+      const anchor: string | undefined = anchorOf.get(uid);
+      // 被配偶引用的一方先等锚点（夫）输出，避免妻先出现、夫被甩到后面
+      if (anchor !== undefined && anchor !== uid && byUid.has(anchor) && !emitted.has(anchor)) {
+        continue;
+      }
+      emitOne(p);
+    }
+    // 锚点不在本卷（跨卷分家）时，配偶仍要输出，不能漏人
+    for (let i: number = 0; i < group.length; i++) {
+      emitOne(group[i]);
+    }
+    start = end;
+  }
+  return out;
+}
+
+/** 世系条目：世代分隔头 + 逐人条目（同世代夫妻相邻） */
+function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
+  kinIndex: KinshipIndex, refs: Map<string, number> | null): EntryBlock[] {
+  const sorted: Person[] = orderPeopleByFamily(people);
   const entries: EntryBlock[] = [];
   let lastGen: number = -1;
   for (let i: number = 0; i < sorted.length; i++) {
@@ -643,7 +725,7 @@ function drawPageToPdf(ctx: OffscreenCanvasRenderingContext2D, doc: pdfService.P
     y += ln.lineH;
   }
   if (!isCover) {
-    const footer: string = pageNo.toString() + ' / ' + total.toString();
+    const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
     const style: pdfService.TextStyle = textStyle(9, C_INK3, false);
     page.addTextObject(footer,
       PAGE_W - MARGIN_LR - measurePt(ctx, footer, 9), MARGIN_BOTTOM / 2, style);
@@ -706,6 +788,42 @@ export class PdfExportService {
     return volumes;
   }
 
+  /**
+   * 生成跨卷位置索引：先把每一卷排一遍版，得到 uid →「第2卷358页」。
+   * 必须在导出 PDF 之前调用，导出的第二遍才能把「父xxx(Fxxx·第2卷358页)」写实。
+   * 每一卷只算页位不写 PDF，所用占位串与正式导出第一遍一致，页数稳定。
+   */
+  static prepareCrossRefs(
+    people: Person[],
+    book: Genealogy,
+    jobs: PdfVolume[],
+    includeCover: boolean
+  ): Map<string, string> {
+    const out: Map<string, string> = new Map<string, string>();
+    if (jobs.length === 0) {
+      return out;
+    }
+    const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
+    const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
+    const kinIndex: KinshipIndex = new KinshipIndex(people);
+    for (let i: number = 0; i < jobs.length; i++) {
+      const vol: PdfVolume = jobs[i];
+      const coverPages: PageSpec[] = includeCover
+        ? paginateLines(ctx, buildCover(book, vol.people.length, vol.title), '封 面', 0) : [];
+      const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
+      const offset: number = coverPages.length + prefacePages.length;
+      const entries: EntryBlock[] = buildGenealogyEntries(ctx, vol.people, kinIndex, null);
+      const pg: PaginateResult = paginateEntries(entries, offset);
+      const multi: boolean = jobs.length > 1;
+      pg.uidPage.forEach((pageNo: number, uid: string): void => {
+        out.set(uid, multi
+          ? '第' + (i + 1).toString() + '卷' + pageNo.toString() + '页'
+          : '第' + pageNo.toString() + '页');
+      });
+    }
+    return out;
+  }
+
   static async exportPdf(
     context: common.UIAbilityContext,
     people: Person[],
@@ -746,6 +864,7 @@ export class PdfExportService {
     // 第二遍：回填真实页码。占位串比真实页码长，折行数可能变少，
     // 用空行补齐到第一遍的行数，保证分页结果与页码互引完全一致
     const tB: number = Date.now();
+    gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     const heights: Map<string, number> = new Map<string, number>();
     for (let i: number = 0; i < entries1.length; i++) {
       heights.set(entries1[i].uid, entries1[i].lines.length);
@@ -762,6 +881,7 @@ export class PdfExportService {
     }
     const genealogyPages: PageSpec[] = paginateEntries(entries2, offset).pages;
     console.info('[PdfExport] pass2 ' + (Date.now() - tB) + 'ms, pages=' + genealogyPages.length);
+    gCrossRef = null;
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
 
     const all: PageSpec[] = [];

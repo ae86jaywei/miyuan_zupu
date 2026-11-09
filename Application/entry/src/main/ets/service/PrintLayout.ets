@@ -25,6 +25,8 @@ export class PageSpec {
   foot: number = 20;
   /** 出血（成品外，不占版心） */
   bleed: number = 3;
+  /** 装订侧安全内缩：卡片不贴装订线，留出翻阅与装订余量 */
+  safeInset: number = 6;
   /** 装订方向：left / right（传统右翻） */
   binding: string = 'left';
 
@@ -32,9 +34,9 @@ export class PageSpec {
     return new PageSpec();
   }
 
-  /** 版心宽：成品减去装订口与翻口 */
+  /** 版心宽：成品减去装订口、翻口与装订侧安全内缩 */
   contentWidth(): number {
-    return this.trimW - this.gutter - this.fold;
+    return this.trimW - this.gutter - this.fold - this.safeInset;
   }
 
   /** 版心高：成品减去天头与地脚 */
@@ -45,13 +47,15 @@ export class PageSpec {
   /**
    * 版心左边界（mm）。
    * 单页（recto=true）装订口在左；双面印刷的偶数页（verso）镜像到右侧，
-   * 保证装订后两页版心到装订线的距离一致。
+   * 保证装订后两页版心到装订线的距离一致；装订侧再内缩 safeInset，卡片不压装订线。
    */
   innerX(recto: boolean): number {
+    // 单面预览/印刷统一按「装订口在左」排：左右页版心同一起点，
+    // 任何一页的首列卡片都不会越过装订线（偶数页也不再镜像到左翻口）。
     if (this.binding === 'right') {
-      return recto ? this.fold : this.gutter;
+      return this.fold + this.safeInset;
     }
-    return recto ? this.gutter : this.fold;
+    return this.gutter + this.safeInset;
   }
 
   /** 版心上边界（mm） */
@@ -77,7 +81,7 @@ export class PageSpec {
   key(): string {
     return this.trimW.toString() + 'x' + this.trimH.toString() + '|' + this.gutter.toString() +
       '|' + this.fold.toString() + '|' + this.head.toString() + '|' + this.foot.toString() +
-      '|' + this.binding;
+      '|' + this.safeInset.toString() + '|' + this.binding;
   }
 }
 
@@ -109,8 +113,8 @@ export class LayoutProfile {
   busStep: number = 2.5;
   /** 苏式多房竖线轨道错开 */
   railGap: number = 2;
-  /** 印刷版配偶并入卡片文字，不单独占位（同时消除夫妻跨页） */
-  showSpouse: boolean = false;
+  /** 配偶单独成卡（印刷版显示夫妻双卡，配偶随主卡同页，不会跨页） */
+  showSpouse: boolean = true;
   /** 姓名字号（pt） */
   nameFontPt: number = 7;
   /** 次要信息字号（pt） */

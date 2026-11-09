@@ -56,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
 @Component
 struct Index {
   @StorageProp('windowWidth') windowWidth: number = 360;
+  @StorageProp('pagedMode') pagedMode: boolean = false;
   @StorageProp('windowHeight') windowHeight: number = 780;
   @StorageProp('gpVersion') version: number = 0;
   @StorageProp('gpReady') ready: boolean = false;
@@ -450,7 +451,7 @@ struct Index {
       }
     }
     .width('100%')
-    .padding({ left: 16, right: 16, bottom: 12 })
+    .padding({ left: 16, right: 16, bottom: 4 })
   }
 
   @Builder
@@ -459,15 +460,15 @@ struct Index {
       // 多族谱切换入口：显示当前族谱，点击可切换或新建
       Row() {
         Text('谱')
-          .fontSize(10)
+          .fontSize(9)
           .fontColor('#FFFFFF')
-          .width(18)
-          .height(18)
+          .width(16)
+          .height(16)
           .textAlign(TextAlign.Center)
           .backgroundColor(Theme.primary)
           .borderRadius(4)
         Text(this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱')
-          .fontSize(13)
+          .fontSize(12)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .margin({ left: 6 })
@@ -481,56 +482,60 @@ struct Index {
         Text('切换 ⌄')
           .fontSize(11)
           .fontColor(Theme.primary)
-          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-          .borderRadius(10)
+          .padding({ left: 7, right: 7, top: 3, bottom: 3 })
+          .borderRadius(9)
           .backgroundColor(Theme.highlightBg)
       }
       .width('100%')
-      .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+      .padding({ left: 8, right: 8, top: 3, bottom: 3 })
       .backgroundColor(Theme.field)
-      .borderRadius(10)
-      .margin({ bottom: 6 })
+      .borderRadius(9)
+      .margin({ bottom: 4 })
       .onClick((): void => {
         this.openBookPicker();
       })
 
-      Row() {
-        StyleSwitcher({
-          current: this.styleName,
-          windowWidth: this.windowWidth,
-          onSelect: (style: string): void => {
-            GenealogyStore.setStyle(style);
-          }
-        })
-      }
-      .width('100%')
-
-      Row() {
-        if (this.styleName !== TreeStyle.DIE) {
-          Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
-            .fontSize(11)
-            .fontColor(Theme.inkTertiary)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .layoutWeight(1)
-        }
-        Text('新增族人')
-          .fontSize(12)
-          .fontColor(Theme.primary)
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(12)
-          .border({ width: 1, color: Theme.primary })
-          .onClick((): void => {
-            if (!this.hasBook) {
-              this.createGenealogy();
-              return;
+      if (!this.pagedMode) {
+        Row() {
+          StyleSwitcher({
+            current: this.styleName,
+            windowWidth: this.layoutWidth(),
+            onSelect: (style: string): void => {
+              GenealogyStore.setStyle(style);
             }
-            RouterUtil.editPerson(this.getUIContext(), '', 'create', '');
           })
+        }
+        .width('100%')
       }
-      .width('100%')
-      .justifyContent(FlexAlign.End)
-      .margin({ top: 6 })
+
+      if (!this.pagedMode) {
+        Row() {
+          if (this.styleName !== TreeStyle.DIE) {
+            Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
+              .fontSize(11)
+              .fontColor(Theme.inkTertiary)
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+              .layoutWeight(1)
+          }
+          Text('新增族人')
+            .fontSize(12)
+            .fontColor(Theme.primary)
+            .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+            .borderRadius(12)
+            .border({ width: 1, color: Theme.primary })
+            .onClick((): void => {
+              if (!this.hasBook) {
+                this.createGenealogy();
+                return;
+              }
+              RouterUtil.editPerson(this.getUIContext(), '', 'create', '');
+            })
+        }
+        .width('100%')
+        .justifyContent(FlexAlign.End)
+        .margin({ top: 6 })
+      }
     }
     .width('100%')
   }
@@ -543,7 +548,7 @@ struct Index {
         style: this.styleName,
         highlightUid: this.selectedUid,
         showPrivate: this.showPrivate && !this.publicMode,
-        windowWidth: this.windowWidth,
+        windowWidth: this.layoutWidth(),
         onTapPerson: (uid: string): void => {
           this.openPerson(uid);
         },
@@ -557,7 +562,7 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .padding({ top: Spacing.XS })
+    .padding({ top: 0 })
   }
 
   @Builder
@@ -592,7 +597,7 @@ struct Index {
   CatalogPane() {
     CatalogView({
       version: this.version,
-      windowWidth: this.windowWidth,
+      windowWidth: this.layoutWidth(),
       isMasterDetail: this.isMasterDetail(),
       onOpenPerson: (uid: string): void => {
         this.openPerson(uid);
@@ -604,7 +609,7 @@ struct Index {
   StatsPane() {
     GenealogyStatsPanel({
       version: this.version,
-      windowWidth: this.windowWidth
+      windowWidth: this.layoutWidth()
     })
   }
 
@@ -910,7 +915,7 @@ struct Index {
     } else if (this.currentTab === 0) {
       HomeView({
         version: this.version,
-        windowWidth: this.windowWidth,
+        windowWidth: this.layoutWidth(),
         onOpenStyle: (style: string): void => {
           this.openStyle(style);
         },
@@ -984,20 +989,38 @@ struct Index {
     return GenealogyService.getInstance().getPeople().length;
   }
 
+  /** 手机（含横屏）不按大屏处理：横屏时仍用窄屏布局，避免侧栏把内容整体右移 */
+  private isPhone(): boolean {
+    return DeviceUtil.deviceType() === 'phone';
+  }
+
+  /** 布局宽度：手机取短边，横屏不会被当成平板/折叠展开的阔屏 */
+  private layoutWidth(): number {
+    if (this.isPhone()) {
+      return Math.min(this.windowWidth, this.windowHeight);
+    }
+    return this.windowWidth;
+  }
+
   private isMasterDetail(): boolean {
-    return this.windowWidth >= Breakpoint.MD;
+    return this.layoutWidth() >= Breakpoint.MD;
   }
 
   private isTriplePane(): boolean {
-    return this.windowWidth >= Breakpoint.LG;
+    return this.layoutWidth() >= Breakpoint.LG;
   }
 
   private showSidebar(): boolean {
-    return this.windowWidth >= Breakpoint.SM;
+    // 手机竖屏用底部导航；手机横屏改为左侧竖向导航（底部栏太占纵向空间）。
+    // 平板/折叠/阔屏仍按宽度走多栏布局。
+    if (this.isPhone()) {
+      return this.windowWidth > this.windowHeight;
+    }
+    return this.layoutWidth() >= Breakpoint.SM;
   }
 
   private sidebarCollapsed(): boolean {
-    return this.windowWidth < Breakpoint.MD;
+    return this.layoutWidth() < Breakpoint.MD;
   }
 
   build() {
@@ -1006,7 +1029,7 @@ struct Index {
         // 顶部品牌栏（大屏显示完整标题，小屏显示精简标题）
         Row() {
           Text(this.hasBook ? (this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱') : '尚未创建族谱')
-            .fontSize(17)
+            .fontSize(15)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
           if (this.hasBook && GenealogyService.getInstance().getBook().hallName.length > 0) {
@@ -1017,7 +1040,7 @@ struct Index {
               .maxLines(1)
           }
           Blank()
-          Text(this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')
+          Text(!this.isPhone() && this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
           Text(this.familyBadge())
@@ -1049,10 +1072,10 @@ struct Index {
               }
             })
           Text('⚙')
-            .fontSize(17)
+            .fontSize(15)
             .fontColor(Theme.inkSecondary)
-            .width(30)
-            .height(30)
+            .width(26)
+            .height(26)
             .textAlign(TextAlign.Center)
             .margin({ left: Spacing.S })
             .onClick((): void => {
@@ -1060,7 +1083,7 @@ struct Index {
             })
         }
         .width('100%')
-        .height(34)
+        .height(28)
         .padding({ left: Layout.pagePadding(this.windowWidth), right: Layout.pagePadding(this.windowWidth) })
         .backgroundColor(Theme.card)
         .shadow({ radius: 6, color: Theme.shadowDeep, offsetY: 2 })
@@ -1071,7 +1094,7 @@ struct Index {
             Column() {
               this.ContentBody()
             }
-            .layoutWeight(1)
+            .width(Math.max(1, this.windowWidth - (this.sidebarCollapsed() ? 68 : 190)))
             .height(LayoutPolicy.matchParent)
             .padding({
               left: Layout.pagePadding(this.windowWidth),
@@ -1103,6 +1126,8 @@ struct Index {
               Number(newValue.height), Number(newValue.width));
           })
 
+          // 竖屏始终保留底部 tab：分页状态下也要能直接切回其它页面，
+          // 否则横屏分页转竖屏后导航会消失。
           this.FloatingBottomBar()
         }
       }

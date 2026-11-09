@@ -21,20 +21,23 @@ export struct StyleSwitcher {
         ForEach(TREE_STYLES, (meta: TreeStyleMeta) => {
           Column() {
             Text(meta.name)
-              .fontSize(this.windowWidth < Breakpoint.SM ? 13 : 14)
+              .fontSize(this.windowWidth < Breakpoint.SM ? 11.5 : 14)
               .fontWeight(this.current === meta.key ? FontWeight.Bold : FontWeight.Normal)
               .fontColor(this.current === meta.key ? '#FFFFFF' : Theme.inkSecondary)
-            Text(meta.subtitle)
-              .fontSize(9.5)
-              .fontColor(this.current === meta.key ? '#F3DDB0' : Theme.inkTertiary)
-              .margin({ top: 1 })
               .maxLines(1)
+            if (this.showDesc()) {
+              Text(meta.subtitle)
+                .fontSize(9.5)
+                .fontColor(this.current === meta.key ? '#F3DDB0' : Theme.inkTertiary)
+                .margin({ top: 1 })
+                .maxLines(1)
+            }
           }
           .layoutWeight(1)
-          .padding({ top: 8, bottom: 8 })
+          .padding({ top: 6, bottom: 6 })
           .backgroundColor(this.current === meta.key ? Theme.primary : Color.Transparent)
-          .borderRadius(10)
-          .margin({ left: 2, right: 2 })
+          .borderRadius(8)
+          .margin({ left: 1, right: 1 })
           .onClick((): void => {
             this.onSelect(meta.key);
           })

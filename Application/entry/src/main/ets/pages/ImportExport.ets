@@ -5,6 +5,7 @@ import { BackButton } from '../components/BackButton';
 import { GenealogyService } from '../service/GenealogyService';
 import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfExportService';
+import { PagedPdfExportService, PagedPdfProgress } from '../service/PagedPdfExportService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
@@ -37,6 +38,8 @@ struct ImportExport {
     Theme.use(this.darkMode);
   }
   @State includePrivate: boolean = true;
+  /** PDF 谱式：die=牒记式（文字流），eu=欧式分页，su=苏式分页 */
+  @State pdfStyle: string = 'die';
   @State mergeStrategy: string = 'auto';
   @State previewText: string = '';
   @State parsedCount: number = 0;
@@ -129,9 +132,29 @@ struct ImportExport {
       const ctx = GenealogyScope.context();
       const people: Person[] = this.svc().getPeople();
       const book: Genealogy = this.svc().getBook();
-      // 数万人的整谱会接近万页，单文件渲染极慢且易被判无响应，按世系分卷导出
+      // 欧式/苏式：直接导出分页画布（320×220mm 横版，一页一张），页码与屏幕上完全一致
+      if (this.pdfStyle === 'eu' || this.pdfStyle === 'su') {
+        const path: string = await PagedPdfExportService.exportPdf(ctx, book, this.pdfStyle,
+          (p: PagedPdfProgress): void => {
+            this.previewText = p.message;
+            this.setProgress(p.message, p.total > 0 ? Math.min(96, Math.round(p.current * 96 / p.total)) : 2);
+          });
+        const name: string = path.substring(path.lastIndexOf('/') + 1);
+        const savedCount: number = await ExportService.saveBinariesAsFiles(ctx, [path], [name]);
+        if (savedCount === 0) {
+          this.setProgress('已取消保存', 100);
+          return;
+        }
+        const msg: string = '已导出 ' + name;
+        this.setProgress(msg, 100);
+        this.getUIContext().getPromptAction().showToast({ message: msg });
+        return;
+      }
+      // 牒记式：先算全谱每一卷的卷号/页码并回填，再逐卷生成 PDF
       const planned: PdfVolume[] = PdfExportService.planVolumes(people, PDF_VOLUME_MAX);
       const jobs: PdfVolume[] = planned.length > 0 ? planned : [{ title: '', people: people }];
+      this.setProgress('正在计算各卷页码…', 3);
+      const crossRef: Map<string, string> = PdfExportService.prepareCrossRefs(people, book, jobs, true);
       const paths: string[] = [];
       const names: string[] = [];
       for (let i: number = 0; i < jobs.length; i++) {
@@ -139,7 +162,13 @@ struct ImportExport {
         const base: number = Math.floor(i * 96 / jobs.length);
         const span: number = Math.floor(96 / jobs.length);
         const path: string = await PdfExportService.exportPdf(ctx, vol.people, book,
-          { includeCover: true, volumeTitle: vol.title, kinSource: people },
+          {
+            includeCover: true,
+            volumeTitle: vol.title,
+            kinSource: people,
+            style: 'die',
+            crossRef: crossRef
+          },
           (p: PdfExportProgress): void => {
             this.previewText = p.message;
             const pct: number = p.total > 0 ? base + Math.round(p.current * span / p.total) : base;
@@ -348,6 +377,31 @@ struct ImportExport {
     })
   }
 
+  /** PDF 谱式选择按钮 */
+  @Builder
+  PdfStyleChip(label: string, value: string, hint: string) {
+    Column() {
+      Text(label)
+        .fontSize(12.5)
+        .fontColor(this.pdfStyle === value ? '#FFFFFF' : Theme.ink)
+        .fontWeight(FontWeight.Medium)
+      Text(hint)
+        .fontSize(9)
+        .fontColor(this.pdfStyle === value ? '#FFF4DE' : Theme.inkTertiary)
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .layoutWeight(1)
+    .padding({ top: 8, bottom: 8, left: 4, right: 4 })
+    .margin({ right: 6 })
+    .backgroundColor(this.pdfStyle === value ? Theme.primary : Theme.field)
+    .borderRadius(8)
+    .border({ width: 0.5, color: this.pdfStyle === value ? Theme.primary : Theme.line })
+    .onClick((): void => {
+      this.pdfStyle = value;
+    })
+  }
+
   /** 导入/导出进行中拦截返回键，避免页面被销毁导致流程中断 */
   onBackPress(): boolean {
     return this.busy;
@@ -448,7 +502,24 @@ struct ImportExport {
                 this.doExport('markdown');
               })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.ExportRow('PDF 整本族谱', '封面/谱序/世系/家训排版成册，端侧渲染 A4 页面，适合打印', '打印',
+            Column() {
+              Text('PDF 导出谱式')
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .fontWeight(FontWeight.Medium)
+                .width('100%')
+              Row() {
+                this.PdfStyleChip('牒记式', 'die', '文字流，分卷连续排版')
+                this.PdfStyleChip('欧式谱', 'eu', '横版分页，世系连线')
+                this.PdfStyleChip('苏式谱', 'su', '横版分页，房支竖排')
+              }
+              .width('100%')
+              .margin({ top: 8 })
+            }
+            .width('100%')
+            .padding({ top: 12, bottom: 12 })
+            Divider().color(Theme.line).strokeWidth(0.5)
+            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式分卷文字流，或欧式/苏式 320×220mm 横版分页', '打印',
               (): void => {
                 this.doExportPdf();
               })
