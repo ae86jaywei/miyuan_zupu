@@ -413,7 +413,7 @@ export struct TreeCanvas {
    * 返回空数组表示本帧没有可用的双指中心。
    */
   private pinchCenterOf(event: GestureEvent): number[] {
-    const infos: FingerInfo[] = event.fingerInfos;
+    const infos: FingerInfo[] | undefined = event.fingerInfos;
     if (infos !== undefined && infos.length === 2 &&
       infos[0] !== undefined && infos[1] !== undefined) {
       return [(infos[0].localX + infos[1].localX) / 2,
