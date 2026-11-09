@@ -57,9 +57,6 @@ export struct TreeCanvas {
   /** 容器可视区尺寸 */
   @State viewW: number = 0;
   @State viewH: number = 0;
-  /** 画布在应用窗口中的位置：把手指的窗口坐标换算成画布坐标，避免 local 坐标系不确定 */
-  private viewGlobalX: number = 0;
-  private viewGlobalY: number = 0;
   /** 当前族谱的宗支根 uid 列表 */
   @State rootUids: string[] = [];
   @State peopleCount: number = 0;
@@ -86,12 +83,10 @@ export struct TreeCanvas {
   /** 手势起点 */
   private startX: number = 0;
   private startY: number = 0;
-  /** 双指缩放起点快照：同时记录中心，双指整体移动时内容跟随平移 */
+  /** 双指缩放起点快照；缩放期间内容跟随双指中心实时平移 */
   private pinchStartScale: number = 1;
   private pinchStartOffsetX: number = 0;
   private pinchStartOffsetY: number = 0;
-  private pinchStartCenterX: number = 0;
-  private pinchStartCenterY: number = 0;
   /** 锚点是否已锁定：首帧中心可能为 0，等拿到有效双指中心再开始缩放 */
   private pinchAnchorReady: boolean = false;
   /** 双指捏合进行中：单指 Pan 必须让位，否则会用 startX + event.offsetX 覆盖锚点算出的 offset */
@@ -102,6 +97,15 @@ export struct TreeCanvas {
   private pinchAnchorIndex: number = 0;
   private pinchAnchorContentX: number = 0;
   private pinchAnchorContentY: number = 0;
+  /** 锁锚防抖：fingerInfos 连续两帧中心稳定后再锁，避免 start 帧中心未稳定就锁死 */
+  private pinchCenterPrevX: number = 0;
+  private pinchCenterPrevY: number = 0;
+  private pinchCenterWait: number = 0;
+  /** 最后一帧有效中心与目标缩放：end 帧用它补算，避免“最后一帧 offset 配上一帧 scale” */
+  private pinchLastCenterX: number = 0;
+  private pinchLastCenterY: number = 0;
+  private pinchLastCenterValid: boolean = false;
+  private pinchLastTarget: number = 1;
   /** 各宗支内容尺寸（未缩放），用于任意缩放比下即时计算边界 */
   private branchW: number[] = [];
   private branchH: number[] = [];
@@ -207,7 +211,7 @@ export struct TreeCanvas {
       return;
     }
     const idx: number = this.clampBranchIndex();
-    const headerBlock: number = roots.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
+    const headerBlock: number = this.branchHeaderBlock();
     const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
     let cw: number = 0;
     let ch: number = 0;
@@ -402,19 +406,24 @@ export struct TreeCanvas {
     return this.highlightUid.length > 0 ? this.highlightUid : rootUid;
   }
 
-  /** 双指中心：用两指相对应用窗口的 globalX/globalY 减去画布窗口位置，得到确定的画布坐标 */
+  /**
+   * 双指中心：手势绑定在画布视口上，优先用 fingerInfos 的 localX/localY（相对视口，不含 Scroll/外层变换）。
+   * fingerList 中未参与当前手势的手指位置可能为 undefined，不能直接取 [0]/[1]；
+   * 有效触点不足时退回 pinchCenterX/Y，它们同样相对手势绑定组件，0 也是合法坐标。
+   * 返回空数组表示本帧没有可用的双指中心。
+   */
   private pinchCenterOf(event: GestureEvent): number[] {
-    const fingers: FingerInfo[] = event.fingerList;
-    if (fingers !== undefined && fingers.length >= 2 &&
-      fingers[0].globalX !== undefined && fingers[1].globalX !== undefined) {
-      const gx: number = (fingers[0].globalX + fingers[1].globalX) / 2;
-      const gy: number = (fingers[0].globalY + fingers[1].globalY) / 2;
-      return [gx - this.viewGlobalX, gy - this.viewGlobalY];
+    const infos: FingerInfo[] = event.fingerInfos;
+    if (infos !== undefined && infos.length === 2 &&
+      infos[0] !== undefined && infos[1] !== undefined) {
+      return [(infos[0].localX + infos[1].localX) / 2,
+        (infos[0].localY + infos[1].localY) / 2];
     }
-    if (event.pinchCenterX > 0 || event.pinchCenterY > 0) {
+    const fingers: FingerInfo[] = event.fingerList;
+    if (fingers !== undefined && fingers.length >= 2) {
       return [event.pinchCenterX, event.pinchCenterY];
     }
-    return [-1, -1];
+    return [];
   }
 
   /**
@@ -443,6 +452,11 @@ export struct TreeCanvas {
     return nearestIdx;
   }
 
+  /** 宗支标题块高度：渲染与锚点换算共用同一份，避免两处各写一个数字产生固定偏差 */
+  private branchHeaderBlock(): number {
+    return this.rootUids.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
+  }
+
   /**
    * 指定宗支在“目标缩放比”下的屏幕起点（不含平移）。
    * 缩放时前一宗支的高度会变化，所以这个值必须按目标 zoom 重算，不能沿用起点快照。
@@ -451,7 +465,7 @@ export struct TreeCanvas {
     if (this.branchTops.length === 0) {
       return 0;
     }
-    const headerBlock: number = this.rootUids.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
+    const headerBlock: number = this.branchHeaderBlock();
     let cursor: number = 0;
     for (let i: number = 0; i < index; i = i + 1) {
       const h: number = i < this.branchH.length ? this.branchH[i] : 0;
@@ -469,6 +483,46 @@ export struct TreeCanvas {
     this.pinchAnchorContentX = (cx - this.pinchStartOffsetX) / z;
     this.pinchAnchorContentY = (cy - top - this.pinchStartOffsetY) / z;
     this.pinchAnchorReady = true;
+  }
+
+  /**
+   * 锁锚防抖：连续两帧中心位移小于 2vp 才认为中心稳定；慢速移动时最多等 3 帧强制锁定，
+   * 避免 onActionStart 那一帧取到未稳定中心后把误差锁进 anchorContent。
+   */
+  private tryLockAnchor(c: number[]): boolean {
+    if (this.pinchAnchorReady) {
+      return true;
+    }
+    if (c.length !== 2) {
+      return false;
+    }
+    if (this.pinchCenterWait > 0) {
+      const dx: number = Math.abs(c[0] - this.pinchCenterPrevX);
+      const dy: number = Math.abs(c[1] - this.pinchCenterPrevY);
+      if (dx + dy <= 2) {
+        this.lockAnchor(c[0], c[1]);
+        return true;
+      }
+    }
+    this.pinchCenterPrevX = c[0];
+    this.pinchCenterPrevY = c[1];
+    this.pinchCenterWait = this.pinchCenterWait + 1;
+    if (this.pinchCenterWait >= 3) {
+      this.lockAnchor(c[0], c[1]);
+      return true;
+    }
+    return false;
+  }
+
+  /** 用当前中心与目标缩放解锚点方程：锚点内容点的屏幕位置恒等于双指中心 */
+  private applyPinch(c: number[], target: number): void {
+    const cx: number = c.length === 2 ? c[0] : this.pinchLastCenterX;
+    const cy: number = c.length === 2 ? c[1] : this.pinchLastCenterY;
+    const top: number = this.branchTopAt(this.pinchAnchorIndex, target);
+    this.offsetX = cx - this.pinchAnchorContentX * target;
+    this.offsetY = cy - top - this.pinchAnchorContentY * target;
+    this.scaleValue = target;
+    this.pinchLastTarget = target;
   }
 
   private clampZoom(v: number): number {
@@ -1044,8 +1098,6 @@ export struct TreeCanvas {
             .onAreaChange((oldArea: Area, newArea: Area): void => {
               this.viewW = Number(newArea.width);
               this.viewH = Number(newArea.height);
-              this.viewGlobalX = Number(newArea.globalPosition.x);
-              this.viewGlobalY = Number(newArea.globalPosition.y);
               this.offsetX = this.clampX(this.offsetX);
               this.offsetY = this.clampY(this.offsetY);
               this.centerOnRootIfReady();
@@ -1090,40 +1142,47 @@ export struct TreeCanvas {
                     this.pinchStartOffsetY = this.offsetY;
                     this.pinchAnchorReady = false;
                     this.pinchAnchorIndex = 0;
+                    this.pinchCenterWait = 0;
+                    this.pinchLastCenterValid = false;
+                    this.pinchLastTarget = this.pinchStartScale;
+                    // 先记录 start 帧中心，update 里等中心稳定两帧再锁，避免未稳定中心被锁死
                     const c: number[] = this.pinchCenterOf(event);
-                    if (c[0] >= 0) {
-                      // 首帧就拿到有效中心时直接锁定，避免 update 第一帧再跳一次
-                      this.pinchStartCenterX = c[0];
-                      this.pinchStartCenterY = c[1];
-                      this.lockAnchor(c[0], c[1]);
+                    if (c.length === 2) {
+                      this.pinchCenterPrevX = c[0];
+                      this.pinchCenterPrevY = c[1];
+                      this.pinchCenterWait = 1;
                     }
                   })
                   .onActionUpdate((event: GestureEvent): void => {
                     const c: number[] = this.pinchCenterOf(event);
-                    if (!this.pinchAnchorReady) {
-                      // 中心无效时等待下一帧：绝不能用视口中心冒充手指位置，否则必然丢焦点
-                      if (c[0] < 0) {
-                        return;
-                      }
-                      this.pinchStartCenterX = c[0];
-                      this.pinchStartCenterY = c[1];
-                      this.lockAnchor(c[0], c[1]);
+                    if (!this.tryLockAnchor(c)) {
+                      return;
                     }
+                    if (c.length === 2) {
+                      this.pinchLastCenterX = c[0];
+                      this.pinchLastCenterY = c[1];
+                      this.pinchLastCenterValid = true;
+                    }
+                    // 先 clamp 再解方程，保证方程用的 target 与实际渲染的 scale 一致
                     const target: number = this.clampZoom(this.pinchStartScale * event.scale);
-                    const cx: number = c[0] >= 0 ? c[0] : this.pinchStartCenterX;
-                    const cy: number = c[1] >= 0 ? c[1] : this.pinchStartCenterY;
-                    // 锚点内容点固定不动：屏幕 = 内容 × zoom + 宗支起点（随 zoom 重算） + offset
-                    const top: number = this.branchTopAt(this.pinchAnchorIndex, target);
-                    this.offsetX = cx - this.pinchAnchorContentX * target;
-                    this.offsetY = cy - top - this.pinchAnchorContentY * target;
-                    this.scaleValue = target;
-                    // 手势中不夹边界，抬手后再夹，避免锚点被边界钳制硬拉走
-                    this.rebuildCanvasSize(false);
+                    this.applyPinch(c, target);
+                    // 手势中不再 rebuildCanvasSize：它修改 branchTops/canvasW 等状态会触发额外重渲染，
+                    // 边界统一在 end/cancel 处理一次
                   })
                   .onActionEnd((event: GestureEvent): void => {
                     this.pinching = false;
                     this.panResume = true;
                     this.interacting = false;
+                    // 结束帧补算最后一次锚点：部分设备 end 帧 scale 回落到 1，此时沿用 update 的目标值
+                    if (this.pinchAnchorReady && this.pinchLastCenterValid) {
+                      // 用最后一次 update 的中心：end 帧手指已抬起，实时中心可能正在分开，不能拿来当锚点
+                      const center: number[] = [this.pinchLastCenterX, this.pinchLastCenterY];
+                      const fromEvent: number = this.clampZoom(this.pinchStartScale * event.scale);
+                      const endTarget: number = Math.abs(event.scale - 1) < 0.0001 &&
+                        Math.abs(this.pinchLastTarget - this.pinchStartScale) > 0.0001
+                        ? this.pinchLastTarget : fromEvent;
+                      this.applyPinch(center, endTarget);
+                    }
                     // 抬手也不重新居中：内容小于视口时居中会把卡片从手指处拉走
                     this.rebuildCanvasSize(false);
                   })
