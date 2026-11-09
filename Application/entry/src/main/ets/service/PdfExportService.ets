@@ -134,20 +134,142 @@ function todayStr(): string {
 
 // ─── 内容构建 ─────────────────────────────────────────────
 
-/** 单个世代的条目数 */
-function countOfGeneration(people: Person[], gen: number): number {
-  let n: number = 0;
-  people.forEach((p: Person): void => {
-    if (p.generation === gen) {
-      n++;
+/** 一个家庭单元：一名本支成员（锚点）+ 其配偶（配偶世代即使录错也跟随锚点） */
+class FamilyUnit {
+  generation: number = 0;
+  anchorUid: string = '';
+  members: Person[] = [];
+}
+
+/** 并查集查找（带路径压缩，避免大谱递归爆栈） */
+function ufFind(parent: number[], x: number): number {
+  let root: number = x;
+  while (parent[root] !== root) {
+    root = parent[root];
+  }
+  let cur: number = x;
+  while (parent[cur] !== root) {
+    const next: number = parent[cur];
+    parent[cur] = root;
+    cur = next;
+  }
+  return root;
+}
+
+/**
+ * 把人物按「家庭」聚合并排序：
+ * 1. 配偶关系用并查集合并成家庭单元，夫妻永远相邻；
+ *    配偶的 generation 录成别的世代也不会被甩到相隔上百页去；
+ * 2. 锚点优先选有父母的本支成员，其次男性，保证「夫在前、妻在后」；
+ * 3. 单元按「锚点世代 + 锚点 UID」排序，阅读顺序仍是世代升序。
+ */
+function buildFamilyUnits(people: Person[]): FamilyUnit[] {
+  const n: number = people.length;
+  if (n === 0) {
+    return [];
+  }
+  const parent: number[] = [];
+  for (let i: number = 0; i < n; i++) {
+    parent.push(i);
+  }
+  const idxByUid: Map<string, number> = new Map<string, number>();
+  for (let i: number = 0; i < n; i++) {
+    const key: string = people[i].uid.trim().toUpperCase();
+    if (key.length > 0 && !idxByUid.has(key)) {
+      idxByUid.set(key, i);
     }
+  }
+  for (let i: number = 0; i < n; i++) {
+    const spouses: SpouseRelation[] = people[i].spouses;
+    for (let j: number = 0; j < spouses.length; j++) {
+      const sp: number | undefined = idxByUid.get(spouses[j].uid.trim().toUpperCase());
+      if (sp === undefined) {
+        continue;
+      }
+      const ra: number = ufFind(parent, i);
+      const rb: number = ufFind(parent, sp);
+      if (ra !== rb) {
+        parent[rb] = ra;
+      }
+    }
+  }
+  const groups: Map<number, number[]> = new Map<number, number[]>();
+  for (let i: number = 0; i < n; i++) {
+    const r: number = ufFind(parent, i);
+    const arr: number[] | undefined = groups.get(r);
+    if (arr === undefined) {
+      groups.set(r, [i]);
+    } else {
+      arr.push(i);
+    }
+  }
+  const units: FamilyUnit[] = [];
+  groups.forEach((idxs: number[]): void => {
+    idxs.sort((a: number, b: number): number => people[a].uid.localeCompare(people[b].uid));
+    let anchor: number = idxs[0];
+    let bestScore: number = -1;
+    for (let i: number = 0; i < idxs.length; i++) {
+      const p: Person = people[idxs[i]];
+      let score: number = 0;
+      if (p.fatherId.trim().length > 0 || p.motherId.trim().length > 0) {
+        score += 2;
+      }
+      if (p.gender === '男') {
+        score += 1;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        anchor = idxs[i];
+      }
+    }
+    const unit: FamilyUnit = new FamilyUnit();
+    unit.generation = people[anchor].generation;
+    if (unit.generation <= 0) {
+      let minGen: number = 0;
+      for (let i: number = 0; i < idxs.length; i++) {
+        const g: number = people[idxs[i]].generation;
+        if (g > 0 && (minGen === 0 || g < minGen)) {
+          minGen = g;
+        }
+      }
+      unit.generation = minGen;
+    }
+    unit.anchorUid = people[anchor].uid.trim().toUpperCase();
+    unit.members.push(people[anchor]);
+    // 其余成员：男在前、女在后，同性别按 UID，保证每次排版顺序稳定
+    const rest: number[] = [];
+    for (let i: number = 0; i < idxs.length; i++) {
+      if (idxs[i] !== anchor) {
+        rest.push(idxs[i]);
+      }
+    }
+    rest.sort((a: number, b: number): number => {
+      const ga: number = people[a].gender === '男' ? 0 : 1;
+      const gb: number = people[b].gender === '男' ? 0 : 1;
+      if (ga !== gb) {
+        return ga - gb;
+      }
+      return people[a].uid.localeCompare(people[b].uid);
+    });
+    for (let i: number = 0; i < rest.length; i++) {
+      unit.members.push(people[rest[i]]);
+    }
+    units.push(unit);
   });
-  return n;
+  units.sort((a: FamilyUnit, b: FamilyUnit): number => {
+    if (a.generation !== b.generation) {
+      return a.generation - b.generation;
+    }
+    return a.anchorUid.localeCompare(b.anchorUid);
+  });
+  return units;
 }
 
 /** 条目块：uid 用于页码互引（世代分隔头的 uid 为空串） */
 interface EntryBlock {
   uid: string;
+  /** 同一家庭单元（本人+配偶）共用一个 unitId：分页时整单元一起换页，夫妻不会被拆到两页 */
+  unitId: string;
   lines: TextLine[];
 }
 
@@ -391,97 +513,45 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
 }
 
 /**
- * 排序：世代升序；同一世代内把夫妻排在一起。
- * 配偶在数据里是独立人物条目，按 UID 排序会把「夫在第2页、妻排到第100页」，
- * 这里以夫（被配偶引用的那一方）为锚点，先出夫条目，紧接着把它在本卷内的配偶条目全部输出。
+ * 世系条目：世代分隔头 + 逐人条目。
+ * 排序以「家庭单元」为单位（见 buildFamilyUnits）：夫妻无论世代是否录得一致都紧挨着输出，
+ * 条目带上 unitId，分页时整单元一起换页，不会出现「夫在第2页、妻在第100页」。
  */
-function orderPeopleByFamily(people: Person[]): Person[] {
-  const sorted: Person[] = people.slice().sort((a: Person, b: Person): number => {
-    if (a.generation !== b.generation) {
-      return a.generation - b.generation;
-    }
-    return a.uid.localeCompare(b.uid);
-  });
-  const out: Person[] = [];
-  let start: number = 0;
-  while (start < sorted.length) {
-    const gen: number = sorted[start].generation;
-    let end: number = start;
-    while (end < sorted.length && sorted[end].generation === gen) {
-      end++;
-    }
-    const group: Person[] = sorted.slice(start, end);
-    const byUid: Map<string, Person> = new Map<string, Person>();
-    for (let i: number = 0; i < group.length; i++) {
-      byUid.set(group[i].uid.trim().toUpperCase(), group[i]);
-    }
-    const anchorOf: Map<string, string> = new Map<string, string>();
-    for (let i: number = 0; i < group.length; i++) {
-      const p: Person = group[i];
-      for (let j: number = 0; j < p.spouses.length; j++) {
-        const spUid: string = p.spouses[j].uid.trim().toUpperCase();
-        if (byUid.has(spUid) && !anchorOf.has(spUid)) {
-          anchorOf.set(spUid, p.uid.trim().toUpperCase());
-        }
-      }
-    }
-    const emitted: Set<string> = new Set<string>();
-    const emitOne = (p: Person): void => {
-      const uid: string = p.uid.trim().toUpperCase();
-      if (emitted.has(uid)) {
-        return;
-      }
-      emitted.add(uid);
-      out.push(p);
-      for (let k: number = 0; k < p.spouses.length; k++) {
-        const sp: Person | undefined = byUid.get(p.spouses[k].uid.trim().toUpperCase());
-        if (sp !== undefined) {
-          const spUid: string = sp.uid.trim().toUpperCase();
-          if (!emitted.has(spUid) && anchorOf.get(spUid) === uid) {
-            emitted.add(spUid);
-            out.push(sp);
-          }
-        }
-      }
-    };
-    for (let i: number = 0; i < group.length; i++) {
-      const p: Person = group[i];
-      const uid: string = p.uid.trim().toUpperCase();
-      const anchor: string | undefined = anchorOf.get(uid);
-      // 被配偶引用的一方先等锚点（夫）输出，避免妻先出现、夫被甩到后面
-      if (anchor !== undefined && anchor !== uid && byUid.has(anchor) && !emitted.has(anchor)) {
-        continue;
-      }
-      emitOne(p);
-    }
-    // 锚点不在本卷（跨卷分家）时，配偶仍要输出，不能漏人
-    for (let i: number = 0; i < group.length; i++) {
-      emitOne(group[i]);
-    }
-    start = end;
-  }
-  return out;
-}
-
-/** 世系条目：世代分隔头 + 逐人条目（同世代夫妻相邻） */
 function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
   kinIndex: KinshipIndex, refs: Map<string, number> | null): EntryBlock[] {
-  const sorted: Person[] = orderPeopleByFamily(people);
+  const units: FamilyUnit[] = buildFamilyUnits(people);
+  // 每个展示世代的人数按锚点世代统计，配偶世代录错也归入同一节
+  const genCount: Map<number, number> = new Map<number, number>();
+  for (let i: number = 0; i < units.length; i++) {
+    const cur: number | undefined = genCount.get(units[i].generation);
+    genCount.set(units[i].generation, (cur === undefined ? 0 : cur) + units[i].members.length);
+  }
   const entries: EntryBlock[] = [];
   let lastGen: number = -1;
-  for (let i: number = 0; i < sorted.length; i++) {
-    const p: Person = sorted[i];
-    if (p.generation !== lastGen) {
-      lastGen = p.generation;
+  for (let i: number = 0; i < units.length; i++) {
+    const unit: FamilyUnit = units[i];
+    if (unit.generation !== lastGen) {
+      lastGen = unit.generation;
+      const c: number | undefined = genCount.get(unit.generation);
+      const total: number = c === undefined ? unit.members.length : c;
       entries.push({
         uid: '',
+        unitId: '',
         lines: [{
-          text: generationLabel(p.generation) + '（' + countOfGeneration(people, p.generation).toString() + '人）',
+          text: generationLabel(unit.generation) + '（' + total.toString() + '人）',
           font: 16, lineH: 32, color: C_GOLD, bold: true, indent: 0, center: false
         }]
       });
     }
-    entries.push({ uid: p.uid.trim().toUpperCase(), lines: personEntryLines(ctx, p, kinIndex, refs) });
+    const unitId: string = unit.anchorUid + '#' + unit.generation.toString();
+    for (let j: number = 0; j < unit.members.length; j++) {
+      const p: Person = unit.members[j];
+      entries.push({
+        uid: p.uid.trim().toUpperCase(),
+        unitId: unitId,
+        lines: personEntryLines(ctx, p, kinIndex, refs)
+      });
+    }
   }
   return entries;
 }
@@ -577,23 +647,47 @@ function paginateEntries(entries: EntryBlock[], pageOffset: number): PaginateRes
   let cur: TextLine[] = [];
   let used: number = 0;
   const keepHead: number = 36; // 顶部保留页眉区
-  for (let i: number = 0; i < entries.length; i++) {
-    const block: TextLine[] = entries[i].lines;
-    let bh: number = 0;
-    for (let j: number = 0; j < block.length; j++) {
-      bh += block[j].lineH;
+  const blockHeight = (lines: TextLine[]): number => {
+    let h: number = 0;
+    for (let j: number = 0; j < lines.length; j++) {
+      h += lines[j].lineH;
     }
-    const need: number = (used === 0 ? keepHead : 8) + bh;
+    return h;
+  };
+  let i: number = 0;
+  while (i < entries.length) {
+    // 同一家庭单元（本人+配偶）作为一个整体判断换页，夫妻不会被页尾拆散
+    const unitId: string = entries[i].unitId;
+    let groupEnd: number = i + 1;
+    let groupH: number = blockHeight(entries[i].lines);
+    if (unitId.length > 0) {
+      while (groupEnd < entries.length && entries[groupEnd].unitId === unitId) {
+        groupH += blockHeight(entries[groupEnd].lines);
+        groupEnd++;
+      }
+    } else if (entries[i].uid.length === 0 && groupEnd < entries.length
+      && entries[groupEnd].unitId.length > 0) {
+      // 世代分隔头跟随本节第一个家庭单元，避免只剩一个标题孤零零留在页尾
+      const nextUnit: string = entries[groupEnd].unitId;
+      while (groupEnd < entries.length && entries[groupEnd].unitId === nextUnit) {
+        groupH += blockHeight(entries[groupEnd].lines);
+        groupEnd++;
+      }
+    }
+    const need: number = (used === 0 ? keepHead : 8) + groupH;
     if (used + need > CONTENT_H && cur.length > 0) {
       pages.push({ lines: cur, chapter: '世 系' });
       cur = [];
       used = 0;
     }
-    if (entries[i].uid.length > 0) {
-      uidPage.set(entries[i].uid, pageOffset + pages.length + 1);
+    for (let k: number = i; k < groupEnd; k++) {
+      if (entries[k].uid.length > 0) {
+        uidPage.set(entries[k].uid, pageOffset + pages.length + 1);
+      }
+      pushAll(cur, entries[k].lines);
+      used += blockHeight(entries[k].lines);
     }
-    pushAll(cur, block);
-    used += bh;
+    i = groupEnd;
   }
   if (cur.length > 0) {
     pages.push({ lines: cur, chapter: '世 系' });
@@ -725,10 +819,11 @@ function drawPageToPdf(ctx: OffscreenCanvasRenderingContext2D, doc: pdfService.P
     y += ln.lineH;
   }
   if (!isCover) {
+    // 页码居中放在页脚，颜色比正文浅一档但保证可读：第 X 页 / 共 Y 页
     const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
-    const style: pdfService.TextStyle = textStyle(9, C_INK3, false);
+    const style: pdfService.TextStyle = textStyle(9.5, C_INK2, false);
     page.addTextObject(footer,
-      PAGE_W - MARGIN_LR - measurePt(ctx, footer, 9), MARGIN_BOTTOM / 2, style);
+      PAGE_W / 2 - measurePt(ctx, footer, 9.5) / 2, MARGIN_BOTTOM / 2, style);
   }
 }
 
@@ -741,51 +836,76 @@ export class PdfExportService {
 
   /**
    * 分卷规划：按世代顺序聚合，单卷人数不超过 maxPerVolume；
-   * 单个世代本身超限时按人数硬切（同世代可分多卷）。
+   * 以「家庭单元」为最小切分单位，夫妻永远不会被分到两卷。
    * 返回空数组表示无需分卷（人数未超限）。
    */
   static planVolumes(people: Person[], maxPerVolume: number): PdfVolume[] {
     if (people.length <= maxPerVolume || maxPerVolume <= 0) {
       return [];
     }
-    const sorted: Person[] = people.slice().sort((a: Person, b: Person): number => {
-      if (a.generation !== b.generation) {
-        return a.generation - b.generation;
-      }
-      return a.uid.localeCompare(b.uid);
-    });
+    const units: FamilyUnit[] = buildFamilyUnits(people);
     const volumes: PdfVolume[] = [];
-    let start: number = 0;
-    while (start < sorted.length) {
-      let end: number = start;
-      while (end < sorted.length) {
-        const g: number = sorted[end].generation;
-        let k: number = end;
-        while (k < sorted.length && sorted[k].generation === g) {
-          k++;
-        }
-        if (end === start && k - start > maxPerVolume) {
-          end = start + maxPerVolume; // 首个世代自身就超限，只能按人数硬切
-          break;
-        }
-        if (end > start && k - start > maxPerVolume) {
-          break; // 再加一个完整世代就超限，收卷
-        }
-        end = k;
-        if (end - start >= maxPerVolume || k >= sorted.length) {
-          break;
-        }
+    let i: number = 0;
+    while (i < units.length) {
+      // 先把当前世代整个装进来
+      const startGen: number = units[i].generation;
+      let end: number = i;
+      let count: number = 0;
+      while (end < units.length && units[end].generation === startGen) {
+        count += units[end].members.length;
+        end++;
       }
-      const gStart: number = sorted[start].generation;
-      const gEnd: number = sorted[end - 1].generation;
-      const seq: string = (volumes.length + 1).toString();
-      const title: string = gStart === gEnd
-        ? '第' + seq + '卷（' + generationLabel(gStart) + '）'
-        : '第' + seq + '卷（' + generationLabel(gStart) + '至' + generationLabel(gEnd) + '）';
-      volumes.push({ title: title, people: sorted.slice(start, end) });
-      start = end;
+      if (count > maxPerVolume) {
+        // 单个世代自身就超限：按家庭单元硬切，夫妻不拆卷
+        let k: number = i;
+        while (k < end) {
+          const from: number = k;
+          let c: number = 0;
+          while (k < end && (c === 0 || c + units[k].members.length <= maxPerVolume)) {
+            c += units[k].members.length;
+            k++;
+          }
+          volumes.push(PdfExportService.sliceVolume(units, from, k, volumes.length + 1));
+        }
+        i = end;
+        continue;
+      }
+      // 在容量允许时继续并入后面完整的世代
+      let scan: number = end;
+      while (scan < units.length) {
+        const g: number = units[scan].generation;
+        let gEnd: number = scan;
+        let gCount: number = 0;
+        while (gEnd < units.length && units[gEnd].generation === g) {
+          gCount += units[gEnd].members.length;
+          gEnd++;
+        }
+        if (gCount > maxPerVolume || count + gCount > maxPerVolume) {
+          break;
+        }
+        count += gCount;
+        scan = gEnd;
+      }
+      volumes.push(PdfExportService.sliceVolume(units, i, scan, volumes.length + 1));
+      i = scan;
     }
     return volumes;
+  }
+
+  /** 把家庭单元区间 [from, to) 落成一卷（保持夫妻相邻顺序） */
+  private static sliceVolume(units: FamilyUnit[], from: number, to: number, seq: number): PdfVolume {
+    const people: Person[] = [];
+    for (let i: number = from; i < to; i++) {
+      for (let j: number = 0; j < units[i].members.length; j++) {
+        people.push(units[i].members[j]);
+      }
+    }
+    const gStart: number = units[from].generation;
+    const gEnd: number = units[to - 1].generation;
+    const title: string = gStart === gEnd
+      ? '第' + seq.toString() + '卷（' + generationLabel(gStart) + '）'
+      : '第' + seq.toString() + '卷（' + generationLabel(gStart) + '至' + generationLabel(gEnd) + '）';
+    return { title: title, people: people };
   }
 
   /**

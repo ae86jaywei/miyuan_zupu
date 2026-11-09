@@ -112,6 +112,9 @@ export struct TreeCanvas {
   private branchH: number[] = [];
   /** 苏式谱切换后待把始祖居中（等可视区宽度就绪后再执行一次） */
   private pendingCenter: boolean = true;
+  /** 上一次可视区尺寸：折叠展开/横竖屏/窗口拖拽后用它判断是否需要重新居中 */
+  private lastViewW: number = 0;
+  private lastViewH: number = 0;
   private dieSource: FlatListSource<Person> = new FlatListSource<Person>();
   private diePeople: Person[] = [];
   private dieScroller: Scroller = new Scroller();
@@ -1127,8 +1130,19 @@ export struct TreeCanvas {
             .height('100%')
             .clip(true)
             .onAreaChange((oldArea: Area, newArea: Area): void => {
-              this.viewW = Number(newArea.width);
-              this.viewH = Number(newArea.height);
+              const w: number = Number(newArea.width);
+              const h: number = Number(newArea.height);
+              // 折叠展开/横竖屏/窗口拖拽会让可视区尺寸突变；沿用旧偏移会把内容甩到角落，
+              // 尺寸变化超过一屏的 5% 时重新把始祖居中一次
+              if (this.lastViewW > 0 && this.lastViewH > 0
+                && (Math.abs(w - this.lastViewW) > this.lastViewW * 0.05
+                  || Math.abs(h - this.lastViewH) > this.lastViewH * 0.05)) {
+                this.pendingCenter = true;
+              }
+              this.lastViewW = w;
+              this.lastViewH = h;
+              this.viewW = w;
+              this.viewH = h;
               this.viewGlobalX = Number(newArea.globalPosition.x);
               this.viewGlobalY = Number(newArea.globalPosition.y);
               this.offsetX = this.clampX(this.offsetX);

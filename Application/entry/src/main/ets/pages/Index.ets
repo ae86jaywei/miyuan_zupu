@@ -1094,7 +1094,9 @@ struct Index {
             Column() {
               this.ContentBody()
             }
-            .width(Math.max(1, this.windowWidth - (this.sidebarCollapsed() ? 68 : 190)))
+            // 宽度必须交给 Row 分配：windowWidth 是断点用的代表值（400/720/1000），
+            // 拿它减侧栏宽度会让内容列比实际窗口宽，横屏/分屏时右侧被裁掉
+            .layoutWeight(1)
             .height(LayoutPolicy.matchParent)
             .padding({
               left: Layout.pagePadding(this.windowWidth),
