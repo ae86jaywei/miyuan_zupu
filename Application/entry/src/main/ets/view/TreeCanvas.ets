@@ -10,7 +10,7 @@ import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
 import { TreeLayoutCache } from '../service/TreeLayoutCache';
-import { EuCanvas, SuCanvas } from '../service/TreeLayout';
+import { EuBox, EuCanvas, SuBox, SuCanvas } from '../service/TreeLayout';
 import { ViewportMath } from '../service/TreeViewport';
 import { Breakpoint } from '../common/Constants';
 import { FlatListSource } from '../util/FlatListSource';
@@ -110,6 +110,8 @@ export struct TreeCanvas {
   private dieSource: FlatListSource<Person> = new FlatListSource<Person>();
   private diePeople: Person[] = [];
   private dieScroller: Scroller = new Scroller();
+  /** 宗支下拉列表的数据源：只用 LazyForEach 创建可见行，宗支多时打开面板不再一次性建满 */
+  private branchSource: FlatListSource<string> = new FlatListSource<string>();
 
   aboutToAppear(): void {
     this.refreshData();
@@ -161,6 +163,7 @@ export struct TreeCanvas {
     this.rootUids = roots.map((r: PersonNode): string => r.uid);
     this.branchNames = roots.map((r: PersonNode): string => r.person.name.length > 0 ? r.person.name : r.uid);
     this.branchCounts = roots.map((r: PersonNode): number => r.descendants);
+    this.branchSource.setData(this.rootUids);
     if (this.activeBranch >= this.rootUids.length) {
       this.activeBranch = 0;
     }
@@ -238,12 +241,17 @@ export struct TreeCanvas {
     return Math.min(Math.max(this.activeBranch, 0), this.rootUids.length - 1);
   }
 
-  /** 当前显示的宗支根 uid（单支渲染，供 ForEach 使用） */
-  private visibleRootUids(): string[] {
+  /** 当前显示的宗支根 uid（单支渲染，直接传给 EuTree/SuTree） */
+  private activeRootUid(): string {
     if (this.rootUids.length === 0) {
-      return [];
+      return '';
     }
-    return [this.rootUids[this.clampBranchIndex()]];
+    return this.rootUids[this.clampBranchIndex()];
+  }
+
+  /** 当前宗支的内容起点：单支渲染时只有一支，固定取第 0 项 */
+  private currentContentTop(): number {
+    return this.branchTops.length > 0 ? this.branchTops[0] : 0;
   }
 
   /** 切换宗支：单支渲染，切换后归零平移并重新居中 */
@@ -360,26 +368,23 @@ export struct TreeCanvas {
     let bh: number = 0;
     if (this.style === TreeStyle.SU) {
       const c: SuCanvas = cache.su(rootUid, [roots[idx]], this.cardWidth(), this.isNarrow(), true);
-      for (let k: number = 0; k < c.boxes.length; k = k + 1) {
-        if (this.boxHasRoot(c.boxes[k].node, rootUid)) {
-          bx = c.boxes[k].x;
-          by = c.boxes[k].y;
-          bw = c.boxes[k].w;
-          bh = c.boxes[k].h;
-          break;
-        }
+      // [PERF] 布局阶段已记录始祖主卡，居中无需再线性扫描数万个 boxes
+      const rb: SuBox | null = c.rootBox;
+      if (rb !== null) {
+        bx = rb.x;
+        by = rb.y;
+        bw = rb.w;
+        bh = rb.h;
       }
     } else {
       const c: EuCanvas = cache.eu(rootUid, [roots[idx]], this.cardWidth(),
         this.isNarrow() ? 66 : 78, true, 6);
-      for (let k: number = 0; k < c.boxes.length; k = k + 1) {
-        if (this.boxHasRoot(c.boxes[k].node, rootUid)) {
-          bx = c.boxes[k].x;
-          by = c.boxes[k].y;
-          bw = c.boxes[k].w;
-          bh = c.boxes[k].h;
-          break;
-        }
+      const rb: EuBox | null = c.rootBox;
+      if (rb !== null) {
+        bx = rb.x;
+        by = rb.y;
+        bw = rb.w;
+        bh = rb.h;
       }
     }
     this.pendingCenter = false;
@@ -395,19 +400,6 @@ export struct TreeCanvas {
   /** 未选中族人时默认高亮当前宗支的始祖，作为进入欧式/苏式的初始焦点 */
   private effectiveHighlight(rootUid: string): string {
     return this.highlightUid.length > 0 ? this.highlightUid : rootUid;
-  }
-
-  /** 夫妻卡里是否包含该族人（本人或配偶） */
-  private boxHasRoot(node: PersonNode, uid: string): boolean {
-    if (node.uid === uid) {
-      return true;
-    }
-    for (let k: number = 0; k < node.spouses.length; k = k + 1) {
-      if (node.spouses[k].uid === uid) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /** 双指中心：用两指相对应用窗口的 globalX/globalY 减去画布窗口位置，得到确定的画布坐标 */
@@ -861,7 +853,8 @@ export struct TreeCanvas {
         })
       Column() {
         List() {
-          ForEach(this.rootUids, (uid: string, i: number) => {
+          // [PERF] 宗支多时 ForEach 会一次性创建全部行；改用 LazyForEach 只建可见行
+          LazyForEach(this.branchSource, (uid: string, i: number) => {
             ListItem() {
               Row() {
                 Text((i === this.clampBranchIndex() ? '✓ ' : '') + this.branchLabel(i))
@@ -958,7 +951,9 @@ export struct TreeCanvas {
       Stack({ alignContent: Alignment.TopStart }) {
         Stack({ alignContent: Alignment.TopStart }) {
               Column() {
-                ForEach(this.visibleRootUids(), (uid: string, ri: number) => {
+                // [PERF] 单支直接挂一个 EuTree/SuTree 实例：切换宗支时不再因 ForEach key
+                // 变化销毁重建整棵子树，只更新 rootUid，交由组件内部 watch 重新裁剪
+                if (this.rootUids.length > 0) {
                   Column() {
                     if (this.rootUids.length > 1) {
                       Row() {
@@ -983,9 +978,9 @@ export struct TreeCanvas {
                     }
                     if (this.style === TreeStyle.EU) {
                       EuTree({
-                        rootUid: uid,
+                        rootUid: this.activeRootUid(),
                         layoutVersion: this.dataVersion,
-                        highlightUid: this.effectiveHighlight(uid),
+                        highlightUid: this.effectiveHighlight(this.activeRootUid()),
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showSpouse: true,
@@ -995,7 +990,7 @@ export struct TreeCanvas {
                         viewHeight: this.viewH,
                         zoom: this.scaleValue,
                         interacting: this.interacting,
-                        contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
+                        contentTop: this.currentContentTop(),
                         onTapPerson: (id: string): void => {
                           this.onTapPerson(id);
                         },
@@ -1008,9 +1003,9 @@ export struct TreeCanvas {
                       })
                     } else {
                       SuTree({
-                        rootUid: uid,
+                        rootUid: this.activeRootUid(),
                         layoutVersion: this.dataVersion,
-                        highlightUid: this.effectiveHighlight(uid),
+                        highlightUid: this.effectiveHighlight(this.activeRootUid()),
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showGenMark: true,
@@ -1021,7 +1016,7 @@ export struct TreeCanvas {
                         viewHeight: this.viewH,
                         zoom: this.scaleValue,
                         interacting: this.interacting,
-                        contentTop: ri < this.branchTops.length ? this.branchTops[ri] : 0,
+                        contentTop: this.currentContentTop(),
                         onTapPerson: (id: string): void => {
                           this.onTapPerson(id);
                         },
@@ -1037,7 +1032,7 @@ export struct TreeCanvas {
                   .width('100%')
                   .alignItems(HorizontalAlign.Start)
                   .margin({ bottom: Spacing.XXL })
-                }, (uid: string) => 'root_' + uid)
+                }
               }
               .width('100%')
               .alignItems(HorizontalAlign.Start)

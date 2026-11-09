@@ -40,6 +40,9 @@ export struct EuTree {
   @State contentW: number = 0;
   @State contentH: number = 0;
   private lastViewKey: string = '';
+  /** 布局参数未变时复用 canvas 引用，避免拖拽/缩放每帧都重新拼 key 查缓存 */
+  private cachedCanvas: EuCanvas | null = null;
+  private cachedCanvasKey: string = '';
   onTapPerson: (uid: string) => void = (uid: string): void => {};
   onSize: (w: number, h: number) => void = (w: number, h: number): void => {};
   /** 点击聚合气泡：请求画布以该内容点为中心放大 */
@@ -79,10 +82,19 @@ export struct EuTree {
   }
 
   private canvas(): EuCanvas {
+    const key: string = this.rootUid + '|' + this.cardWidth.toString() + '|' +
+      this.rowHeight().toString() + '|' + this.showSpouse.toString() + '|' +
+      this.layoutVersion.toString();
+    if (this.cachedCanvas !== null && this.cachedCanvasKey === key) {
+      return this.cachedCanvas;
+    }
     const r: PersonNode | null = this.root();
     const roots: PersonNode[] = r === null ? [] : [r];
-    return TreeLayoutCache.getInstance().eu(this.rootUid, roots, this.cardWidth, this.rowHeight(),
-      this.showSpouse, 6);
+    const canvas: EuCanvas = TreeLayoutCache.getInstance().eu(this.rootUid, roots, this.cardWidth,
+      this.rowHeight(), this.showSpouse, 6);
+    this.cachedCanvas = canvas;
+    this.cachedCanvasKey = key;
+    return canvas;
   }
 
   private viewKey(): string {
@@ -121,7 +133,7 @@ export struct EuTree {
     TreePerf.begin('cull_eu');
     this.visibleBoxes = TreeCuller.euBoxes(canvas.boxes, view);
     this.visibleLines = TreeCuller.lines(canvas.lines, view);
-    this.lodLevel = detailLevelOf(this.zoom, this.interacting);
+    this.lodLevel = detailLevelOf(this.zoom, this.interacting, this.visibleBoxes.length);
     if (this.lodLevel === DETAIL_BUBBLE) {
       this.bubbles = aggregateEu(this.visibleBoxes, this.zoom, this.offsetX, this.offsetY, this.contentTop);
     } else {

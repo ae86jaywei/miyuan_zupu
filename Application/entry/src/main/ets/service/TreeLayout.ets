@@ -76,29 +76,51 @@ export function pushDoubleLine(lines: LineSeg[], x1: number, y1: number,
   lines.push(b);
 }
 
-/** 每一世（depth 从 0 开始）的最大配偶数 */
-export function collectDepthMaxSpouse(roots: PersonNode[]): number[] {
+/** 全树一次遍历得到的排版统计量 */
+class TreeStats {
+  /** 叶子节点总数：兄弟间距按人数自适应 */
+  leafCount: number = 0;
+  /** 每一世（depth 从 0 开始）的最大配偶数 */
+  maxSpouseAt: number[] = [];
+}
+
+/**
+ * 一次 DFS 同时统计叶子数与每一世最大配偶数。
+ *
+ * [PERF] 原先 countLeaves / collectDepthMaxSpouse 各做一次带 visited Set 的全树遍历，
+ * 大谱（数万人）下这两趟完全重复的遍历约占布局耗时的 17%；合并后只走一遍。
+ */
+function collectTreeStats(roots: PersonNode[]): TreeStats {
+  const stats: TreeStats = new TreeStats();
   const visited: Set<string> = new Set<string>();
-  const result: number[] = [];
   const walk = (node: PersonNode, depth: number): void => {
     if (visited.has(node.uid)) {
       return;
     }
     visited.add(node.uid);
-    while (result.length <= depth) {
-      result.push(0);
+    while (stats.maxSpouseAt.length <= depth) {
+      stats.maxSpouseAt.push(0);
     }
-    if (node.spouses.length > result[depth]) {
-      result[depth] = node.spouses.length;
+    if (node.spouses.length > stats.maxSpouseAt[depth]) {
+      stats.maxSpouseAt[depth] = node.spouses.length;
     }
-    node.children.forEach((c: PersonNode): void => {
-      walk(c, depth + 1);
-    });
+    if (node.children.length === 0) {
+      stats.leafCount = stats.leafCount + 1;
+      return;
+    }
+    for (let i: number = 0; i < node.children.length; i = i + 1) {
+      walk(node.children[i], depth + 1);
+    }
   };
-  roots.forEach((r: PersonNode): void => {
-    walk(r, 0);
-  });
-  return result;
+  for (let i: number = 0; i < roots.length; i = i + 1) {
+    walk(roots[i], 0);
+  }
+  return stats;
+}
+
+/** 每一世（depth 从 0 开始）的最大配偶数 */
+export function collectDepthMaxSpouse(roots: PersonNode[]): number[] {
+  return collectTreeStats(roots).maxSpouseAt;
 }
 
 /** 全树最大配偶数 */
@@ -123,29 +145,6 @@ export function globalMaxSpouse(roots: PersonNode[]): number {
   return max;
 }
 
-/** 叶子节点总数（用于按人数自适应兄弟间距：人多则压缩，人少则放宽） */
-function countLeaves(roots: PersonNode[]): number {
-  const visited: Set<string> = new Set<string>();
-  let n: number = 0;
-  const walk = (node: PersonNode): void => {
-    if (visited.has(node.uid)) {
-      return;
-    }
-    visited.add(node.uid);
-    if (node.children.length === 0) {
-      n = n + 1;
-      return;
-    }
-    node.children.forEach((c: PersonNode): void => {
-      walk(c);
-    });
-  };
-  roots.forEach((r: PersonNode): void => {
-    walk(r);
-  });
-  return n;
-}
-
 /** 配偶名分等级：正妻 → 平妻 → 贵妾 → 良妾 → 贱妾 → 外室 → 夫 → 未记 */
 function spouseRank(relation: string): number {
   const level: string = spouseRelationLevel(relation);
@@ -167,6 +166,10 @@ function spouseRank(relation: string): number {
  * 正庶先后：原配（正妻）最上 → 继配 → 妾室；同级保持原有先后次序（稳定排序）。
  */
 export function spouseOrder(node: PersonNode): number[] {
+  // [PERF] 单妻/无妻占绝大多数，避免为每张主卡分配数组并走 sort 闭包
+  if (node.spouses.length <= 1) {
+    return node.spouses.length === 1 ? [0] : [];
+  }
   const idx: number[] = [];
   for (let i: number = 0; i < node.spouses.length; i = i + 1) {
     idx.push(i);
@@ -196,7 +199,8 @@ function groupChildren(parent: PersonNode): ChildGroup[] {
   const groups: ChildGroup[] = [];
   parent.children.forEach((child: PersonNode): void => {
     const m: PersonNode | null = child.mother;
-    const key: string = (m !== null && m !== undefined) ? m.uid : ('#' + parent.uid);
+    // [PERF] 无生母时组 key 只需在本次调用内唯一，用空串即可，省去给每个子女拼接字符串
+    const key: string = (m !== null && m !== undefined) ? m.uid : '';
     let hit: ChildGroup | undefined = undefined;
     for (let i: number = 0; i < groups.length; i = i + 1) {
       if (groups[i].key === key) {
@@ -221,6 +225,8 @@ export class EuCanvas {
   lines: LineSeg[] = [];
   width: number = 0;
   height: number = 0;
+  /** 根节点（始祖）对应的主卡：居中定位直接命中，避免每次遍历全部 boxes */
+  rootBox: EuBox | null = null;
 }
 
 /**
@@ -254,14 +260,15 @@ export class EuLayout {
     /** 连线与卡框之间的留白，避免线条贴着卡片 */
     const lineGap: number = 6;
 
-    // 兄弟间距按人数自适应：人少放宽、人多压缩，避免大空白
-    const leafCount: number = countLeaves(roots);
+    // [PERF] 叶子数与每世最大配偶数一次遍历取齐，避免大谱重复全树 DFS
+    const stats: TreeStats = collectTreeStats(roots);
+    const leafCount: number = stats.leafCount;
     const siblingGap: number = leafCount <= 6 ? 18 : (leafCount <= 14 ? 11 : 7);
 
     // 列坐标：在每世卡片右侧为配偶列预留宽度（配偶竖向堆叠，横向只占一列）
     const colX: number[] = [0];
     if (showSpouse) {
-      const maxSpouseAt: number[] = collectDepthMaxSpouse(roots);
+      const maxSpouseAt: number[] = stats.maxSpouseAt;
       for (let d: number = 0; d < maxSpouseAt.length; d = d + 1) {
         const n: number = maxSpouseAt[d];
         const extra: number = n > 0 ? (spouseGap + spouseW) : 0;
@@ -281,7 +288,7 @@ export class EuLayout {
     let cursorY: number = startY;
 
     // 自底向上：叶子按“内容高度 + 兄弟间距”顺序占位，父节点居中于首末子节点之间
-    const place = (node: PersonNode, depth: number): EuBox => {
+    const place = (node: PersonNode, depth: number): EuBox | null => {
       const existing: EuBox | undefined = placed.get(node.uid);
       if (existing !== undefined) {
         return existing;
@@ -291,35 +298,42 @@ export class EuLayout {
       box.w = cardWidth;
       box.h = cardH;
       box.x = depth < colX.length ? colX[depth] : depth * (cardWidth + colGap);
+      if (depth === 0 && canvas.rootBox === null) {
+        canvas.rootBox = box;
+      }
       // 环形关系保护：同一节点在本次下钻中再次出现，说明父链成环，
       // 直接占位返回，避免 place() 无限递归导致 RangeError: Stack overflow
       if (visiting.has(node.uid)) {
         box.y = cursorY;
         box.centerY = box.y + box.h / 2;
         cursorY = box.y + box.h + siblingGap;
-        return box;
+        // 环上节点不进入 placed / boxes；返回 null 让父节点计算跳过它（与旧实现一致）
+        return null;
       }
       visiting.add(node.uid);
       if (node.children.length === 0) {
         box.y = cursorY;
       } else {
-        node.children.forEach((child: PersonNode): void => {
-          place(child, depth + 1);
-        });
+        // [PERF] 递归热路径用 for 循环，避免为每个节点分配 forEach 闭包；
+        // 同时直接复用 place 的返回值，省去再按 uid 查一次 placed（大谱约 8 万次字符串哈希）
+        const childBoxes: EuBox[] = [];
+        for (let i: number = 0; i < node.children.length; i = i + 1) {
+          const cb: EuBox | null = place(node.children[i], depth + 1);
+          if (cb !== null) {
+            childBoxes.push(cb);
+          }
+        }
         let lo: number = -1;
         let hi: number = -1;
-        node.children.forEach((child: PersonNode): void => {
-          const cb: EuBox | undefined = placed.get(child.uid);
-          if (cb !== undefined) {
-            const c: number = cb.y + cb.h / 2;
-            if (lo < 0 || c < lo) {
-              lo = c;
-            }
-            if (hi < 0 || c > hi) {
-              hi = c;
-            }
+        for (let i: number = 0; i < childBoxes.length; i = i + 1) {
+          const c: number = childBoxes[i].y + childBoxes[i].h / 2;
+          if (lo < 0 || c < lo) {
+            lo = c;
           }
-        });
+          if (hi < 0 || c > hi) {
+            hi = c;
+          }
+        }
         box.y = lo < 0 ? cursorY : (lo + hi) / 2 - box.h / 2;
       }
       box.centerY = box.y + box.h / 2;
@@ -341,20 +355,22 @@ export class EuLayout {
 
     // 先取布局快照，避免边遍历边 push 配偶卡片
     const baseBoxes: EuBox[] = [];
-    canvas.boxes.forEach((b: EuBox): void => {
-      baseBoxes.push(b);
-    });
+    for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
+      baseBoxes.push(canvas.boxes[i]);
+    }
 
     // 配偶卡：按正庶先后纵向下排；婚约用红色双线，竖向细线把后续配偶串到主卡
     if (showSpouse) {
-      baseBoxes.forEach((pb: EuBox): void => {
+      for (let bi: number = 0; bi < baseBoxes.length; bi = bi + 1) {
+        const pb: EuBox = baseBoxes[bi];
         const order: number[] = spouseOrder(pb.node);
         let slot: number = 0;
         let lastCy: number = pb.centerY;
-        order.forEach((si: number): void => {
+        for (let oi: number = 0; oi < order.length; oi = oi + 1) {
+          const si: number = order[oi];
           const sp: PersonNode = pb.node.spouses[si];
           if (placed.get(sp.uid) !== undefined) {
-            return; // 该配偶已作为树中节点布局，避免重复卡片
+            continue; // 该配偶已作为树中节点布局，避免重复卡片
           }
           const sb: EuBox = new EuBox();
           sb.node = sp;
@@ -370,7 +386,7 @@ export class EuLayout {
           if (sb.centerY > lastCy) {
             lastCy = sb.centerY;
           }
-        });
+        }
         if (lastCy > pb.centerY + 0.5) {
           const spine: LineSeg = new LineSeg();
           spine.id = canvas.lines.length;
@@ -383,16 +399,18 @@ export class EuLayout {
           spine.y2 = lastCy + MARRIAGE_LINE_GAP;
           canvas.lines.push(spine);
         }
-      });
+      }
     }
 
     // 世系连线：按生母分组，各组独立母线；组内子女相连，不同母子女经父母相连
-    baseBoxes.forEach((parentBox: EuBox): void => {
+    for (let pi: number = 0; pi < baseBoxes.length; pi = pi + 1) {
+      const parentBox: EuBox = baseBoxes[pi];
       if (parentBox.node.children.length === 0) {
-        return;
+        continue;
       }
       const groups: ChildGroup[] = groupChildren(parentBox.node);
-      groups.forEach((group: ChildGroup, gi: number): void => {
+      for (let gi: number = 0; gi < groups.length; gi = gi + 1) {
+        const group: ChildGroup = groups[gi];
         // edgeX 为出线起点（卡框边缘，横线从这里出发才能与卡框连成一体）；
         // railX 为母线竖线轨道，与卡框留出间距，避免竖线贴着卡框
         let edgeX: number = parentBox.x + parentBox.w;
@@ -413,10 +431,10 @@ export class EuLayout {
         let childX: number = -1;
         let loCy: number = -1;
         let hiCy: number = -1;
-        group.kids.forEach((child: PersonNode): void => {
-          const cb: EuBox | undefined = placed.get(child.uid);
+        for (let ki: number = 0; ki < group.kids.length; ki = ki + 1) {
+          const cb: EuBox | undefined = placed.get(group.kids[ki].uid);
           if (cb === undefined) {
-            return;
+            continue;
           }
           if (childX < 0 || cb.x < childX) {
             childX = cb.x;
@@ -428,9 +446,9 @@ export class EuLayout {
           if (hiCy < 0 || c > hiCy) {
             hiCy = c;
           }
-        });
+        }
         if (childX < 0) {
-          return;
+          continue;
         }
         // 母线竖线位于卡框右侧的轨道上；不同生母的母线在轨道上错开，避免连成一条
         const span: number = childX - railX;
@@ -448,26 +466,27 @@ export class EuLayout {
         if (hiCy - loCy > 1) {
           pushLine(canvas.lines, busX, Math.min(ay, loCy), busX, Math.max(ay, hiCy));
         }
-        group.kids.forEach((child: PersonNode): void => {
-          const cb: EuBox | undefined = placed.get(child.uid);
+        for (let ki: number = 0; ki < group.kids.length; ki = ki + 1) {
+          const cb: EuBox | undefined = placed.get(group.kids[ki].uid);
           if (cb === undefined) {
-            return;
+            continue;
           }
           pushLine(canvas.lines, busX, cb.centerY, cb.x, cb.centerY);
-        });
-      });
-    });
+        }
+      }
+    }
 
     let maxX: number = 0;
     let maxY: number = 0;
-    canvas.boxes.forEach((b: EuBox): void => {
+    for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
+      const b: EuBox = canvas.boxes[i];
       if (b.x + b.w > maxX) {
         maxX = b.x + b.w;
       }
       if (b.y + b.h > maxY) {
         maxY = b.y + b.h;
       }
-    });
+    }
     canvas.width = maxX + colGap;
     canvas.height = maxY + startY + 24;
     return canvas;
@@ -488,6 +507,8 @@ export class SuCanvas {
   lines: LineSeg[] = [];
   width: number = 0;
   height: number = 0;
+  /** 根节点（始祖）对应的主卡：居中定位直接命中，避免每次遍历全部 boxes */
+  rootBox: SuBox | null = null;
 }
 
 /**
@@ -533,7 +554,9 @@ export class SuLayout {
     const busStep: number = Math.round(14 * scale);
 
     // 按“每一世实际最多的配偶数”预留层高，而不是全树按最大配偶数统一拉高
-    const depthMax: number[] = showSpouse ? collectDepthMaxSpouse(roots) : [];
+    // [PERF] 与叶子数合并为一次全树遍历
+    const stats: TreeStats = collectTreeStats(roots);
+    const depthMax: number[] = showSpouse ? stats.maxSpouseAt : [];
     const stackExtra = (depth: number): number => {
       const n: number = depth < depthMax.length ? depthMax[depth] : 0;
       if (n === 0) {
@@ -566,7 +589,7 @@ export class SuLayout {
 
     let cursorX: number = startX;
 
-    const place = (node: PersonNode, depth: number): SuBox => {
+    const place = (node: PersonNode, depth: number): SuBox | null => {
       const existing: SuBox | undefined = placed.get(node.uid);
       if (existing !== undefined) {
         return existing;
@@ -576,33 +599,40 @@ export class SuLayout {
       box.w = cardWidth;
       box.h = cardH;
       box.y = depth < rowY.length ? rowY[depth] : depth * (cardH + rowGap);
+      if (depth === 0 && canvas.rootBox === null) {
+        canvas.rootBox = box;
+      }
       // 环形关系保护：父链成环时不再下钻，占位返回避免无限递归
       if (visiting.has(node.uid)) {
         box.x = cursorX;
         cursorX = cursorX + cardWidth + colGap;
-        return box;
+        // 环上节点不进入 placed / boxes；返回 null 让父节点计算跳过它（与旧实现一致）
+        return null;
       }
       visiting.add(node.uid);
       if (node.children.length === 0) {
         box.x = cursorX;
       } else {
-        node.children.forEach((child: PersonNode): void => {
-          place(child, depth + 1);
-        });
+        // [PERF] 递归热路径用 for 循环，避免为每个节点分配 forEach 闭包；
+        // 同时直接复用 place 的返回值，省去再按 uid 查一次 placed
+        const childBoxes: SuBox[] = [];
+        for (let i: number = 0; i < node.children.length; i = i + 1) {
+          const cb: SuBox | null = place(node.children[i], depth + 1);
+          if (cb !== null) {
+            childBoxes.push(cb);
+          }
+        }
         let lo: number = -1;
         let hi: number = -1;
-        node.children.forEach((child: PersonNode): void => {
-          const cb: SuBox | undefined = placed.get(child.uid);
-          if (cb !== undefined) {
-            const c: number = cb.x + cb.w / 2;
-            if (lo < 0 || c < lo) {
-              lo = c;
-            }
-            if (hi < 0 || c > hi) {
-              hi = c;
-            }
+        for (let i: number = 0; i < childBoxes.length; i = i + 1) {
+          const c: number = childBoxes[i].x + childBoxes[i].w / 2;
+          if (lo < 0 || c < lo) {
+            lo = c;
           }
-        });
+          if (hi < 0 || c > hi) {
+            hi = c;
+          }
+        }
         box.x = lo < 0 ? cursorX : (lo + hi) / 2 - cardWidth / 2;
       }
       visiting.delete(node.uid);
@@ -622,31 +652,32 @@ export class SuLayout {
     });
 
     const baseBoxes: SuBox[] = [];
-    canvas.boxes.forEach((b: SuBox): void => {
-      baseBoxes.push(b);
-    });
+    for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
+      baseBoxes.push(canvas.boxes[i]);
+    }
 
     // 配偶卡：单妻沿用「夫左妻右」横排 + 水平红双线；多妻则夫居中、妻妾竖排在夫下方 + 纵向红双线
     if (showSpouse) {
-      baseBoxes.forEach((pb: SuBox): void => {
+      for (let bi: number = 0; bi < baseBoxes.length; bi = bi + 1) {
+        const pb: SuBox = baseBoxes[bi];
         const order: number[] = spouseOrder(pb.node);
         // 待单独绘制的配偶数（已作为树中节点的跳过）
         let pending: number = 0;
-        order.forEach((si: number): void => {
-          const sp: PersonNode = pb.node.spouses[si];
+        for (let oi: number = 0; oi < order.length; oi = oi + 1) {
+          const sp: PersonNode = pb.node.spouses[order[oi]];
           if (sp !== null && sp !== undefined && placed.get(sp.uid) === undefined) {
             pending = pending + 1;
           }
-        });
+        }
         if (pending === 0) {
-          return;
+          continue;
         }
         const cx: number = pb.x + pb.w / 2;
         let prevBottom: number = pb.y + pb.h;
-        order.forEach((si: number): void => {
-          const sp: PersonNode = pb.node.spouses[si];
+        for (let oi: number = 0; oi < order.length; oi = oi + 1) {
+          const sp: PersonNode = pb.node.spouses[order[oi]];
           if (placed.get(sp.uid) !== undefined) {
-            return; // 该配偶已作为树中节点布局，避免重复卡片
+            continue; // 该配偶已作为树中节点布局，避免重复卡片
           }
           const sb: SuBox = new SuBox();
           sb.node = sp;
@@ -671,14 +702,15 @@ export class SuLayout {
             pushDoubleLine(canvas.lines, cx, prevBottom, cx, sb.y, MARRIAGE_LINE_GAP);
             prevBottom = sb.y + sb.h;
           }
-        });
-      });
+        }
+      }
     }
 
     // 世系连线：按生母分组，各组自生母（或父）底部独立下引
-    baseBoxes.forEach((parentBox: SuBox): void => {
+    for (let pi: number = 0; pi < baseBoxes.length; pi = pi + 1) {
+      const parentBox: SuBox = baseBoxes[pi];
       if (parentBox.node.children.length === 0) {
-        return;
+        continue;
       }
       const groups: ChildGroup[] = groupChildren(parentBox.node);
       // 各生母线锚点的高度：有生母时取生母卡中心，否则取父卡底边，用于决定母线上下次序
@@ -695,18 +727,19 @@ export class SuLayout {
       const rankOf = (gi: number): number => {
         const ay: number = anchorYOf(groups[gi]);
         let r: number = 0;
-        groups.forEach((other: ChildGroup, oi: number): void => {
+        for (let oi: number = 0; oi < groups.length; oi = oi + 1) {
           if (oi === gi) {
-            return;
+            continue;
           }
-          const oy: number = anchorYOf(other);
+          const oy: number = anchorYOf(groups[oi]);
           if (oy < ay || (oy === ay && oi < gi)) {
             r = r + 1;
           }
-        });
+        }
         return r;
       };
-      groups.forEach((group: ChildGroup, gi: number): void => {
+      for (let gi: number = 0; gi < groups.length; gi = gi + 1) {
+        const group: ChildGroup = groups[gi];
         let ax: number = parentBox.x + parentBox.w / 2;
         let anchorY: number = parentBox.y + parentBox.h;
         let motherRightX: number = -1;
@@ -724,10 +757,10 @@ export class SuLayout {
         let loCx: number = -1;
         let hiCx: number = -1;
         let childTop: number = -1;
-        group.kids.forEach((child: PersonNode): void => {
-          const cb: SuBox | undefined = placed.get(child.uid);
+        for (let ki: number = 0; ki < group.kids.length; ki = ki + 1) {
+          const cb: SuBox | undefined = placed.get(group.kids[ki].uid);
           if (cb === undefined) {
-            return;
+            continue;
           }
           const c: number = cb.x + cb.w / 2;
           if (loCx < 0 || c < loCx) {
@@ -739,9 +772,9 @@ export class SuLayout {
           if (childTop < 0 || cb.y < childTop) {
             childTop = cb.y;
           }
-        });
+        }
         if (loCx < 0) {
-          return;
+          continue;
         }
         // 自生母卡右缘横向引出到竖线轨道，形成「横—竖—横」的清晰折线
         if (motherRightX > 0 && ax - motherRightX > 1) {
@@ -757,27 +790,28 @@ export class SuLayout {
         if (rightX - leftX > 1) {
           pushLine(canvas.lines, leftX, busY, rightX, busY);
         }
-        group.kids.forEach((child: PersonNode): void => {
-          const cb: SuBox | undefined = placed.get(child.uid);
+        for (let ki: number = 0; ki < group.kids.length; ki = ki + 1) {
+          const cb: SuBox | undefined = placed.get(group.kids[ki].uid);
           if (cb === undefined) {
-            return;
+            continue;
           }
           const cx: number = cb.x + cb.w / 2;
           pushLine(canvas.lines, cx, busY, cx, cb.y);
-        });
-      });
-    });
+        }
+      }
+    }
 
     let maxX2: number = 0;
     let maxY2: number = 0;
-    canvas.boxes.forEach((b: SuBox): void => {
+    for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
+      const b: SuBox = canvas.boxes[i];
       if (b.x + b.w > maxX2) {
         maxX2 = b.x + b.w;
       }
       if (b.y + b.h > maxY2) {
         maxY2 = b.y + b.h;
       }
-    });
+    }
     canvas.width = maxX2 + startX + 24;
     canvas.height = maxY2 + 24;
     return canvas;

@@ -79,13 +79,21 @@ const LOD_SKELETON_ZOOM: number = 0.68;
 const LOD_BUBBLE_ZOOM: number = 0.36;
 /** 聚合气泡的屏幕网格边长（vp） */
 const BUBBLE_CELL: number = 72;
+/** 可见卡片超过该数量时，即使缩放比不算低也强制降为骨架，避免一次性创建成百上千张完整卡片 */
+const DEGRADE_SKELETON_COUNT: number = 250;
+/** 可见卡片超过该数量时直接聚合为气泡（极端大谱 / 异常视口下的兜底） */
+const DEGRADE_BUBBLE_COUNT: number = 1200;
 
 /**
- * 按当前缩放与手势状态计算细节层次。
+ * 按当前缩放、手势状态与可见卡片数量计算细节层次。
  * 手势进行中主动降一级（只改矩阵/骨架），抬手后再恢复完整精度，
  * 避免 PinchGesture 每帧都重建大量卡片。
+ *
+ * [PERF] TreePerf.shouldDegrade 之前只用于打日志，没有真正参与渲染：
+ * 全览或切支后继承较小缩放时，可见 boxes 可能成百上千，仍按完整卡片逐个创建。
+ * 这里让可见数量真正参与 LOD，超阈值时先降骨架、再兜底为聚合气泡。
  */
-export function detailLevelOf(zoom: number, interacting: boolean): number {
+export function detailLevelOf(zoom: number, interacting: boolean, visibleCount: number = 0): number {
   let level: number = DETAIL_FULL;
   if (zoom < LOD_BUBBLE_ZOOM) {
     level = DETAIL_BUBBLE;
@@ -94,6 +102,11 @@ export function detailLevelOf(zoom: number, interacting: boolean): number {
   }
   if (interacting && level > DETAIL_BUBBLE) {
     level = level - 1;
+  }
+  if (visibleCount > DEGRADE_BUBBLE_COUNT && level > DETAIL_BUBBLE) {
+    level = DETAIL_BUBBLE;
+  } else if (visibleCount > DEGRADE_SKELETON_COUNT && level > DETAIL_SKELETON) {
+    level = DETAIL_SKELETON;
   }
   return level;
 }

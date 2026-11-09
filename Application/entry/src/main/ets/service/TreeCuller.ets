@@ -168,4 +168,22 @@ export class TreeCuller {
     }
     return out;
   }
+
+  /**
+   * [PERF] 布局完成后预热索引。
+   *
+   * 首次裁剪需要 box/line 全量排序（真机 8 万人约 140~190ms）。若留到组件创建后的
+   * 首帧 refresh 里执行，会在“画面已经切过去”之后再造一次主线程长任务；
+   * 提前到布局阶段做，切支只卡一次，组件首帧直接命中索引。
+   */
+  static warmupEu(boxes: EuBox[], lines: LineSeg[]): void {
+    euIndexOf(boxes);
+    lineIndexOf(lines);
+  }
+
+  /** 苏式谱预热（与 warmupEu 同理） */
+  static warmupSu(boxes: SuBox[], lines: LineSeg[]): void {
+    suIndexOf(boxes);
+    lineIndexOf(lines);
+  }
 }
