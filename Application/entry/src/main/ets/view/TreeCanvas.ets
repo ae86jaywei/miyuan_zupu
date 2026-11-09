@@ -972,6 +972,9 @@ export struct TreeCanvas {
                       .margin({ bottom: Spacing.S })
                       .borderRadius(8)
                       .backgroundColor(Theme.card)
+                      // 画布内容按 translate 平移后会盖到标题行上方（欧式画布高度大时尤其明显），
+                      // 透明区域会拦截标题行右侧的点击；抬高层级让整行始终优先响应点击
+                      .zIndex(2)
                       .onClick((): void => {
                         this.branchMenuOpen = !this.branchMenuOpen;
                       })
