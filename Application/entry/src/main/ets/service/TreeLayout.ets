@@ -32,6 +32,38 @@ export class SpousePos {
   h: number = 0;
 }
 
+/**
+ * 页面/印刷版布局参数。
+ *
+ * 屏幕版的卡片宽高、行距、母线层距是按手指点击尺寸调的；印到 220×320mm 纸面时
+ * 必须换成毫米口径，否则 44/62/74 会被当成毫米，卡片比整页还大。
+ * 传 null 表示沿用屏幕版的原有取值，保证连续视图行为不变。
+ */
+export class LayoutMetrics {
+  /** 主卡高度；<=0 时按屏幕版规则推导 */
+  cardHeight: number = 0;
+  /** 同层兄弟间距；<=0 时按叶子数自适应（屏幕版） */
+  siblingGap: number = 0;
+  /** 夫妻卡间距 */
+  spouseGap: number = 12;
+  /** 多妻竖排的卡间距 */
+  stackGap: number = 6;
+  /** 连线与卡框之间的留白 */
+  lineGap: number = 6;
+  /** 多房母线层距（苏式） */
+  busStep: number = 14;
+  /** 多房竖线轨道的横向错开（苏式） */
+  railGap: number = 8;
+  /** 苏式列间距；<=0 时用 SuLayout.COL_GAP */
+  colGap: number = 0;
+  /** 苏式世代行距；<0 时用 dense 规则 */
+  rowGap: number = -1;
+  /** 苏式左起始边距；<0 时用 SuLayout.START_X */
+  startX: number = -1;
+  /** 间距整体缩放系数（苏式） */
+  scale: number = 1;
+}
+
 /** 夫妻双线到中轴的距离（两线共 2 倍间距，保证肉眼可见两条） */
 const MARRIAGE_LINE_GAP: number = 4;
 
@@ -90,11 +122,15 @@ class TreeStats {
  * [PERF] 原先 countLeaves / collectDepthMaxSpouse 各做一次带 visited Set 的全树遍历，
  * 大谱（数万人）下这两趟完全重复的遍历约占布局耗时的 17%；合并后只走一遍。
  */
-function collectTreeStats(roots: PersonNode[]): TreeStats {
+function collectTreeStats(roots: PersonNode[], allowed: Set<string> | null = null): TreeStats {
   const stats: TreeStats = new TreeStats();
   const visited: Set<string> = new Set<string>();
   const walk = (node: PersonNode, depth: number): void => {
     if (visited.has(node.uid)) {
+      return;
+    }
+    // 分页布局：只统计本页允许出现的节点，切线之外的旁支不能影响列宽/行高
+    if (allowed !== null && !allowed.has(node.uid)) {
       return;
     }
     visited.add(node.uid);
@@ -242,28 +278,31 @@ export class EuCanvas {
  */
 export class EuLayout {
   static compute(roots: PersonNode[], cardWidth: number, rowHeight: number, colGap: number,
-    showSpouse: boolean, startY: number): EuCanvas {
+    showSpouse: boolean, startY: number, allowed: Set<string> | null = null,
+    metrics: LayoutMetrics | null = null): EuCanvas {
     const canvas: EuCanvas = new EuCanvas();
     const placed: Map<string, EuBox> = new Map<string, EuBox>();
     /** 正在递归下钻的节点：父链若成环，下钻会无限递归导致栈溢出 */
     const visiting: Set<string> = new Set<string>();
 
     // 主卡高度：按卡片实际内容高度取值（渲染时卡片被固定为该高度，连线才能与卡框对齐）
-    const cardH: number = Math.max(44, rowHeight - 4);
+    const cardH: number = (metrics !== null && metrics.cardHeight > 0)
+      ? metrics.cardHeight : Math.max(44, rowHeight - 4);
     // 配偶卡与主卡同宽：渲染时按 box.w 绘制，槽位与之保持一致，避免溢出压住相邻列
     const spouseW: number = cardWidth;
     // 配偶卡与主卡等高，堆叠后中心线才能与夫卡中心线一一对齐
     const spouseH: number = cardH;
     // 夫妻卡之间留出间距，保证双线符号看得清
-    const spouseGap: number = 12;
-    const stackGap: number = 6;
+    const spouseGap: number = metrics !== null ? metrics.spouseGap : 12;
+    const stackGap: number = metrics !== null ? metrics.stackGap : 6;
     /** 连线与卡框之间的留白，避免线条贴着卡片 */
-    const lineGap: number = 6;
+    const lineGap: number = metrics !== null ? metrics.lineGap : 6;
 
     // [PERF] 叶子数与每世最大配偶数一次遍历取齐，避免大谱重复全树 DFS
-    const stats: TreeStats = collectTreeStats(roots);
+    const stats: TreeStats = collectTreeStats(roots, allowed);
     const leafCount: number = stats.leafCount;
-    const siblingGap: number = leafCount <= 6 ? 18 : (leafCount <= 14 ? 11 : 7);
+    const siblingGap: number = (metrics !== null && metrics.siblingGap > 0) ? metrics.siblingGap
+      : (leafCount <= 6 ? 18 : (leafCount <= 14 ? 11 : 7));
 
     // 列坐标：在每世卡片右侧为配偶列预留宽度（配偶竖向堆叠，横向只占一列）
     const colX: number[] = [0];
@@ -318,7 +357,12 @@ export class EuLayout {
         // 同时直接复用 place 的返回值，省去再按 uid 查一次 placed（大谱约 8 万次字符串哈希）
         const childBoxes: EuBox[] = [];
         for (let i: number = 0; i < node.children.length; i = i + 1) {
-          const cb: EuBox | null = place(node.children[i], depth + 1);
+          const child: PersonNode = node.children[i];
+          // 分页布局：允许集合之外的子女属于下一页，本页停在这里，不画切线
+          if (allowed !== null && !allowed.has(child.uid)) {
+            continue;
+          }
+          const cb: EuBox | null = place(child, depth + 1);
           if (cb !== null) {
             childBoxes.push(cb);
           }
@@ -526,36 +570,38 @@ export class SuLayout {
   /** 苏式布局左起始边距 */
   static readonly START_X: number = 8;
 
-  static compute(roots: PersonNode[], cardWidth: number, dense: boolean, showSpouse: boolean): SuCanvas {
+  static compute(roots: PersonNode[], cardWidth: number, dense: boolean, showSpouse: boolean,
+    allowed: Set<string> | null = null, metrics: LayoutMetrics | null = null): SuCanvas {
     const canvas: SuCanvas = new SuCanvas();
     const placed: Map<string, SuBox> = new Map<string, SuBox>();
     /** 正在递归下钻的节点：父链若成环，下钻会无限递归导致栈溢出 */
     const visiting: Set<string> = new Set<string>();
-    const colGap: number = SuLayout.COL_GAP;
-    const startX: number = SuLayout.START_X;
-    const rowGap: number = dense ? 14 : 24;
+    const colGap: number = (metrics !== null && metrics.colGap > 0) ? metrics.colGap : SuLayout.COL_GAP;
+    const startX: number = (metrics !== null && metrics.startX >= 0) ? metrics.startX : SuLayout.START_X;
+    const rowGap: number = (metrics !== null && metrics.rowGap >= 0) ? metrics.rowGap : (dense ? 14 : 24);
     // 卡片高度按实际内容高度取值（渲染时卡片固定为该高度，连线才能与卡框对齐）
-    const cardH: number = dense ? 62 : 74;
+    const cardH: number = (metrics !== null && metrics.cardHeight > 0)
+      ? metrics.cardHeight : (dense ? 62 : 74);
 
     // 大屏（平板 / 2in1 / PC）卡片更宽，连线间距随卡宽等比放大，避免线在宽卡间显得过细过密
-    const scale: number = Math.max(1, cardWidth / 120);
+    const scale: number = metrics !== null ? metrics.scale : Math.max(1, cardWidth / 120);
     // 配偶卡与主卡同宽，避免窄卡片内容被压缩 / 裁切
     const spouseW: number = cardWidth;
     const spouseH: number = cardH;
     /** 单妻横排时夫卡与妻卡的横向间隔 */
-    const spouseGap: number = 12;
+    const spouseGap: number = metrics !== null ? metrics.spouseGap : 12;
     /** 多妻竖排时夫卡与妻妾卡之间的竖向间隔：留出位置画红色双线 */
-    const stackGap: number = 10;
+    const stackGap: number = metrics !== null ? metrics.stackGap : 10;
     /** 连线与卡框之间的留白：竖线离开卡框一段距离，再用短横线引出 */
-    const lineGap: number = Math.round(6 * scale);
+    const lineGap: number = metrics !== null ? metrics.lineGap : Math.round(6 * scale);
     /** 同一父亲多房竖线的横向错开距离：正妻在内侧、继配/妾室依次向外，几房竖线不重合 */
-    const railGap: number = Math.round(8 * scale);
+    const railGap: number = metrics !== null ? metrics.railGap : Math.round(8 * scale);
     /** 同一父亲多房（正妻/继配/妾室）子女母线的层距：每房各得一条横线，需预留相应带宽 */
-    const busStep: number = Math.round(14 * scale);
+    const busStep: number = metrics !== null ? metrics.busStep : Math.round(14 * scale);
 
     // 按“每一世实际最多的配偶数”预留层高，而不是全树按最大配偶数统一拉高
     // [PERF] 与叶子数合并为一次全树遍历
-    const stats: TreeStats = collectTreeStats(roots);
+    const stats: TreeStats = collectTreeStats(roots, allowed);
     const depthMax: number[] = showSpouse ? stats.maxSpouseAt : [];
     const stackExtra = (depth: number): number => {
       const n: number = depth < depthMax.length ? depthMax[depth] : 0;
@@ -617,7 +663,12 @@ export class SuLayout {
         // 同时直接复用 place 的返回值，省去再按 uid 查一次 placed
         const childBoxes: SuBox[] = [];
         for (let i: number = 0; i < node.children.length; i = i + 1) {
-          const cb: SuBox | null = place(node.children[i], depth + 1);
+          const child: PersonNode = node.children[i];
+          // 分页布局：允许集合之外的子女属于下一页，本页停在这里，不画切线
+          if (allowed !== null && !allowed.has(child.uid)) {
+            continue;
+          }
+          const cb: SuBox | null = place(child, depth + 1);
           if (cb !== null) {
             childBoxes.push(cb);
           }

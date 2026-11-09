@@ -6,10 +6,12 @@ import { SuTree } from '../components/tree/SuTree';
 import { PagodaTree } from '../components/tree/PagodaTree';
 import { DieRecord } from '../components/tree/DieRecord';
 import { ModernTree } from '../components/tree/ModernTree';
+import { PagedTree } from '../components/tree/PagedTree';
 import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
 import { TreeLayoutCache } from '../service/TreeLayoutCache';
+import { PaginationService, PrintBook } from '../service/PaginationService';
 import { EuBox, EuCanvas, SuBox, SuCanvas } from '../service/TreeLayout';
 import { ViewportMath } from '../service/TreeViewport';
 import { Breakpoint } from '../common/Constants';
@@ -82,6 +84,9 @@ export struct TreeCanvas {
   @State searchOpen: boolean = false;
   @State searchQuery: string = '';
   @State searchResults: Person[] = [];
+  /** 分页视图：按 320×220mm 横版纸页排版，一页一屏，跨页不画线 */
+  @State pagedMode: boolean = false;
+  @State pageNo: number = 1;
 
   /** 手势起点 */
   private startX: number = 0;
@@ -127,6 +132,10 @@ export struct TreeCanvas {
     this.branchMenuOpen = false;
     this.offsetX = 0;
     this.offsetY = 0;
+    if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
+      this.pagedMode = false;
+    }
+    this.pageNo = 1;
     if (this.style === TreeStyle.DIE) {
       this.rebuildDieSource();
     }
@@ -144,6 +153,8 @@ export struct TreeCanvas {
   /** 族人数据变化：丢弃旧布局，重建宗支索引与世代索引 */
   onDataVersionChanged(): void {
     TreeLayoutCache.getInstance().invalidate();
+    PaginationService.getInstance().invalidate();
+    this.pageNo = 1;
     this.refreshData();
     this.offsetX = 0;
     this.offsetY = 0;
@@ -267,6 +278,7 @@ export struct TreeCanvas {
     this.activeBranch = idx;
     this.offsetX = 0;
     this.offsetY = 0;
+    this.pageNo = 1;
     this.rebuildCanvasSize(false);
     this.pendingCenter = true;
     this.centerOnRootIfReady();
@@ -284,6 +296,12 @@ export struct TreeCanvas {
     const i: number = this.clampBranchIndex();
     const name: string = i < this.branchNames.length ? this.branchNames[i] : '';
     return '宗支 ' + (i + 1).toString() + '：' + name + ' ▾';
+  }
+
+  /** 当前宗支名（分页页眉用，不带序号与箭头） */
+  private currentBranchName(): string {
+    const i: number = this.clampBranchIndex();
+    return i < this.branchNames.length ? this.branchNames[i] : '';
   }
 
   /** 当前宗支的后代人数 */
@@ -347,6 +365,9 @@ export struct TreeCanvas {
    */
   private centerOnRootIfReady(): void {
     if (!this.pendingCenter) {
+      return;
+    }
+    if (this.pagedMode) {
       return;
     }
     if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
@@ -585,6 +606,21 @@ export struct TreeCanvas {
       this.activeBranch = bi;
       this.offsetX = 0;
       this.offsetY = 0;
+      this.pageNo = 1;
+    }
+    // 分页视图：直接按「人 → 页」索引跳页，页内卡片会高亮
+    if (this.pagedMode) {
+      const idxP: number = this.clampBranchIndex();
+      const book: PrintBook = PaginationService.getInstance()
+        .book(roots[idxP].uid, this.style, this.dataVersion, 'standard');
+      const p: number = book.pageOf(uid);
+      if (p <= 0) {
+        this.getUIContext().getPromptAction().showToast({ message: '该族人不在当前分页范围内' });
+        return;
+      }
+      this.pageNo = p;
+      this.onFocusPerson(uid);
+      return;
     }
     this.rebuildCanvasSize(false);
     const idx: number = this.clampBranchIndex();
@@ -693,6 +729,25 @@ export struct TreeCanvas {
           this.searchOpen = !this.searchOpen;
         })
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
+        Button(this.pagedMode ? '连续' : '分页')
+          .fontSize(12)
+          .fontColor(this.pagedMode ? '#FFFFFF' : Theme.primary)
+          .backgroundColor(this.pagedMode ? Theme.primary : Theme.glass)
+          .border({ width: 1, color: Theme.glassBorder })
+          .borderRadius(16)
+          .height(34)
+          .padding({ left: 12, right: 12 })
+          .margin({ bottom: 6 })
+          .onClick((): void => {
+            this.pagedMode = !this.pagedMode;
+            this.pageNo = 1;
+            if (!this.pagedMode) {
+              this.pendingCenter = true;
+              this.centerOnRootIfReady();
+            }
+          })
+      }
+      if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
         Button('全览')
           .fontSize(12)
           .fontColor(Theme.primary)
@@ -701,6 +756,9 @@ export struct TreeCanvas {
           .borderRadius(16)
           .height(34)
           .padding({ left: 12, right: 12 })
+          .margin({ bottom: 0 })
+          .enabled(!this.pagedMode)
+          .opacity(this.pagedMode ? 0.4 : 1)
           .onClick((): void => {
             this.resetView();
           })
@@ -920,6 +978,24 @@ export struct TreeCanvas {
             highlightUid: this.highlightUid,
             focusUid: this.focusUid,
             minCardWidth: this.windowWidth >= Breakpoint.MD ? 220 : (this.isNarrow() ? 150 : 180),
+            onTapPerson: (uid: string): void => {
+              this.onTapPerson(uid);
+            }
+          })
+          .width('100%')
+          .layoutWeight(1)
+        } else if (this.pagedMode) {
+          PagedTree({
+            rootUid: this.activeRootUid(),
+            style: this.style,
+            layoutVersion: this.dataVersion,
+            pageIndex: this.pageNo,
+            highlightUid: this.effectiveHighlight(this.activeRootUid()),
+            profileName: 'standard',
+            branchName: this.currentBranchName(),
+            onPageChange: (n: number): void => {
+              this.pageNo = n;
+            },
             onTapPerson: (uid: string): void => {
               this.onTapPerson(uid);
             }
