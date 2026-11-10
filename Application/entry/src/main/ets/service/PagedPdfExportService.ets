@@ -300,21 +300,21 @@ export class PagedPdfExportService {
           const x1: number = Math.round((c + 1) * RENDER_W / TILE_COLS);
           const w: number = x1 - x0;
           const h: number = y1 - y0;
-          PagedPdfExportService.paintTile(g, canvas, style, x0, y0, lineWidthMm);
+          PagedPdfExportService.paintTile(g, canvas, style, x0, y0, x0 + w, y0 + h, lineWidthMm);
 
           const pm: image.PixelMap = g.getPixelMap(0, 0, w, h);
-          // PNG 无损优先；个别机型 ImagePacker 不支持 PNG 时降级 JPEG 96，
-          // 避免整页只剩文字、线条与卡片框全部丢失
-          let ext: string = '.png';
+          // 栅格层是线条/底色，JPEG 编码速度远快于 PNG（300dpi q95 肉眼无差），
+          // 个别机型不支持时再降级 PNG；文字始终是矢量层，不受影响
+          let ext: string = '.jpg';
           let buf: ArrayBuffer;
           // PackingOption 的 quality 为必填项，PNG 也需显式给出
-          const pngOpt: image.PackingOption = { format: 'image/png', quality: 100 };
+          const jpgOpt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
           try {
-            buf = await packer.packing(pm, pngOpt);
-          } catch (_e) {
-            ext = '.jpg';
-            const jpgOpt: image.PackingOption = { format: 'image/jpeg', quality: 96 };
             buf = await packer.packing(pm, jpgOpt);
+          } catch (_e) {
+            ext = '.png';
+            const pngOpt: image.PackingOption = { format: 'image/png', quality: 100 };
+            buf = await packer.packing(pm, pngOpt);
           } finally {
             pm.release();
           }
@@ -347,7 +347,7 @@ export class PagedPdfExportService {
 
   /** 在一块画布上画出整页的栅格内容（只画线条与卡片框，文字全部留给 PDF 文本对象） */
   private static paintTile(g: OffscreenCanvasRenderingContext2D, canvas: EuCanvas | SuCanvas,
-    style: string, x0: number, y0: number, lineWidthMm: number): void {
+    style: string, x0: number, y0: number, x1: number, y1: number, lineWidthMm: number): void {
     g.clearRect(0, 0, TILE_W, TILE_H);
 
     // 纸面与装订口：整页尺寸绘制，靠画布边缘裁切，分块之间接缝严格对齐
@@ -359,22 +359,39 @@ export class PagedPdfExportService {
     g.lineWidth = 1;
     g.strokeRect(0.5 - x0, 0.5 - y0, RENDER_W - 1, RENDER_H - 1);
 
-    // 连线：红色婚约双线 / 金色世系线
     const lw: number = Math.max(1, lineWidthMm * PX_PER_MM);
+    const pad: number = lw + 2;
+
+    // 连线：红色婚约双线 / 金色世系线；只画与当前分块相交的线，避免每块重画整页
     for (let i: number = 0; i < canvas.lines.length; i++) {
       const seg: LineSeg = canvas.lines[i];
+      const ax: number = (INNER_X_MM + seg.x1) * PX_PER_MM;
+      const ay: number = (INNER_Y_MM + seg.y1) * PX_PER_MM;
+      const bx: number = (INNER_X_MM + seg.x2) * PX_PER_MM;
+      const by: number = (INNER_Y_MM + seg.y2) * PX_PER_MM;
+      if (Math.max(ax, bx) + pad < x0 || Math.min(ax, bx) - pad > x1
+        || Math.max(ay, by) + pad < y0 || Math.min(ay, by) - pad > y1) {
+        continue;
+      }
       g.strokeStyle = seg.red ? C_RED : C_GOLD;
       g.lineWidth = lw;
       g.beginPath();
-      g.moveTo((INNER_X_MM + seg.x1) * PX_PER_MM - x0, (INNER_Y_MM + seg.y1) * PX_PER_MM - y0);
-      g.lineTo((INNER_X_MM + seg.x2) * PX_PER_MM - x0, (INNER_Y_MM + seg.y2) * PX_PER_MM - y0);
+      g.moveTo(ax - x0, ay - y0);
+      g.lineTo(bx - x0, by - y0);
       g.stroke();
     }
 
-    // 卡片：底色 + 描边（姓名等文字不画，交给矢量文本层）
+    // 卡片：底色 + 描边（姓名等文字不画，交给矢量文本层）；同样只画落在当前分块内的卡
     const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
     for (let i: number = 0; i < boxes.length; i++) {
       const b: EuBox | SuBox = boxes[i];
+      const cx0: number = (INNER_X_MM + b.x) * PX_PER_MM;
+      const cy0: number = (INNER_Y_MM + b.y) * PX_PER_MM;
+      const cx1: number = cx0 + b.w * PX_PER_MM;
+      const cy1: number = cy0 + b.h * PX_PER_MM;
+      if (cx1 < x0 || cx0 > x1 || cy1 < y0 || cy0 > y1) {
+        continue;
+      }
       PagedPdfExportService.drawCard(g, b.node, b.x, b.y, b.w, b.h, x0, y0);
     }
   }
