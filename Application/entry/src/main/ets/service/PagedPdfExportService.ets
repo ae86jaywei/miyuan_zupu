@@ -10,7 +10,8 @@ import { PaginationService, PrintBook, PagePlan } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
-import { paintRasterTile, C_FOOT, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
+import { compactUid } from '../util/StringUtil';
+import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
   PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
 import { renderTileJob } from './PdfTileTask';
 
@@ -421,31 +422,73 @@ export class PagedPdfExportService {
     page.addTextObject(header, INNER_X_MM * MM_TO_PT, baselineOfMm(6, HEADER_PT),
       pdfTextStyle(HEADER_PT, C_INK2, false));
 
-    // 卡片文字：与画布上的 Text 一样限制在卡片内（超宽截断 + 省略号），避免压出边框
+    // 卡片文字：与画布上的卡片一致，姓名 / 字辈+故 / 世代+UID / 配偶，全部限制在卡片内
     const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
     for (let i: number = 0; i < boxes.length; i++) {
       const b: EuBox | SuBox = boxes[i];
       const maxW: number = Math.max(1, b.w - 2.4) * MM_TO_PT;
+      const leftX: number = (INNER_X_MM + b.x + 1) * MM_TO_PT;
+      const rightX: number = (INNER_X_MM + b.x + b.w - 1) * MM_TO_PT;
+      const tall: boolean = b.h >= 11.2;
+      const compact: boolean = b.h < 9.0;
+      const nameTop: number = compact ? 0.5 : (tall ? 1.1 : 0.8);
+      const detailTop: number = compact ? 3.1 : (tall ? 4.3 : 3.7);
+      const spouseTop: number = tall ? 7.2 : 6.3;
+
+      // 右上角字辈 / 在世状态（已故 → 故，失联/不详照原样显示）
+      let badge: string = b.node.person.generationChar.length > 0 ?
+        b.node.person.generationChar + '字' : '';
+      let lifeText: string = '';
+      if (b.node.person.lifeStatus === '已故') {
+        lifeText = '故';
+      } else if (b.node.person.lifeStatus === '失联') {
+        lifeText = '失联';
+      } else if (b.node.person.lifeStatus === '不详') {
+        lifeText = '不详';
+      }
+      if (lifeText.length > 0) {
+        badge += badge.length > 0 ? ' ' + lifeText : lifeText;
+      }
+      const badgeSize: number = compact ? 4.4 : 4.8;
+      let badgeW: number = 0;
+      if (badge.length > 0) {
+        // 角标右对齐：PDF 内嵌字体比 canvas 量出的宽不少，量宽再加 3 个字符位，
+        // 确保「德字 故」这类角标整体落在卡片边框内
+        badgeW = cardTextWidth(measureCtx, badge, badgeSize) + 3 * badgeSize;
+        page.addTextObject(badge, Math.max(leftX, rightX - badgeW),
+          baselineOfMm(INNER_Y_MM + b.y + (compact ? 1.2 : 1.6), badgeSize),
+          pdfTextStyle(badgeSize, C_GOLD, false));
+      }
+
       const name: string = b.node.person.name.length > 0 ? b.node.person.name : b.node.uid;
       if (name.length > 0) {
-        const nameSize: number = fitCardSize(measureCtx, name, maxW, fonts.namePt, 7);
-        page.addTextObject(fitCardText(measureCtx, name, maxW, nameSize),
-          (INNER_X_MM + b.x + 1) * MM_TO_PT,
-          baselineOfMm(INNER_Y_MM + b.y + 1.1, nameSize),
+        const nameMaxW: number = badgeW > 0 ? Math.max(4, maxW - badgeW - 1.2) : maxW;
+        const nameSize: number = fitCardSize(measureCtx, name, nameMaxW,
+          compact ? 7 : fonts.namePt, 6);
+        page.addTextObject(fitCardText(measureCtx, name, nameMaxW, nameSize), leftX,
+          baselineOfMm(INNER_Y_MM + b.y + nameTop, nameSize),
           // 不能用 isBold：PDFKit 用「填充+描边」(Tr 2) 模拟粗体，8pt 小字会被描边糊成一团
           pdfTextStyle(nameSize, C_INK, false));
       }
+
       let detail: string = generationLabel(b.node.person.generation);
       if (b.node.uid.length > 0) {
-        detail += ' · ' + b.node.uid;
+        detail += ' · ' + compactUid(b.node.uid);
       }
       if (detail.length > 0) {
-        const detailSize: number = fitCardSize(measureCtx, detail, maxW, fonts.detailPt, 5.6);
-        const detailTopMm: number = Math.max(3.6, Math.min(5.2, b.h - 2.9));
-        page.addTextObject(fitCardText(measureCtx, detail, maxW, detailSize),
-          (INNER_X_MM + b.x + 1) * MM_TO_PT,
-          baselineOfMm(INNER_Y_MM + b.y + detailTopMm, detailSize),
+        const detailSize: number = fitCardSize(measureCtx, detail, maxW, compact ? 5.6 : fonts.detailPt, 5.2);
+        page.addTextObject(fitCardText(measureCtx, detail, maxW, detailSize), leftX,
+          baselineOfMm(INNER_Y_MM + b.y + detailTop, detailSize),
           pdfTextStyle(detailSize, C_INK2, false));
+      }
+
+      // 配偶行（卡片过矮时不画，避免压框）
+      const spouse: string = b.node.spouseText();
+      if (!compact && spouse.length > 0) {
+        const spouseSize: number = fitCardSize(measureCtx, spouse, maxW, tall ? 6 : 5.6, 5.0);
+        page.addTextObject(fitCardText(measureCtx, spouse, maxW, spouseSize), leftX,
+          baselineOfMm(INNER_Y_MM + b.y + spouseTop, spouseSize),
+          pdfTextStyle(spouseSize, C_INK2, false));
       }
     }
 

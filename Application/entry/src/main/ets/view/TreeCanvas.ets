@@ -1,4 +1,4 @@
-﻿import { PersonNode } from '../model/PersonNode';
+import { PersonNode } from '../model/PersonNode';
 import { Person } from '../model/Person';
 import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';
@@ -10,6 +10,7 @@ import { PagedTree } from '../components/tree/PagedTree';
 import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
+import { compactUid } from '../util/StringUtil';
 import { TreeLayoutCache } from '../service/TreeLayoutCache';
 import { PaginationService, PrintBook } from '../service/PaginationService';
 import { EuBox, EuCanvas, SuBox, SuCanvas } from '../service/TreeLayout';
@@ -39,6 +40,12 @@ const BUBBLE_ZOOM: number = 0.85;
 export struct TreeCanvas {
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
   @StorageProp('gpVersion') @Watch('onDataVersionChanged') dataVersion: number = 0;
+  /**
+   * 分页状态以 AppStorage 为准：页面顶部的谱式导航栏同样按它决定显隐。
+   * 之前只靠 @State 本组件自己维护，页面层无法在切换谱式时退出分页，
+   * 导航栏就会在其它谱式下一直隐藏。
+   */
+  @StorageProp('pagedMode') @Watch('onPagedModeStorageChanged') pagedStorage: boolean = false;
   @Prop @Watch('onHighlightChanged') highlightUid: string = '';
   @Prop showPrivate: boolean = true;
   @Prop @Watch('onWindowWidthChanged') windowWidth: number = 360;
@@ -122,8 +129,25 @@ export struct TreeCanvas {
   private branchSource: FlatListSource<string> = new FlatListSource<string>();
 
   aboutToAppear(): void {
+    this.pagedMode = this.pagedStorage;
+    this.syncPagedMode();
     this.refreshData();
     this.centerOnRootIfReady();
+  }
+
+  /** AppStorage 里的分页状态变化（本组件点“分页/连续”，或页面切换谱式时复位） */
+  onPagedModeStorageChanged(): void {
+    const next: boolean = this.pagedStorage;
+    if (next === this.pagedMode) {
+      return;
+    }
+    this.pagedMode = next;
+    if (next) {
+      this.pageNo = 1;
+    } else {
+      this.pendingCenter = true;
+      this.centerOnRootIfReady();
+    }
   }
 
   private isNarrow(): boolean {
@@ -135,9 +159,9 @@ export struct TreeCanvas {
     this.branchMenuOpen = false;
     this.offsetX = 0;
     this.offsetY = 0;
-    if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
-      this.pagedMode = false;
-      AppStorage.setOrCreate<boolean>('pagedMode', false);
+    if (!this.isPagedStyle()) {
+      // 分页只属于欧式/苏式：换到其它谱式必须同步退出，页面导航栏依赖这个状态
+      this.exitPagedMode();
     }
     this.pageNo = 1;
     if (this.style === TreeStyle.DIE) {
@@ -146,6 +170,30 @@ export struct TreeCanvas {
     this.rebuildCanvasSize();
     this.pendingCenter = true;
     this.centerOnRootIfReady();
+  }
+
+  private isPagedStyle(): boolean {
+    return this.style === TreeStyle.EU || this.style === TreeStyle.SU;
+  }
+
+  /**
+   * 退出分页并回到连续视图。
+   * 以 AppStorage 为唯一出口：页面上的谱式导航栏只在连续视图显示，
+   * 仅改组件内部 @State 的话页面拿不到这个变化，导航栏会一直隐藏。
+   */
+  private exitPagedMode(): void {
+    this.pagedMode = false;
+    this.pageNo = 1;
+    if (AppStorage.get<boolean>('pagedMode') === true) {
+      AppStorage.setOrCreate<boolean>('pagedMode', false);
+    }
+  }
+
+  /** 分页视图只属于欧式/苏式：其它谱式下必须退出分页，否则谱式导航栏会一直不显示 */
+  private syncPagedMode(): void {
+    if (!this.isPagedStyle()) {
+      this.exitPagedMode();
+    }
   }
 
   onHighlightChanged(): void {
@@ -172,6 +220,7 @@ export struct TreeCanvas {
   }
 
   private refreshData(): void {
+    this.syncPagedMode();
     TreePerf.begin('tree_groups');
     const svc: GenealogyService = GenealogyService.getInstance();
     const roots: PersonNode[] = svc.getRoots();
@@ -745,13 +794,8 @@ export struct TreeCanvas {
           .padding({ left: 12, right: 12 })
           .margin({ bottom: 6 })
           .onClick((): void => {
-            this.pagedMode = !this.pagedMode;
-            AppStorage.setOrCreate<boolean>('pagedMode', this.pagedMode);
-            this.pageNo = 1;
-            if (!this.pagedMode) {
-              this.pendingCenter = true;
-              this.centerOnRootIfReady();
-            }
+            // 只写 AppStorage 这一个真相源：@StorageProp 的 @Watch 会回写本地 pagedMode 并居中
+            AppStorage.setOrCreate<boolean>('pagedMode', !this.pagedMode);
           })
       }
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
@@ -823,7 +867,7 @@ export struct TreeCanvas {
                 Text(p.name)
                   .fontSize(14)
                   .fontColor(Theme.ink)
-                Text(generationLabel(p.generation) + ' · ' + p.uid)
+                Text(generationLabel(p.generation) + ' · ' + compactUid(p.uid))
                   .fontSize(11)
                   .fontColor(Theme.inkTertiary)
                   .margin({ left: 8 })

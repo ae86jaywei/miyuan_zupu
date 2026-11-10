@@ -71,3 +71,15 @@ Thumbs.db
 **/.tmp_*
 .tmp_uidump/
 *.hprof
+
+# 本地临时目录、真机调试截图与日志（调试产物，不入库）
+/.tmp/
+/lib.mjs
+/tmp/
+/screenshot/
+/*.jpeg
+/*.png
+/l.json
+/l2.json
+/layout.json
+/Application/DEBUG_LOG/

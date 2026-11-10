@@ -7,6 +7,7 @@ import { StatCard } from '../components/StatCard';
 import { TS } from '../components/TS';
 import { Breakpoint } from '../common/Constants';
 import { generationLabel } from '../model/Enums';
+import { compactUid } from '../util/StringUtil';
 
 import { InsightService } from '../service/InsightService';
 import { IntegrityService } from '../service/IntegrityService';
@@ -277,7 +278,7 @@ export struct HomeView {
             Text(p.name + (p.generationChar.length > 0 ? '（' + p.generationChar + '字）' : ''))
               .fontSize(13.5)
               .fontColor(Theme.ink)
-            Text(generationLabel(p.generation) + ' · ' + p.uid)
+            Text(generationLabel(p.generation) + ' · ' + compactUid(p.uid))
               .fontSize(10)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 1 })

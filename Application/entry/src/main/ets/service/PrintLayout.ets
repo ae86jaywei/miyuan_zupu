@@ -169,6 +169,9 @@ export class LayoutProfile {
     m.rowGap = this.rowGap;
     m.startX = 0;
     m.scale = 1;
+    // 纸上相邻两代卡片之间的净空就是 rowGap：多妻竖排也不额外撑高该世，
+    // 世系横线因此严格落在上代卡底与下代卡顶的正中间（屏幕连续视图保留手指出余量）
+    m.minChildGap = 0;
     return m;
   }
 

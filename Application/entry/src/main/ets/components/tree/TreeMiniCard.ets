@@ -1,6 +1,7 @@
 import { Person } from '../../model/Person';
 import { Theme } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
+import { compactUid } from '../../util/StringUtil';
 
 /**
  * 欧式 / 苏式 / 宝塔式谱系图中的人物小卡片。
@@ -35,6 +36,20 @@ export struct TreeMiniCard {
     return this.person.generationChar.length > 0 ? this.person.generationChar + '字' : '';
   }
 
+  /** 角标文案：已故→故，失联/不详照原样显示，便于一眼区分在世状态 */
+  private statusText(): string {
+    if (this.person.lifeStatus === '已故') {
+      return '故';
+    }
+    if (this.person.lifeStatus === '失联') {
+      return '失联';
+    }
+    if (this.person.lifeStatus === '不详') {
+      return '不详';
+    }
+    return '';
+  }
+
   /** 姓名行高：卡片高度固定，行高必须给定，否则文字会溢出卡片下边框 */
   private nameLineHeight(): number {
     return this.dense ? 16 : 17;
@@ -65,21 +80,14 @@ export struct TreeMiniCard {
             .maxLines(1)
             .flexShrink(0)
         }
-        if (this.person.lifeStatus === '已故') {
-          Text('故')
+        if (this.statusText().length > 0) {
+          Text(this.statusText())
             .fontSize(9)
             .lineHeight(this.infoLineHeight())
-            .fontColor(Theme.deceased)
-            .backgroundColor(Theme.field)
+            .fontColor(this.person.lifeStatus === '已故' ? Theme.deceased : Theme.lost)
+            .backgroundColor(this.person.lifeStatus === '已故' ? Theme.field : Color.Transparent)
             .borderRadius(3)
-            .padding({ left: 3, right: 3 })
-            .margin({ left: 2 })
-            .flexShrink(0)
-        } else if (this.person.lifeStatus === '失联') {
-          Text('？')
-            .fontSize(9)
-            .lineHeight(this.infoLineHeight())
-            .fontColor(Theme.lost)
+            .padding({ left: this.person.lifeStatus === '已故' ? 3 : 0, right: 3 })
             .margin({ left: 2 })
             .flexShrink(0)
         }
@@ -97,7 +105,7 @@ export struct TreeMiniCard {
           .borderRadius(4)
           .padding({ left: 4, right: 4 })
           .flexShrink(0)
-        Text(this.person.uid)
+        Text(compactUid(this.person.uid))
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
           .fontColor(Theme.inkTertiary)

@@ -1,6 +1,7 @@
 import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
 import { Theme } from '../theme/Theme';
 import { Breakpoint } from '../common/Constants';
+import { TreeScrollMemory } from '../util/TreeScrollMemory';
 
 /**
  * 谱式切换器：五种谱式横向切换，宽屏显示说明文字，窄屏仅显示名称。
@@ -39,6 +40,11 @@ export struct StyleSwitcher {
           .borderRadius(8)
           .margin({ left: 1, right: 1 })
           .onClick((): void => {
+            if (meta.key === this.current) {
+              return;
+            }
+            // 新谱式的列表不能继承旧谱式留下的滚动位置，否则会定位到内容之外的空白
+            TreeScrollMemory.resetAll();
             this.onSelect(meta.key);
           })
         }, (meta: TreeStyleMeta) => 'style_' + meta.key)

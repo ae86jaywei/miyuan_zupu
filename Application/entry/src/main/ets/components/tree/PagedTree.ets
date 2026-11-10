@@ -5,6 +5,7 @@ import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLay
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
 import { PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
 import { DeviceUtil } from '../../util/DeviceUtil';
+import { compactUid } from '../../util/StringUtil';
 
 /**
  * 印刷版人物卡：白底细框、无圆角，姓名 + 世次 + 配偶文字。
@@ -259,7 +260,7 @@ export struct PagedTree {
   private detailOf(node: PersonNode): string {
     let text: string = generationLabel(node.person.generation);
     if (node.uid.length > 0) {
-      text = text + ' · ' + node.uid;
+      text = text + ' · ' + compactUid(node.uid);
     }
     const sp: string = node.spouseText();
     if (sp.length > 0 && !this.profile.showSpouse) {

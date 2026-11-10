@@ -67,6 +67,13 @@ export class GenealogyStore {
   }
 
   static setStyle(style: string): void {
+    // 分页视图只属于欧式/苏式。谱式导航栏按 pagedMode 隐藏，
+    // 换到其它谱式时必须同步退出分页，否则导航栏会一直不显示。
+    if (style !== 'eu' && style !== 'su') {
+      if (AppStorage.get<boolean>('pagedMode') === true) {
+        AppStorage.setOrCreate<boolean>('pagedMode', false);
+      }
+    }
     GenealogyStore.put<string>(GenealogyStore.KEY_STYLE, style);
   }
 

@@ -1,4 +1,4 @@
-﻿import { uiMaterial } from '@kit.ArkUI';
+import { uiMaterial } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -495,12 +495,22 @@ struct Index {
         this.openBookPicker();
       })
 
-      if (!this.pagedMode) {
+      // 谱式导航栏只在「欧式/苏式 + 分页」时隐藏（版面优先），其它谱式始终显示。
+      // 条件不只看 pagedMode，还要求当前是欧式/苏式：即使分页状态残留，
+      // 切到宝塔/牒记/现代等谱式也一定能看到导航栏，不会再“消失”。
+      if (!this.inPagedView()) {
         Row() {
           StyleSwitcher({
             current: this.styleName,
             windowWidth: this.layoutWidth(),
             onSelect: (style: string): void => {
+              // 选中的就是当前谱式时什么也不做：用户只是在看导航栏，不该被踢出分页视图
+              if (style === this.styleName) {
+                return;
+              }
+              // 换谱式即退出「欧式/苏式分页」：页面导航栏是共享的，
+              // 不在这里复位的话，再切回欧式/苏式时会直接落进分页视图。
+              AppStorage.setOrCreate<boolean>('pagedMode', false);
               GenealogyStore.setStyle(style);
             }
           })
@@ -508,7 +518,7 @@ struct Index {
         .width('100%')
       }
 
-      if (!this.pagedMode) {
+      if (!this.inPagedView()) {
         Row() {
           if (this.styleName !== TreeStyle.DIE) {
             Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
@@ -1008,6 +1018,18 @@ struct Index {
 
   private isTriplePane(): boolean {
     return this.layoutWidth() >= Breakpoint.LG;
+  }
+
+  /**
+   * 是否处于「欧式/苏式分页」视图。
+   * 分页只是欧式/苏式的子视图：其它谱式一律按连续视图处理，
+   * 这样即使 pagedMode 因为异步时序没来得及复位，谱式导航栏也不会被藏掉。
+   */
+  private inPagedView(): boolean {
+    if (this.styleName !== TreeStyle.EU && this.styleName !== TreeStyle.SU) {
+      return false;
+    }
+    return this.pagedMode;
   }
 
   private showSidebar(): boolean {
