@@ -19,13 +19,13 @@ const PAGE_W_PT: number = PAGE_W_MM * MM_TO_PT;
 const PAGE_H_PT: number = PAGE_H_MM * MM_TO_PT;
 
 /**
- * 栅格层：450dpi（320×220mm → 约 5669×3898px）。
+ * 栅格层：300dpi（320×220mm → 约 3780×2598px）。
  *
- * 450dpi 全页 RGBA 约 88MB，直接建一张整页画布在低端机上容易 OOM，
- * 因此按 2×2 分成四块独立渲染（单块约 2835×1949px、22MB），逐块编码、逐块释放。
- * 分块尺寸同时避开部分 GPU 4096px 纹理上限。
+ * 450dpi 时单块像素图接近 22MB，Packing 在主线程耗时过长会触发 THREAD_BLOCK_6S；
+ * 降到 300dpi 后单块约 1890×1299px（RGBA 约 10MB），仍按 2×2 分块渲染、逐块编码释放，
+ * 兼顾印刷清晰度与低端机内存/流畅度，也避开部分 GPU 4096px 纹理上限。
  */
-const RENDER_DPI: number = 450;
+const RENDER_DPI: number = 300;
 const PX_PER_MM: number = RENDER_DPI / 25.4;
 const RENDER_W: number = Math.round(PAGE_W_MM * PX_PER_MM);
 const RENDER_H: number = Math.round(PAGE_H_MM * PX_PER_MM);
@@ -159,11 +159,11 @@ function cardFontsOf(book: PrintBook): CardFonts {
  * 欧式 / 苏式分页画布导出 PDF（混合型）。
  *
  * PDFKit 的 PdfPage 只有文本、图片与批注对象，没有矢量线条 / 矩形 API，因此：
- *  - 纸面、装订口、页框、世系连线、卡片底色与描边 → 450dpi 栅格层（2×2 分块，PNG 无损，不支持时降级 JPEG 96）；
+ *  - 纸面、装订口、页框、世系连线、卡片底色与描边 → 300dpi 栅格层（2×2 分块，PNG 无损，不支持时降级 JPEG 96）；
  *  - 页眉、页码、接续文案、卡片姓名与世次/UID → addTextObject 真实文本对象。
  *
  * 产出 PDF 的文字可选中、可搜索、放大不糊；栅格层只保留为线条与卡片框，
- * 以 450dpi 落位，印刷时线条与卡片边缘依旧锐利。页数与分页画布完全一致。
+ * 以 300dpi 落位，印刷时线条与卡片边缘依旧锐利。页数与分页画布完全一致。
  */
 export class PagedPdfExportService {
 
@@ -216,7 +216,7 @@ export class PagedPdfExportService {
       doc.deletePage(0, 1);
     }
 
-    // 栅格画布复用：只申请一块分块大小的画布，逐块重绘，避免整页 450dpi 的内存峰值
+    // 栅格画布复用：只申请一块分块大小的画布，逐块重绘，避免整页 300dpi 的内存峰值
     const tileCanvas: OffscreenCanvas = new OffscreenCanvas(TILE_W, TILE_H);
     const tileCtx: OffscreenCanvasRenderingContext2D = tileCanvas.getContext('2d');
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(MEASURE_W, MEASURE_H);
@@ -244,7 +244,7 @@ export class PagedPdfExportService {
             tileCtx, canvas, style, pageNo, book.profile.lineWidth, context, packer);
           try {
             const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
-            // 先铺 450dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
+            // 先铺 300dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
             for (let ti: number = 0; ti < tiles.length; ti++) {
               PagedPdfExportService.addTile(page, tiles[ti]);
             }
@@ -272,7 +272,7 @@ export class PagedPdfExportService {
 
   /** 一块栅格图按 pt 落位：PDF 的 y 原点在左下角，需要从顶部像素换算 */
   private static addTile(page: pdfService.PdfPage, tile: TileImage): void {
-    // 用整页像素比例换算，避免 450dpi 取整后按 PX_PER_MM 反算出现 0.02mm 的溢页/接缝
+    // 用整页像素比例换算，避免 300dpi 取整后按 PX_PER_MM 反算出现 0.02mm 的溢页/接缝
     const xPt: number = PAGE_W_PT * tile.xPx / RENDER_W;
     const wPt: number = PAGE_W_PT * tile.wPx / RENDER_W;
     const hPt: number = PAGE_H_PT * tile.hPx / RENDER_H;
@@ -334,6 +334,8 @@ export class PagedPdfExportService {
           tile.wPx = w;
           tile.hPx = h;
           out.push(tile);
+          // 每块编码完让出一次主线程，避免连续 Packing 触发 THREAD_BLOCK_6S
+          await PagedPdfExportService.yieldToUi();
         }
       }
     } catch (e) {
