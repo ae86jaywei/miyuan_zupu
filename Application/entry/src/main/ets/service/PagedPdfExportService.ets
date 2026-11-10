@@ -72,14 +72,20 @@ let cachedFontInfo: pdfService.FontInfo | null = null;
 function pdfFontInfo(): pdfService.FontInfo {
   if (cachedFontInfo === null) {
     const fi: pdfService.FontInfo = new pdfService.FontInfo();
-    try {
-      const f: Font = new Font();
-      const info = f.getFontByName('HarmonyOS Sans');
-      fi.fontPath = info.path;
-    } catch (_e) {
-      // 取不到系统字体时交给 PDF 默认字体
+    const names: string[] = ['HarmonyOS Sans SC', 'HarmonyOS Sans', 'HarmonyOS_Sans_SC'];
+    for (let i: number = 0; i < names.length; i++) {
+      try {
+        const f: Font = new Font();
+        const info = f.getFontByName(names[i]);
+        if (info.path.length > 0) {
+          fi.fontPath = info.path;
+          fi.fontName = names[i];
+          break;
+        }
+      } catch (_e) {
+        // 换下一个家族名再试，全部失败时交给 PDF 默认字体
+      }
     }
-    fi.fontName = '';
     cachedFontInfo = fi;
   }
   return cachedFontInfo;
@@ -110,6 +116,18 @@ function measurePt(ctx: OffscreenCanvasRenderingContext2D, text: string, sizePt:
   const w: number = ctx.measureText(text).width / MEASURE_SCALE;
   ctx.restore();
   return w;
+}
+
+/** 按最大宽度截断文本，超出部分用省略号，避免卡片文字压出边框 */
+function fitText(ctx: OffscreenCanvasRenderingContext2D, text: string, maxW: number, sizePt: number): string {
+  if (text.length === 0 || measurePt(ctx, text, sizePt) <= maxW) {
+    return text;
+  }
+  let cut: string = text;
+  while (cut.length > 0 && measurePt(ctx, cut + '…', sizePt) > maxW) {
+    cut = cut.substring(0, cut.length - 1);
+  }
+  return cut.length > 0 ? cut + '…' : '';
 }
 
 /** 按卡高决定矢量字号：标准/大字档放大一档，紧凑档保持原字号避免压框 */
@@ -368,46 +386,51 @@ export class PagedPdfExportService {
     fonts: CardFonts, measureCtx: OffscreenCanvasRenderingContext2D): void {
     // 页眉
     const genText: string = (plan.genFrom > 0 && plan.genTo > 0)
-      ? '第' + generationLabel(plan.genFrom) + (plan.genFrom === plan.genTo ? '' : '—' + generationLabel(plan.genTo))
+      ? generationLabel(plan.genFrom) + (plan.genFrom === plan.genTo ? '' : '—' + generationLabel(plan.genTo))
       : '';
     const header: string = '世系图' + (genText.length > 0 ? ' · ' + genText : '') + (rootName.length > 0 ? ' · ' + rootName : '');
     page.addTextObject(header, INNER_X_MM * MM_TO_PT, baselineOfMm(6, HEADER_PT),
       pdfTextStyle(HEADER_PT, C_INK2, false));
 
-    // 卡片文字
+    // 卡片文字：与画布上的 Text 一样限制在卡片内（超宽截断 + 省略号），避免压出边框
     const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
     for (let i: number = 0; i < boxes.length; i++) {
       const b: EuBox | SuBox = boxes[i];
+      const maxW: number = Math.max(1, (b.w - 2)) * MM_TO_PT * 0.96;
       const name: string = b.node.person.name.length > 0 ? b.node.person.name : b.node.uid;
       if (name.length > 0) {
-        page.addTextObject(name,
+        page.addTextObject(fitText(measureCtx, name, maxW, fonts.namePt),
           (INNER_X_MM + b.x + 1) * MM_TO_PT,
           baselineOfMm(INNER_Y_MM + b.y + 1.1, fonts.namePt),
-          pdfTextStyle(fonts.namePt, C_INK, true));
+          // 不能用 isBold：PDFKit 用「填充+描边」(Tr 2) 模拟粗体，8pt 小字会被描边糊成一团
+          pdfTextStyle(fonts.namePt, C_INK, false));
       }
       let detail: string = generationLabel(b.node.person.generation);
       if (b.node.uid.length > 0) {
         detail += ' · ' + b.node.uid;
       }
       if (detail.length > 0) {
-        page.addTextObject(detail,
+        const detailTopMm: number = Math.max(3.6, Math.min(5.2, b.h - 2.9));
+        page.addTextObject(fitText(measureCtx, detail, maxW, fonts.detailPt),
           (INNER_X_MM + b.x + 1) * MM_TO_PT,
-          baselineOfMm(INNER_Y_MM + b.y + 5.2, fonts.detailPt),
+          baselineOfMm(INNER_Y_MM + b.y + detailTopMm, fonts.detailPt),
           pdfTextStyle(fonts.detailPt, C_INK2, false));
       }
     }
 
-    // 页脚接续文案
+    // 页脚接续文案：单独一行（距底 12mm），给下方页码留出位置
     if (plan.footerText.length > 0) {
-      page.addTextObject(plan.footerText, INNER_X_MM * MM_TO_PT,
-        baselineOfMm(TRIM_H_MM - 8, FOOTER_PT), pdfTextStyle(FOOTER_PT, C_FOOT, false));
+      const footW: number = (TRIM_W_MM - INNER_X_MM - 10) * MM_TO_PT;
+      page.addTextObject(fitText(measureCtx, plan.footerText, footW, FOOTER_PT),
+        INNER_X_MM * MM_TO_PT,
+        baselineOfMm(TRIM_H_MM - 12, FOOTER_PT), pdfTextStyle(FOOTER_PT, C_FOOT, false));
     }
 
-    // 页码：居中，字号比接续文案大，印出来能看清
+    // 页码：居中放在页脚下一行（距底 6mm），与接续文案不再同一基线
     const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
     const fw: number = measurePt(measureCtx, footer, PAGE_NO_PT);
     page.addTextObject(footer, PAGE_W_PT / 2 - fw / 2,
-      baselineOfMm(TRIM_H_MM - 8, PAGE_NO_PT), pdfTextStyle(PAGE_NO_PT, C_INK2, false));
+      baselineOfMm(TRIM_H_MM - 6, PAGE_NO_PT), pdfTextStyle(PAGE_NO_PT, C_INK2, false));
   }
 
   private static cleanupTiles(tiles: TileImage[]): void {

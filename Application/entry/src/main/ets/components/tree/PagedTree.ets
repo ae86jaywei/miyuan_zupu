@@ -367,17 +367,17 @@ export struct PagedTree {
         }, (b: SuBox, idx: number) => 'su_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
       }
 
-      // 页脚接续 + 页码
+      // 页脚接续 + 页码（分两行：接续距底 12mm，页码距底 6mm）
       if (this.footer.length > 0) {
         Text(this.footer)
           .fontSize(this.pt(6.5))
           .fontColor('#8C2F1E')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width(this.mm(this.spec.trimW - 78))
+          .width(this.mm(this.spec.trimW - this.innerX() - 10))
           .position({
             x: this.mm(this.innerX()),
-            y: this.mm(this.spec.trimH - 8)
+            y: this.mm(this.spec.trimH - 12)
           })
       }
       Text('第 ' + this.pageNo.toString() + ' 页 / 共 ' + this.pageCount.toString() + ' 页')
@@ -386,7 +386,7 @@ export struct PagedTree {
         .fontWeight(FontWeight.Medium)
         .textAlign(TextAlign.Center)
         .width(this.mm(this.spec.trimW))
-        .position({ x: 0, y: this.mm(this.spec.trimH - 9) })
+        .position({ x: 0, y: this.mm(this.spec.trimH - 6) })
     }
     .width(this.mm(this.spec.trimW))
     .height(this.mm(this.spec.trimH))
