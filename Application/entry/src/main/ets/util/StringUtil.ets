@@ -50,3 +50,36 @@ export function splitMulti(value: string): string[] {
   }
   return value.split(/[;；,，]/).map((s: string): string => s.trim()).filter((s: string): boolean => s.length > 0);
 }
+
+/**
+ * 卡片上显示的短 UID：字母前缀（男 F / 女 M）保持不变，数字部分去前导 0 后补足 3 位。
+ * 001–999、1000–9999、10000… 依次不补位：F1 → F001、F04196 → F4196。
+ * 仅用于显示，数据中仍保存完整 uid。
+ */
+export function compactUid(uid: string): string {
+  if (isBlank(uid)) {
+    return '';
+  }
+  let cut: number = uid.length;
+  while (cut > 0) {
+    const c: string = uid.charAt(cut - 1);
+    if (c < '0' || c > '9') {
+      break;
+    }
+    cut--;
+  }
+  const prefix: string = uid.substring(0, cut);
+  let digits: string = uid.substring(cut);
+  if (digits.length === 0) {
+    return uid;
+  }
+  let s: number = 0;
+  while (s < digits.length - 1 && digits.charAt(s) === '0') {
+    s++;
+  }
+  digits = digits.substring(s);
+  while (digits.length < 3) {
+    digits = '0' + digits;
+  }
+  return prefix + digits;
+}
