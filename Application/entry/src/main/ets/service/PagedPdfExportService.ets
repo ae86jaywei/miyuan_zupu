@@ -130,6 +130,35 @@ function fitText(ctx: OffscreenCanvasRenderingContext2D, text: string, maxW: num
   return cut.length > 0 ? cut + '…' : '';
 }
 
+/** 卡片文字安全系数：PDF 内嵌字体比 canvas 的 sans-serif 略宽，按 1.18 预留 */
+const CARD_TEXT_SAFETY: number = 1.18;
+
+function cardTextWidth(ctx: OffscreenCanvasRenderingContext2D, text: string, sizePt: number): number {
+  return measurePt(ctx, text, sizePt) * CARD_TEXT_SAFETY;
+}
+
+/** 先整体缩小字号塞进卡片，缩到下限仍放不下再由调用方截断 */
+function fitCardSize(ctx: OffscreenCanvasRenderingContext2D, text: string, maxW: number,
+  sizePt: number, minPt: number): number {
+  const w: number = cardTextWidth(ctx, text, sizePt);
+  if (w <= maxW) {
+    return sizePt;
+  }
+  return Math.max(minPt, sizePt * maxW / w);
+}
+
+function fitCardText(ctx: OffscreenCanvasRenderingContext2D, text: string, maxW: number,
+  sizePt: number): string {
+  if (text.length === 0 || cardTextWidth(ctx, text, sizePt) <= maxW) {
+    return text;
+  }
+  let cut: string = text;
+  while (cut.length > 0 && cardTextWidth(ctx, cut + '…', sizePt) > maxW) {
+    cut = cut.substring(0, cut.length - 1);
+  }
+  return cut.length > 0 ? cut + '…' : '';
+}
+
 /** 按卡高决定矢量字号：标准/大字档放大一档，紧凑档保持原字号避免压框 */
 function cardFontsOf(book: PrintBook): CardFonts {
   const out: CardFonts = new CardFonts();
@@ -396,25 +425,27 @@ export class PagedPdfExportService {
     const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
     for (let i: number = 0; i < boxes.length; i++) {
       const b: EuBox | SuBox = boxes[i];
-      const maxW: number = Math.max(1, (b.w - 2)) * MM_TO_PT * 0.96;
+      const maxW: number = Math.max(1, b.w - 2.4) * MM_TO_PT;
       const name: string = b.node.person.name.length > 0 ? b.node.person.name : b.node.uid;
       if (name.length > 0) {
-        page.addTextObject(fitText(measureCtx, name, maxW, fonts.namePt),
+        const nameSize: number = fitCardSize(measureCtx, name, maxW, fonts.namePt, 7);
+        page.addTextObject(fitCardText(measureCtx, name, maxW, nameSize),
           (INNER_X_MM + b.x + 1) * MM_TO_PT,
-          baselineOfMm(INNER_Y_MM + b.y + 1.1, fonts.namePt),
+          baselineOfMm(INNER_Y_MM + b.y + 1.1, nameSize),
           // 不能用 isBold：PDFKit 用「填充+描边」(Tr 2) 模拟粗体，8pt 小字会被描边糊成一团
-          pdfTextStyle(fonts.namePt, C_INK, false));
+          pdfTextStyle(nameSize, C_INK, false));
       }
       let detail: string = generationLabel(b.node.person.generation);
       if (b.node.uid.length > 0) {
         detail += ' · ' + b.node.uid;
       }
       if (detail.length > 0) {
+        const detailSize: number = fitCardSize(measureCtx, detail, maxW, fonts.detailPt, 5.6);
         const detailTopMm: number = Math.max(3.6, Math.min(5.2, b.h - 2.9));
-        page.addTextObject(fitText(measureCtx, detail, maxW, fonts.detailPt),
+        page.addTextObject(fitCardText(measureCtx, detail, maxW, detailSize),
           (INNER_X_MM + b.x + 1) * MM_TO_PT,
-          baselineOfMm(INNER_Y_MM + b.y + detailTopMm, fonts.detailPt),
-          pdfTextStyle(fonts.detailPt, C_INK2, false));
+          baselineOfMm(INNER_Y_MM + b.y + detailTopMm, detailSize),
+          pdfTextStyle(detailSize, C_INK2, false));
       }
     }
 
