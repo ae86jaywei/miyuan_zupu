@@ -519,7 +519,7 @@ struct ImportExport {
             .width('100%')
             .padding({ top: 12, bottom: 12 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式分卷文字流，或欧式/苏式 320×220mm 横版分页（文字可选中，450dpi）', '打印',
+            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式分卷文字流，或欧式/苏式 320×220mm 横版分页（文字可选中，300dpi）', '打印',
               (): void => {
                 this.doExportPdf();
               })
