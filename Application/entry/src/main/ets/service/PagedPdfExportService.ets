@@ -2,42 +2,22 @@ import { pdfService } from '@kit.PDFKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { Font } from '@kit.ArkUI';
+import { Font, LengthMetricsUnit } from '@kit.ArkUI';
+import { taskpool } from '@kit.ArkTS';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { PaginationService, PrintBook, PagePlan } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
+import { renderTileImpl, paintRasterTile, C_FOOT, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
+  PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
 
-/** 成品纸张：横版 320×220mm，与分页画布完全一致 */
-const PAGE_W_MM: number = 320;
-const PAGE_H_MM: number = 220;
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
 const PAGE_W_PT: number = PAGE_W_MM * MM_TO_PT;
 const PAGE_H_PT: number = PAGE_H_MM * MM_TO_PT;
 
-/**
- * 栅格层：300dpi（320×220mm → 约 3780×2598px）。
- *
- * 450dpi 时单块像素图接近 22MB，Packing 在主线程耗时过长会触发 THREAD_BLOCK_6S；
- * 降到 300dpi 后单块约 1890×1299px（RGBA 约 10MB），仍按 2×2 分块渲染、逐块编码释放，
- * 兼顾印刷清晰度与低端机内存/流畅度，也避开部分 GPU 4096px 纹理上限。
- */
-const RENDER_DPI: number = 300;
-const PX_PER_MM: number = RENDER_DPI / 25.4;
-const RENDER_W: number = Math.round(PAGE_W_MM * PX_PER_MM);
-const RENDER_H: number = Math.round(PAGE_H_MM * PX_PER_MM);
-const TILE_COLS: number = 2;
-const TILE_ROWS: number = 2;
-const TILE_W: number = Math.ceil(RENDER_W / TILE_COLS);
-const TILE_H: number = Math.ceil(RENDER_H / TILE_ROWS);
-
-/** 页面几何（与 PrintLayout 保持一致） */
-const GUTTER_MM: number = 20;
-const INNER_X_MM: number = 26;
-const INNER_Y_MM: number = 20;
 const TRIM_W_MM: number = 320;
 const TRIM_H_MM: number = 220;
 
@@ -52,16 +32,6 @@ const CARD_DETAIL_PT: number = 6.5;
 const MEASURE_SCALE: number = 4;
 const MEASURE_W: number = 1024;
 const MEASURE_H: number = 256;
-
-const C_PAPER: string = '#FFFDF6';
-const C_BIND: string = '#F4EFE3';
-const C_INK: string = '#2E2A24';
-const C_INK2: string = '#7A6A57';
-const C_GOLD: string = '#C9A227';
-const C_RED: string = '#B03A2E';
-const C_FEMALE: string = '#A0527A';
-const C_LINE: string = '#D8CBB2';
-const C_FOOT: string = '#8C2F1E';
 
 export interface PagedPdfProgress {
   current: number;
@@ -155,11 +125,42 @@ function cardFontsOf(book: PrintBook): CardFonts {
   return out;
 }
 
+/** 把连线压平成可跨线程传输的数字数组：[x1,y1,x2,y2,是否婚约线] × n */
+function packLineData(canvas: EuCanvas | SuCanvas): number[] {
+  const out: number[] = [];
+  for (let i: number = 0; i < canvas.lines.length; i++) {
+    const s: LineSeg = canvas.lines[i];
+    out.push(s.x1, s.y1, s.x2, s.y2, s.red ? 1 : 0);
+  }
+  return out;
+}
+
+/** 把卡片压平：[x,y,w,h,是否女卡] × n，避免把 PersonNode 传进 TaskPool */
+function packBoxData(canvas: EuCanvas | SuCanvas, style: string): number[] {
+  const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
+  const out: number[] = [];
+  for (let i: number = 0; i < boxes.length; i++) {
+    const b: EuBox | SuBox = boxes[i];
+    out.push(b.x, b.y, b.w, b.h, b.node.person.gender === '女' ? 1 : 0);
+  }
+  return out;
+}
+
+/**
+ * TaskPool 并发任务：在 worker 线程里离屏渲染一块栅格并编码为 JPEG。
+ * 具体实现放在 PdfRasterJob（并发函数只能引用导入的变量，不能直接读本文件模块常量）。
+ */
+@Concurrent
+async function renderTileJob(pageNo: number, r: number, c: number, lineWidthMm: number,
+  lineData: number[], boxData: number[], cacheDir: string): Promise<string> {
+  return await renderTileImpl(pageNo, r, c, lineWidthMm, lineData, boxData, cacheDir);
+}
+
 /**
  * 欧式 / 苏式分页画布导出 PDF（混合型）。
  *
  * PDFKit 的 PdfPage 只有文本、图片与批注对象，没有矢量线条 / 矩形 API，因此：
- *  - 纸面、装订口、页框、世系连线、卡片底色与描边 → 300dpi 栅格层（2×2 分块，PNG 无损，不支持时降级 JPEG 96）；
+ *  - 纸面、装订口、页框、世系连线、卡片底色与描边 → 300dpi 栅格层（2×2 分块，JPEG q95）；
  *  - 页眉、页码、接续文案、卡片姓名与世次/UID → addTextObject 真实文本对象。
  *
  * 产出 PDF 的文字可选中、可搜索、放大不糊；栅格层只保留为线条与卡片框，
@@ -216,12 +217,9 @@ export class PagedPdfExportService {
       doc.deletePage(0, 1);
     }
 
-    // 栅格画布复用：只申请一块分块大小的画布，逐块重绘，避免整页 300dpi 的内存峰值
-    const tileCanvas: OffscreenCanvas = new OffscreenCanvas(TILE_W, TILE_H);
-    const tileCtx: OffscreenCanvasRenderingContext2D = tileCanvas.getContext('2d');
+    // 文本测量画布（vp 默认单位即可，只量宽度不落位）
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(MEASURE_W, MEASURE_H);
     const measureCtx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
-    const packer: image.ImagePacker = image.createImagePacker();
 
     let pageNo: number = 0;
     try {
@@ -241,7 +239,7 @@ export class PagedPdfExportService {
             throw new Error('第 ' + i.toString() + ' 页布局为空');
           }
           const tiles: TileImage[] = await PagedPdfExportService.renderTiles(
-            tileCtx, canvas, style, pageNo, book.profile.lineWidth, context, packer);
+            canvas, style, pageNo, book.profile.lineWidth, context);
           try {
             const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
             // 先铺 300dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
@@ -265,7 +263,6 @@ export class PagedPdfExportService {
       }
     } finally {
       doc.releaseDocument();
-      packer.release();
     }
     return outPath;
   }
@@ -280,16 +277,53 @@ export class PagedPdfExportService {
     page.addImageObject(tile.path, xPt, yPt, wPt, hPt);
   }
 
-  /** 把一页拆成 2×2 栅格块，逐块渲染成 PNG，返回落位信息 */
-  private static async renderTiles(
-    g: OffscreenCanvasRenderingContext2D,
-    canvas: EuCanvas | SuCanvas,
-    style: string,
-    pageNo: number,
-    lineWidthMm: number,
-    context: common.UIAbilityContext,
-    packer: image.ImagePacker
-  ): Promise<TileImage[]> {
+  /**
+   * 把一页拆成 2×2 栅格块并行渲染。
+   * TaskPool 每个 worker 独立离屏绘制 + JPEG 编码；若并发任务不可用，
+   * 自动回退到主线程串行渲染，保证导出不中断。
+   */
+  private static async renderTiles(canvas: EuCanvas | SuCanvas, style: string, pageNo: number,
+    lineWidthMm: number, context: common.UIAbilityContext): Promise<TileImage[]> {
+    const lineData: number[] = packLineData(canvas);
+    const boxData: number[] = packBoxData(canvas, style);
+    const metas: TileImage[] = [];
+    const jobs: Array<Promise<Object>> = [];
+    for (let r: number = 0; r < TILE_ROWS; r++) {
+      const y0: number = Math.round(r * RENDER_H / TILE_ROWS);
+      const y1: number = Math.round((r + 1) * RENDER_H / TILE_ROWS);
+      for (let c: number = 0; c < TILE_COLS; c++) {
+        const x0: number = Math.round(c * RENDER_W / TILE_COLS);
+        const x1: number = Math.round((c + 1) * RENDER_W / TILE_COLS);
+        const tile: TileImage = new TileImage();
+        tile.path = context.cacheDir + '/paged_pdf_' + pageNo.toString() +
+          '_' + r.toString() + '_' + c.toString() + '.jpg';
+        tile.xPx = x0;
+        tile.yPx = y0;
+        tile.wPx = x1 - x0;
+        tile.hPx = y1 - y0;
+        metas.push(tile);
+        const task: taskpool.Task = new taskpool.Task(renderTileJob, pageNo, r, c, lineWidthMm,
+          lineData, boxData, context.cacheDir);
+        jobs.push(taskpool.execute(task));
+      }
+    }
+    try {
+      await Promise.all(jobs);
+    } catch (_e) {
+      PagedPdfExportService.cleanupTiles(metas);
+      return PagedPdfExportService.renderTilesSerial(canvas, style, pageNo, lineWidthMm, context);
+    }
+    return metas;
+  }
+
+  /** 兜底：主线程串行渲染（TaskPool 不可用时走这里） */
+  private static async renderTilesSerial(canvas: EuCanvas | SuCanvas, style: string, pageNo: number,
+    lineWidthMm: number, context: common.UIAbilityContext): Promise<TileImage[]> {
+    const lineData: number[] = packLineData(canvas);
+    const boxData: number[] = packBoxData(canvas, style);
+    const off: OffscreenCanvas = new OffscreenCanvas(TILE_W, TILE_H, LengthMetricsUnit.PX);
+    const g: OffscreenCanvasRenderingContext2D = off.getContext('2d');
+    const packer: image.ImagePacker = image.createImagePacker();
     const out: TileImage[] = [];
     try {
       for (let r: number = 0; r < TILE_ROWS; r++) {
@@ -300,26 +334,17 @@ export class PagedPdfExportService {
           const x1: number = Math.round((c + 1) * RENDER_W / TILE_COLS);
           const w: number = x1 - x0;
           const h: number = y1 - y0;
-          PagedPdfExportService.paintTile(g, canvas, style, x0, y0, x0 + w, y0 + h, lineWidthMm);
-
+          paintRasterTile(g, x0, y0, x0 + w, y0 + h, lineWidthMm, lineData, boxData);
           const pm: image.PixelMap = g.getPixelMap(0, 0, w, h);
-          // 栅格层是线条/底色，JPEG 编码速度远快于 PNG（300dpi q95 肉眼无差），
-          // 个别机型不支持时再降级 PNG；文字始终是矢量层，不受影响
-          let ext: string = '.jpg';
           let buf: ArrayBuffer;
-          // PackingOption 的 quality 为必填项，PNG 也需显式给出
-          const jpgOpt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
           try {
-            buf = await packer.packing(pm, jpgOpt);
-          } catch (_e) {
-            ext = '.png';
-            const pngOpt: image.PackingOption = { format: 'image/png', quality: 100 };
-            buf = await packer.packing(pm, pngOpt);
+            const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
+            buf = await packer.packing(pm, opt);
           } finally {
             pm.release();
           }
           const imgPath: string = context.cacheDir + '/paged_pdf_' + pageNo.toString() +
-            '_' + r.toString() + '_' + c.toString() + ext;
+            '_' + r.toString() + '_' + c.toString() + '.jpg';
           const fd: fileIo.File = fileIo.openSync(imgPath,
             fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
           try {
@@ -334,66 +359,16 @@ export class PagedPdfExportService {
           tile.wPx = w;
           tile.hPx = h;
           out.push(tile);
-          // 每块编码完让出一次主线程，避免连续 Packing 触发 THREAD_BLOCK_6S
           await PagedPdfExportService.yieldToUi();
         }
       }
     } catch (e) {
       PagedPdfExportService.cleanupTiles(out);
       throw new Error('栅格渲染失败：' + (e as Error).message);
+    } finally {
+      packer.release();
     }
     return out;
-  }
-
-  /** 在一块画布上画出整页的栅格内容（只画线条与卡片框，文字全部留给 PDF 文本对象） */
-  private static paintTile(g: OffscreenCanvasRenderingContext2D, canvas: EuCanvas | SuCanvas,
-    style: string, x0: number, y0: number, x1: number, y1: number, lineWidthMm: number): void {
-    g.clearRect(0, 0, TILE_W, TILE_H);
-
-    // 纸面与装订口：整页尺寸绘制，靠画布边缘裁切，分块之间接缝严格对齐
-    g.fillStyle = C_PAPER;
-    g.fillRect(-x0, -y0, RENDER_W, RENDER_H);
-    g.fillStyle = C_BIND;
-    g.fillRect(-x0, -y0, GUTTER_MM * PX_PER_MM, RENDER_H);
-    g.strokeStyle = C_LINE;
-    g.lineWidth = 1;
-    g.strokeRect(0.5 - x0, 0.5 - y0, RENDER_W - 1, RENDER_H - 1);
-
-    const lw: number = Math.max(1, lineWidthMm * PX_PER_MM);
-    const pad: number = lw + 2;
-
-    // 连线：红色婚约双线 / 金色世系线；只画与当前分块相交的线，避免每块重画整页
-    for (let i: number = 0; i < canvas.lines.length; i++) {
-      const seg: LineSeg = canvas.lines[i];
-      const ax: number = (INNER_X_MM + seg.x1) * PX_PER_MM;
-      const ay: number = (INNER_Y_MM + seg.y1) * PX_PER_MM;
-      const bx: number = (INNER_X_MM + seg.x2) * PX_PER_MM;
-      const by: number = (INNER_Y_MM + seg.y2) * PX_PER_MM;
-      if (Math.max(ax, bx) + pad < x0 || Math.min(ax, bx) - pad > x1
-        || Math.max(ay, by) + pad < y0 || Math.min(ay, by) - pad > y1) {
-        continue;
-      }
-      g.strokeStyle = seg.red ? C_RED : C_GOLD;
-      g.lineWidth = lw;
-      g.beginPath();
-      g.moveTo(ax - x0, ay - y0);
-      g.lineTo(bx - x0, by - y0);
-      g.stroke();
-    }
-
-    // 卡片：底色 + 描边（姓名等文字不画，交给矢量文本层）；同样只画落在当前分块内的卡
-    const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
-    for (let i: number = 0; i < boxes.length; i++) {
-      const b: EuBox | SuBox = boxes[i];
-      const cx0: number = (INNER_X_MM + b.x) * PX_PER_MM;
-      const cy0: number = (INNER_Y_MM + b.y) * PX_PER_MM;
-      const cx1: number = cx0 + b.w * PX_PER_MM;
-      const cy1: number = cy0 + b.h * PX_PER_MM;
-      if (cx1 < x0 || cx0 > x1 || cy1 < y0 || cy0 > y1) {
-        continue;
-      }
-      PagedPdfExportService.drawCard(g, b.node, b.x, b.y, b.w, b.h, x0, y0);
-    }
   }
 
   /** 写入本页全部矢量文本：页眉、卡片姓名/世次、页脚接续文案、页码 */
@@ -442,21 +417,6 @@ export class PagedPdfExportService {
     const fw: number = measurePt(measureCtx, footer, PAGE_NO_PT);
     page.addTextObject(footer, PAGE_W_PT / 2 - fw / 2,
       baselineOfMm(TRIM_H_MM - 8, PAGE_NO_PT), pdfTextStyle(PAGE_NO_PT, C_INK2, false));
-  }
-
-  /** 一张人物卡的底色与描边，女卡用绛紫描边；坐标为整页像素坐标，按分块原点平移 */
-  private static drawCard(g: OffscreenCanvasRenderingContext2D, node: PersonNode,
-    x: number, y: number, w: number, h: number, x0: number, y0: number): void {
-    const px: number = (INNER_X_MM + x) * PX_PER_MM - x0;
-    const py: number = (INNER_Y_MM + y) * PX_PER_MM - y0;
-    const w0: number = w * PX_PER_MM;
-    const h0: number = h * PX_PER_MM;
-    const female: boolean = node.person.gender === '女';
-    g.fillStyle = female ? '#FBF1F5' : '#FFFFFF';
-    g.fillRect(px, py, w0, h0);
-    g.strokeStyle = female ? C_FEMALE : C_GOLD;
-    g.lineWidth = Math.max(1, 0.2 * PX_PER_MM);
-    g.strokeRect(px + 0.5, py + 0.5, w0 - 1, h0 - 1);
   }
 
   private static cleanupTiles(tiles: TileImage[]): void {
