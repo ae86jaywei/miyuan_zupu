@@ -10,8 +10,9 @@ import { PaginationService, PrintBook, PagePlan } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
-import { renderTileImpl, paintRasterTile, C_FOOT, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
+import { paintRasterTile, C_FOOT, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
   PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
+import { renderTileJob } from './PdfTileTask';
 
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
@@ -144,16 +145,6 @@ function packBoxData(canvas: EuCanvas | SuCanvas, style: string): number[] {
     out.push(b.x, b.y, b.w, b.h, b.node.person.gender === '女' ? 1 : 0);
   }
   return out;
-}
-
-/**
- * TaskPool 并发任务：在 worker 线程里离屏渲染一块栅格并编码为 JPEG。
- * 具体实现放在 PdfRasterJob（并发函数只能引用导入的变量，不能直接读本文件模块常量）。
- */
-@Concurrent
-async function renderTileJob(pageNo: number, r: number, c: number, lineWidthMm: number,
-  lineData: number[], boxData: number[], cacheDir: string): Promise<string> {
-  return await renderTileImpl(pageNo, r, c, lineWidthMm, lineData, boxData, cacheDir);
 }
 
 /**
