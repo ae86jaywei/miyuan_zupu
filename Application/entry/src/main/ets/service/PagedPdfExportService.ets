@@ -307,11 +307,14 @@ export class PagedPdfExportService {
           // 避免整页只剩文字、线条与卡片框全部丢失
           let ext: string = '.png';
           let buf: ArrayBuffer;
+          // PackingOption 的 quality 为必填项，PNG 也需显式给出
+          const pngOpt: image.PackingOption = { format: 'image/png', quality: 100 };
           try {
-            buf = await packer.packing(pm, { format: 'image/png' });
+            buf = await packer.packing(pm, pngOpt);
           } catch (_e) {
             ext = '.jpg';
-            buf = await packer.packing(pm, { format: 'image/jpeg', quality: 96 });
+            const jpgOpt: image.PackingOption = { format: 'image/jpeg', quality: 96 };
+            buf = await packer.packing(pm, jpgOpt);
           } finally {
             pm.release();
           }
