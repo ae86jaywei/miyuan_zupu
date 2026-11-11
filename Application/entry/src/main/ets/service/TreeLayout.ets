@@ -73,6 +73,13 @@ export class LayoutMetrics {
 /** 夫妻双线到中轴的距离（两线共 2 倍间距，保证肉眼可见两条） */
 const MARRIAGE_LINE_GAP: number = 4;
 
+/**
+ * 递归布局的深度上限。
+ * 正常族谱不会超过几十世，但导入数据一旦出现超长父子链，
+ * 递归下钻会耗尽调用栈直接崩溃；超过上限后按叶子占位，保证页面仍可打开。
+ */
+const MAX_TREE_DEPTH: number = 256;
+
 /** 追加一条普通（金色）世系线段 */
 function pushLine(lines: LineSeg[], x1: number, y1: number, x2: number, y2: number): void {
   const s: LineSeg = new LineSeg();
@@ -411,6 +418,15 @@ export class EuLayout {
         // 环上节点不进入 placed / boxes；返回 null 让父节点计算跳过它（与旧实现一致）
         return null;
       }
+      // 超长父子链保护：超过深度上限后按叶子占位，不再继续下钻
+      if (depth > MAX_TREE_DEPTH) {
+        box.y = cursorY;
+        box.centerY = box.y + box.h / 2;
+        cursorY = box.y + box.h + siblingGap;
+        placed.set(node.uid, box);
+        canvas.boxes.push(box);
+        return box;
+      }
       visiting.add(node.uid);
       if (node.children.length === 0) {
         box.y = cursorY;
@@ -648,89 +664,25 @@ export class SuLayout {
     const cardH: number = (metrics !== null && metrics.cardHeight > 0)
       ? metrics.cardHeight : (dense ? 62 : 74);
 
-    // 大屏（平板 / 2in1 / PC）卡片更宽，连线间距随卡宽等比放大，避免线在宽卡间显得过细过密
-    const scale: number = metrics !== null ? metrics.scale : Math.max(1, cardWidth / 120);
     // 配偶卡与主卡同宽，避免窄卡片内容被压缩 / 裁切
     const spouseW: number = cardWidth;
     const spouseH: number = cardH;
-    /** 单妻横排时夫卡与妻卡的横向间隔 */
+    /** 夫妻卡之间的横向间隔 */
     const spouseGap: number = metrics !== null ? metrics.spouseGap : 12;
     /** 婚约双线各自偏离中轴的距离：按卡高比例收口，小卡上不再用大画布的 4mm */
     const marriageGap: number = Math.min(MARRIAGE_LINE_GAP, Math.max(0.45, spouseH * 0.08));
-    /** 多妻竖排时夫卡与妻妾卡之间的竖向间隔：留出位置画红色双线 */
-    const stackGap: number = metrics !== null ? metrics.stackGap : 10;
-    /** 连线与卡框之间的留白：竖线离开卡框一段距离，再用短横线引出 */
-    const lineGap: number = metrics !== null ? metrics.lineGap : Math.round(6 * scale);
-    /** 同一父亲多房竖线的横向错开距离：正妻在内侧、继配/妾室依次向外，几房竖线不重合 */
-    const railGap: number = metrics !== null ? metrics.railGap : Math.round(8 * scale);
-    /** 同一父亲多房（正妻/继配/妾室）子女母线的层距：每房各得一条横线，需预留相应带宽 */
-    const busStep: number = metrics !== null ? metrics.busStep : Math.round(14 * scale);
-    /** 父母与子女之间的净空下限：纸张版为 0（母线落在两代卡片正中），屏幕连续视图为正数 */
-    const minChildGap: number = metrics !== null ? metrics.minChildGap : 0;
+    /** 每世行高固定为「卡高 + 行距」：配偶一律横排，不再按该世最大配偶数抬高整层 */
+    const rowStep: number = cardH + rowGap;
     /** 横向游标：先定父卡位置（自底向上占位），配偶卡与连线随后按位置补齐 */
     let cursorX: number = startX;
-    /** 各世纵坐标：先按行距均分，再由下面的实测阶段收口 */
-    let rowY: number[] = [];
-    /** 各宗支根卡左缘：测量时按列归属区分不同世次的卡 */
-    const rootX: number[] = [];
 
-    /** 竖排妻妾占掉的尾部高度（含母线层距与末端余量），不含多房母线的额外下探 */
-    const stackTailBase = (n: number): number => {
-      if (n <= 0) {
-        return 0;
-      }
-      return stackGap + n * (cardH + stackGap) + (n - 1) * busStep + 16;
-    };
-
-    // 按“每一世实际需要竖排的配偶数”预留层高，而不是全树按最大配偶数统一拉高
-    // [PERF] 与叶子数合并为一次全树遍历
-    const stats: TreeStats = collectTreeStats(roots, allowed, showSpouse);
-    const depthMax: number[] = showSpouse ? stats.stackMaxAt : [];
-    // 各世的纵坐标：先按行距均分，再由下面的实测阶段按「竖排妻妾实际占位」收口。
-    // 注意不能再按「夫卡 + 妻妾卡 + 母线」的总高预留——那会把下代卡顶推到妻妾卡之下，
-    // 世系横线于是悬在父卡下沿甚至压在妻妾卡上，而不是落在两代卡片中间。
-    rowY = [0];
-    for (let d: number = 0; d < depthMax.length; d = d + 1) {
-      rowY.push(rowY[d] + cardH + rowGap);
-    }
-    // 每个节点的横向占位：只要有配偶就按「夫 + 侧位配偶卡」预留宽度。
-    // 不能按配偶数量区分——多妻时若只有一位需要单独绘制（其余配偶已作为树节点出现），
-    // 实际是按单妻横排在右侧放卡，预留宽度一旦按多妻竖排算窄了，配偶卡就会压住相邻兄弟的卡。
+    // 每个节点的横向占位：配偶一律横排在主卡右侧，占位宽度随配偶数线性增加
     const ownW = (node: PersonNode): number => {
       const k: number = showSpouse ? node.spouses.length : 0;
       if (k === 0) {
         return cardWidth;
       }
-      return cardWidth + spouseGap + spouseW;
-    };
-
-    /** 本页会被单独绘制的「竖排」配偶数：只画在夫卡正下方的那几位，横排/已入树的配偶不算 */
-    const stackCount = (node: PersonNode): number => {
-      if (!showSpouse) {
-        return 0;
-      }
-      const order: number[] = spouseOrder(node);
-      let pending: number = 0;
-      for (let oi: number = 0; oi < order.length; oi = oi + 1) {
-        const sp: PersonNode = node.spouses[order[oi]];
-        if (sp !== null && sp !== undefined && placed.get(sp.uid) === undefined) {
-          pending = pending + 1;
-        }
-      }
-      return pending > 1 ? pending : 0;
-    };
-
-    /**
-     * 家庭占位下沿：本卡与竖排在它正下方的妻妾卡之间，不允许再落进别代的卡片。
-     * 多妻时妻妾卡竖排到下一世的位置，若这一世的兄弟卡（或邻居）仍按父卡顶对齐，
-     * 就会压住妻妾卡，世系横线也随之穿过卡片。
-     */
-    const familyBottom = (node: PersonNode, y: number): number => {
-      const n: number = stackCount(node);
-      if (n <= 0) {
-        return y + cardH;
-      }
-      return y + cardH + stackGap + n * (cardH + stackGap);
+      return cardWidth + k * (spouseW + spouseGap);
     };
 
     /**
@@ -749,26 +701,7 @@ export class SuLayout {
       box.node = node;
       box.w = cardWidth;
       box.h = cardH;
-      box.y = depth < rowY.length ? rowY[depth] : depth * (cardH + rowGap);
-      // 与本世已占位的家庭在横向上冲突时，先下移到其妻妾卡之下，避免卡片相压
-      for (let guard: number = 0; guard < 8; guard = guard + 1) {
-        let moved: boolean = false;
-        for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
-          const o: SuBox = canvas.boxes[i];
-          const overlapX: boolean = box.x < o.x + o.w && o.x < box.x + box.w;
-          if (!overlapX) {
-            continue;
-          }
-          const oBottom: number = familyBottom(o.node, o.y);
-          if (box.y < oBottom && o.y < box.y + cardH) {
-            box.y = oBottom + rowGap;
-            moved = true;
-          }
-        }
-        if (!moved) {
-          break;
-        }
-      }
+      box.y = depth * rowStep;
       if (depth === 0 && canvas.rootBox === null) {
         canvas.rootBox = box;
       }
@@ -778,6 +711,14 @@ export class SuLayout {
         cursorX = cursorX + cardWidth + colGap;
         // 环上节点不进入 placed / boxes；返回 null 让父节点计算跳过它（与旧实现一致）
         return null;
+      }
+      // 超长父子链保护：超过深度上限后按叶子占位，不再继续下钻
+      if (depth > MAX_TREE_DEPTH) {
+        box.x = cursorX;
+        cursorX = cursorX + cardWidth + colGap;
+        placed.set(node.uid, box);
+        canvas.boxes.push(box);
+        return box;
       }
       visiting.add(node.uid);
       if (node.children.length === 0) {
@@ -828,136 +769,43 @@ export class SuLayout {
       placed.clear();
       canvas.boxes.length = 0;
       canvas.rootBox = null;
-      rootX.length = 0;
       for (let ri: number = 0; ri < roots.length; ri = ri + 1) {
-        const b: SuBox | null = place(roots[ri], 0);
-        rootX.push(b === null ? cursorX : b.x);
+        place(roots[ri], 0);
         cursorX = cursorX + 8; // 宗支之间额外留白
       }
     };
 
-    /**
-     * 让每一世的世系横线都落在上下两代卡片的正中间。
-     *
-     * 多妻时妻妾卡竖排在夫卡下方，若这一世按「夫卡 + 妻妾卡 + 多房母线」的总高预留，
-     * 下代卡顶就被推到妻妾卡之下，世系横线于是悬在父卡下沿、甚至压在妻妾卡上。
-     * 这里先按行距均分一遍，实测各世自本世卡顶向下实际占到的位置（含竖排妻妾），
-     * 再把这些世的净空收到「实际占位」，使下代卡顶恰好落在父卡族底 + rowGap，母线自然居中。
-     */
-    {
-      /** 每一世（depth）自本世卡顶向下实际占到的位置 */
-      const dropAt: number[] = [];
-      /**
-       * 量取各世实际占位：按子树的根节点递归，把「本卡顶 + 卡高 + 竖排妻妾」折算回它所在的世。
-       * 不按卡的 x 分列——父卡常与某个子卡同轴，按 x 归属会把不同世次的卡混进同一世。
-       */
-      const measure: () => void = (): void => {
-        placeAll();
-        dropAt.length = 0;
-        for (let ri: number = 0; ri < roots.length; ri = ri + 1) {
-          const seen: Set<string> = new Set<string>();
-          const scan = (node: PersonNode, depth: number): void => {
-            if (seen.has(node.uid)) {
-              return;
-            }
-            seen.add(node.uid);
-            const b: SuBox | undefined = placed.get(node.uid);
-            if (b !== undefined) {
-              // 本世卡顶所在的世次，与 place 同口径（按实际 y 判定，环上重复挂载也不会错位）
-              let d: number = depth;
-              while (d > 0 && b.y < rowY[d] - 0.5) {
-                d = d - 1;
-              }
-              while (d + 1 < rowY.length && b.y >= rowY[d + 1] - 0.5) {
-                d = d + 1;
-              }
-              // 本卡实占到的最低处：卡顶 + 卡高 + 竖排妻妾 + 多房母线层距 + 末端余量；
-              // 去掉世次卡顶，得到「自本世卡顶向下」的占位
-              const low: number = b.y + b.h + stackTailBase(stackCount(node)) - rowY[d];
-              if (d >= dropAt.length) {
-                dropAt.push(low);
-              } else if (low > dropAt[d]) {
-                dropAt[d] = low;
-              }
-            }
-            for (let ci: number = 0; ci < node.children.length; ci = ci + 1) {
-              scan(node.children[ci], depth + 1);
-            }
-          };
-          scan(roots[ri], 0);
-        }
-      };
-      measure();
-      // 纸张版（minChildGap = 0）：只补「竖排妻妾实际占位」超出行距的部分，母线回落两代卡片正中；
-      // 屏幕连续视图（业务传正数）：保底 minChildGap，手指点击区不被妻妾卡挤占
-      rowY = [0];
-      for (let d: number = 0; d < dropAt.length; d = d + 1) {
-        let gap: number = rowGap;
-        const need: number = minChildGap > 0 ? Math.max(minChildGap, dropAt[d]) : dropAt[d];
-        if (need > gap) {
-          gap = need;
-        }
-        rowY.push(rowY[d] + cardH + gap);
-      }
-      // 世次超出实测范围的节点：直接按 rowGap 递推
-      for (let d: number = dropAt.length; d < depthMax.length + 1; d = d + 1) {
-        rowY.push(rowY[d] + cardH + rowGap);
-      }
-      // 定下各世卡顶后最终占位一次：配偶卡与连线随后按此位置补齐
-      placeAll();
-    }
+    // 行高固定：一次占位即可，配偶卡与连线随后按此位置补齐
+    placeAll();
 
     const baseBoxes: SuBox[] = [];
     for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
       baseBoxes.push(canvas.boxes[i]);
     }
 
-    // 配偶卡：单妻沿用「夫左妻右」横排 + 水平红双线；多妻则夫居中、妻妾竖排在夫下方 + 纵向红双线
+    // 配偶卡：全部横排在主卡右侧（夫左妻右，多妻依次向右），行高保持不变；
+    // 相邻卡片之间画水平朱砂红双线，读起来是一条连续的婚约线。
     if (showSpouse) {
       for (let bi: number = 0; bi < baseBoxes.length; bi = bi + 1) {
         const pb: SuBox = baseBoxes[bi];
         const order: number[] = spouseOrder(pb.node);
-        // 待单独绘制的配偶数（已作为树中节点的跳过）
-        let pending: number = 0;
+        let prevRight: number = pb.x + pb.w;
         for (let oi: number = 0; oi < order.length; oi = oi + 1) {
           const sp: PersonNode = pb.node.spouses[order[oi]];
-          if (sp !== null && sp !== undefined && placed.get(sp.uid) === undefined) {
-            pending = pending + 1;
-          }
-        }
-        if (pending === 0) {
-          continue;
-        }
-        const cx: number = pb.x + pb.w / 2;
-        let prevBottom: number = pb.y + pb.h;
-        for (let oi: number = 0; oi < order.length; oi = oi + 1) {
-          const sp: PersonNode = pb.node.spouses[order[oi]];
-          if (placed.get(sp.uid) !== undefined) {
+          if (sp === null || sp === undefined || placed.get(sp.uid) !== undefined) {
             continue; // 该配偶已作为树中节点布局，避免重复卡片
           }
           const sb: SuBox = new SuBox();
           sb.node = sp;
           sb.w = spouseW;
           sb.h = spouseH;
-          if (pending === 1) {
-            // 单妻：夫左妻右横排，水平红双线
-            sb.x = pb.x + pb.w + spouseGap;
-            sb.y = pb.y + pb.h / 2 - spouseH / 2;
-          } else {
-            // 多妻：妻妾依次竖排在夫卡正下方，纵向红双线
-            sb.x = pb.x;
-            sb.y = prevBottom + stackGap;
-          }
+          sb.x = prevRight + spouseGap;
+          sb.y = pb.y;
           canvas.boxes.push(sb);
           placed.set(sp.uid, sb);
-          if (pending === 1) {
-            const scy: number = sb.y + sb.h / 2;
-            pushDoubleLine(canvas.lines, pb.x + pb.w, scy, sb.x, scy, marriageGap);
-          } else {
-            // 夫卡底 → 原配卡顶，之后每位续配 / 妾室与其上一张卡相连
-            pushDoubleLine(canvas.lines, cx, prevBottom, cx, sb.y, marriageGap);
-            prevBottom = sb.y + sb.h;
-          }
+          const scy: number = sb.y + sb.h / 2;
+          pushDoubleLine(canvas.lines, prevRight, scy, sb.x, scy, marriageGap);
+          prevRight = sb.x + sb.w;
         }
       }
     }
@@ -988,17 +836,10 @@ export class SuLayout {
         const group: ChildGroup = groups[gi];
         // 与连续模式同一套走线逻辑，只是竖向排版：从父卡底边中点下引，
         // 到子女顶上方的横线母线，再分别垂直到各子女卡顶边。
-        // 生母为多妻竖排（妻卡在夫卡正下方、与父卡同轴）时才改从母卡底边下引；
-        // 单妻横排（妻卡在夫卡右侧）时仍取父卡中轴，保证全谱竖线统一落在各代主卡中心
-        let ax: number = parentBox.x + parentBox.w / 2;
-        let edgeY: number = parentBox.y + parentBox.h;
-        if (group.mother !== null && group.mother !== undefined) {
-          const mb: SuBox | undefined = placed.get(group.mother.uid);
-          if (mb !== undefined && Math.abs(mb.x - parentBox.x) < 0.5) {
-            ax = mb.x + mb.w / 2;
-            edgeY = mb.y + mb.h;
-          }
-        }
+        // 配偶一律横排在父卡右侧，与父卡同高，统一从父卡中轴下引，
+        // 全谱竖线落在各代主卡中心，不再随生母位置左右摆动。
+        const ax: number = parentBox.x + parentBox.w / 2;
+        const edgeY: number = parentBox.y + parentBox.h;
         let loCx: number = -1;
         let hiCx: number = -1;
         let childTop: number = -1;
@@ -1024,12 +865,14 @@ export class SuLayout {
         // 母线放在父母底边与子女顶边的等分位置：竖线不至于过长，横线也不贴住任一侧卡片；
         // 多房时按房次在父下子上的区间内均匀分布，不叠成一条也不挤在一端
         const gapSpan: number = childTop - edgeY;
+        // 纸上版的行距可能只有十几 pt，留白必须随实际净空收放，固定 14 会把母线顶到父卡上
+        const busMargin: number = Math.max(1, Math.min(14, gapSpan * 0.25));
         let busY: number = edgeY + gapSpan * (gi + 1) / (groups.length + 1);
-        if (busY < edgeY + 14) {
-          busY = edgeY + 14;
+        if (busY < edgeY + busMargin) {
+          busY = edgeY + busMargin;
         }
-        if (busY > childTop - 14) {
-          busY = childTop - 14;
+        if (busY > childTop - busMargin) {
+          busY = childTop - busMargin;
         }
         pushLine(canvas.lines, ax, edgeY, ax, busY);
         const leftX: number = Math.min(ax, loCx);

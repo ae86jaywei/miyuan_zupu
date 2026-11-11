@@ -517,8 +517,8 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
  * 排序以「家庭单元」为单位（见 buildFamilyUnits）：夫妻无论世代是否录得一致都紧挨着输出，
  * 条目带上 unitId，分页时整单元一起换页，不会出现「夫在第2页、妻在第100页」。
  */
-function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
-  kinIndex: KinshipIndex, refs: Map<string, number> | null): EntryBlock[] {
+async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
+  kinIndex: KinshipIndex, refs: Map<string, number> | null): Promise<EntryBlock[]> {
   const units: FamilyUnit[] = buildFamilyUnits(people);
   // 每个展示世代的人数按锚点世代统计，配偶世代录错也归入同一节
   const genCount: Map<number, number> = new Map<number, number>();
@@ -528,6 +528,7 @@ function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: P
   }
   const entries: EntryBlock[] = [];
   let lastGen: number = -1;
+  let written: number = 0;
   for (let i: number = 0; i < units.length; i++) {
     const unit: FamilyUnit = units[i];
     if (unit.generation !== lastGen) {
@@ -551,6 +552,13 @@ function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: P
         unitId: unitId,
         lines: personEntryLines(ctx, p, kinIndex, refs)
       });
+    }
+    // 每 100 人让出一次主线程：逐字断行 + measureText 是同步 Native 调用，
+    // 数万人的谱一次跑完会被系统看门狗判定无响应（THREAD_BLOCK_6S）。
+    written = written + unit.members.length;
+    if (written >= 100) {
+      written = 0;
+      await yieldToUi();
     }
   }
   return entries;
@@ -641,7 +649,7 @@ interface PageSpec {
  * 流式分页：把「世代分隔头 + 条目」按自然断点切到 A4 页内。
  * 条目整体不拆页（一人一条不跨页），同时记录每人的最终页码。
  */
-function paginateEntries(entries: EntryBlock[], pageOffset: number): PaginateResult {
+async function paginateEntries(entries: EntryBlock[], pageOffset: number): Promise<PaginateResult> {
   const pages: PageSpec[] = [];
   const uidPage: Map<string, number> = new Map<string, number>();
   let cur: TextLine[] = [];
@@ -655,6 +663,8 @@ function paginateEntries(entries: EntryBlock[], pageOffset: number): PaginateRes
     return h;
   };
   let i: number = 0;
+  let processed: number = 0;
+  let nextYield: number = 200;
   while (i < entries.length) {
     // 同一家庭单元（本人+配偶）作为一个整体判断换页，夫妻不会被页尾拆散
     const unitId: string = entries[i].unitId;
@@ -687,7 +697,13 @@ function paginateEntries(entries: EntryBlock[], pageOffset: number): PaginateRes
       pushAll(cur, entries[k].lines);
       used += blockHeight(entries[k].lines);
     }
+    processed += groupEnd - i;
     i = groupEnd;
+    // 与条目构建同样分片让出，避免大谱一次分页长时间占住主线程
+    if (processed >= nextYield) {
+      nextYield += 200;
+      await yieldToUi();
+    }
   }
   if (cur.length > 0) {
     pages.push({ lines: cur, chapter: '世 系' });
@@ -913,12 +929,12 @@ export class PdfExportService {
    * 必须在导出 PDF 之前调用，导出的第二遍才能把「父xxx(Fxxx·第2卷358页)」写实。
    * 每一卷只算页位不写 PDF，所用占位串与正式导出第一遍一致，页数稳定。
    */
-  static prepareCrossRefs(
+  static async prepareCrossRefs(
     people: Person[],
     book: Genealogy,
     jobs: PdfVolume[],
     includeCover: boolean
-  ): Map<string, string> {
+  ): Promise<Map<string, string>> {
     const out: Map<string, string> = new Map<string, string>();
     if (jobs.length === 0) {
       return out;
@@ -932,8 +948,8 @@ export class PdfExportService {
         ? paginateLines(ctx, buildCover(book, vol.people.length, vol.title), '封 面', 0) : [];
       const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
       const offset: number = coverPages.length + prefacePages.length;
-      const entries: EntryBlock[] = buildGenealogyEntries(ctx, vol.people, kinIndex, null);
-      const pg: PaginateResult = paginateEntries(entries, offset);
+      const entries: EntryBlock[] = await buildGenealogyEntries(ctx, vol.people, kinIndex, null);
+      const pg: PaginateResult = await paginateEntries(entries, offset);
       const multi: boolean = jobs.length > 1;
       pg.uidPage.forEach((pageNo: number, uid: string): void => {
         out.set(uid, multi
@@ -978,8 +994,10 @@ export class PdfExportService {
 
     // 第一遍：用等宽页码占位排版，确定「每人落在第几页」
     const tA: number = Date.now();
-    const entries1: EntryBlock[] = buildGenealogyEntries(ctx, people, kinIndex, null);
-    const firstPass: PaginateResult = paginateEntries(entries1, offset);
+    // 先让进度条跑完一帧，再进入耗时的同步断行与分页
+    await yieldToUi();
+    const entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null);
+    const firstPass: PaginateResult = await paginateEntries(entries1, offset);
     console.info('[PdfExport] pass1 ' + (Date.now() - tA) + 'ms, pages=' + firstPass.pages.length);
     // 第二遍：回填真实页码。占位串比真实页码长，折行数可能变少，
     // 用空行补齐到第一遍的行数，保证分页结果与页码互引完全一致
@@ -989,7 +1007,7 @@ export class PdfExportService {
     for (let i: number = 0; i < entries1.length; i++) {
       heights.set(entries1[i].uid, entries1[i].lines.length);
     }
-    const entries2: EntryBlock[] = buildGenealogyEntries(ctx, people, kinIndex, firstPass.uidPage);
+    const entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, firstPass.uidPage);
     for (let i: number = 0; i < entries2.length; i++) {
       const e: EntryBlock = entries2[i];
       const want: number | undefined = heights.get(e.uid);
@@ -999,7 +1017,7 @@ export class PdfExportService {
         }
       }
     }
-    const genealogyPages: PageSpec[] = paginateEntries(entries2, offset).pages;
+    const genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset)).pages;
     console.info('[PdfExport] pass2 ' + (Date.now() - tB) + 'ms, pages=' + genealogyPages.length);
     gCrossRef = null;
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
@@ -1043,6 +1061,8 @@ export class PdfExportService {
       await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应
     }
     const t1: number = Date.now();
+    // 保存是同步 Native 调用，先让最后一页进度渲染出来
+    await yieldToUi();
     const saved: boolean = doc.saveDocument(outPath);
     let savedSize: number = -1;
     try {

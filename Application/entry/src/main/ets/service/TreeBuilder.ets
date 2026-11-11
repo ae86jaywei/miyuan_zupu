@@ -7,6 +7,9 @@ import { parseDate } from '../util/DateUtil';
  * 并计算分支高度 / 后代数量等排版所需数据。
  */
 export class TreeBuilder {
+  /** 计算树指标时的递归深度上限：脏数据长链不应让整页栈溢出 */
+  private static readonly MAX_METRICS_DEPTH: number = 256;
+
   /**
    * 构建森林：返回所有“根节点”（无父无母，或父母未录入）。
    * @param people 全部人物
@@ -280,15 +283,22 @@ export class TreeBuilder {
     }
   }
 
-  private static computeMetrics(node: PersonNode, visited: Set<string>): number {
+  private static computeMetrics(node: PersonNode, visited: Set<string>, depth: number = 0): number {
     if (visited.has(node.uid)) {
       return node.height;
+    }
+    // 超长父子链保护：递归超过上限就按叶子处理，避免导入脏数据时栈溢出崩溃
+    if (depth > TreeBuilder.MAX_METRICS_DEPTH) {
+      visited.add(node.uid);
+      node.height = 0;
+      node.descendants = 1;
+      return 0;
     }
     visited.add(node.uid);
     let maxChildHeight: number = -1;
     let totalDesc: number = 1;
     node.children.forEach((c: PersonNode): void => {
-      const h: number = TreeBuilder.computeMetrics(c, visited);
+      const h: number = TreeBuilder.computeMetrics(c, visited, depth + 1);
       if (h > maxChildHeight) {
         maxChildHeight = h;
       }

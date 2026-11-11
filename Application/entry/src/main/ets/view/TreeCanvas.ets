@@ -94,6 +94,8 @@ export struct TreeCanvas {
   /** 分页视图：按 320×220mm 横版纸页排版，一页一屏，跨页不画线 */
   @State pagedMode: boolean = false;
   @State pageNo: number = 1;
+  /** 布局计算进行中：先渲染加载态，避免切换谱式那一帧同时做大布局与大渲染 */
+  @State layoutBusy: boolean = false;
 
   /** 手势起点 */
   private startX: number = 0;
@@ -119,6 +121,10 @@ export struct TreeCanvas {
   private branchH: number[] = [];
   /** 苏式谱切换后待把始祖居中（等可视区宽度就绪后再执行一次） */
   private pendingCenter: boolean = true;
+  /** 延迟布局令牌：连续切换时只让最后一次计算落地 */
+  private layoutToken: number = 0;
+  /** 延迟布局定时器：组件销毁时清掉，避免回调操作已卸载的页面 */
+  private layoutTimer: number = -1;
   /** 上一次可视区尺寸：折叠展开/横竖屏/窗口拖拽后用它判断是否需要重新居中 */
   private lastViewW: number = 0;
   private lastViewH: number = 0;
@@ -132,7 +138,47 @@ export struct TreeCanvas {
     this.pagedMode = this.pagedStorage;
     this.syncPagedMode();
     this.refreshData();
-    this.centerOnRootIfReady();
+    this.pendingCenter = true;
+    if (this.isPagedStyle()) {
+      this.scheduleLayout();
+    } else {
+      this.centerOnRootIfReady();
+    }
+  }
+
+  /**
+   * 先把加载态渲染出来，再在下一帧计算布局。
+   * 大树切入欧式/苏式时，布局与卡片渲染都发生在同一帧会让主线程长时间无响应；
+   * 拆成两帧后，用户先看到“正在切换谱式”，计算完成后再一次性出图。
+   */
+  private scheduleLayout(): void {
+    this.layoutBusy = true;
+    const token: number = this.layoutToken + 1;
+    this.layoutToken = token;
+    if (this.layoutTimer >= 0) {
+      clearTimeout(this.layoutTimer);
+    }
+    this.layoutTimer = setTimeout((): void => {
+      this.layoutTimer = -1;
+      if (token !== this.layoutToken) {
+        return;
+      }
+      // 分页视图由 PagedTree 自己按页排版，不再先算一遍连续画布，省掉一次全支布局
+      if (!this.pagedMode) {
+        this.rebuildCanvasSize();
+      }
+      this.pendingCenter = true;
+      this.centerOnRootIfReady();
+      this.layoutBusy = false;
+    }, 32);
+  }
+
+  aboutToDisappear(): void {
+    this.layoutToken = this.layoutToken + 1;
+    if (this.layoutTimer >= 0) {
+      clearTimeout(this.layoutTimer);
+      this.layoutTimer = -1;
+    }
   }
 
   /** AppStorage 里的分页状态变化（本组件点“分页/连续”，或页面切换谱式时复位） */
@@ -144,6 +190,8 @@ export struct TreeCanvas {
     this.pagedMode = next;
     if (next) {
       this.pageNo = 1;
+      // 分页册要按全谱重排，先出加载态再做计算，避免切换那一帧整页卡住
+      this.scheduleLayout();
     } else {
       this.pendingCenter = true;
       this.centerOnRootIfReady();
@@ -167,9 +215,12 @@ export struct TreeCanvas {
     if (this.style === TreeStyle.DIE) {
       this.rebuildDieSource();
     }
-    this.rebuildCanvasSize();
     this.pendingCenter = true;
-    this.centerOnRootIfReady();
+    if (this.isPagedStyle()) {
+      this.scheduleLayout();
+    } else {
+      this.layoutBusy = false;
+    }
   }
 
   private isPagedStyle(): boolean {
@@ -211,12 +262,21 @@ export struct TreeCanvas {
     this.offsetX = 0;
     this.offsetY = 0;
     this.pendingCenter = true;
-    this.centerOnRootIfReady();
+    if (this.isPagedStyle()) {
+      this.scheduleLayout();
+    } else {
+      this.centerOnRootIfReady();
+    }
   }
 
   /** 断点/窗口宽度变化会改变卡片宽度与密度，画布尺寸与各支起点需重算 */
   onWindowWidthChanged(): void {
-    this.rebuildCanvasSize();
+    if (this.isPagedStyle()) {
+      this.pendingCenter = true;
+      this.scheduleLayout();
+    } else {
+      this.rebuildCanvasSize();
+    }
   }
 
   private refreshData(): void {
@@ -242,7 +302,6 @@ export struct TreeCanvas {
     }
     TreePerf.end('tree_groups', 'people=' + this.peopleCount.toString() +
       ' generations=' + gens.length.toString());
-    this.rebuildCanvasSize();
   }
 
   private rebuildDieSource(): void {
@@ -332,9 +391,7 @@ export struct TreeCanvas {
     this.offsetX = 0;
     this.offsetY = 0;
     this.pageNo = 1;
-    this.rebuildCanvasSize(false);
-    this.pendingCenter = true;
-    this.centerOnRootIfReady();
+    this.scheduleLayout();
   }
 
   /** 宗支下拉菜单：点击标题行弹出，选中的宗支会成为当前显示的唯一宗支 */
@@ -1037,6 +1094,8 @@ export struct TreeCanvas {
           })
           .width('100%')
           .layoutWeight(1)
+        } else if (this.layoutBusy) {
+          this.TreeLoading()
         } else if (this.pagedMode) {
           PagedTree({
             rootUid: this.activeRootUid(),
@@ -1063,7 +1122,7 @@ export struct TreeCanvas {
       .height('100%')
       .alignItems(HorizontalAlign.Start)
 
-      if (this.peopleCount > 0) {
+      if (this.peopleCount > 0 && !this.layoutBusy) {
         this.ViewTools()
       }
       if (this.searchOpen) {
@@ -1072,6 +1131,21 @@ export struct TreeCanvas {
     }
     .width('100%')
     .height('100%')
+  }
+
+  /** 切换谱式时的占位加载态：先出这一帧，再做同步布局计算 */
+  @Builder
+  TreeLoading() {
+    Column() {
+      LoadingProgress().width(36).height(36).color(Theme.primary)
+      Text('正在切换谱式…')
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .margin({ top: Spacing.M })
+    }
+    .width('100%')
+    .height('100%')
+    .justifyContent(FlexAlign.Center)
   }
 
   /** 欧式/苏式画布主体：一次只渲染当前宗支，避免多支堆叠越界导致整屏空白 */

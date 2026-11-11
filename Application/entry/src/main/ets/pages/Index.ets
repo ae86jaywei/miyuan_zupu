@@ -217,7 +217,8 @@ struct Index {
 
   private ensureStorage(): void {
     if (AppStorage.get<number>('windowWidth') === undefined) {
-      AppStorage.setOrCreate<number>('windowWidth', 360);
+      // 首帧先用屏幕宽度兜底，窗口尺寸就绪后由根节点 onAreaChange 修正为真实宽度
+      AppStorage.setOrCreate<number>('windowWidth', DeviceUtil.screenWidthVp());
     }
     if (AppStorage.get<string>('gpStyle') === undefined) {
       AppStorage.setOrCreate<string>('gpStyle', 'eu');
@@ -1114,7 +1115,13 @@ struct Index {
           Row() {
             this.NavBar(this.sidebarCollapsed())
             Column() {
-              this.ContentBody()
+              Column() {
+                this.ContentBody()
+              }
+              .width('100%')
+              .height('100%')
+              // 超宽屏 / 电脑：内容限宽并居中，避免整页被横向拉伸
+              .constraintSize({ maxWidth: Layout.contentMaxWidth(this.windowWidth) })
             }
             // 宽度必须交给 Row 分配：windowWidth 是断点用的代表值（400/720/1000），
             // 拿它减侧栏宽度会让内容列比实际窗口宽，横屏/分屏时右侧被裁掉
@@ -1135,7 +1142,12 @@ struct Index {
           .width('100%')
         } else {
           Column() {
-            this.ContentBody()
+            Column() {
+              this.ContentBody()
+            }
+            .width('100%')
+            .height('100%')
+            .constraintSize({ maxWidth: Layout.contentMaxWidth(this.windowWidth) })
           }
           .width('100%')
           .layoutWeight(1)

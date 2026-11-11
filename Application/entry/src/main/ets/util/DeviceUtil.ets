@@ -24,32 +24,46 @@ export class DeviceUtil {
       uiContext.getMediaQuery().matchMediaSync('(width<600vp)').on('change',
         (result: mediaquery.MediaQueryResult): void => {
           if (result.matches) {
-            AppStorage.setOrCreate<number>('windowWidth', 400);
+            DeviceUtil.applyWidthFallback('XS');
           }
         });
       // SM：阔屏 / 阔折叠展开 / 小尺寸平板
       uiContext.getMediaQuery().matchMediaSync('(600vp<=width<840vp)').on('change',
         (result: mediaquery.MediaQueryResult): void => {
           if (result.matches) {
-            AppStorage.setOrCreate<number>('windowWidth', 720);
+            DeviceUtil.applyWidthFallback('SM');
           }
         });
       // MD：平板横屏 / 双折叠展开
       uiContext.getMediaQuery().matchMediaSync('(840vp<=width<1200vp)').on('change',
         (result: mediaquery.MediaQueryResult): void => {
           if (result.matches) {
-            AppStorage.setOrCreate<number>('windowWidth', 1000);
+            DeviceUtil.applyWidthFallback('MD');
           }
         });
       // LG/XL：电脑、三折叠展开、超宽屏
       uiContext.getMediaQuery().matchMediaSync('(1200vp<=width)').on('change',
         (result: mediaquery.MediaQueryResult): void => {
           if (result.matches) {
-            AppStorage.setOrCreate<number>('windowWidth', 1300);
+            DeviceUtil.applyWidthFallback('XL');
           }
         });
     } catch (e) {
       // 预览器或旧版本不支持时忽略（仍由 onAreaChange 驱动）
+    }
+  }
+
+  /**
+   * 断点变化兜底：只有在还没有真实窗口宽度时才写入屏幕宽度。
+   * 之前这里直接写 400/720/1000/1300 这类固定值，会把 onAreaChange 得到的真实
+   * 窗口宽度覆盖掉；横屏、折叠展开、电脑拖拽窗口后就按错误断点排版，
+   * 内容列会按比实际窗口更大的宽度计算，右侧被裁掉。
+   */
+  private static applyWidthFallback(bp: string): void {
+    AppStorage.setOrCreate<string>('windowBreakpoint', bp);
+    const cur: number | undefined = AppStorage.get<number>('windowWidth');
+    if (cur === undefined || cur <= 0) {
+      AppStorage.setOrCreate<number>('windowWidth', DeviceUtil.screenWidthVp());
     }
   }
 

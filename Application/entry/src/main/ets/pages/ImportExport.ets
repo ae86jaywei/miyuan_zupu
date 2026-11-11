@@ -154,7 +154,7 @@ struct ImportExport {
       const planned: PdfVolume[] = PdfExportService.planVolumes(people, PDF_VOLUME_MAX);
       const jobs: PdfVolume[] = planned.length > 0 ? planned : [{ title: '', people: people }];
       this.setProgress('正在计算各卷页码…', 3);
-      const crossRef: Map<string, string> = PdfExportService.prepareCrossRefs(people, book, jobs, true);
+      const crossRef: Map<string, string> = await PdfExportService.prepareCrossRefs(people, book, jobs, true);
       const paths: string[] = [];
       const names: string[] = [];
       for (let i: number = 0; i < jobs.length; i++) {
