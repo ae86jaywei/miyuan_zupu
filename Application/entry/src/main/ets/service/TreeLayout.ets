@@ -68,6 +68,13 @@ export class LayoutMetrics {
    * 屏幕连续视图需要这个余量；纸上则必须把母线放回上下两代卡片的正中间。
    */
   minChildGap: number = 0;
+  /**
+   * 多妻竖排是否按纸面紧凑口径计算该世高度。
+   * 屏幕连续视图要多留母线层距与末端余量，方便手指点选；
+   * 印到纸上则只需容下夫卡下方竖排的妻妾卡，否则每世凭空多占 15mm 以上，
+   * 分页时会被判定超版心，出现「一页只有一两个卡片」。
+   */
+  compactStack: boolean = false;
 }
 
 /** 夫妻双线到中轴的距离（两线共 2 倍间距，保证肉眼可见两条） */
@@ -385,11 +392,31 @@ export class EuLayout {
     }
 
     // 该节点连配偶卡在内的纵向高度
+    // 只按「本页会单独画出来的配偶」计高度：已作为树节点的人不会再画一张配偶卡，
+    // 若仍按全部配偶数预留，多配偶家庭会在纸上虚占一整列高度，分页时被判定超版心，
+    // 直接导致每页只落一两个卡片。
+    const drawnSpouseCount = (node: PersonNode): number => {
+      if (!showSpouse) {
+        return 0;
+      }
+      if (allowed === null) {
+        return node.spouses.length;
+      }
+      let c: number = 0;
+      for (let i: number = 0; i < node.spouses.length; i = i + 1) {
+        const sp: PersonNode = node.spouses[i];
+        if (sp !== null && sp !== undefined && !allowed.has(sp.uid)) {
+          c = c + 1;
+        }
+      }
+      return c;
+    };
+
     const stackHeightOf = (node: PersonNode): number => {
-      if (!showSpouse || node.spouses.length === 0) {
+      const n: number = drawnSpouseCount(node);
+      if (n === 0) {
         return cardH;
       }
-      const n: number = node.spouses.length;
       return Math.max(cardH, n * spouseH + (n - 1) * stackGap);
     };
 
@@ -610,7 +637,8 @@ export class EuLayout {
       }
     }
     canvas.width = maxX + colGap;
-    canvas.height = maxY + startY + 24;
+    // 纸上版心已扣过天地头，底部再留 24mm 会少排一整代；屏幕连续视图保持原留白
+    canvas.height = maxY + (metrics !== null ? 4 : startY + 24);
     return canvas;
   }
 }
@@ -676,9 +704,24 @@ export class SuLayout {
     /** 横向游标：先定父卡位置（自底向上占位），配偶卡与连线随后按位置补齐 */
     let cursorX: number = startX;
 
-    // 每个节点的横向占位：配偶一律横排在主卡右侧，占位宽度随配偶数线性增加
+    // 每个节点的横向占位：配偶一律横排在主卡右侧，占位宽度随配偶数线性增加。
+    // 分页时只按「本页会单独画出来的配偶」算宽度：已作为树节点的人不再重复画卡，
+    // 若仍按全部配偶预留，多配偶家庭会虚占一列，超出版心后每页只能落一两个卡片。
     const ownW = (node: PersonNode): number => {
-      const k: number = showSpouse ? node.spouses.length : 0;
+      if (!showSpouse) {
+        return cardWidth;
+      }
+      let k: number = 0;
+      if (allowed === null) {
+        k = node.spouses.length;
+      } else {
+        for (let i: number = 0; i < node.spouses.length; i = i + 1) {
+          const sp: PersonNode = node.spouses[i];
+          if (sp !== null && sp !== undefined && !allowed.has(sp.uid)) {
+            k = k + 1;
+          }
+        }
+      }
       if (k === 0) {
         return cardWidth;
       }
@@ -902,8 +945,12 @@ export class SuLayout {
         maxY2 = b.y + b.h;
       }
     }
-    canvas.width = maxX2 + startX + 24;
-    canvas.height = maxY2 + 24;
+    // 画布右侧/底部留白：屏幕连续视图保留 24 的呼吸空间；
+    // 纸上版心已由 PageSpec 扣过装订口、翻口与天地头，再留 24mm 会白白少排一整列，
+    // 分页容量因此被低估，出现「一页只有一两个卡片」。
+    const padEdge: number = metrics !== null ? 4 : 24;
+    canvas.width = maxX2 + (metrics !== null ? padEdge : startX + padEdge);
+    canvas.height = maxY2 + padEdge;
     return canvas;
   }
 }

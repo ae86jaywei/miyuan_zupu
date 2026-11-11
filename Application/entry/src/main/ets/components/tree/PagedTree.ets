@@ -103,6 +103,9 @@ export struct PagedTree {
   @State zoom: number = 1;
   @State viewW: number = 0;
   @State viewH: number = 0;
+  /** 正在规划整本分页：五万人的谱要算几十秒，期间必须给出明确反馈 */
+  @State planning: boolean = false;
+  @State planningPct: number = 0;
 
   private book: PrintBook | null = null;
   private page: PagePlan | null = null;
@@ -138,7 +141,13 @@ export struct PagedTree {
 
   private async refresh(): Promise<void> {
     const svc: PaginationService = PaginationService.getInstance();
-    const book: PrintBook = await svc.book(this.rootUid, this.style, this.layoutVersion, this.profileName);
+    this.planning = true;
+    this.planningPct = 0;
+    const book: PrintBook = await svc.book(this.rootUid, this.style, this.layoutVersion,
+      this.profileName, (pct: number): void => {
+        this.planningPct = pct;
+      });
+    this.planning = false;
     this.book = book;
     this.lastKey = this.bookKey();
     this.profile = book.profile;
@@ -472,21 +481,43 @@ export struct PagedTree {
       .backgroundColor(Theme.paper)
 
       // 页面：整页可滚动查看；k 已包含用户缩放
-      Scroll(this.scroller) {
-        Column() {
-          this.PageSheet()
+      Stack() {
+        Scroll(this.scroller) {
+          Column() {
+            this.PageSheet()
+          }
+          .width(Math.max(this.mm(this.spec.trimW), Math.min(this.viewW, DeviceUtil.screenWidthVp())))
+          .height(Math.max(this.viewH - 38, this.mm(this.spec.trimH)))
+          .alignItems(HorizontalAlign.Center)
+          .justifyContent(FlexAlign.Start)
+          .padding({ top: 2, bottom: 4 })
         }
-        .width(Math.max(this.mm(this.spec.trimW), Math.min(this.viewW, DeviceUtil.screenWidthVp())))
-        .height(Math.max(this.viewH - 38, this.mm(this.spec.trimH)))
-        .alignItems(HorizontalAlign.Center)
-        .justifyContent(FlexAlign.Start)
-        .padding({ top: 2, bottom: 4 })
+        .width('100%')
+        .height('100%')
+        .scrollable(ScrollDirection.Free)
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.None)
+
+        // 整本分页规划期间遮住空白页，并显示真实进度
+        if (this.planning) {
+          Column() {
+            LoadingProgress()
+              .width(34)
+              .height(34)
+              .color(Theme.primary)
+            Text(this.planningPct > 0 ? ('正在排版 ' + this.planningPct.toString() + '%') : '正在排版…')
+              .fontSize(12)
+              .fontColor(Theme.inkSecondary)
+              .margin({ top: 10 })
+          }
+          .width('100%')
+          .height('100%')
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor('rgba(255,253,246,0.88)')
+        }
       }
       .layoutWeight(1)
       .width('100%')
-      .scrollable(ScrollDirection.Free)
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.None)
     }
     .width('100%')
     .height('100%')

@@ -39,7 +39,7 @@ const MEASURE_H: number = 256;
  * 欧式/苏式分页导出：单卷最大页数。每页是 300dpi 栅格图，页数过多会让 PDF 文档内存暴涨甚至崩溃，
  * 超过则自动拆成多个分卷 PDF；未超阈值时合并为一个文件（与旧版一致）。设为 0 表示不分卷。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 30;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 8;
 
 export interface PagedPdfProgress {
   current: number;
@@ -292,6 +292,12 @@ export class PagedPdfExportService {
       if (!doc.createDocument(PAGE_W_PT, PAGE_H_PT)) {
         throw new Error('PDF 文档创建失败');
       }
+      /**
+       * 本卷全部栅格临时文件：必须等到 saveDocument 成功之后再删。
+       * addImageObject 只登记图片路径，PDFKit 在保存时才真正读盘；
+       * 原先每页 keep 完就 unlink，保存阶段拿不到文件会直接失败甚至崩溃。
+       */
+      const volTiles: TileImage[] = [];
       try {
         if (doc.getPageCount() === 1) {
           doc.deletePage(0, 1);
@@ -325,17 +331,16 @@ export class PagedPdfExportService {
           }
           const tiles: TileImage[] = await PagedPdfExportService.renderTiles(
             canvas, style, globalPage, currentBook.profile.lineWidth, context);
-          try {
-            const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
-            // 先铺 300dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
-            for (let ti: number = 0; ti < tiles.length; ti++) {
-              PagedPdfExportService.addTile(page, tiles[ti]);
-            }
-            PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
-              pageNoInVol, volCount, fonts, measureCtx);
-          } finally {
-            PagedPdfExportService.cleanupTiles(tiles);
+          for (let ti: number = 0; ti < tiles.length; ti++) {
+            volTiles.push(tiles[ti]);
           }
+          const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
+          // 先铺 300dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
+          for (let ti: number = 0; ti < tiles.length; ti++) {
+            PagedPdfExportService.addTile(page, tiles[ti]);
+          }
+          PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
+            pageNoInVol, volCount, fonts, measureCtx);
           if (onProgress) {
             const volTag: string = volumeCount > 1
               ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
@@ -351,6 +356,7 @@ export class PagedPdfExportService {
         outPaths.push(outPath);
       } finally {
         doc.releaseDocument();
+        PagedPdfExportService.cleanupTiles(volTiles);
       }
     }
     return outPaths;

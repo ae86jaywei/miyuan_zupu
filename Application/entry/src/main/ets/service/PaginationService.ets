@@ -105,10 +105,14 @@ class PendingUnit {
 }
 
 /** 页面内递归下钻的最大层数：超过就把剩余子女切成续页单元 */
-const MAX_PAGE_DEPTH: number = 24;
-/** 规划页数/迭代上限：防止环状数据导致死循环 */
-const MAX_PAGES: number = 4000;
-const MAX_ITER: number = 40000;
+const MAX_PAGE_DEPTH: number = 256;
+/**
+ * 规划页数/迭代上限：只用于防止环状数据导致死循环，不能当成业务上限。
+ * 原先 4000 页 / 4 万次迭代，五万人的谱会直接撞上并被截断（book.truncated），
+ * 后半本族人不会出现在 PDF 里；这里按「人数级」放开，正常数据远达不到。
+ */
+const MAX_PAGES: number = 20000;
+const MAX_ITER: number = 400000;
 /** 容量判定的浮点容差（mm） */
 const FIT_EPS: number = 0.2;
 
@@ -293,6 +297,9 @@ export class PaginationService {
 
   private async planBook(book: PrintBook, root: PersonNode, style: string,
     onProgress?: (pct: number) => void): Promise<void> {
+    // 本方法从 aboutToAppear 一路同步进来：先让出一帧再开工，
+    // 否则首屏渲染会和建索引/建树统计一起卡在同一帧
+    await PaginationService.yieldToEventLoop();
     const spec: PageSpec = book.spec;
     const profile: LayoutProfile = book.profile;
     const nodeMap: Map<string, PersonNode> = new Map<string, PersonNode>();
@@ -306,20 +313,26 @@ export class PaginationService {
     cur.index = 1;
     const queue: PendingUnit[] = [new PendingUnit(root, null, 0, '始祖')];
     const pending: PendingUnit[] = [];
+    /** 已排进续页队列的 uid：跨页去重，防止同一人被切成多个续页单元 */
+    const queued: Set<string> = new Set<string>();
     let iter: number = 0;
+    /** 已落页人数：进度按「已排人数 / 全支人数」算，比按迭代次数百分比准确 */
+    let placed: number = 0;
 
     while ((queue.length > 0 || cur.uids.size > 0) && iter < MAX_ITER && pages.length < MAX_PAGES) {
       iter = iter + 1;
-      // 每 ~32 步让出一次主线程（跨线程 await，能真正结束当前 EventHandler 任务），避免上万人的分页连续占用超过 6s 触发 THREAD_BLOCK 看门狗
-      if (iter % 32 === 0) {
+      // 每 8 步让出一次主线程（跨线程 await，能真正结束当前 EventHandler 任务），
+      // 单步内含批量二分布局，间隔太大仍可能逼近 6s 看门狗阈值
+      if (iter % 8 === 0) {
         if (onProgress !== undefined) {
-          onProgress(Math.min(99, Math.floor(iter * 100 / MAX_ITER)));
+          const total: number = Math.max(1, book.peopleCount);
+          onProgress(Math.min(99, Math.floor(placed * 100 / total)));
         }
         await PaginationService.yieldToEventLoop();
       }
       if (queue.length === 0) {
         this.commitPending(queue, pending);
-        this.flushPage(cur, pages, nodeMap);
+        placed = placed + this.flushPage(cur, pages, nodeMap);
         cur = new PagePlan();
         cur.index = pages.length + 1;
         continue;
@@ -359,7 +372,7 @@ export class PaginationService {
         const c: PageContent = this.computeCanvas(roots2, set, style, profile, spec);
         if (!this.fits(c, spec)) {
           this.commitPending(queue, pending);
-          this.flushPage(cur, pages, nodeMap);
+          placed = placed + this.flushPage(cur, pages, nodeMap);
           cur = new PagePlan();
           cur.index = pages.length + 1;
           continue;
@@ -377,7 +390,7 @@ export class PaginationService {
 
       // 页根/承接父卡已在页内：向下递归填页
       if (cur.uids.has(unit.node.uid)) {
-        this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending);
+        this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending, nodeMap, queued);
         if (queue[0] === unit) {
           queue.shift();
         }
@@ -400,18 +413,18 @@ export class PaginationService {
 
       // 整支放不下：把这一支的根卡先放进本页，再逐层填；连根卡都放不进才换页
       const before: number = cur.uids.size;
-      this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending);
+      this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending, nodeMap, queued);
       if (cur.uids.size > before) {
         queue.shift();
         continue;
       }
       this.commitPending(queue, pending);
-      this.flushPage(cur, pages, nodeMap);
+      placed = placed + this.flushPage(cur, pages, nodeMap);
       cur = new PagePlan();
       cur.index = pages.length + 1;
     }
     if (cur.uids.size > 0 && pages.length < MAX_PAGES) {
-      this.flushPage(cur, pages, nodeMap);
+      placed = placed + this.flushPage(cur, pages, nodeMap);
     }
     if (queue.length > 0 || pending.length > 0) {
       book.truncated = true;
@@ -433,7 +446,8 @@ export class PaginationService {
    * 返回 true 表示这一支已完整落在本页；false 表示有部分被切到后续页。
    */
   private fill(node: PersonNode, cur: PagePlan, style: string, profile: LayoutProfile, spec: PageSpec,
-    sizeMap: Map<string, number>, slots: number, pending: PendingUnit[]): void {
+    sizeMap: Map<string, number>, slots: number, pending: PendingUnit[],
+    nodeMap: Map<string, PersonNode>, queued: Set<string>): void {
     if (!cur.uids.has(node.uid)) {
       const size: number = sizeMap.get(node.uid) !== undefined ? (sizeMap.get(node.uid) as number) : 1;
       if (size <= slots - cur.uids.size) {
@@ -455,60 +469,106 @@ export class PaginationService {
       cur.uids = set;
     }
 
-    // 逐层（广度优先）往页里加卡：同一代先铺开，避免顺着单支一路钻到页宽尽头
-    let frontier: PersonNode[] = [node];
-    let level: number = 0;
-    while (frontier.length > 0 && cur.uids.size < slots) {
-      level = level + 1;
-      if (level > MAX_PAGE_DEPTH) {
-        for (let f: number = 0; f < frontier.length; f = f + 1) {
-          this.cutChildren(frontier[f], frontier[f].children, 0, cur, pending);
-        }
-        return;
+    // 1) 深度优先收集候选：先沿长子钻到底，再回头铺次子。
+    //    必须深度优先——广度优先会让整代兄弟先变成"最宽一排/一堆叶子"，
+    //    欧式的页高、苏式的页宽立刻被占满，后面的世代再也放不进来。
+    const limit: number = Math.max(1, slots - cur.uids.size);
+    const order: PersonNode[] = [];
+    const seen: Set<string> = new Set<string>();
+    const walkStack: PersonNode[] = [node];
+    const idxStack: number[] = [0];
+    while (walkStack.length > 0 && order.length < limit) {
+      const top: number = walkStack.length - 1;
+      const parent: PersonNode = walkStack[top];
+      const ci: number = idxStack[top];
+      if (ci >= parent.children.length) {
+        walkStack.pop();
+        idxStack.pop();
+        continue;
       }
-      const next: PersonNode[] = [];
-      for (let f: number = 0; f < frontier.length; f = f + 1) {
-        const parent: PersonNode = frontier[f];
-        let start: number = -1;
-        for (let i: number = 0; i < parent.children.length; i = i + 1) {
-          if (cur.uids.size >= slots) {
-            start = i;
-            break;
-          }
-          const child: PersonNode = parent.children[i];
-          if (cur.uids.has(child.uid)) {
-            next.push(child);
-            continue;
-          }
-          const set: Set<string> = this.copySet(cur.uids);
-          set.add(child.uid);
-          const c: PageContent = this.computeCanvas(cur.rootNodes, set, style, profile, spec);
-          if (this.fits(c, spec)) {
-            cur.uids = set;
-            next.push(child);
-          } else {
-            if (cur.index <= 2) {
-              console.info('[PGFITFAIL] p=' + cur.index.toString() + ' d=' + level.toString() +
-                ' n=' + cur.uids.size.toString() + ' w=' + c.width.toFixed(1) + ' h=' + c.height.toFixed(1) +
-                ' limitW=' + spec.contentWidth().toString() + ' limitH=' + spec.contentHeight().toString());
-            }
-            // 这一支放不下：只切这个父卡的剩余子女，同层其他房支继续尝试，
-            // 避免一条支失败就把整层兄弟都推到下一页（碎片页的主因）。
-            start = i;
-            break;
-          }
+      idxStack[top] = ci + 1;
+      const child: PersonNode = parent.children[ci];
+      if (seen.has(child.uid)) {
+        continue;
+      }
+      seen.add(child.uid);
+      if (!cur.uids.has(child.uid)) {
+        order.push(child);
+      }
+      if (walkStack.length < MAX_PAGE_DEPTH) {
+        walkStack.push(child);
+        idxStack.push(0);
+      }
+    }
+
+    // 2) 指数回退式批量试探：一次先试加一批，装不下就把批量减半重试。
+    //
+    // 不能用二分：布局能否装下对「前 k 个人」并不单调——深度优先的前若干个
+    // 往往是一条链，先被列宽/页高卡住；而随后的兄弟落在同一列，几乎不增占位。
+    // 二分会把这类「前面失败、后面反而装得下」的人整批丢掉，页数不降反升。
+    // 也不能逐个试：五万人的谱是「人数 × 页内人数」次整页布局，主线程必超 6s。
+    if (order.length > 0) {
+      let i: number = 0;
+      let step: number = 16;
+      while (i < order.length) {
+        const take: number = Math.min(step, order.length - i);
+        const trial: Set<string> = this.copySet(cur.uids);
+        for (let k: number = 0; k < take; k = k + 1) {
+          trial.add(order[i + k].uid);
         }
-        if (start >= 0) {
-          this.cutChildren(parent, parent.children, start, cur, pending);
+        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
+        if (this.fits(c, spec)) {
+          cur.uids = trial;
+          i = i + take;
+          step = 16;
+        } else if (take === 1) {
+          if (cur.index <= 2) {
+            console.info('[PGFITFAIL] p=' + cur.index.toString() +
+              ' n=' + cur.uids.size.toString() + ' w=' + c.width.toFixed(1) +
+              ' h=' + c.height.toFixed(1) +
+              ' limitW=' + spec.contentWidth().toString() +
+              ' limitH=' + spec.contentHeight().toString());
+          }
+          break;
+        } else {
+          // 这一批装不下：缩小批量再试，逐个找到真正的边界
+          step = Math.max(1, Math.floor(take / 2));
         }
       }
-      frontier = next;
+    }
+
+    // 3) 本页内每个人「落在页外的子女」统一记为续页，避免跨页悬空
+    this.cutUncovered(cur, nodeMap, pending, queued);
+  }
+
+  /** 本页已排下的节点，其不在本页的子女全部切成续页单元 */
+  private cutUncovered(cur: PagePlan, nodeMap: Map<string, PersonNode>, pending: PendingUnit[],
+    queued: Set<string>): void {
+    const parents: PersonNode[] = [];
+    cur.uids.forEach((uid: string): void => {
+      const n: PersonNode | undefined = nodeMap.get(uid);
+      if (n !== undefined) {
+        parents.push(n);
+      }
+    });
+    for (let i: number = 0; i < parents.length; i = i + 1) {
+      const p: PersonNode = parents[i];
+      let first: number = -1;
+      for (let k: number = 0; k < p.children.length; k = k + 1) {
+        if (!cur.uids.has(p.children[k].uid)) {
+          first = k;
+          break;
+        }
+      }
+      if (first >= 0) {
+        this.cutChildren(p, p.children, first, cur, pending, queued);
+      }
     }
   }
 
   /** 某个父卡还有子女没排进本页：记续见，并把它们排进后续页队列 */
   private cutChildren(parent: PersonNode, children: PersonNode[], start: number, cur: PagePlan,
-    pending: PendingUnit[]): void {
+    pending: PendingUnit[], queued: Set<string>): void {
     if (start >= children.length) {
       return;
     }
@@ -517,11 +577,20 @@ export class PaginationService {
     cut.parentName = parent.person.name;
     cut.relationText = (children.length - start).toString() + ' 支';
     for (let i: number = start; i < children.length; i = i + 1) {
-      cut.childUids.push(children[i].uid);
-      const rank: string = children[i].person.rank.length > 0 ? children[i].person.rank : '子';
-      pending.push(new PendingUnit(children[i], parent, cur.index, rank));
+      const child: PersonNode = children[i];
+      // 已经在续页队列里的人不再重复入队：fill 每次都会扫全页的未覆盖子女，
+      // 不去重会把同一批人切成多份，队列爆炸且同一人排进多页
+      if (queued.has(child.uid)) {
+        continue;
+      }
+      queued.add(child.uid);
+      cut.childUids.push(child.uid);
+      const rank: string = child.person.rank.length > 0 ? child.person.rank : '子';
+      pending.push(new PendingUnit(child, parent, cur.index, rank));
     }
-    cur.cuts.push(cut);
+    if (cut.childUids.length > 0) {
+      cur.cuts.push(cut);
+    }
   }
 
   /** 本页切下来的续页单元插到队首，保证按房支、长幼顺序接着排 */
@@ -571,8 +640,8 @@ export class PaginationService {
     return cols * rows;
   }
 
-  /** 落页：算世代范围、奇偶页、页码，然后追加到书里 */
-  private flushPage(page: PagePlan, pages: PagePlan[], nodeMap: Map<string, PersonNode>): void {
+  /** 落页：算世代范围、奇偶页、页码，然后追加到书里；返回本页人数（进度用） */
+  private flushPage(page: PagePlan, pages: PagePlan[], nodeMap: Map<string, PersonNode>): number {
     let lo: number = -1;
     let hi: number = -1;
     page.uids.forEach((uid: string): void => {
@@ -594,7 +663,14 @@ export class PaginationService {
     page.genFrom = lo;
     page.genTo = hi;
     page.recto = (page.index % 2) === 1;
+    // 碎片页自检：整页只有承接卡/页根一两张卡时记一条，便于定位容量判定异常
+    if (page.uids.size <= 2) {
+      console.info('[PGTHIN] p=' + page.index.toString() + ' uids=' + page.uids.size.toString() +
+        ' roots=' + page.rootNodes.length.toString() +
+        ' cuts=' + page.cuts.length.toString());
+    }
     pages.push(page);
+    return page.uids.size;
   }
 
   /** 全量索引：人物→首次出现页；配偶 uid 也指到同一页（配偶以卡片文字出现） */

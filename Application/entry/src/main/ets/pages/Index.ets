@@ -581,26 +581,37 @@ struct Index {
   @Builder
   TreePane() {
     Column() {
-      this.TreeToolbar()
-      TreeCanvas({
-        style: this.styleName,
-        highlightUid: this.selectedUid,
-        showPrivate: this.showPrivate && !this.publicMode,
-        windowWidth: this.layoutWidth(),
-        onTapPerson: (uid: string): void => {
-          this.openPerson(uid);
-        },
-        onFocusPerson: (uid: string): void => {
-          // 查找跳转：仅高亮定位，不打开人员卡片
-          AppStorage.setOrCreate<string>('gpSelection', uid);
-        }
-      })
-        .width('100%')
-        .layoutWeight(1)
+      this.TreeContent()
     }
     .width('100%')
     .height('100%')
     .padding({ top: 0 })
+  }
+
+  /**
+   * 树区内容（工具栏 + 画布），不含外层宽度。
+   *
+   * 三栏布局必须由外部用 layoutWeight 分配宽度：这里再写 width('100%')
+   * 会让树区占满整行，把右侧固定宽度的详情栏顶出屏幕（PC/平板/折叠展开都这样）。
+   */
+  @Builder
+  TreeContent() {
+    this.TreeToolbar()
+    TreeCanvas({
+      style: this.styleName,
+      highlightUid: this.selectedUid,
+      showPrivate: this.showPrivate && !this.publicMode,
+      windowWidth: this.layoutWidth(),
+      onTapPerson: (uid: string): void => {
+        this.openPerson(uid);
+      },
+      onFocusPerson: (uid: string): void => {
+        // 查找跳转：仅高亮定位，不打开人员卡片
+        AppStorage.setOrCreate<string>('gpSelection', uid);
+      }
+    })
+      .width('100%')
+      .layoutWeight(1)
   }
 
   @Builder
@@ -979,9 +990,12 @@ struct Index {
       if (this.isTriplePane()) {
         Row() {
           Column() {
-            this.TreePane()
+            this.TreeContent()
           }
           .layoutWeight(1)
+          // 允许树区被压缩：树区内部画布会撑出最小宽度，
+          // 不放开的话右侧固定宽度的详情栏会被整行顶出去（PC/平板/折叠展开）
+          .constraintSize({ minWidth: 0 })
           .height(LayoutPolicy.matchParent)
           // 详情栏按窗口宽度收窄到 300~340，并把间距压到 16：树区优先占满剩余宽度
           if (!this.treeDetailCollapsed) {
@@ -989,6 +1003,8 @@ struct Index {
               this.DetailPane()
             }
             .width(Math.min(340, Math.max(300, this.layoutWidth() * 0.26)))
+            // 宽度必须固定：不加 flexShrink(0) 会被树区挤成一条，看起来像详情溢出消失
+            .flexShrink(0)
             .height(LayoutPolicy.matchParent)
             .margin({ left: Spacing.M })
             .padding({ top: Spacing.M })
@@ -997,6 +1013,7 @@ struct Index {
         .width('100%')
         .height('100%')
         .alignItems(VerticalAlign.Top)
+        .clip(true)
       } else {
         this.TreePane()
       }
@@ -1007,17 +1024,21 @@ struct Index {
             this.CatalogPane()
           }
           .layoutWeight(1)
+          .constraintSize({ minWidth: 0 })
           .height(LayoutPolicy.matchParent)
           Column() {
             this.DetailPane()
           }
           .width(Math.max(300, Math.min(380, this.windowWidth * 0.36)))
+          // 与谱系三栏同理：详情宽度固定，不被左侧名录挤掉
+          .flexShrink(0)
           .height(LayoutPolicy.matchParent)
           .margin({ left: Spacing.L })
         }
         .width('100%')
         .height('100%')
         .alignItems(VerticalAlign.Top)
+        .clip(true)
       } else {
         this.CatalogPane()
       }
@@ -1088,6 +1109,19 @@ struct Index {
 
   private sidebarCollapsed(): boolean {
     return this.layoutWidth() < Breakpoint.MD;
+  }
+
+  /**
+   * 内容列可用宽度（vp）：窗口宽 - 侧栏 - 左右页边距。
+   *
+   * ArkUI 的 width('100%') 以父的 padding-box 为基准，父级再设 padding 时
+   * 内容会整体右移一个边距宽度，把最右侧的「切换」「新增族人」顶出屏幕。
+   * 用 constraintSize 把它收敛到真实可用宽度，比百分比/calc 可靠。
+   */
+  private contentAvailWidth(hasSidebar: boolean): number {
+    const nav: number = hasSidebar ? (this.sidebarCollapsed() ? 68 : 190) : 0;
+    const pad: number = Layout.pagePadding(this.windowWidth);
+    return Math.max(160, this.windowWidth - nav - pad * 2);
   }
 
   build() {
@@ -1164,8 +1198,11 @@ struct Index {
               }
               .width('100%')
               .height('100%')
-              // 超宽屏 / 电脑：内容限宽并居中，避免整页被横向拉伸
-              .constraintSize({ maxWidth: Layout.contentMaxWidth(this.windowWidth) })
+              // 收敛到真实可用宽度：父级有 padding 时 width('100%') 会多出一个边距，
+              // 最右侧「切换」「新增族人」被顶出屏幕（手机横屏必现）
+              .constraintSize({
+                maxWidth: Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(true))
+              })
             }
             // 宽度必须交给 Row 分配：windowWidth 是断点用的代表值（400/720/1000），
             // 拿它减侧栏宽度会让内容列比实际窗口宽，横屏/分屏时右侧被裁掉
@@ -1191,7 +1228,9 @@ struct Index {
             }
             .width('100%')
             .height('100%')
-            .constraintSize({ maxWidth: Layout.contentMaxWidth(this.windowWidth) })
+            .constraintSize({
+              maxWidth: Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(false))
+            })
           }
           .width('100%')
           .layoutWeight(1)
