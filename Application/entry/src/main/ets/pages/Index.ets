@@ -75,6 +75,8 @@ struct Index {
   @StorageProp('gpFamilyRole') familyRole: string = '';
   @StorageProp('gpPendingCount') pendingCount: number = 0;
   @State showDetailSheet: boolean = false;
+  /** 三栏模式下收起右侧详情，让树区占满整行；默认展开 */
+  @State treeDetailCollapsed: boolean = false;
   /** 多族谱切换面板 */
   @State showBookPicker: boolean = false;
   /** 本地就绪标记（AppStorage 订阅作为兜底） */
@@ -532,13 +534,27 @@ struct Index {
 
       if (!this.inPagedView()) {
         Row() {
-          if (this.styleName !== TreeStyle.DIE) {
+          // 横屏手机可用高度小：这一行提示让位给树画布，只保留操作按钮
+          if (this.styleName !== TreeStyle.DIE && this.windowHeight >= 560) {
             Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
               .layoutWeight(1)
+          }
+          // 详情收起后给出恢复入口，避免用户找不到右侧卡片
+          if (this.isTriplePane() && this.treeDetailCollapsed) {
+            Text('详情 ›')
+              .fontSize(12)
+              .fontColor(Theme.primary)
+              .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+              .borderRadius(12)
+              .border({ width: 1, color: Theme.primary })
+              .margin({ right: Spacing.S })
+              .onClick((): void => {
+                this.treeDetailCollapsed = false;
+              })
           }
           Text('新增族人')
             .fontSize(12)
@@ -589,7 +605,7 @@ struct Index {
 
   @Builder
   DetailPane() {
-    Column() {
+    Stack({ alignContent: Alignment.TopEnd }) {
       PersonDetailPanel({
         uid: this.selectedUid,
         showPrivate: this.showPrivate && !this.publicMode,
@@ -607,6 +623,20 @@ struct Index {
           this.createBranch(uid);
         }
       })
+      // 三栏时允许收起详情，树区可占满整行宽度
+      if (this.isTriplePane() && !this.treeDetailCollapsed) {
+        Text('收起 ›')
+          .fontSize(11)
+          .fontColor(Theme.primary)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .backgroundColor(Theme.glass)
+          .borderRadius(10)
+          .margin({ top: Spacing.S, right: Spacing.S })
+          .zIndex(2)
+          .onClick((): void => {
+            this.treeDetailCollapsed = true;
+          })
+      }
     }
     .width('100%')
     .height('100%')
@@ -951,15 +981,18 @@ struct Index {
           Column() {
             this.TreePane()
           }
-          .layoutWeight(2)
+          .layoutWeight(1)
           .height(LayoutPolicy.matchParent)
-          Column() {
-            this.DetailPane()
+          // 详情栏按窗口宽度收窄到 300~340，并把间距压到 16：树区优先占满剩余宽度
+          if (!this.treeDetailCollapsed) {
+            Column() {
+              this.DetailPane()
+            }
+            .width(Math.min(340, Math.max(300, this.layoutWidth() * 0.26)))
+            .height(LayoutPolicy.matchParent)
+            .margin({ left: Spacing.M })
+            .padding({ top: Spacing.M })
           }
-          .width(340)
-          .height(LayoutPolicy.matchParent)
-          .margin({ left: Spacing.L })
-          .padding({ top: Spacing.M })
         }
         .width('100%')
         .height('100%')
