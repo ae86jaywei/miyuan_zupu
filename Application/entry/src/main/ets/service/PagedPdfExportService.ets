@@ -35,6 +35,12 @@ const MEASURE_SCALE: number = 4;
 const MEASURE_W: number = 1024;
 const MEASURE_H: number = 256;
 
+/**
+ * 欧式/苏式分页导出：单卷最大页数。每页是 300dpi 栅格图，页数过多会让 PDF 文档内存暴涨甚至崩溃，
+ * 超过则自动拆成多个分卷 PDF；未超阈值时合并为一个文件（与旧版一致）。设为 0 表示不分卷。
+ */
+const PAGED_MAX_PAGES_PER_VOLUME: number = 30;
+
 export interface PagedPdfProgress {
   current: number;
   total: number;
@@ -213,7 +219,7 @@ export class PagedPdfExportService {
     genealogy: Genealogy,
     style: string,
     onProgress?: (p: PagedPdfProgress) => void
-  ): Promise<string> {
+  ): Promise<string[]> {
     const svc: PaginationService = PaginationService.getInstance();
     const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
     if (roots.length === 0) {
@@ -228,7 +234,11 @@ export class PagedPdfExportService {
       const rb: RootBook = new RootBook();
       rb.rootUid = roots[i].uid;
       rb.rootName = roots[i].person.name.length > 0 ? roots[i].person.name : roots[i].uid;
-      rb.book = svc.book(roots[i].uid, style, version, 'standard');
+      rb.book = await svc.book(roots[i].uid, style, version, 'standard', (pct: number): void => {
+        if (onProgress) {
+          onProgress({ current: 0, total: 0, message: '正在排版 ' + pct.toString() + '%' });
+        }
+      });
       total += rb.book.pages.length;
       books.push(rb);
     }
@@ -246,64 +256,104 @@ export class PagedPdfExportService {
       (d.getMonth() + 1).toString().padStart(2, '0') +
       d.getDate().toString().padStart(2, '0');
     const styleName: string = style === 'su' ? '苏式谱' : '欧式谱';
-    const outPath: string = outDir + '/' + genealogy.title + '_' + styleName + '_' + stamp + '.pdf';
+    // 展开「全局页序号 → (宗支下标, 册内页码)」映射，供按页数自动分卷使用
+    const pageBook: number[] = [];
+    const pageLocal: number[] = [];
+    for (let bi: number = 0; bi < books.length; bi++) {
+      const n: number = (books[bi].book as PrintBook).pages.length;
+      for (let pi: number = 1; pi <= n; pi++) {
+        pageBook.push(bi);
+        pageLocal.push(pi);
+      }
+    }
 
-    const doc: pdfService.PdfDocument = new pdfService.PdfDocument();
-    if (!doc.createDocument(PAGE_W_PT, PAGE_H_PT)) {
-      throw new Error('PDF 文档创建失败');
-    }
-    if (doc.getPageCount() === 1) {
-      doc.deletePage(0, 1);
-    }
+    // 单卷最大页数：欧式/苏式每页都是 300dpi 栅格图，页数太多会让 PDF 文档内存暴涨甚至崩溃，
+    // 超过阈值则自动拆成多个分卷 PDF；页数未超阈值时仍合并为一个文件（与旧版行为一致）。
+    const maxPagesPerVolume: number = PAGED_MAX_PAGES_PER_VOLUME > 0 ? PAGED_MAX_PAGES_PER_VOLUME : total;
+    const volumeCount: number = Math.max(1, Math.ceil(total / maxPagesPerVolume));
 
     // 文本测量画布（vp 默认单位即可，只量宽度不落位）
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(MEASURE_W, MEASURE_H);
     const measureCtx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
 
-    let pageNo: number = 0;
-    try {
-      for (let bi: number = 0; bi < books.length; bi++) {
-        const rb: RootBook = books[bi];
-        // 多宗支：重新取回该宗支的分页册，euPage/suPage 的缓存才指向当前册
-        rb.book = svc.book(rb.rootUid, style, version, 'standard');
-        const book: PrintBook = rb.book as PrintBook;
-        for (let i: number = 1; i <= book.pages.length; i++) {
-          const plan: PagePlan | null = book.page(i);
+    const outPaths: string[] = [];
+    let globalPage: number = 0; // 已渲染的全局页数（进度用）
+
+    for (let v: number = 0; v < volumeCount; v++) {
+      const startG: number = v * maxPagesPerVolume;
+      const endG: number = Math.min(total, startG + maxPagesPerVolume);
+      const volCount: number = endG - startG;
+      // 单卷沿用原文件名；多卷加「_第N卷」后缀，便于区分
+      const outPath: string = volumeCount > 1
+        ? outDir + '/' + genealogy.title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '卷.pdf'
+        : outDir + '/' + genealogy.title + '_' + styleName + '_' + stamp + '.pdf';
+
+      const doc: pdfService.PdfDocument = new pdfService.PdfDocument();
+      if (!doc.createDocument(PAGE_W_PT, PAGE_H_PT)) {
+        throw new Error('PDF 文档创建失败');
+      }
+      try {
+        if (doc.getPageCount() === 1) {
+          doc.deletePage(0, 1);
+        }
+        let lastBook: number = -1; // 当前 doc 内已加载的宗支下标
+        let currentRootName: string = '';
+        let currentBook: PrintBook | null = null;
+        for (let g: number = startG; g < endG; g++) {
+          const bi: number = pageBook[g];
+          const localIdx: number = pageLocal[g];
+          if (bi !== lastBook) {
+            // 跨宗支时重新取回该宗支的分页册，euPage/suPage 的缓存才指向当前册
+            const rb: RootBook = books[bi];
+            rb.book = await svc.book(rb.rootUid, style, version, 'standard');
+            currentBook = rb.book as PrintBook;
+            currentRootName = rb.rootName;
+            lastBook = bi;
+          }
+          if (currentBook === null) {
+            continue;
+          }
+          const plan: PagePlan | null = currentBook.page(localIdx);
           if (plan === null) {
             continue;
           }
-          pageNo++;
-          const canvas: EuCanvas | SuCanvas | null = style === 'su' ? svc.suPage(i) : svc.euPage(i);
+          globalPage++;
+          const pageNoInVol: number = g - startG + 1; // 卷内页码：第X页/共 volCount 页
+          const canvas: EuCanvas | SuCanvas | null = style === 'su' ? svc.suPage(localIdx) : svc.euPage(localIdx);
           if (canvas === null) {
-            throw new Error('第 ' + i.toString() + ' 页布局为空');
+            throw new Error('第 ' + localIdx.toString() + ' 页布局为空');
           }
           const tiles: TileImage[] = await PagedPdfExportService.renderTiles(
-            canvas, style, pageNo, book.profile.lineWidth, context);
+            canvas, style, globalPage, currentBook.profile.lineWidth, context);
           try {
             const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
             // 先铺 300dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
             for (let ti: number = 0; ti < tiles.length; ti++) {
               PagedPdfExportService.addTile(page, tiles[ti]);
             }
-            PagedPdfExportService.addTextObjects(page, rb.rootName, plan, canvas, style,
-              pageNo, total, fonts, measureCtx);
+            PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
+              pageNoInVol, volCount, fonts, measureCtx);
           } finally {
             PagedPdfExportService.cleanupTiles(tiles);
           }
           if (onProgress) {
-            onProgress({ current: pageNo, total: total, message: '渲染分页 ' + pageNo.toString() + '/' + total.toString() });
+            const volTag: string = volumeCount > 1
+              ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
+            onProgress({ current: globalPage, total: total,
+              message: '渲染分页 ' + globalPage.toString() + '/' + total.toString() + volTag });
           }
           await PagedPdfExportService.yieldToUi();
         }
+        const saved: boolean = doc.saveDocument(outPath);
+        if (!saved) {
+          throw new Error('PDF 保存失败');
+        }
+        outPaths.push(outPath);
+      } finally {
+        doc.releaseDocument();
       }
-      const saved: boolean = doc.saveDocument(outPath);
-      if (!saved) {
-        throw new Error('PDF 保存失败');
-      }
-    } finally {
-      doc.releaseDocument();
     }
-    return outPath;
+    return outPaths;
   }
 
   /** 一块栅格图按 pt 落位：PDF 的 y 原点在左下角，需要从顶部像素换算 */

@@ -681,7 +681,7 @@ export struct TreeCanvas {
    * 跳转到指定族人：在所属宗支缓存布局里找到夫妻卡，把该卡居中。
    * 布局全部来自 TreeLayoutCache（渲染时已算好），只做线性查找，不会在大谱上重算整树。
    */
-  private focusOnUid(uid: string): void {
+  private async focusOnUid(uid: string): Promise<void> {
     const svc: GenealogyService = GenealogyService.getInstance();
     const target: string = uid.toUpperCase();
     // 牒记式：按世代排序列表，直接滚动到目标条目
@@ -721,7 +721,7 @@ export struct TreeCanvas {
     // 分页视图：直接按「人 → 页」索引跳页，页内卡片会高亮
     if (this.pagedMode) {
       const idxP: number = this.clampBranchIndex();
-      const book: PrintBook = PaginationService.getInstance()
+      const book: PrintBook = await PaginationService.getInstance()
         .book(roots[idxP].uid, this.style, this.dataVersion, 'standard');
       const p: number = book.pageOf(uid);
       if (p <= 0) {

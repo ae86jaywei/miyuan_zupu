@@ -136,9 +136,9 @@ export struct PagedTree {
     return this.rootUid + '|' + this.style + '|' + this.layoutVersion.toString() + '|' + this.profileName;
   }
 
-  private refresh(): void {
+  private async refresh(): Promise<void> {
     const svc: PaginationService = PaginationService.getInstance();
-    const book: PrintBook = svc.book(this.rootUid, this.style, this.layoutVersion, this.profileName);
+    const book: PrintBook = await svc.book(this.rootUid, this.style, this.layoutVersion, this.profileName);
     this.book = book;
     this.lastKey = this.bookKey();
     this.profile = book.profile;

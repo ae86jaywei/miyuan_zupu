@@ -3,6 +3,17 @@ import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuCanvas, EuLayout, LineSeg, SuCanvas, SuLayout } from './TreeLayout';
 import { LayoutProfile, PageSpec } from './PrintLayout';
 import { GenealogyService } from './GenealogyService';
+import { taskpool } from '@kit.ArkTS';
+
+/**
+ * 协作式分页用的跨线程空任务。await 它时，TaskPool 的结果经主线程消息队列回投，
+ * 能真正结束当前 EventHandler 任务、让 THREAD_BLOCK 看门狗复位。
+ * （单纯 setTimeout 链会被 uv_run 一次性跑完，无法让出主线程，实测仍触发 THREAD_BLOCK_6S）
+ */
+@Concurrent
+function pagedYieldTick(): number {
+  return 0;
+}
 
 /** 一页的根：从哪一页、哪个人续来；页面顶部据此写「承第 N 页」 */
 export class PageRootRef {
@@ -143,7 +154,8 @@ export class PaginationService {
    * @param version 数据版本，用于失效
    * @param profileName standard / compact / large
    */
-  book(rootUid: string, style: string, version: number, profileName: string = 'standard'): PrintBook {
+  async book(rootUid: string, style: string, version: number, profileName: string = 'standard',
+    onProgress?: (pct: number) => void): Promise<PrintBook> {
     const spec: PageSpec = PageSpec.landscape();
     const profile: LayoutProfile = PaginationService.profileOf(profileName);
     const key: string = rootUid + '|' + style + '|' + version.toString() + '|' + profile.key() + '|' + spec.key();
@@ -161,7 +173,7 @@ export class PaginationService {
       this.bookKey = key;
       return book;
     }
-    this.planBook(book, root, style);
+    await this.planBook(book, root, style, onProgress);
     this.cached = book;
     this.bookKey = key;
     return book;
@@ -265,7 +277,22 @@ export class PaginationService {
    * 装箱时按「页面容量」深挖：整支装得下就整支放；装不下就把这一支的根卡放下，
    * 再递归尝试它的子女，直到本页装满或这一支排完，没排完的部分带承接父卡去下一页。
    */
-  private planBook(book: PrintBook, root: PersonNode, style: string): void {
+  /** 协作式让出主线程：分页每若干步 await 一次跨线程任务，避免长时间阻塞触发 THREAD_BLOCK 看门狗 */
+  private static async yieldToEventLoop(): Promise<void> {
+    try {
+      await taskpool.execute(pagedYieldTick);
+    } catch (err) {
+      // TaskPool 不可用时回退到定时器（至少尽力让出一帧）
+      await new Promise<void>((resolve: () => void): void => {
+        setTimeout(() => {
+          resolve();
+        }, 0);
+      });
+    }
+  }
+
+  private async planBook(book: PrintBook, root: PersonNode, style: string,
+    onProgress?: (pct: number) => void): Promise<void> {
     const spec: PageSpec = book.spec;
     const profile: LayoutProfile = book.profile;
     const nodeMap: Map<string, PersonNode> = new Map<string, PersonNode>();
@@ -283,6 +310,13 @@ export class PaginationService {
 
     while ((queue.length > 0 || cur.uids.size > 0) && iter < MAX_ITER && pages.length < MAX_PAGES) {
       iter = iter + 1;
+      // 每 ~32 步让出一次主线程（跨线程 await，能真正结束当前 EventHandler 任务），避免上万人的分页连续占用超过 6s 触发 THREAD_BLOCK 看门狗
+      if (iter % 32 === 0) {
+        if (onProgress !== undefined) {
+          onProgress(Math.min(99, Math.floor(iter * 100 / MAX_ITER)));
+        }
+        await PaginationService.yieldToEventLoop();
+      }
       if (queue.length === 0) {
         this.commitPending(queue, pending);
         this.flushPage(cur, pages, nodeMap);

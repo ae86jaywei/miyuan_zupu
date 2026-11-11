@@ -2,6 +2,7 @@ import { pdfService } from '@kit.PDFKit';
 import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
+import { hidebug } from '@kit.PerformanceAnalysisKit';
 import { Person, SpouseRelation, childStatusLabel, spouseRelationLabel } from '../model/Person';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
@@ -33,6 +34,13 @@ const CONTENT_H: number = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM;
 const S: number = 2;
 const CANVAS_W: number = 1191;
 const CANVAS_H: number = 1684;
+
+// ─── 导出内存看门狗常量 ───────────────────────────────────
+// 逐页写 PDF 时监控进程 PSS，超过软上限就主动抛可捕获错误并提示分卷，
+// 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
+// 软上限按设备内存可调；设为 0 表示关闭监控。
+const MEMORY_SOFT_LIMIT_KB: number = 1200 * 1024;
+const MEMORY_CHECK_EVERY_PAGES: number = 8;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -819,6 +827,15 @@ function yieldToUi(): Promise<void> {
   });
 }
 
+/** 读取当前进程 PSS（单位 KB），失败返回 -1。hidebug.getPss() 返回 bigint。 */
+function currentPssKb(): number {
+  try {
+    return Number(hidebug.getPss());
+  } catch (_e) {
+    return -1;
+  }
+}
+
 /** 新增一页并把整页文本写入（封面不排页眉页脚） */
 function drawPageToPdf(ctx: OffscreenCanvasRenderingContext2D, doc: pdfService.PdfDocument,
   spec: PageSpec, pageNo: number, total: number, isCover: boolean): void {
@@ -996,9 +1013,12 @@ export class PdfExportService {
     const tA: number = Date.now();
     // 先让进度条跑完一帧，再进入耗时的同步断行与分页
     await yieldToUi();
-    const entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null);
+    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null);
     const firstPass: PaginateResult = await paginateEntries(entries1, offset);
     console.info('[PdfExport] pass1 ' + (Date.now() - tA) + 'ms, pages=' + firstPass.pages.length);
+    // 第一遍整页排版仅用于页码映射与行数校验，取出 uidPage 后即可释放，
+    // 避免其与第二遍数据同时常驻，降低大数据导出时的内存峰值
+    const uidPageMap: Map<string, number> = firstPass.uidPage;
     // 第二遍：回填真实页码。占位串比真实页码长，折行数可能变少，
     // 用空行补齐到第一遍的行数，保证分页结果与页码互引完全一致
     const tB: number = Date.now();
@@ -1007,7 +1027,10 @@ export class PdfExportService {
     for (let i: number = 0; i < entries1.length; i++) {
       heights.set(entries1[i].uid, entries1[i].lines.length);
     }
-    const entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, firstPass.uidPage);
+    // 第一遍的 entries1 与整页数据到此不再需要，主动置空让 GC 回收（约一整份渲染文本）
+    entries1 = [];
+    firstPass.pages = [];
+    let entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap);
     for (let i: number = 0; i < entries2.length; i++) {
       const e: EntryBlock = entries2[i];
       const want: number | undefined = heights.get(e.uid);
@@ -1017,7 +1040,7 @@ export class PdfExportService {
         }
       }
     }
-    const genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset)).pages;
+    let genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset)).pages;
     console.info('[PdfExport] pass2 ' + (Date.now() - tB) + 'ms, pages=' + genealogyPages.length);
     gCrossRef = null;
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
@@ -1027,6 +1050,9 @@ export class PdfExportService {
     pushAllPages(all, prefacePages);
     pushAllPages(all, genealogyPages);
     pushAllPages(all, backPages);
+    // 至此所有页面已并入 all（共享同一批 PageSpec/文本对象），第二遍的 entries2 与 genealogyPages 数组本身不再需要，主动释放
+    entries2 = [];
+    genealogyPages = [];
     const total: number = all.length;
     if (total === 0) {
       throw new Error('排版结果为空');
@@ -1045,34 +1071,51 @@ export class PdfExportService {
     if (!doc.createDocument(PAGE_W, PAGE_H)) {
       throw new Error('PDF 文档创建失败');
     }
-    // createDocument 会自带一个空白页，不删掉会让导出的 PDF 首页空白、后续内容整体后移一页
-    if (doc.getPageCount() === 1) {
-      doc.deletePage(0, 1);
-    }
-    const t0: number = Date.now();
-    for (let i: number = 0; i < total; i++) {
-      drawPageToPdf(ctx, doc, all[i], i + 1, total, i < coverPages.length);
-      if (onProgress && (i % 5 === 0 || i === total - 1)) {
-        onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
-      }
-      if (i % 50 === 0) {
-        console.info('[PdfExport] page ' + i + '/' + total + ' cost ' + (Date.now() - t0) + 'ms');
-      }
-      await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应
-    }
-    const t1: number = Date.now();
-    // 保存是同步 Native 调用，先让最后一页进度渲染出来
-    await yieldToUi();
-    const saved: boolean = doc.saveDocument(outPath);
-    let savedSize: number = -1;
+    let saved: boolean = false;
     try {
-      savedSize = fileIo.statSync(outPath).size;
-    } catch (_e) {
-      savedSize = -1;
+      // createDocument 会自带一个空白页，不删掉会让导出的 PDF 首页空白、后续内容整体后移一页
+      if (doc.getPageCount() === 1) {
+        doc.deletePage(0, 1);
+      }
+      const t0: number = Date.now();
+      for (let i: number = 0; i < total; i++) {
+        drawPageToPdf(ctx, doc, all[i], i + 1, total, i < coverPages.length);
+        if (onProgress && (i % 5 === 0 || i === total - 1)) {
+          onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
+        }
+        if (i % 50 === 0) {
+          console.info('[PdfExport] page ' + i + '/' + total + ' pss=' + Math.round(currentPssKb() / 1024)
+            + 'MB cost ' + (Date.now() - t0) + 'ms');
+        }
+        // 内存看门狗：每 N 页检查进程 PSS，接近软上限就抛可捕获错误并提示分卷，
+        // 而不是让 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）
+        if (MEMORY_SOFT_LIMIT_KB > 0 && i > 0 && i % MEMORY_CHECK_EVERY_PAGES === 0) {
+          const pssKb: number = currentPssKb();
+          if (pssKb > 0 && pssKb > MEMORY_SOFT_LIMIT_KB) {
+            console.info('[PdfExport] memory guard hit, pss=' + Math.round(pssKb / 1024) + 'MB, page='
+              + i + '/' + total);
+            throw new Error('导出内存占用过高（当前约 ' + Math.round(pssKb / 1024)
+              + 'MB），请减少单卷人数后重试（数据量较大时请分卷导出）');
+          }
+        }
+        await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应
+      }
+      const t1: number = Date.now();
+      // 保存是同步 Native 调用，先让最后一页进度渲染出来
+      await yieldToUi();
+      saved = doc.saveDocument(outPath);
+      let savedSize: number = -1;
+      try {
+        savedSize = fileIo.statSync(outPath).size;
+      } catch (_e) {
+        savedSize = -1;
+      }
+      console.info('[PdfExport] save ' + saved + ' cost ' + (Date.now() - t1) + 'ms, pages=' + total
+        + ', size=' + savedSize);
+    } finally {
+      // 无论正常结束、抛错还是内存中止，都释放 native 文档，避免 native 内存泄漏累积
+      doc.releaseDocument();
     }
-    console.info('[PdfExport] save ' + saved + ' cost ' + (Date.now() - t1) + 'ms, pages=' + total
-      + ', size=' + savedSize);
-    doc.releaseDocument();
     if (!saved) {
       throw new Error('PDF 保存失败');
     }

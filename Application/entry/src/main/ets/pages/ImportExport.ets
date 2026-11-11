@@ -12,8 +12,13 @@ import { Person } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { ImportPlan, ImportResult } from '../service/ImportPlanner';
 
-/** 单卷人数上限：超过则按世系分卷，避免单文件近万页被系统判定无响应 */
-const PDF_VOLUME_MAX: number = 3000;
+/**
+ * 单卷人数上限：超过则按世系分卷。
+ * 由 3000 降到 1000 —— 原值单卷约 600~900 页、3~4 万个文本对象，PDFKit 在 native 层
+ * 累积过多对象 + saveDocument 一次性序列化整份 PDF 时内存峰值过高，大数据导出会 OOM 崩溃
+ * （进程级 native 崩溃，HiLog 里看不到错误）。减小单卷可显著降低单份 PDF 的内存峰值。
+ */
+const PDF_VOLUME_MAX: number = 1000;
 
 /**
  * 单部族谱在内存中的安全人数上限。
@@ -134,18 +139,27 @@ struct ImportExport {
       const book: Genealogy = this.svc().getBook();
       // 欧式/苏式：直接导出分页画布（320×220mm 横版，一页一张），页码与屏幕上完全一致
       if (this.pdfStyle === 'eu' || this.pdfStyle === 'su') {
-        const path: string = await PagedPdfExportService.exportPdf(ctx, book, this.pdfStyle,
+        const paths: string[] = await PagedPdfExportService.exportPdf(ctx, book, this.pdfStyle,
           (p: PagedPdfProgress): void => {
             this.previewText = p.message;
             this.setProgress(p.message, p.total > 0 ? Math.min(96, Math.round(p.current * 96 / p.total)) : 2);
           });
-        const name: string = path.substring(path.lastIndexOf('/') + 1);
-        const savedCount: number = await ExportService.saveBinariesAsFiles(ctx, [path], [name]);
+        if (paths.length === 0) {
+          this.setProgress('未生成 PDF', 100);
+          return;
+        }
+        const names: string[] = [];
+        for (let pi: number = 0; pi < paths.length; pi++) {
+          names.push(paths[pi].substring(paths[pi].lastIndexOf('/') + 1));
+        }
+        const savedCount: number = await ExportService.saveBinariesAsFiles(ctx, paths, names);
         if (savedCount === 0) {
           this.setProgress('已取消保存', 100);
           return;
         }
-        const msg: string = '已导出 ' + name;
+        const msg: string = paths.length > 1
+          ? ('已导出 ' + paths.length.toString() + ' 卷 PDF')
+          : ('已导出 ' + names[0]);
         this.setProgress(msg, 100);
         this.getUIContext().getPromptAction().showToast({ message: msg });
         return;
