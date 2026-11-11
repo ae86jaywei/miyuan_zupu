@@ -320,41 +320,52 @@ struct Index {
   @Builder
   NavBar(collapsed: boolean) {
     Column() {
-      Row() {
-        Text('谱').fontSize(collapsed ? 22 : 20).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
-      }
-      .width(collapsed ? 40 : '100%')
-      .height(40)
-      .borderRadius(10)
-      .backgroundColor(Theme.primary)
-      .justifyContent(FlexAlign.Center)
-      .margin({ bottom: collapsed ? Spacing.L : Spacing.M })
-
-      ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
+      // 横屏手机高度有限：导航项放进滚动区，底部“＋/人数/版本”始终可见，
+      // 不会像原来那样被固定高度挤出屏幕、点不到新建按钮
+      Scroll() {
         Column() {
-          Text(item.icon).fontSize(collapsed ? 20 : 17)
-          if (!collapsed) {
-            Text(item.title)
-              .fontSize(14)
-              .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
-              .margin({ left: Spacing.S })
-              .layoutWeight(1)
+          Row() {
+            Text('谱').fontSize(collapsed ? 22 : 20).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
           }
-        }
-        .height(collapsed ? 44 : 42)
-        .width(collapsed ? 44 : '100%')
-        .borderRadius(10)
-        .backgroundColor(this.currentTab === idx ? '#FBEFD9' : Color.Transparent)
-        .justifyContent(FlexAlign.Center)
-        .alignItems(collapsed ? HorizontalAlign.Center : HorizontalAlign.Start)
-        .padding(collapsed ? 0 : { left: Spacing.M })
-        .margin({ bottom: 4 })
-        .onClick((): void => {
-          this.switchTab(idx, false);
-        })
-      }, (item: NavItem) => 'nav_' + item.key + '_' + (collapsed ? '1' : '0'))
+          .width(collapsed ? 40 : '100%')
+          .height(40)
+          .borderRadius(10)
+          .backgroundColor(Theme.primary)
+          .justifyContent(FlexAlign.Center)
+          .margin({ bottom: collapsed ? Spacing.L : Spacing.M })
 
-      Blank()
+          ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
+            Column() {
+              Text(item.icon).fontSize(collapsed ? 20 : 17)
+              if (!collapsed) {
+                Text(item.title)
+                  .fontSize(14)
+                  .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
+                  .margin({ left: Spacing.S })
+                  .layoutWeight(1)
+              }
+            }
+            .height(collapsed ? 44 : 42)
+            .width(collapsed ? 44 : '100%')
+            .borderRadius(10)
+            .backgroundColor(this.currentTab === idx ? '#FBEFD9' : Color.Transparent)
+            .justifyContent(FlexAlign.Center)
+            .alignItems(collapsed ? HorizontalAlign.Center : HorizontalAlign.Start)
+            .padding(collapsed ? 0 : { left: Spacing.M })
+            .margin({ bottom: 4 })
+            .onClick((): void => {
+              this.switchTab(idx, false);
+            })
+          }, (item: NavItem) => 'nav_' + item.key + '_' + (collapsed ? '1' : '0'))
+        }
+        .width('100%')
+        .alignItems(collapsed ? HorizontalAlign.Center : HorizontalAlign.Start)
+      }
+      .layoutWeight(1)
+      .width('100%')
+      .scrollBar(BarState.Off)
+      .edgeEffect(EdgeEffect.None)
+      .align(Alignment.Top)
 
       Text('＋')
         .fontSize(20)

@@ -120,8 +120,8 @@ export struct PersonDetailPanel {
           .width('100%')
           .alignItems(VerticalAlign.Top)
 
-          // 快捷操作
-          Row() {
+          // 快捷操作：详情栏最窄只有 300vp，三个按钮在一行放不下时要能换行，避免右侧被裁
+          Flex({ wrap: FlexWrap.Wrap }) {
             this.ActionButton('✎ 编辑', Theme.primary, (): void => {
               this.onEdit(this.uid);
             })
@@ -271,12 +271,17 @@ export struct PersonDetailPanel {
                       Text('📍 GPS')
                         .fontSize(11)
                         .fontColor(Theme.alive)
+                        .flexShrink(0)
                       Text('东经 ' + (this.person() as Person).graveLng.toFixed(6) + '° · 北纬 '
                         + (this.person() as Person).graveLat.toFixed(6) + '° · 海拔 '
                         + (this.person() as Person).graveAltitude.toFixed(1) + 'm')
                         .fontSize(11)
                         .fontColor(Theme.inkSecondary)
                         .margin({ left: 6 })
+                        // 右侧详情栏最窄 300vp：经纬度长串必须可换行，不能把卡片撑出屏幕
+                        .layoutWeight(1)
+                        .maxLines(2)
+                        .textOverflow({ overflow: TextOverflow.Ellipsis })
                     }
                     .padding(8)
                     .backgroundColor('#EAF4EE')
