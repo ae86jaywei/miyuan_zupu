@@ -1067,6 +1067,20 @@ struct Index {
     return Math.max(200, this.paneRowWidth() - this.catalogDetailWidth() - Spacing.L);
   }
 
+  /**
+   * 详情浮层卡片宽度。
+   *
+   * 居中弹窗的背板宽约 480vp 且与窗口宽度无关；横屏手机上卡片若按背板比例铺开，
+   * 上部内容稀疏的行右侧会空出一大片。手机横屏固定为与竖屏观感一致的窄卡片，
+   * 其它形态仍按背板 5/6 展示。
+   */
+  private detailCardWidth(): Length {
+    if (DeviceUtil.deviceType() === 'phone' && this.windowWidth > this.windowHeight) {
+      return Math.min(340, this.windowWidth - 40);
+    }
+    return '83.3%';
+  }
+
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
       Column() {
@@ -1242,7 +1256,7 @@ struct Index {
           }
         })
       }
-      .width('83.3%')
+      .width(this.detailCardWidth())
       .height('100%')
       .backgroundColor(Theme.card)
       .borderRadius(20)
