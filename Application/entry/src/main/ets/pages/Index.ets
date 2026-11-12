@@ -1022,16 +1022,15 @@ struct Index {
    * 平板横屏全屏约 1198vp、电脑窗口化多落在 840~1200 区间，
    * 若按 1200 判定这些设备永远出不了三栏，详情预览只能靠浮层甚至完全看不见。
    *
-   * 折叠屏（双屏 / 三屏展开）额外放宽到 sm 断点：这类设备窗口宽 700~800vp，
-   * 按 840 判定会一直出不了三栏，只能用浮层看详情。
-   * 普通手机横屏宽度不够 840，且 isFoldable 为 false，不会误进三栏。
+   * 折叠屏单独处理：仅横屏展开（双屏 / 三屏）用三栏；
+   * 竖屏展开仍保持「导航 + 内容」双栏，详情走弹框。
    */
   private isTriplePane(): boolean {
-    if (this.windowWidth >= Breakpoint.MD) {
-      return true;
+    if (DeviceUtil.isFoldable()) {
+      return DeviceUtil.isFoldExpanded() && this.windowWidth > this.windowHeight &&
+        this.windowWidth >= Breakpoint.SM;
     }
-    return DeviceUtil.deviceType() === 'phone' && DeviceUtil.isFoldable() &&
-      this.windowWidth >= Breakpoint.SM;
+    return this.windowWidth >= Breakpoint.MD;
   }
 
   private showSidebar(): boolean {
