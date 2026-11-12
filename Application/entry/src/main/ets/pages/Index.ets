@@ -1021,9 +1021,17 @@ struct Index {
    * 谱系三栏阈值：对齐鸿蒙官方 lg 断点（≥840vp）。
    * 平板横屏全屏约 1198vp、电脑窗口化多落在 840~1200 区间，
    * 若按 1200 判定这些设备永远出不了三栏，详情预览只能靠浮层甚至完全看不见。
+   *
+   * 折叠屏（双屏 / 三屏展开）额外放宽到 sm 断点：这类设备窗口宽 700~800vp，
+   * 按 840 判定会一直出不了三栏，只能用浮层看详情。
+   * 普通手机横屏宽度不够 840，且 isFoldable 为 false，不会误进三栏。
    */
   private isTriplePane(): boolean {
-    return this.windowWidth >= Breakpoint.MD;
+    if (this.windowWidth >= Breakpoint.MD) {
+      return true;
+    }
+    return DeviceUtil.deviceType() === 'phone' && DeviceUtil.isFoldable() &&
+      this.windowWidth >= Breakpoint.SM;
   }
 
   private showSidebar(): boolean {

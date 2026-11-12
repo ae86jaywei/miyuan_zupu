@@ -149,6 +149,20 @@ export class DeviceUtil {
     }
   }
 
+  /**
+   * 是否可折叠设备。
+   *
+   * 折叠屏（含双折叠、三折叠）展开后窗口宽度可观，但高度往往小于 840vp，
+   * 按手机「取短边」的策略会一直落在三栏阈值以下，展开态只能用浮层看详情。
+   */
+  static isFoldable(): boolean {
+    try {
+      return display.isFoldable();
+    } catch (e) {
+      return false;
+    }
+  }
+
   /** 屏幕宽度 vp（像素 / 密度） */
   static screenWidthVp(): number {
     try {
