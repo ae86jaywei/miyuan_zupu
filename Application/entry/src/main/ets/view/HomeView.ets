@@ -89,29 +89,6 @@ export struct HomeView {
   @Builder
   Cover() {
     Stack({ alignContent: Alignment.BottomStart }) {
-      Column()
-        .width('100%')
-        .height('100%')
-        .linearGradient({ angle: 135, colors: [[this.book().coverColor, 0.0], ['#5A1C10', 1.0]] })
-      Column()
-        .width('100%')
-        .height('100%')
-        .border({ width: 1, color: Theme.goldLight, radius: Radius.L })
-        .opacity(0.35)
-        .margin({ top: 8, bottom: 8, left: 8, right: 8 })
-        .borderRadius(Radius.L)
-
-      // 沉浸光感：右上角柔光晕，增加封面的纵深与材质感
-      Column()
-        .width('100%')
-        .height('100%')
-        .radialGradient({
-          center: ['80%', '6%'],
-          radius: 260,
-          colors: [[Theme.glow, 0.0], ['rgba(255,255,255,0)', 1.0]]
-        })
-        .hitTestBehavior(HitTestMode.None)
-
       Column() {
         Row() {
           Text('◆ ' + (this.book().junwang.length > 0 ? this.book().junwang : '宗族') +
@@ -127,7 +104,7 @@ export struct HomeView {
 
         Column() {
           Text(this.book().title)
-            .fontSize(this.isWide() ? 30 : 26)
+            .fontSize(this.isWide() ? 26 : 24)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.highlightBg)
           Text(this.book().generationPoem.length > 0 ? '字派 · ' + this.book().generationPoem : '')
@@ -141,14 +118,17 @@ export struct HomeView {
             .margin({ top: 4 })
         }
         .alignItems(HorizontalAlign.Start)
-        .margin({ top: 18, bottom: 10 })
+        .margin({ top: 12, bottom: 0 })
       }
       .width('100%')
-      .padding(Spacing.XL)
+      .padding({ left: Spacing.XL, right: Spacing.XL, top: Spacing.L, bottom: Spacing.L })
       .alignItems(HorizontalAlign.Start)
     }
     .width('100%')
-    .height(this.isWide() ? 200 : 176)
+    // 高度交给内容撑开：族谱信息行数变化（无字派/无始迁祖）时自动伸缩，
+    // 下方统计卡片跟随上下移动，避免固定高度留下大片空白。
+    // 渐变直接挂在外层，避免 100% 高度的背景子节点把卡片撑满整页。
+    .linearGradient({ angle: 135, colors: [[this.book().coverColor, 0.0], ['#5A1C10', 1.0]] })
     .borderRadius(Radius.XL)
     .clip(true)
     .shadow({ radius: 16, color: 'rgba(90,28,16,0.25)', offsetY: 6 })
