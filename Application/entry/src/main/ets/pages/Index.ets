@@ -29,6 +29,10 @@ import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][Index]';
 
+/** 左侧导航栏宽度（vp）：展开态（图标 + 标题）/ 收起态（纯图标） */
+const NAV_WIDTH_EXPANDED: number = 96;
+const NAV_WIDTH_COLLAPSED: number = 68;
+
 interface NavItem {
   key: string;
   title: string;
@@ -395,7 +399,7 @@ struct Index {
       Text('v1.0.0').fontSize(10).fontColor(Theme.inkTertiary).margin({ top: 2 })
       Column().height(Spacing.M)
     }
-    .width(collapsed ? 68 : 190)
+    .width(collapsed ? NAV_WIDTH_COLLAPSED : NAV_WIDTH_EXPANDED)
     .height(LayoutPolicy.matchParent)
     .padding({ top: Spacing.L, left: Spacing.S, right: Spacing.S })
     .backgroundColor(Theme.card)
@@ -1032,7 +1036,8 @@ struct Index {
 
   /** 内容列可用宽度（vp）：窗口宽 - 侧栏 - 左右页边距 */
   private contentAvailWidth(hasSidebar: boolean): number {
-    const nav: number = hasSidebar ? (this.sidebarCollapsed() ? 68 : 190) : 0;
+    const nav: number = hasSidebar ?
+      (this.sidebarCollapsed() ? NAV_WIDTH_COLLAPSED : NAV_WIDTH_EXPANDED) : 0;
     const pad: number = Layout.pagePadding(this.windowWidth);
     return Math.max(160, this.windowWidth - nav - pad * 2);
   }
@@ -1189,8 +1194,13 @@ struct Index {
     })
     .bindSheet($$this.showDetailSheet, this.detailSheet(), {
       height: SheetSize.LARGE,
-      dragBar: true,
-      backgroundColor: Theme.paper,
+      // 背板透明：宽度由内部卡片控制（系统居中弹窗的背板宽度随机型变化，
+      // 直接铺底色会让详情右侧空出一大片）。拖拽条/阴影/模糊一并关掉，
+      // 避免透明背板上残留系统装饰。
+      dragBar: false,
+      backgroundColor: Color.Transparent,
+      blurStyle: BlurStyle.NONE,
+      shadow: { radius: 0 },
       showClose: false,
       preferType: SheetType.CENTER
     })
@@ -1198,31 +1208,42 @@ struct Index {
 
   @Builder
   detailSheet() {
+    // 外层占满半模态背板并水平居中；内层卡片按背板宽度的 5/6 展示，
+    // 让详情不再紧贴背板铺满、右侧留白过多。
     Column() {
-      PersonDetailPanel({
-        uid: this.selectedUid,
-        showPrivate: this.showPrivate && !this.publicMode,
-        narrow: true,
-        onEdit: (uid: string): void => {
-          this.showDetailSheet = false;
-          RouterUtil.editPerson(this.getUIContext(), uid, 'edit', '');
-        },
-        onJump: (uid: string): void => {
-          this.openPerson(uid);
-        },
-        onClose: (): void => {
-          this.showDetailSheet = false;
-        },
-        onAddChild: (uid: string): void => {
-          this.showDetailSheet = false;
-          RouterUtil.editPerson(this.getUIContext(), '', 'child', uid);
-        },
-        onCreateBranch: (uid: string): void => {
-          this.createBranch(uid);
-        }
-      })
+      Column() {
+        PersonDetailPanel({
+          uid: this.selectedUid,
+          showPrivate: this.showPrivate && !this.publicMode,
+          narrow: true,
+          onEdit: (uid: string): void => {
+            this.showDetailSheet = false;
+            RouterUtil.editPerson(this.getUIContext(), uid, 'edit', '');
+          },
+          onJump: (uid: string): void => {
+            this.openPerson(uid);
+          },
+          onClose: (): void => {
+            this.showDetailSheet = false;
+          },
+          onAddChild: (uid: string): void => {
+            this.showDetailSheet = false;
+            RouterUtil.editPerson(this.getUIContext(), '', 'child', uid);
+          },
+          onCreateBranch: (uid: string): void => {
+            this.createBranch(uid);
+          }
+        })
+      }
+      .width('83.3%')
+      .height('100%')
+      .backgroundColor(Theme.card)
+      .borderRadius(20)
+      .clip(true)
+      .shadow({ radius: 16, color: Theme.shadow, offsetY: 2 })
     }
     .width('100%')
     .height('100%')
+    .alignItems(HorizontalAlign.Center)
   }
 }
