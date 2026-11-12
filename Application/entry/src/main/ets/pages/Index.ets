@@ -29,9 +29,9 @@ import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][Index]';
 
-/** 左侧导航栏宽度（vp）：展开态（图标 + 标题）/ 收起态（纯图标） */
-const NAV_WIDTH_EXPANDED: number = 96;
-const NAV_WIDTH_COLLAPSED: number = 68;
+/** 左侧导航栏宽度（vp）：展开态（图标 + 标题并排）/ 收起态（图标 + 标题上下排列） */
+const NAV_WIDTH_EXPANDED: number = 77;
+const NAV_WIDTH_COLLAPSED: number = 54;
 
 interface NavItem {
   key: string;
@@ -350,7 +350,7 @@ struct Index {
           Row() {
             Text('谱').fontSize(collapsed ? 22 : 20).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
           }
-          .width(collapsed ? 40 : '100%')
+          .width(collapsed ? 36 : '100%')
           .height(40)
           .borderRadius(10)
           .backgroundColor(Theme.primary)
@@ -359,17 +359,16 @@ struct Index {
 
           ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
             Column() {
-              Text(item.icon).fontSize(collapsed ? 20 : 17)
-              if (!collapsed) {
-                Text(item.title)
-                  .fontSize(14)
-                  .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
-                  .margin({ left: Spacing.S })
-                  .layoutWeight(1)
-              }
+              Text(item.icon).fontSize(collapsed ? 16 : 17)
+              Text(item.title)
+                .fontSize(collapsed ? 9 : 14)
+                .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
+                .maxLines(1)
+                .margin(collapsed ? { top: 2 } : { left: Spacing.S })
+                .layoutWeight(collapsed ? 0 : 1)
             }
-            .height(collapsed ? 44 : 42)
-            .width(collapsed ? 44 : '100%')
+            .height(collapsed ? 42 : 42)
+            .width(collapsed ? 38 : '100%')
             .borderRadius(10)
             .backgroundColor(this.currentTab === idx ? '#FBEFD9' : Color.Transparent)
             .justifyContent(FlexAlign.Center)
@@ -393,7 +392,7 @@ struct Index {
       Text('＋')
         .fontSize(20)
         .fontColor('#FFFFFF')
-        .width(collapsed ? 40 : 44)
+        .width(collapsed ? 36 : 44)
         .height(40)
         .textAlign(TextAlign.Center)
         .backgroundColor(Theme.primary)
@@ -1162,9 +1161,14 @@ struct Index {
     return Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(this.showSidebar()));
   }
 
-  /** 三栏右侧详情栏宽度：窄三栏收窄到 280，宽屏最多 340 */
+  /**
+   * 三栏右侧详情栏宽度。
+   *
+   * 详情内容（尤其「编辑 / 添加子女 / 建分支」按钮行）宽度有限，
+   * 栏位过宽会让卡片右侧空出一片，按可用宽的 24% 收窄，250~320 之间取值。
+   */
   private detailPaneWidth(): number {
-    return Math.min(340, Math.max(280, this.paneRowWidth() * 0.28));
+    return Math.min(320, Math.max(250, this.paneRowWidth() * 0.24));
   }
 
   /** 三栏左侧树区宽度：总宽扣掉详情栏与间距；详情收起时占满整行 */
