@@ -1009,18 +1009,16 @@ struct Index {
           Column() {
             this.TreeContent()
           }
-          .layoutWeight(1)
-          // 允许树区被压缩：树区内部画布会撑出最小宽度，
-          // 不放开的话右侧固定宽度的详情栏会被整行顶出去（PC/平板/折叠展开）
-          .constraintSize({ minWidth: 0 })
+          // 必须显式给宽度：layoutWeight(1) 会把整行吃光，
+          // 树画布的最小内容宽度又撑得住，右侧详情列被推到行外被 clip 裁掉
+          .width(this.treePaneWidth())
           .height(LayoutPolicy.matchParent)
-          // 详情栏按窗口宽度收窄到 280~340，并把间距压到 16：树区优先占满剩余宽度
           if (!this.treeDetailCollapsed) {
             Column() {
               this.DetailPane()
             }
             // 840~1200 窄三栏时详情收窄到 280，给树区留出可用的画布宽度
-            .width(Math.min(340, Math.max(280, this.layoutWidth() * 0.26)))
+            .width(this.detailPaneWidth())
             // 宽度必须固定：不加 flexShrink(0) 会被树区挤成一条，看起来像详情溢出消失
             .flexShrink(0)
             .height(LayoutPolicy.matchParent)
@@ -1041,13 +1039,13 @@ struct Index {
           Column() {
             this.CatalogPane()
           }
-          .layoutWeight(1)
-          .constraintSize({ minWidth: 0 })
+          // 与谱系三栏同理：layoutWeight 会吃满整行把详情栏推出屏幕，必须显式给宽
+          .width(this.catalogPaneWidth())
           .height(LayoutPolicy.matchParent)
           Column() {
             this.DetailPane()
           }
-          .width(Math.max(300, Math.min(380, this.windowWidth * 0.36)))
+          .width(this.catalogDetailWidth())
           // 与谱系三栏同理：详情宽度固定，不被左侧名录挤掉
           .flexShrink(0)
           .height(LayoutPolicy.matchParent)
@@ -1145,6 +1143,35 @@ struct Index {
     const nav: number = hasSidebar ? (this.sidebarCollapsed() ? 68 : 190) : 0;
     const pad: number = Layout.pagePadding(this.windowWidth);
     return Math.max(160, this.windowWidth - nav - pad * 2);
+  }
+
+  /** 内容区实际可用总宽（与内容列 constraintSize 的上限保持一致） */
+  private paneRowWidth(): number {
+    return Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(this.showSidebar()));
+  }
+
+  /** 三栏右侧详情栏宽度：窄三栏收窄到 280，宽屏最多 340 */
+  private detailPaneWidth(): number {
+    return Math.min(340, Math.max(280, this.paneRowWidth() * 0.28));
+  }
+
+  /** 三栏左侧树区宽度：总宽扣掉详情栏与间距；详情收起时占满整行 */
+  private treePaneWidth(): number {
+    const row: number = this.paneRowWidth();
+    if (this.treeDetailCollapsed) {
+      return row;
+    }
+    return Math.max(200, row - this.detailPaneWidth() - Spacing.M);
+  }
+
+  /** 名录主从布局的右侧详情宽度 */
+  private catalogDetailWidth(): number {
+    return Math.max(300, Math.min(380, this.paneRowWidth() * 0.36));
+  }
+
+  /** 名录主从布局的左侧列表宽度 */
+  private catalogPaneWidth(): number {
+    return Math.max(200, this.paneRowWidth() - this.catalogDetailWidth() - Spacing.L);
   }
 
   build() {
