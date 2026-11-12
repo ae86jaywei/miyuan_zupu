@@ -319,6 +319,9 @@ export struct SettingsView {
         .backgroundColor(Theme.field)
         .borderRadius(8)
         .margin({ top: 4 })
+        .onChange((v: string): void => {
+          this.bookNotes = v;
+        })
 
       Row() {
         Button('取消')
