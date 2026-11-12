@@ -1208,9 +1208,16 @@ struct Index {
 
   @Builder
   detailSheet() {
-    // 外层占满半模态背板并水平居中；内层卡片按背板宽度的 5/6 展示，
-    // 让详情不再紧贴背板铺满、右侧留白过多。
-    Column() {
+    // 背板透明后，左右留白仍属半模态本体，不会触发「点外部关闭」。
+    // 用 Stack 铺一层透明背景承接点击，详情卡片叠在上层，点卡片内部不误触。
+    Stack({ alignContent: Alignment.Center }) {
+      Column()
+        .width('100%')
+        .height('100%')
+        .onClick((): void => {
+          this.showDetailSheet = false;
+        })
+      // 卡片按背板宽度的 5/6 展示，让详情不再紧贴背板铺满、右侧留白过多
       Column() {
         PersonDetailPanel({
           uid: this.selectedUid,
@@ -1244,6 +1251,5 @@ struct Index {
     }
     .width('100%')
     .height('100%')
-    .alignItems(HorizontalAlign.Center)
   }
 }
