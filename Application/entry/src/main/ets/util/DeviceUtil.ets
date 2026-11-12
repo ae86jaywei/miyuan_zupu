@@ -177,6 +177,20 @@ export class DeviceUtil {
     }
   }
 
+  /** 折叠屏是否处于展开（双屏 / 三屏）或半折状态，而非完全折叠 */
+  static isFoldExpanded(): boolean {
+    try {
+      if (!display.isFoldable()) {
+        return false;
+      }
+      const status: display.FoldStatus = display.getFoldStatus();
+      return status !== display.FoldStatus.FOLD_STATUS_FOLDED &&
+        status !== display.FoldStatus.FOLD_STATUS_UNKNOWN;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /** 屏幕宽度 vp（像素 / 密度） */
   static screenWidthVp(): number {
     try {
