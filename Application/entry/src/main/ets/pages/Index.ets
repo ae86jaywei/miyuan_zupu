@@ -305,9 +305,26 @@ struct Index {
     });
   }
 
+  /**
+   * 当前页面是否已有常驻的右侧详情栏。
+   *
+   * 只有谱系三栏（≥LG）和名录主从（≥MD）才有；其余宽度/页面必须用浮层，
+   * 否则在平板、电脑窗口、折叠展开这种 MD~LG 区间里，点了人既没有浮层、
+   * 也没有右侧栏，详情就完全看不到。
+   */
+  private hasDockedDetail(): boolean {
+    if (this.currentTab === 1) {
+      return this.isTriplePane() && !this.treeDetailCollapsed;
+    }
+    if (this.currentTab === 2) {
+      return this.isMasterDetail();
+    }
+    return false;
+  }
+
   private openPerson(uid: string): void {
     AppStorage.setOrCreate<string>('gpSelection', uid);
-    if (this.windowWidth < Breakpoint.MD) {
+    if (!this.hasDockedDetail()) {
       this.showDetailSheet = true;
     }
   }
@@ -997,12 +1014,13 @@ struct Index {
           // 不放开的话右侧固定宽度的详情栏会被整行顶出去（PC/平板/折叠展开）
           .constraintSize({ minWidth: 0 })
           .height(LayoutPolicy.matchParent)
-          // 详情栏按窗口宽度收窄到 300~340，并把间距压到 16：树区优先占满剩余宽度
+          // 详情栏按窗口宽度收窄到 280~340，并把间距压到 16：树区优先占满剩余宽度
           if (!this.treeDetailCollapsed) {
             Column() {
               this.DetailPane()
             }
-            .width(Math.min(340, Math.max(300, this.layoutWidth() * 0.26)))
+            // 840~1200 窄三栏时详情收窄到 280，给树区留出可用的画布宽度
+            .width(Math.min(340, Math.max(280, this.layoutWidth() * 0.26)))
             // 宽度必须固定：不加 flexShrink(0) 会被树区挤成一条，看起来像详情溢出消失
             .flexShrink(0)
             .height(LayoutPolicy.matchParent)
@@ -1082,8 +1100,13 @@ struct Index {
     return this.layoutWidth() >= Breakpoint.MD;
   }
 
+  /**
+   * 谱系三栏阈值：对齐鸿蒙官方 lg 断点（≥840vp）。
+   * 平板横屏全屏约 1198vp、电脑窗口化多落在 840~1200 区间，
+   * 若按 1200 判定这些设备永远出不了三栏，详情预览只能靠浮层甚至完全看不见。
+   */
   private isTriplePane(): boolean {
-    return this.layoutWidth() >= Breakpoint.LG;
+    return this.layoutWidth() >= Breakpoint.MD;
   }
 
   /**
