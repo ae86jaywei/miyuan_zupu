@@ -43,10 +43,12 @@ const CANVAS_H: number = 1684;
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
 // 软上限按设备内存可调；设为 0 表示关闭监控。
 // 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
-const MEMORY_SOFT_LIMIT_KB: number = 1800 * 1024;
+const MEMORY_SOFT_LIMIT_KB: number = 2200 * 1024;
 const MEMORY_CHECK_EVERY_PAGES: number = 16;
-/** 导出过程允许的内存增长（KB）：超过即认为 PDFKit 在持续膨胀 */
-const MEMORY_GROWTH_LIMIT_KB: number = 700 * 1024;
+/** 硬上限：仅进程接近系统限制时才中止 */
+const MEMORY_HARD_LIMIT_KB: number = 2600 * 1024;
+/** 导出过程允许的内存增长（KB）：超过只告警 */
+const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -1263,16 +1265,17 @@ export class PdfExportService {
           console.info('[PdfExport] page ' + i + '/' + total + ' pss=' + Math.round(currentPssKb() / 1024)
             + 'MB cost ' + (Date.now() - t0) + 'ms');
         }
-        // 内存看门狗：每 N 页检查进程 PSS，接近软上限就抛可捕获错误并提示分卷，
-        // 而不是让 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）
-        if (MEMORY_SOFT_LIMIT_KB > 0 && i > 0 && i % MEMORY_CHECK_EVERY_PAGES === 0) {
+        // 内存监控：软上限只告警并继续，硬上限才中止，避免大谱基础占用高被误判
+        if (i > 0 && i % MEMORY_CHECK_EVERY_PAGES === 0) {
           const pssKb: number = currentPssKb();
           const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
           if (pssKb > 0 && (pssKb > MEMORY_SOFT_LIMIT_KB ||
-            (growthKb > MEMORY_GROWTH_LIMIT_KB))) {
-            console.info('[PdfExport] memory guard hit, pss=' + Math.round(pssKb / 1024) +
+            growthKb > MEMORY_GROWTH_LIMIT_KB)) {
+            console.info('[PdfExport] memory high, pss=' + Math.round(pssKb / 1024) +
               'MB base=' + Math.round(basePssKb / 1024) + 'MB growth=' +
               Math.round(growthKb / 1024) + 'MB, page=' + i + '/' + total);
+          }
+          if (pssKb > MEMORY_HARD_LIMIT_KB) {
             throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024) +
               'MB，较导出开始增长 ' + Math.round(growthKb / 1024) +
               'MB，第 ' + i + '/' + total + ' 页）。请减少单卷人数后重试');

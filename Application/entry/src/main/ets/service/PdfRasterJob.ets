@@ -16,11 +16,11 @@ export const PAGE_W_MM: number = 320;
 export const PAGE_H_MM: number = 220;
 
 /**
- * 栅格层：200dpi（320×220mm → 约 2520×1732px）。
- * 族谱是线条图，200dpi 印刷足够；相比 300dpi 图像内存下降约 55%，
- * 是大谱能在移动端导出成功的关键。2×2 分块，单块约 1260×866px。
+ * 栅格层：150dpi（320×220mm → 约 1890×1299px）。
+ * 族谱是线条图，150dpi 打印可读；相比 300dpi 图像内存下降约 75%，
+ * 是大谱能在移动端导出成功的关键。2×2 分块，单块约 945×650px。
  */
-export const RENDER_DPI: number = 200;
+export const RENDER_DPI: number = 150;
 export const PX_PER_MM: number = RENDER_DPI / 25.4;
 export const RENDER_W: number = Math.round(PAGE_W_MM * PX_PER_MM);
 export const RENDER_H: number = Math.round(PAGE_H_MM * PX_PER_MM);

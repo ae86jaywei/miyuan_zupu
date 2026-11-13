@@ -18,7 +18,7 @@ import { ImportPlan, ImportResult } from '../service/ImportPlanner';
  * 累积过多对象 + saveDocument 一次性序列化整份 PDF 时内存峰值过高，大数据导出会 OOM 崩溃
  * （进程级 native 崩溃，HiLog 里看不到错误）。减小单卷可显著降低单份 PDF 的内存峰值。
  */
-const PDF_VOLUME_MAX: number = 1000;
+const PDF_VOLUME_MAX: number = 400;
 
 /**
  * 单部族谱在内存中的安全人数上限。

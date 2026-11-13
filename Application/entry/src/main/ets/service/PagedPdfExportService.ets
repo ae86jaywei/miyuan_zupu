@@ -42,16 +42,18 @@ const MEASURE_H: number = 256;
 
 /**
  * 欧式/苏式分页导出：单卷最大页数。
- * 4 页/卷会让 4000 页的谱导出成 1000 个文件，既难管理也拖慢导出；
- * 48 页/卷（约 192 张图）在主流机型上仍可控，卷数降到几十卷。
+ * 981 人的分支谱仍有 100+ 页；PDFKit 在 saveDocument 时会一次性加载整卷图片，
+ * 4 页/卷能把单卷峰值压到约 70MB，代价是卷数变多（可接受）。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 12;
-/** 分页导出绝对内存上限（KB）：仅在进程整体接近系统限制时兜底 */
-const PAGED_MEMORY_SOFT_LIMIT_KB: number = 1800 * 1024;
-/** 导出过程允许的内存增长（KB）：超过说明 PDFKit 在持续膨胀 */
-const PAGED_MEMORY_GROWTH_LIMIT_KB: number = 600 * 1024;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 4;
+/** 分页导出软上限：超过只记日志并继续，不再主动中止导出 */
+const PAGED_MEMORY_SOFT_LIMIT_KB: number = 2400 * 1024;
+/** 分页导出硬上限：仅进程接近系统限制时才中止 */
+const PAGED_MEMORY_HARD_LIMIT_KB: number = 2600 * 1024;
+/** 导出过程允许的内存增长（KB）：超过只告警 */
+const PAGED_MEMORY_GROWTH_LIMIT_KB: number = 1200 * 1024;
 /** 每渲染多少页检查一次 PSS */
-const PAGED_MEMORY_CHECK_PAGES: number = 2;
+const PAGED_MEMORY_CHECK_PAGES: number = 4;
 
 /** 读取当前进程 PSS（KB），失败返回 -1；hidebug.getPss() 返回 bigint */
 function currentPssKb(): number {
@@ -355,13 +357,18 @@ export class PagedPdfExportService {
         let currentRootName: string = '';
         let currentBook: PrintBook | null = null;
         for (let g: number = startG; g < endG; g++) {
-          // 先查内存再渲染下一页：超过软上限时主动停止，避免 native OOM 直接杀进程
-          if (PAGED_MEMORY_SOFT_LIMIT_KB > 0 && globalPage > 0 &&
-            globalPage % PAGED_MEMORY_CHECK_PAGES === 0) {
+          // 内存监控：软上限只告警继续，硬上限才中止，避免 981 人谱被误判拦下
+          if (globalPage > 0 && globalPage % PAGED_MEMORY_CHECK_PAGES === 0) {
             const pssKb: number = currentPssKb();
             const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
             if (pssKb > 0 && (pssKb > PAGED_MEMORY_SOFT_LIMIT_KB ||
               growthKb > PAGED_MEMORY_GROWTH_LIMIT_KB)) {
+              console.info('[PagedPdf] memory high, pss=' + Math.round(pssKb / 1024).toString() +
+                'MB base=' + Math.round(basePssKb / 1024).toString() + 'MB growth=' +
+                Math.round(growthKb / 1024).toString() + 'MB page=' + globalPage.toString() +
+                '/' + total.toString());
+            }
+            if (pssKb > PAGED_MEMORY_HARD_LIMIT_KB) {
               throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024).toString() +
                 'MB，较导出开始增长 ' + Math.round(growthKb / 1024).toString() +
                 'MB，已渲染 ' + globalPage.toString() + '/' + total.toString() +
