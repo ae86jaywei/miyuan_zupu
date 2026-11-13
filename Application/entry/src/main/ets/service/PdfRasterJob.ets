@@ -16,29 +16,25 @@ export const PAGE_W_MM: number = 320;
 export const PAGE_H_MM: number = 220;
 
 /**
- * 栅格层：150dpi（320×220mm → 约 1890×1299px）。
- * 族谱是线条图，150dpi 打印可读；相比 300dpi 图像内存下降约 75%，
- * 是大谱能在移动端导出成功的关键。2×2 分块，单块约 945×650px。
+ * 栅格层：300dpi（320×220mm → 约 3780×2598px）。
+ * 恢复 4625ab1 可导出版本的参数；2×2 分块，单块约 1890×1299px。
  */
-export const RENDER_DPI: number = 150;
+export const RENDER_DPI: number = 300;
 export const PX_PER_MM: number = RENDER_DPI / 25.4;
 export const RENDER_W: number = Math.round(PAGE_W_MM * PX_PER_MM);
 export const RENDER_H: number = Math.round(PAGE_H_MM * PX_PER_MM);
 /**
- * 整页单图（不切块）：150dpi 整页约 1890×1299，小于 4096 纹理上限。
- * PDFKit 每页只登记 1 个 image 对象（原来 4 块），显著减少 native 图片对象与保存时的解码开销。
+ * 恢复 4625ab1：2×2 分块并行渲染，每页 4 块，页内渲染完立即删除临时图。
  */
-export const TILE_COLS: number = 1;
-export const TILE_ROWS: number = 1;
+export const TILE_COLS: number = 2;
+export const TILE_ROWS: number = 2;
 export const TILE_W: number = Math.ceil(RENDER_W / TILE_COLS);
 export const TILE_H: number = Math.ceil(RENDER_H / TILE_ROWS);
 
 /**
- * JPEG 质量：95 → 88。
- * 分页 PDF 的栅格层只承载纸面/装订口/页框/连线/卡片框，88 已足够印刷；
- * 单块文件更小，PDFKit 保存时解码总量随之下降，显著降低 OOM 风险。
+ * JPEG 质量恢复 4625ab1 的 95：每页渲染完立即删除临时图，质量可以回到印刷档。
  */
-export const JPEG_QUALITY: number = 88;
+export const JPEG_QUALITY: number = 95;
 
 /** 页面几何（与 PrintLayout 保持一致） */
 export const GUTTER_MM: number = 20;

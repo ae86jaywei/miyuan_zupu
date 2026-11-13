@@ -532,44 +532,6 @@ export class PaginationService {
       }
       const unit: PendingUnit = queue[0];
 
-      // 横向并排：本页已排人，下一个房支整房能作为独立片段放进剩余宽度时直接并排。
-      // 欧式布局的页高由叶子数决定，一页只放一个房会让横向 11 列大部分空着；
-      // 多房并排可把每页人数从 12 提到 40+，页数与卷数随之大幅下降。
-      if (!cur.uids.has(unit.node.uid) && unit.carry === null && cur.uids.size > 0 &&
-        unit.node.isBranchPoint && unit.node.branchRootUid === unit.node.uid) {
-        const trial: Set<string> = this.copySet(cur.uids);
-        this.collectSubtree(unit.node, trial);
-        const roots2: PersonNode[] = [];
-        for (let i: number = 0; i < cur.rootNodes.length; i = i + 1) {
-          roots2.push(cur.rootNodes[i]);
-        }
-        roots2.push(unit.node);
-        const sideBySide: PageContent = this.computeCanvas(roots2, trial, style, profile, spec);
-        if (this.fits(sideBySide, spec)) {
-          cur.rootNodes.push(unit.node);
-          cur.rootUids.push(unit.node.uid);
-          const ref: PageRootRef = new PageRootRef();
-          ref.uid = unit.node.uid;
-          ref.name = unit.node.person.name;
-          ref.fromPage = 0;
-          ref.relation = '并排';
-          cur.roots.push(ref);
-          cur.uids = trial;
-          queue.shift();
-          continue;
-        }
-      }
-
-      // 分支点优先换页：本页已排够人、下一支属于另一房且正好是房支起点时，
-      // 先落页再从新房起页开始排，避免同一房支的树冠在后续多页重复出现
-      if (this.shouldCutBeforeBranchPoint(unit, cur, nodeMap)) {
-        this.commitPending(queue, pending);
-        placed = placed + this.flushPage(cur, pages, nodeMap);
-        cur = new PagePlan();
-        cur.index = pages.length + 1;
-        continue;
-      }
-
       // 空页：页根 = 承接父卡（宗支根页则用本支始祖）
       if (cur.uids.size === 0) {
         cur.index = pages.length + 1;

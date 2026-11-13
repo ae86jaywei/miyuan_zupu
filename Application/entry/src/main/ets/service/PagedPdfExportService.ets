@@ -41,11 +41,10 @@ const MEASURE_W: number = 1024;
 const MEASURE_H: number = 256;
 
 /**
- * 欧式/苏式分页导出：单卷最大页数。
- * 981 人的分支谱仍有 100+ 页；PDFKit 在 saveDocument 时会一次性加载整卷图片，
- * 4 页/卷能把单卷峰值压到约 70MB，代价是卷数变多（可接受）。
+ * 恢复 4625ab1 的 30 页/卷：当时 4800 人 ≈ 8 卷 × 30 页，导出成功。
+ * 关键不在卷大小，而在每页渲染完立即删除临时图（见导出循环）。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 2;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 30;
 /** 分页导出软上限：超过只记日志并继续，不再主动中止导出 */
 const PAGED_MEMORY_SOFT_LIMIT_KB: number = 2400 * 1024;
 /** 分页导出硬上限：仅进程接近系统限制时才中止 */
@@ -343,12 +342,6 @@ export class PagedPdfExportService {
       if (!doc.createDocument(PAGE_W_PT, PAGE_H_PT)) {
         throw new Error('PDF 文档创建失败');
       }
-      /**
-       * 本卷全部栅格临时文件：必须等到 saveDocument 成功之后再删。
-       * addImageObject 只登记图片路径，PDFKit 在保存时才真正读盘；
-       * 原先每页 keep 完就 unlink，保存阶段拿不到文件会直接失败甚至崩溃。
-       */
-      const volTiles: TileImage[] = [];
       try {
         if (doc.getPageCount() === 1) {
           doc.deletePage(0, 1);
@@ -363,7 +356,7 @@ export class PagedPdfExportService {
             const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
             if (pssKb > 0 && (pssKb > PAGED_MEMORY_SOFT_LIMIT_KB ||
               growthKb > PAGED_MEMORY_GROWTH_LIMIT_KB)) {
-              console.info('[PagedPdf] memory high, pss=' + Math.round(pssKb / 1024).toString() +
+              console.warn('[PagedPdf] memory high, pss=' + Math.round(pssKb / 1024).toString() +
                 'MB base=' + Math.round(basePssKb / 1024).toString() + 'MB growth=' +
                 Math.round(growthKb / 1024).toString() + 'MB page=' + globalPage.toString() +
                 '/' + total.toString());
@@ -396,34 +389,25 @@ export class PagedPdfExportService {
           }
           globalPage++;
           const pageNoInVol: number = g - startG + 1; // 卷内页码：第X页/共 volCount 页
-          let canvas: EuCanvas | SuCanvas | null = null;
-          if (singleRoot) {
-            canvas = await PageCacheService.getInstance().loadCanvas(style, profileName,
-              roots[0].uid, localIdx);
-          }
-          if (canvas === null) {
-            canvas = style === 'su' ? svc.suPage(localIdx) : svc.euPage(localIdx);
-            if (canvas !== null && singleRoot) {
-              // 布局缓存：下次导出直接复用本页坐标，省掉重复布局
-              await PageCacheService.getInstance().saveCanvas(style, profileName, roots[0].uid,
-                localIdx, canvas);
-            }
-          }
+          const canvas: EuCanvas | SuCanvas | null = style === 'su' ? svc.suPage(localIdx) : svc.euPage(localIdx);
           if (canvas === null) {
             throw new Error('第 ' + localIdx.toString() + ' 页布局为空');
           }
           const tiles: TileImage[] = await PagedPdfExportService.renderTiles(
             canvas, style, globalPage, currentBook.profile.lineWidth, context);
-          for (let ti: number = 0; ti < tiles.length; ti++) {
-            volTiles.push(tiles[ti]);
+          try {
+            const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
+            // 先铺栅格层（线条/卡片框），再写矢量文字，文字位于最上层
+            for (let ti: number = 0; ti < tiles.length; ti++) {
+              PagedPdfExportService.addTile(page, tiles[ti]);
+            }
+            PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
+              v + 1, pageNoInVol, volCount, fonts, measureCtx, genealogy);
+          } finally {
+            // 每页渲染完立即删除临时图：恢复 4625ab1 的成功路径。
+            // 整卷累积临时图会让 PDFKit 在 saveDocument 时一次性读入全部图片，内存峰值暴涨。
+            PagedPdfExportService.cleanupTiles(tiles);
           }
-          const page: pdfService.PdfPage = doc.insertBlankPage(doc.getPageCount(), PAGE_W_PT, PAGE_H_PT);
-          // 先铺 300dpi 栅格层（线条/卡片框），再写矢量文字，文字位于最上层
-          for (let ti: number = 0; ti < tiles.length; ti++) {
-            PagedPdfExportService.addTile(page, tiles[ti]);
-          }
-          PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
-            v + 1, pageNoInVol, volCount, fonts, measureCtx, genealogy);
           if (onProgress) {
             const volTag: string = volumeCount > 1
               ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
@@ -439,7 +423,6 @@ export class PagedPdfExportService {
         outPaths.push(outPath);
       } finally {
         doc.releaseDocument();
-        PagedPdfExportService.cleanupTiles(volTiles);
       }
       // 每卷之间让出 UI 并给 GC 回收 native 内存的机会
       await PagedPdfExportService.yieldToUi();
