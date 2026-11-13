@@ -27,6 +27,8 @@ const TRIM_H_MM: number = 220;
 const HEADER_PT: number = 8;
 const FOOTER_PT: number = 6.5;
 const PAGE_NO_PT: number = 8;
+/** 页首承接祖先文字：浅灰，弱于正文卡片 */
+const C_ANCESTOR: string = '#888888';
 /** 标准卡（卡高 ≥10mm）上姓名 7→8pt、详情 5.5→6.5pt，矢量文字印出来更清楚 */
 const CARD_NAME_PT: number = 8;
 const CARD_DETAIL_PT: number = 6.5;
@@ -487,7 +489,7 @@ export class PagedPdfExportService {
       const ancestorText: string = '承：' + names.join(' › ');
       const ancestorW: number = (TRIM_W_MM - INNER_X_MM * 2) * MM_TO_PT;
       page.addTextObject(fitText(measureCtx, ancestorText, ancestorW, 6),
-        INNER_X_MM * MM_TO_PT, baselineOfMm(9, 6), pdfTextStyle(6, C_INK3, false));
+        INNER_X_MM * MM_TO_PT, baselineOfMm(9, 6), pdfTextStyle(6, C_ANCESTOR, false));
     }
 
     // 卡片文字：与画布上的卡片一致，姓名 / 字辈+故 / 世代+UID / 配偶，全部限制在卡片内
