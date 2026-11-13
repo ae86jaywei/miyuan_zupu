@@ -416,7 +416,7 @@ export class PagedPdfExportService {
             PagedPdfExportService.addTile(page, tiles[ti]);
           }
           PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
-            v + 1, pageNoInVol, volCount, fonts, measureCtx);
+            v + 1, pageNoInVol, volCount, fonts, measureCtx, genealogy);
           if (onProgress) {
             const volTag: string = volumeCount > 1
               ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
@@ -554,7 +554,7 @@ export class PagedPdfExportService {
   /** 写入本页全部矢量文本：页眉、卡片姓名/世次、页脚接续文案、页码 */
   private static addTextObjects(page: pdfService.PdfPage, rootName: string, plan: PagePlan,
     canvas: EuCanvas | SuCanvas, style: string, volumeNo: number, pageNo: number, total: number,
-    fonts: CardFonts, measureCtx: OffscreenCanvasRenderingContext2D): void {
+    fonts: CardFonts, measureCtx: OffscreenCanvasRenderingContext2D, book: Genealogy): void {
     // 页眉
     const genText: string = (plan.genFrom > 0 && plan.genTo > 0)
       ? generationLabel(plan.genFrom) + (plan.genFrom === plan.genTo ? '' : '—' + generationLabel(plan.genTo))
@@ -643,6 +643,18 @@ export class PagedPdfExportService {
           baselineOfMm(INNER_Y_MM + b.y + spouseTop, spouseSize),
           pdfTextStyle(spouseSize, C_INK2, false));
       }
+    }
+
+    // 分支谱上承：写在页脚最上方一行，翻到任何一页都能看到来源
+    if (book.parentBookTitle.length > 0 || book.parentName.length > 0 || book.parentUid.length > 0) {
+      const src: string = book.parentBookTitle.length > 0 ? book.parentBookTitle : '母谱';
+      const gen: string = book.parentGeneration > 0 ? ('第' + book.parentGeneration.toString() + '世 ') : '';
+      const who: string = book.parentName.length > 0 ? book.parentName :
+        (book.parentUid.length > 0 ? book.parentUid : '先祖');
+      const upW: number = (TRIM_W_MM - INNER_X_MM - 10) * MM_TO_PT;
+      page.addTextObject(fitText(measureCtx, '承自《' + src + '》' + gen + who, upW, FOOTER_PT),
+        INNER_X_MM * MM_TO_PT, baselineOfMm(TRIM_H_MM - 24, FOOTER_PT),
+        pdfTextStyle(FOOTER_PT, C_FOOT, false));
     }
 
     // 页脚兄弟分支软链接：屏幕页脚的「旁支 → 第 N 页」在 PDF 中落成可检索文本

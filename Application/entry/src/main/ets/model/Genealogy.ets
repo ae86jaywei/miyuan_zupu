@@ -33,6 +33,14 @@ export class Genealogy {
   parentBookId: number = 0;
   /** 分支始祖在原族谱中的唯一ID（仅分支谱有效） */
   branchRootUid: string = '';
+  /** 分支谱上承：母谱书名 */
+  parentBookTitle: string = '';
+  /** 分支谱上承：母谱世代 */
+  parentGeneration: number = 0;
+  /** 分支谱上承：上承人 uid（分支始祖的父/母） */
+  parentUid: string = '';
+  /** 分支谱上承：上承人姓名（母谱删除后仍可显示） */
+  parentName: string = '';
   /** 创建时间 */
   createdAt: number = 0;
   /** 更新时间 */
@@ -68,6 +76,10 @@ export class Genealogy {
     out['coverColor'] = this.coverColor;
     out['coverPattern'] = this.coverPattern;
     out['branchRootUid'] = this.branchRootUid;
+    out['parentBookTitle'] = this.parentBookTitle;
+    out['parentGeneration'] = this.parentGeneration;
+    out['parentUid'] = this.parentUid;
+    out['parentName'] = this.parentName;
     out['createdAt'] = this.createdAt;
     out['updatedAt'] = this.updatedAt;
     return out;
@@ -89,6 +101,10 @@ export class Genealogy {
     g.coverColor = textOf(raw, 'coverColor');
     g.coverPattern = textOf(raw, 'coverPattern');
     g.branchRootUid = textOf(raw, 'branchRootUid');
+    g.parentBookTitle = textOf(raw, 'parentBookTitle');
+    g.parentGeneration = Number(raw['parentGeneration'] !== undefined ? raw['parentGeneration'] : 0);
+    g.parentUid = textOf(raw, 'parentUid');
+    g.parentName = textOf(raw, 'parentName');
     g.createdAt = Number(raw['createdAt'] !== undefined ? raw['createdAt'] : 0);
     g.updatedAt = Number(raw['updatedAt'] !== undefined ? raw['updatedAt'] : 0);
     return g;

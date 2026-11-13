@@ -602,6 +602,17 @@ function buildCover(book: Genealogy, count: number, volumeTitle: string): TextLi
   if (book.ancestorName.length > 0) {
     lines.push({ text: '始迁祖：' + book.ancestorName, font: 13, lineH: 22, color: C_INK2, bold: false, indent: 0, center: true });
   }
+  // 分支谱上承：写明本支从哪部谱、哪一世、哪一位先人分出，便于跨谱追溯
+  if (book.parentBookTitle.length > 0 || book.parentName.length > 0 || book.parentUid.length > 0) {
+    const src: string = book.parentBookTitle.length > 0 ? book.parentBookTitle : '母谱';
+    const gen: string = book.parentGeneration > 0 ? ('第' + book.parentGeneration.toString() + '世 ') : '';
+    const who: string = book.parentName.length > 0 ? book.parentName :
+      (book.parentUid.length > 0 ? book.parentUid : '先祖');
+    lines.push({
+      text: '承自《' + src + '》' + gen + who,
+      font: 12, lineH: 20, color: C_INK2, bold: false, indent: 0, center: true
+    });
+  }
   if (book.generationPoem.trim().length > 0) {
     lines.push(bigSpacerLine());
     const poem: string[] = [];
@@ -626,6 +637,17 @@ function buildCover(book: Genealogy, count: number, volumeTitle: string): TextLi
 function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): TextLine[] {
   const lines: TextLine[] = [];
   let has: boolean = false;
+  // 分支谱先写「上承」：即使没有谱序/凡例，也要留下跨谱来源
+  if (book.parentBookTitle.length > 0 || book.parentName.length > 0 || book.parentUid.length > 0) {
+    const src: string = book.parentBookTitle.length > 0 ? book.parentBookTitle : '母谱';
+    const gen: string = book.parentGeneration > 0 ? ('第' + book.parentGeneration.toString() + '世 ') : '';
+    const who: string = book.parentName.length > 0 ? book.parentName :
+      (book.parentUid.length > 0 ? book.parentUid : '先祖');
+    lines.push({ text: '本支承自《' + src + '》' + gen + who,
+      font: 12, lineH: 24, color: C_INK, bold: false, indent: 0, center: false });
+    lines.push(spacerLine());
+    has = true;
+  }
   if (book.preface.trim().length > 0) {
     lines.push({ text: '谱 序', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());

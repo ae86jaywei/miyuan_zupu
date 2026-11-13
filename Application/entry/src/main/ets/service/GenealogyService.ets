@@ -208,6 +208,11 @@ export class GenealogyService {
       // 兼容旧库：族谱分支字段（分支谱记录母族谱与分支出自何人）
       await this.ensureColumn(TABLE_BOOK, 'parent_book_id', 'INTEGER');
       await this.ensureColumn(TABLE_BOOK, 'branch_root_uid', 'TEXT');
+      // 分支谱上承元数据：母谱书名、母谱世代、上承人 uid/姓名
+      await this.ensureColumn(TABLE_BOOK, 'parent_book_title', 'TEXT');
+      await this.ensureColumn(TABLE_BOOK, 'parent_generation', 'INTEGER');
+      await this.ensureColumn(TABLE_BOOK, 'parent_uid', 'TEXT');
+      await this.ensureColumn(TABLE_BOOK, 'parent_name', 'TEXT');
       // 协作谱域（方案 §五.0 路线 A：1 部谱 = 1 个 familyId）
       await this.ensureColumn(TABLE_BOOK, 'family_id', 'TEXT');
       await this.ensureColumn(TABLE_BOOK, 'sync_mode', 'TEXT');
@@ -1457,40 +1462,78 @@ export class GenealogyService {
       throw new Error('未找到该族人');
     }
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const rootKey: string = root.uid.trim().toUpperCase();
+    // 上承：分支始祖在原谱的父/母；始祖本人保留在原谱作为“分支占位”，不移动
+    const fatherKey: string = root.fatherId.trim().toUpperCase();
+    const motherKey: string = root.motherId.trim().toUpperCase();
+    const parentKey: string = fatherKey.length > 0 ? fatherKey : motherKey;
+    const parent: Person | null = parentKey.length > 0 ? this.getPerson(parentKey) : null;
+
+    // 一次建父/母→子女索引，避免 5 万人谱反复线性扫描
+    const childIndex: Map<string, string[]> = new Map<string, string[]>();
+    for (let i: number = 0; i < this.people.length; i = i + 1) {
+      const p: Person = this.people[i];
+      const f: string = p.fatherId.trim().toUpperCase();
+      const m: string = p.motherId.trim().toUpperCase();
+      if (f.length > 0) {
+        let arr: string[] | undefined = childIndex.get(f);
+        if (arr === undefined) {
+          arr = [];
+          childIndex.set(f, arr);
+        }
+        arr.push(p.uid);
+      }
+      if (m.length > 0 && m !== f) {
+        let arr2: string[] | undefined = childIndex.get(m);
+        if (arr2 === undefined) {
+          arr2 = [];
+          childIndex.set(m, arr2);
+        }
+        arr2.push(p.uid);
+      }
+    }
+
+    // 收集本支全部 uid（始祖 + 后代），只存 uid，不持有整支 Person 数组
+    const lineUids: string[] = [];
     const picked: Set<string> = new Set<string>();
-    const line: Person[] = [];
-    const collect = (uid: string): void => {
-      const u: string = uid.trim().toUpperCase();
+    const stack: string[] = [rootKey];
+    while (stack.length > 0) {
+      const u: string = (stack.pop() as string).trim().toUpperCase();
       if (u.length === 0 || picked.has(u)) {
-        return;
+        continue;
       }
       const p: Person | null = this.getPerson(u);
       if (p === null) {
-        return;
+        continue;
       }
       picked.add(u);
-      line.push(p);
-      this.people.forEach((c: Person): void => {
-        if (c.fatherId.trim().toUpperCase() === u || c.motherId.trim().toUpperCase() === u) {
-          collect(c.uid);
+      lineUids.push(u);
+      const kids: string[] | undefined = childIndex.get(u);
+      if (kids !== undefined) {
+        for (let k: number = 0; k < kids.length; k = k + 1) {
+          stack.push(kids[k]);
         }
-      });
-    };
-    collect(root.uid);
+      }
+    }
 
-    // 补入这支人的配偶（妻/妾 / 夫），保证夫妻在分支谱中仍成对显示
-    const spouses: Person[] = [];
-    line.forEach((p: Person): void => {
-      this.spousesOf(p.uid).forEach((r: SpouseRelation): void => {
-        const u: string = r.uid.trim().toUpperCase();
-        const sp: Person | null = this.getPerson(u);
-        if (sp !== null && !picked.has(u)) {
-          picked.add(u);
-          spouses.push(sp);
+    // 配偶复制到分支谱、原谱保留（避免破坏其他支的婚姻关系）
+    const spouseUids: string[] = [];
+    for (let i: number = 0; i < lineUids.length; i = i + 1) {
+      const owner: Person | null = this.getPerson(lineUids[i]);
+      if (owner === null) {
+        continue;
+      }
+      for (let s: number = 0; s < owner.spouses.length; s = s + 1) {
+        const su: string = owner.spouses[s].uid.trim().toUpperCase();
+        if (su.length > 0 && !picked.has(su) && spouseUids.indexOf(su) < 0) {
+          spouseUids.push(su);
         }
-      });
-    });
-    const all: Person[] = line.concat(spouses);
+      }
+      const legacy: string = owner.spouseId.trim().toUpperCase();
+      if (legacy.length > 0 && !picked.has(legacy) && spouseUids.indexOf(legacy) < 0) {
+        spouseUids.push(legacy);
+      }
+    }
 
     // 新建分支族谱：命名带上母谱与始祖名，便于区分
     const baseTitle: string = (this.book.title.trim().length > 0 ? this.book.title.trim() : '我的族谱')
@@ -1511,45 +1554,102 @@ export class GenealogyService {
     branch.coverColor = this.book.coverColor;
     branch.coverPattern = this.book.coverPattern;
     branch.parentBookId = this.currentBookId;
-    branch.branchRootUid = root.uid.trim().toUpperCase();
-    const rowId: number = await store.insert(TABLE_BOOK, this.bookValues(branch));
-    branch.key = rowId;
+    branch.branchRootUid = rootKey;
+    branch.parentBookTitle = this.book.title;
+    branch.parentUid = parentKey;
+    branch.parentName = parent === null ? '' : parent.name;
+    branch.parentGeneration = parent === null ? Math.max(1, root.generation - 1) : parent.generation;
 
-    // 复制族人：以始祖为第一世重排世代，剪断分支外的一切父/母与配偶引用
-    const offset: number = root.generation - 1;
-    const rootKey: string = root.uid.trim().toUpperCase();
-    for (let i: number = 0; i < all.length; i++) {
-      const src: Person = all[i];
-      const p: Person = clonePerson(src);
-      p.key = 0;
-      p.generation = Math.max(1, src.generation - offset);
-      if (p.uid.trim().toUpperCase() === rootKey) {
-        p.fatherId = '';
-        p.motherId = '';
-        p.rank = '第一世（始祖）';
-      } else {
-        if (!picked.has(p.fatherId.trim().toUpperCase())) {
+    const offset: number = Math.max(0, root.generation - 1);
+    const now: number = Date.now();
+    let rowId: number = 0;
+    // 同一事务内完成「写入分支谱 + 原谱软删后代」，失败整体回滚
+    store.beginTransaction();
+    try {
+      rowId = await store.insert(TABLE_BOOK, this.bookValues(branch));
+      branch.key = rowId;
+      // 始祖 + 后代逐条复制：不构建整支 Person 数组，避免 5 万人谱内存翻倍
+      for (let i: number = 0; i < lineUids.length; i = i + 1) {
+        const src: Person | null = this.getPerson(lineUids[i]);
+        if (src === null) {
+          continue;
+        }
+        const p: Person = clonePerson(src);
+        p.key = 0;
+        p.generation = Math.max(1, src.generation - offset);
+        if (i === 0) {
           p.fatherId = '';
-        }
-        if (!picked.has(p.motherId.trim().toUpperCase())) {
           p.motherId = '';
+          p.rank = '第一世（始祖）';
+        } else {
+          if (!picked.has(p.fatherId.trim().toUpperCase())) {
+            p.fatherId = '';
+          }
+          if (!picked.has(p.motherId.trim().toUpperCase())) {
+            p.motherId = '';
+          }
+        }
+        const keptSpouses: SpouseRelation[] = [];
+        p.spouses.forEach((r: SpouseRelation): void => {
+          const su: string = r.uid.trim().toUpperCase();
+          if (picked.has(su) || spouseUids.indexOf(su) >= 0) {
+            keptSpouses.push(r);
+          }
+        });
+        p.spouses = keptSpouses;
+        if (!picked.has(p.spouseId.trim().toUpperCase()) &&
+          spouseUids.indexOf(p.spouseId.trim().toUpperCase()) < 0) {
+          p.spouseId = '';
+        }
+        this.normalizeSpouses(p);
+        p.createdAt = now;
+        p.updatedAt = now;
+        await this.upsertRow(p, rowId);
+        await this.saveSpouses(p.uid, p.spouses, rowId);
+      }
+      // 配偶：复制到分支谱，原谱保留，避免破坏其他支的婚姻关系
+      for (let s: number = 0; s < spouseUids.length; s = s + 1) {
+        const src: Person | null = this.getPerson(spouseUids[s]);
+        if (src === null) {
+          continue;
+        }
+        const p: Person = clonePerson(src);
+        p.key = 0;
+        p.generation = Math.max(1, src.generation - offset);
+        const keptSpouses: SpouseRelation[] = [];
+        p.spouses.forEach((r: SpouseRelation): void => {
+          if (picked.has(r.uid.trim().toUpperCase())) {
+            keptSpouses.push(r);
+          }
+        });
+        p.spouses = keptSpouses;
+        if (!picked.has(p.spouseId.trim().toUpperCase())) {
+          p.spouseId = '';
+        }
+        this.normalizeSpouses(p);
+        p.createdAt = now;
+        p.updatedAt = now;
+        await this.upsertRow(p, rowId);
+        await this.saveSpouses(p.uid, p.spouses, rowId);
+      }
+      // 原谱：软删分支始祖以下的后代（始祖本身保留为“分支占位”）
+      for (let i: number = 1; i < lineUids.length; i = i + 1) {
+        const u: string = lineUids[i];
+        await store.executeSql(
+          `UPDATE ${TABLE_PERSON} SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE book_id = ? AND UPPER(uid) = ?`,
+          [now, now, this.currentBookId, u]);
+        await store.executeSql(
+          `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) = ? OR UPPER(spouse_uid) = ?)`,
+          [this.currentBookId, u, u]);
+        const tomb: Person | null = this.getPerson(u);
+        if (tomb !== null) {
+          await this.recordRetired(u, tomb.name);
         }
       }
-      const keptSpouses: SpouseRelation[] = [];
-      p.spouses.forEach((r: SpouseRelation): void => {
-        if (picked.has(r.uid.trim().toUpperCase())) {
-          keptSpouses.push(r);
-        }
-      });
-      p.spouses = keptSpouses;
-      if (!picked.has(p.spouseId.trim().toUpperCase())) {
-        p.spouseId = '';
-      }
-      this.normalizeSpouses(p);
-      p.createdAt = Date.now();
-      p.updatedAt = p.createdAt;
-      await this.upsertRow(p, rowId);
-      await this.saveSpouses(p.uid, p.spouses, rowId);
+      store.commit();
+    } catch (e) {
+      store.rollBack();
+      throw new Error('建立分支失败：' + (e as Error).message);
     }
 
     this.currentBookId = rowId;
@@ -1941,6 +2041,10 @@ export class GenealogyService {
       'cover_pattern': b.coverPattern,
       'parent_book_id': b.parentBookId,
       'branch_root_uid': b.branchRootUid,
+      'parent_book_title': b.parentBookTitle,
+      'parent_generation': b.parentGeneration,
+      'parent_uid': b.parentUid,
+      'parent_name': b.parentName,
       'family_id': b.familyId,
       'sync_mode': b.syncMode,
       'cloud_rev': b.cloudRev,
@@ -2069,6 +2173,11 @@ export class GenealogyService {
     b.parentBookId = rs.getLong(rs.getColumnIndex('parent_book_id'));
     const rootUid: string = rs.getString(rs.getColumnIndex('branch_root_uid'));
     b.branchRootUid = rootUid === null ? '' : rootUid;
+    b.parentBookTitle = readBookText(rs, 'parent_book_title');
+    const parentGenCol: number = rs.getColumnIndex('parent_generation');
+    b.parentGeneration = parentGenCol >= 0 ? rs.getLong(parentGenCol) : 0;
+    b.parentUid = readBookText(rs, 'parent_uid');
+    b.parentName = readBookText(rs, 'parent_name');
     b.familyId = readBookText(rs, 'family_id');
     b.syncMode = readBookText(rs, 'sync_mode');
     b.familyRole = readBookText(rs, 'family_role');

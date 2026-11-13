@@ -45,6 +45,10 @@ struct ImportExport {
   @State includePrivate: boolean = true;
   /** PDF 谱式：die=牒记式（文字流），eu=欧式分页，su=苏式分页 */
   @State pdfStyle: string = 'die';
+  /** 导出范围：可选择总谱或某个分支谱，避免 5 万人整谱一次性导出 */
+  @State exportBookId: number = 0;
+  @State exportBookIds: number[] = [];
+  @State exportBookTitles: string[] = [];
   @State mergeStrategy: string = 'auto';
   @State previewText: string = '';
   @State parsedCount: number = 0;
@@ -64,6 +68,16 @@ struct ImportExport {
 
   aboutToAppear(): void {
     this.peopleCount = this.svc().getPeople().length;
+    const books: Genealogy[] = this.svc().getBooks();
+    const ids: number[] = [];
+    const titles: string[] = [];
+    for (let i: number = 0; i < books.length; i = i + 1) {
+      ids.push(books[i].key);
+      titles.push(books[i].title + (books[i].parentBookId > 0 ? '（分支）' : ''));
+    }
+    this.exportBookIds = ids;
+    this.exportBookTitles = titles;
+    this.exportBookId = this.svc().getBook().key;
   }
 
   /** 更新进度条 */
@@ -133,7 +147,15 @@ struct ImportExport {
     this.busy = true;
     this.previewText = '正在渲染，请稍候……';
     this.setProgress('正在排版 PDF…', 2);
+    // 导出范围：需要时临时切到分支谱，导出结束再切回，避免把 5 万人总谱整本导出
+    const originalBookId: number = this.svc().getBook().key;
+    const targetBookId: number = this.exportBookId > 0 ? this.exportBookId : originalBookId;
+    let switched: boolean = false;
     try {
+      if (targetBookId !== originalBookId) {
+        await this.svc().switchGenealogy(targetBookId);
+        switched = true;
+      }
       const ctx = GenealogyScope.context();
       const people: Person[] = this.svc().getPeople();
       const book: Genealogy = this.svc().getBook();
@@ -205,6 +227,12 @@ struct ImportExport {
       this.setProgress('导出失败：' + (err.message ?? String(e)), 100);
       this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + (err.message ?? String(e)) });
     } finally {
+      if (switched) {
+        try {
+          await this.svc().switchGenealogy(originalBookId);
+        } catch (_e) {
+        }
+      }
       this.busy = false;
     }
   }
@@ -517,6 +545,33 @@ struct ImportExport {
               })
             Divider().color(Theme.line).strokeWidth(0.5)
             Column() {
+              if (this.exportBookIds.length > 1) {
+                Text('导出范围')
+                  .fontSize(13)
+                  .fontColor(Theme.ink)
+                  .fontWeight(FontWeight.Medium)
+                  .width('100%')
+                Scroll() {
+                  Row() {
+                    ForEach(this.exportBookIds, (id: number, i: number) => {
+                      Text(this.exportBookTitles.length > i ? this.exportBookTitles[i] : id.toString())
+                        .fontSize(11)
+                        .fontColor(this.exportBookId === id ? '#FFFFFF' : Theme.ink)
+                        .backgroundColor(this.exportBookId === id ? Theme.primary : Theme.field)
+                        .borderRadius(6)
+                        .padding({ left: 8, right: 8, top: 5, bottom: 5 })
+                        .margin({ right: 6 })
+                        .maxLines(1)
+                        .onClick((): void => {
+                          this.exportBookId = id;
+                        })
+                    }, (id: number) => 'expbook_' + id.toString())
+                  }
+                }
+                .width('100%')
+                .scrollable(ScrollDirection.Horizontal)
+                .margin({ top: 8, bottom: 10 })
+              }
               Text('PDF 导出谱式')
                 .fontSize(13)
                 .fontColor(Theme.ink)
