@@ -24,6 +24,7 @@ import { RouterUtil } from '../util/RouterUtil';
 import { DeviceUtil } from '../util/DeviceUtil';
 import { AccountService } from '../service/AccountService';
 import { ConsentService } from '../service/ConsentService';
+import { PageCacheService } from '../service/PageCacheService';
 import { PrivacyConsentDialog } from '../view/PrivacyConsentDialog';
 import { resourceManager } from '@kit.LocalizationKit';
 
@@ -101,10 +102,16 @@ struct Index {
   /** 回到前台 / 页面显示时同步一次系统配色 */
   onPageShow(): void {
     this.syncDarkMode();
+    // 回到前台后按「小谱 + 空闲」条件低优先级预热分页缓存；大谱不触发
+    PageCacheService.getInstance().scheduleWarmup();
     // 从协议页返回后，若仍未同意则重新弹出确认框
     if (this.consentChecked && !ConsentService.getInstance().hasAgreed()) {
       this.showPrivacyConsent();
     }
+  }
+
+  aboutToDisappear(): void {
+    PageCacheService.getInstance().cancelWarmup();
   }
 
 
@@ -266,13 +273,19 @@ struct Index {
 
   private async initData(): Promise<void> {
     try {
+      const ctx: Context | undefined = this.getUIContext().getHostContext();
+      if (ctx !== undefined && ctx !== null) {
+        await PageCacheService.getInstance().init(ctx);
+      }
       if (GenealogyScope.isReady() && GenealogyService.getInstance().isReady()) {
         GenealogyStore.notifyChanged();
         this.localReady = true;
+        PageCacheService.getInstance().scheduleWarmup();
         return;
       }
       await GenealogyStore.bootstrap();
       this.localReady = true;
+      PageCacheService.getInstance().scheduleWarmup();
       hilog.info(0x0000, TAG, 'data ready, people=%{public}d',
         GenealogyService.getInstance().getPeople().length);
     } catch (e) {

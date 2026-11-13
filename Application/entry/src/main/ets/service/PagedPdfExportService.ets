@@ -15,6 +15,7 @@ import { compactUid } from '../util/StringUtil';
 import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
   JPEG_QUALITY, PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
 import { renderTileJob } from './PdfTileTask';
+import { PageCacheService } from './PageCacheService';
 
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
@@ -70,6 +71,8 @@ class RootBook {
   rootUid: string = '';
   rootName: string = '';
   book: PrintBook | null = null;
+  /** 本次分页本是否来自持久化缓存（命中时不再重建） */
+  fromCache: boolean = false;
 }
 
 /** 一块栅格图：记录它在整页像素坐标系中的位置，供 PDF 按 pt 精确落位 */
@@ -245,20 +248,38 @@ export class PagedPdfExportService {
       throw new Error('没有可导出的宗支');
     }
 
-    // 先建册拿到总页数，页脚才能写「第N页/共N页」
+    // 先建册拿到总页数；单宗支优先读持久化分页缓存，命中则跳过整树装箱
     const version: number = Date.now();
     const books: RootBook[] = [];
     let total: number = 0;
+    const singleRoot: boolean = roots.length === 1;
+    let cacheBook: PrintBook | null = null;
+    let cacheRootUid: string = '';
     for (let i: number = 0; i < roots.length; i++) {
       const rb: RootBook = new RootBook();
       rb.rootUid = roots[i].uid;
       rb.rootName = roots[i].person.name.length > 0 ? roots[i].person.name : roots[i].uid;
-      rb.book = await svc.book(roots[i].uid, style, version, 'standard', (pct: number): void => {
-        if (onProgress) {
-          onProgress({ current: 0, total: 0, message: '正在排版 ' + pct.toString() + '%' });
+      let bk: PrintBook | null = null;
+      if (singleRoot) {
+        bk = await PageCacheService.getInstance().loadBook(style, 'standard', roots[i].uid);
+        if (bk !== null) {
+          rb.fromCache = true;
+          svc.adoptBook(bk);
         }
-      });
-      total += rb.book.pages.length;
+      }
+      if (bk === null) {
+        bk = await svc.book(roots[i].uid, style, version, 'standard', (pct: number): void => {
+          if (onProgress) {
+            onProgress({ current: 0, total: 0, message: '正在排版 ' + pct.toString() + '%' });
+          }
+        });
+        if (singleRoot) {
+          cacheBook = bk;
+          cacheRootUid = roots[i].uid;
+        }
+      }
+      rb.book = bk;
+      total += bk.pages.length;
       books.push(rb);
     }
     if (total === 0) {
@@ -338,9 +359,11 @@ export class PagedPdfExportService {
           const bi: number = pageBook[g];
           const localIdx: number = pageLocal[g];
           if (bi !== lastBook) {
-            // 跨宗支时重新取回该宗支的分页册，euPage/suPage 的缓存才指向当前册
+            // 跨宗支时重新取回该宗支的分页册；命中持久化缓存的本无需重建
             const rb: RootBook = books[bi];
-            rb.book = await svc.book(rb.rootUid, style, version, 'standard');
+            if (!rb.fromCache) {
+              rb.book = await svc.book(rb.rootUid, style, version, 'standard');
+            }
             currentBook = rb.book as PrintBook;
             currentRootName = rb.rootName;
             lastBook = bi;
@@ -369,7 +392,7 @@ export class PagedPdfExportService {
             PagedPdfExportService.addTile(page, tiles[ti]);
           }
           PagedPdfExportService.addTextObjects(page, currentRootName, plan, canvas, style,
-            pageNoInVol, volCount, fonts, measureCtx);
+            v + 1, pageNoInVol, volCount, fonts, measureCtx);
           if (onProgress) {
             const volTag: string = volumeCount > 1
               ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
@@ -389,6 +412,11 @@ export class PagedPdfExportService {
       }
       // 每卷之间让出 UI 并给 GC 回收 native 内存的机会
       await PagedPdfExportService.yieldToUi();
+    }
+    // 导出完成后再落缓存：不与导出争主线程，数据版本变化时自动丢弃
+    if (cacheBook !== null) {
+      PageCacheService.getInstance().scheduleSave(cacheBook, style, 'standard', cacheRootUid,
+        PAGED_MAX_PAGES_PER_VOLUME);
     }
     return outPaths;
   }
@@ -501,7 +529,7 @@ export class PagedPdfExportService {
 
   /** 写入本页全部矢量文本：页眉、卡片姓名/世次、页脚接续文案、页码 */
   private static addTextObjects(page: pdfService.PdfPage, rootName: string, plan: PagePlan,
-    canvas: EuCanvas | SuCanvas, style: string, pageNo: number, total: number,
+    canvas: EuCanvas | SuCanvas, style: string, volumeNo: number, pageNo: number, total: number,
     fonts: CardFonts, measureCtx: OffscreenCanvasRenderingContext2D): void {
     // 页眉
     const genText: string = (plan.genFrom > 0 && plan.genTo > 0)
@@ -615,7 +643,9 @@ export class PagedPdfExportService {
     }
 
     // 页码：居中放在页脚下一行（距底 6mm），与接续文案不再同一基线
-    const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
+    // 分卷后必须标出「第几卷第几页」，否则用户不知道当前文件在整套谱中的位置
+    const footer: string = '第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
+      ' 页 / 共 ' + total.toString() + ' 页';
     const fw: number = measurePt(measureCtx, footer, PAGE_NO_PT);
     page.addTextObject(footer, PAGE_W_PT / 2 - fw / 2,
       baselineOfMm(TRIM_H_MM - 6, PAGE_NO_PT), pdfTextStyle(PAGE_NO_PT, C_INK2, false));

@@ -175,6 +175,78 @@ export class PaginationService {
   }
 
   /**
+   * 采用持久化缓存恢复的分页本：跳过整树装箱，直接进入逐页布局。
+   * 导出与缓存预热命中时走这里。
+   */
+  adoptBook(book: PrintBook): void {
+    this.cached = book;
+    this.bookKey = 'adopted|' + book.profile.key() + '|' + book.spec.key() + '|' +
+      book.pageCount.toString() + '|' + book.peopleCount.toString();
+    this.euCache.clear();
+    this.suCache.clear();
+  }
+
+  /**
+   * 从持久化 PagePlan 重建 PrintBook。
+   * 只恢复页计划、页根与人物索引；每页的卡片坐标仍由 euPage/suPage 按需计算。
+   * 返回的 PrintBook 可直接 adoptBook 后用于导出。
+   */
+  static buildBookFromPlans(plans: PagePlan[], profileName: string,
+    indexByUid: Map<string, number>): PrintBook {
+    const book: PrintBook = new PrintBook();
+    book.spec = PageSpec.landscape();
+    book.profile = PaginationService.profileOf(profileName);
+    book.pages = plans;
+    book.pageCount = plans.length;
+    // 一次性建 uid→节点索引，避免每页重复遍历整棵树
+    const nodeIndex: Map<string, PersonNode> = new Map<string, PersonNode>();
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const stack: PersonNode[] = [];
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      stack.push(roots[i]);
+    }
+    while (stack.length > 0) {
+      const n: PersonNode = stack.pop() as PersonNode;
+      if (nodeIndex.has(n.uid)) {
+        continue;
+      }
+      nodeIndex.set(n.uid, n);
+      for (let k: number = 0; k < n.children.length; k = k + 1) {
+        stack.push(n.children[k]);
+      }
+    }
+    const seen: Set<string> = new Set<string>();
+    for (let i: number = 0; i < plans.length; i = i + 1) {
+      const p: PagePlan = plans[i];
+      p.index = i + 1;
+      p.rootNodes = [];
+      for (let r: number = 0; r < p.rootUids.length; r = r + 1) {
+        const node: PersonNode | undefined = nodeIndex.get(p.rootUids[r]);
+        if (node !== undefined) {
+          p.rootNodes.push(node);
+        }
+      }
+      p.uids.forEach((uid: string): void => {
+        seen.add(uid);
+      });
+    }
+    book.peopleCount = seen.size;
+    if (indexByUid.size > 0) {
+      book.indexByUid = indexByUid;
+    } else {
+      for (let i: number = 0; i < plans.length; i = i + 1) {
+        const p: PagePlan = plans[i];
+        p.uids.forEach((uid: string): void => {
+          if (!book.indexByUid.has(uid)) {
+            book.indexByUid.set(uid, p.index);
+          }
+        });
+      }
+    }
+    return book;
+  }
+
+  /**
    * 取（或重建）某一宗支的分页结果。
    * @param rootUid 宗支根
    * @param style 谱式（EU / SU）
