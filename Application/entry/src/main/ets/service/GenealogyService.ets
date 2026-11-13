@@ -72,6 +72,17 @@ class SpouseEdge {
  * 对外统一以“全量人物数组 + 版本号”的方式发布状态，
  * 页面通过 GenealogyStore 订阅。
  */
+/**
+ * 分支建议：第 5 世左右、后代规模过大、适合另立分支谱的节点。
+ * 只用于导出页提示，不自动移动数据。
+ */
+export class BranchSuggestion {
+  uid: string = '';
+  name: string = '';
+  generation: number = 0;
+  descendants: number = 0;
+}
+
 export class GenealogyService {
   private static instance: GenealogyService | null = null;
 
@@ -1656,6 +1667,59 @@ export class GenealogyService {
     await this.setMeta(META_CURRENT_BOOK, rowId.toString());
     await this.reload();
     return this.book;
+  }
+
+  /**
+   * 分支建议：
+   *  - 第 5/10/15… 世；
+   *  - 后代 ≥ 2000 人（整谱移动端无法一次导出）；
+   *  - 子树深度 ≥ 3（避免拆出「三代内无子」的支）；
+   *  - 已有分支谱的始祖不重复建议。
+   */
+  suggestBranches(): BranchSuggestion[] {
+    const out: BranchSuggestion[] = [];
+    const roots: PersonNode[] = this.getRoots();
+    const built: Set<string> = new Set<string>();
+    for (let i: number = 0; i < this.books.length; i = i + 1) {
+      const b: Genealogy = this.books[i];
+      if (b.parentBookId === this.currentBookId && b.branchRootUid.length > 0) {
+        built.add(b.branchRootUid.trim().toUpperCase());
+      }
+    }
+    const stack: PersonNode[] = [];
+    const seen: Set<string> = new Set<string>();
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      stack.push(roots[i]);
+    }
+    while (stack.length > 0) {
+      const n: PersonNode = stack.pop() as PersonNode;
+      if (seen.has(n.uid)) {
+        continue;
+      }
+      seen.add(n.uid);
+      for (let k: number = 0; k < n.children.length; k = k + 1) {
+        stack.push(n.children[k]);
+      }
+      const gen: number = n.person.generation;
+      if (gen < 5 || gen % 5 !== 0 || n.descendants < 2000 ||
+        n.height < 3 || n.children.length === 0) {
+        continue;
+      }
+      if (built.has(n.uid.trim().toUpperCase())) {
+        continue;
+      }
+      const s: BranchSuggestion = new BranchSuggestion();
+      s.uid = n.uid;
+      s.name = n.person.name.length > 0 ? n.person.name : n.uid;
+      s.generation = gen;
+      s.descendants = n.descendants;
+      out.push(s);
+    }
+    out.sort((a: BranchSuggestion, b: BranchSuggestion): number => b.descendants - a.descendants);
+    if (out.length > 5) {
+      out.splice(5, out.length - 5);
+    }
+    return out;
   }
 
   /** 切换当前族谱，其他页面会跟随刷新 */

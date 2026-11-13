@@ -2,7 +2,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { BackButton } from '../components/BackButton';
-import { GenealogyService } from '../service/GenealogyService';
+import { GenealogyService, BranchSuggestion } from '../service/GenealogyService';
 import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfExportService';
 import { PagedPdfExportService, PagedPdfProgress } from '../service/PagedPdfExportService';
@@ -49,6 +49,8 @@ struct ImportExport {
   @State exportBookId: number = 0;
   @State exportBookIds: number[] = [];
   @State exportBookTitles: string[] = [];
+  /** 分支建议：第 5 世、后代 ≥2000 的房支，提示用户先拆分再导出 */
+  @State branchSuggestions: BranchSuggestion[] = [];
   @State mergeStrategy: string = 'auto';
   @State previewText: string = '';
   @State parsedCount: number = 0;
@@ -66,6 +68,45 @@ struct ImportExport {
     return GenealogyService.getInstance();
   }
 
+  /** 从建议列表建立分支谱（移动式：原谱保留始祖占位，后代迁入分支谱） */
+  private confirmCreateBranch(uid: string): void {
+    this.getUIContext().showAlertDialog({
+      title: '建立分支谱',
+      message: '将把该房支以下的族人移动到新分支谱，原谱保留该始祖作为分支占位。'
+        + '建支后当前谱会切换到分支谱，确定继续？',
+      primaryButton: {
+        value: '取消',
+        action: (): void => {
+        }
+      },
+      secondaryButton: {
+        value: '建分支',
+        fontColor: Theme.primary,
+        action: async (): Promise<void> => {
+          try {
+            const b: Genealogy = await this.svc().createBranchFromPerson(uid);
+            this.peopleCount = this.svc().getPeople().length;
+            const books: Genealogy[] = this.svc().getBooks();
+            const ids: number[] = [];
+            const titles: string[] = [];
+            for (let i: number = 0; i < books.length; i = i + 1) {
+              ids.push(books[i].key);
+              titles.push(books[i].title + (books[i].parentBookId > 0 ? '（分支）' : ''));
+            }
+            this.exportBookIds = ids;
+            this.exportBookTitles = titles;
+            this.exportBookId = b.key;
+            this.branchSuggestions = this.svc().suggestBranches();
+            this.getUIContext().getPromptAction().showToast({ message: '已建立分支：' + b.title });
+          } catch (e) {
+            const err = e as BusinessError;
+            this.getUIContext().getPromptAction().showToast({ message: '建分支失败：' + (err.message ?? String(e)) });
+          }
+        }
+      }
+    });
+  }
+
   aboutToAppear(): void {
     this.peopleCount = this.svc().getPeople().length;
     const books: Genealogy[] = this.svc().getBooks();
@@ -78,6 +119,7 @@ struct ImportExport {
     this.exportBookIds = ids;
     this.exportBookTitles = titles;
     this.exportBookId = this.svc().getBook().key;
+    this.branchSuggestions = this.svc().suggestBranches();
   }
 
   /** 更新进度条 */
@@ -159,6 +201,11 @@ struct ImportExport {
       const ctx = GenealogyScope.context();
       const people: Person[] = this.svc().getPeople();
       const book: Genealogy = this.svc().getBook();
+      // 移动端硬限制：整谱超过 5000 人不可能一次导出，必须先拆分支
+      if (book.parentBookId <= 0 && people.length > 5000) {
+        throw new Error('整谱 ' + people.length.toString() +
+          ' 人，移动端无法一次导出。请先在「建议拆分」中建立分支，再选择分支导出。');
+      }
       // 欧式/苏式：直接导出分页画布（320×220mm 横版，一页一张），页码与屏幕上完全一致
       if (this.pdfStyle === 'eu' || this.pdfStyle === 'su') {
         const paths: string[] = await PagedPdfExportService.exportPdf(ctx, book, this.pdfStyle,
@@ -545,6 +592,39 @@ struct ImportExport {
               })
             Divider().color(Theme.line).strokeWidth(0.5)
             Column() {
+              if (this.branchSuggestions.length > 0) {
+                Text('建议拆分（当前谱 ' + this.peopleCount.toString() + ' 人，整谱无法一次导出）')
+                  .fontSize(13)
+                  .fontColor(Theme.ink)
+                  .fontWeight(FontWeight.Medium)
+                  .width('100%')
+                Column() {
+                  ForEach(this.branchSuggestions, (s: BranchSuggestion) => {
+                    Row() {
+                      Text('第' + s.generation.toString() + '世 ' + s.name + ' · ' +
+                        s.descendants.toString() + '人')
+                        .fontSize(11)
+                        .fontColor(Theme.inkSecondary)
+                        .layoutWeight(1)
+                        .maxLines(1)
+                        .textOverflow({ overflow: TextOverflow.Ellipsis })
+                      Text('建分支')
+                        .fontSize(11)
+                        .fontColor('#FFFFFF')
+                        .backgroundColor(Theme.primary)
+                        .borderRadius(6)
+                        .padding({ left: 10, right: 10, top: 5, bottom: 5 })
+                        .onClick((): void => {
+                          this.confirmCreateBranch(s.uid);
+                        })
+                    }
+                    .width('100%')
+                    .padding({ top: 4, bottom: 4 })
+                  }, (s: BranchSuggestion) => 'branch_sug_' + s.uid)
+                }
+                .width('100%')
+                .margin({ top: 8, bottom: 6 })
+              }
               if (this.exportBookIds.length > 1) {
                 Text('导出范围')
                   .fontSize(13)
