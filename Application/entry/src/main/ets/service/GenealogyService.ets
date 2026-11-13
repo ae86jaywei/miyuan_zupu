@@ -1464,7 +1464,8 @@ export class GenealogyService {
    *  - 复制该人及其全部后代（含各自的配偶），世代按“该人为第一世”重新编号；
    *  - 分支谱数据独立，原族谱不受影响；创建后自动切换到分支谱继续录入。
    */
-  async createBranchFromPerson(rootUid: string): Promise<Genealogy> {
+  async createBranchFromPerson(rootUid: string,
+    onProgress?: (done: number, total: number) => void): Promise<Genealogy> {
     if (this.currentBookId <= 0) {
       throw new Error('请先在「谱系」中创建族谱');
     }
@@ -1526,6 +1527,10 @@ export class GenealogyService {
         }
       }
     }
+    if (lineUids.length > 5000) {
+      throw new Error('该房支共 ' + lineUids.length.toString() +
+        ' 人，超过单次建支上限 5000 人。请选择更小的房支（如下一世 / 下一层房支）再建分支。');
+    }
 
     // 配偶复制到分支谱、原谱保留（避免破坏其他支的婚姻关系）
     const spouseUids: string[] = [];
@@ -1580,6 +1585,10 @@ export class GenealogyService {
       rowId = await store.insert(TABLE_BOOK, this.bookValues(branch));
       branch.key = rowId;
       // 始祖 + 后代逐条复制：不构建整支 Person 数组，避免 5 万人谱内存翻倍
+      const batchSize: number = 200;
+      let personBatch: relationalStore.ValuesBucket[] = [];
+      let spouseBatch: relationalStore.ValuesBucket[] = [];
+      const totalToMove: number = lineUids.length + spouseUids.length;
       for (let i: number = 0; i < lineUids.length; i = i + 1) {
         const src: Person | null = this.getPerson(lineUids[i]);
         if (src === null) {
@@ -1615,8 +1624,35 @@ export class GenealogyService {
         this.normalizeSpouses(p);
         p.createdAt = now;
         p.updatedAt = now;
-        await this.upsertRow(p, rowId);
-        await this.saveSpouses(p.uid, p.spouses, rowId);
+        personBatch.push(this.toValues(p, rowId));
+        for (let s: number = 0; s < p.spouses.length; s = s + 1) {
+          const r: SpouseRelation = p.spouses[s];
+          const partner: string = r.uid.trim().toUpperCase();
+          if (partner.length === 0 || partner === p.uid.trim().toUpperCase()) {
+            continue;
+          }
+          const rel: string = r.relation.trim().length > 0 ? r.relation.trim() : '未记';
+          const sb: relationalStore.ValuesBucket = {
+            'book_id': rowId,
+            'uid': p.uid.trim().toUpperCase(),
+            'spouse_uid': partner,
+            'relation': rel,
+            'level': spouseRelationLevel(rel),
+            'ord': s + 1
+          };
+          spouseBatch.push(sb);
+        }
+        if (personBatch.length >= batchSize) {
+          await store.batchInsert(TABLE_PERSON, personBatch);
+          personBatch = [];
+        }
+        if (spouseBatch.length >= batchSize) {
+          await store.batchInsert(TABLE_SPOUSE, spouseBatch);
+          spouseBatch = [];
+        }
+        if (onProgress !== undefined && (i % 200 === 199 || i === lineUids.length - 1)) {
+          onProgress(i + 1, totalToMove);
+        }
       }
       // 配偶：复制到分支谱，原谱保留，避免破坏其他支的婚姻关系
       for (let s: number = 0; s < spouseUids.length; s = s + 1) {
@@ -1640,23 +1676,96 @@ export class GenealogyService {
         this.normalizeSpouses(p);
         p.createdAt = now;
         p.updatedAt = now;
-        await this.upsertRow(p, rowId);
-        await this.saveSpouses(p.uid, p.spouses, rowId);
-      }
-      // 原谱：软删分支始祖以下的后代（始祖本身保留为“分支占位”）
-      for (let i: number = 1; i < lineUids.length; i = i + 1) {
-        const u: string = lineUids[i];
-        await store.executeSql(
-          `UPDATE ${TABLE_PERSON} SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE book_id = ? AND UPPER(uid) = ?`,
-          [now, now, this.currentBookId, u]);
-        await store.executeSql(
-          `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) = ? OR UPPER(spouse_uid) = ?)`,
-          [this.currentBookId, u, u]);
-        const tomb: Person | null = this.getPerson(u);
-        if (tomb !== null) {
-          await this.recordRetired(u, tomb.name);
+        personBatch.push(this.toValues(p, rowId));
+        for (let k: number = 0; k < p.spouses.length; k = k + 1) {
+          const r: SpouseRelation = p.spouses[k];
+          const partner: string = r.uid.trim().toUpperCase();
+          if (partner.length === 0 || partner === p.uid.trim().toUpperCase()) {
+            continue;
+          }
+          const rel: string = r.relation.trim().length > 0 ? r.relation.trim() : '未记';
+          const sb: relationalStore.ValuesBucket = {
+            'book_id': rowId,
+            'uid': p.uid.trim().toUpperCase(),
+            'spouse_uid': partner,
+            'relation': rel,
+            'level': spouseRelationLevel(rel),
+            'ord': k + 1
+          };
+          spouseBatch.push(sb);
+        }
+        if (personBatch.length >= batchSize) {
+          await store.batchInsert(TABLE_PERSON, personBatch);
+          personBatch = [];
+        }
+        if (spouseBatch.length >= batchSize) {
+          await store.batchInsert(TABLE_SPOUSE, spouseBatch);
+          spouseBatch = [];
         }
       }
+      if (personBatch.length > 0) {
+        await store.batchInsert(TABLE_PERSON, personBatch);
+      }
+      if (spouseBatch.length > 0) {
+        await store.batchInsert(TABLE_SPOUSE, spouseBatch);
+      }
+      // 原谱：分批软删后代（保留始祖占位），并一次性封存编号（原实现逐个读写 app_meta 是 O(n²)）
+      const retireKey: string = META_RETIRED_PREFIX + this.currentBookId.toString();
+      const retireText: string = await this.getMeta(retireKey);
+      let retired: RetiredUid[] = [];
+      if (retireText.length > 0) {
+        try {
+          retired = JSON.parse(retireText) as RetiredUid[];
+        } catch (err) {
+          retired = [];
+        }
+      }
+      const retiredSet: Set<string> = new Set<string>();
+      for (let i: number = 0; i < retired.length; i = i + 1) {
+        if (retired[i].uid !== undefined) {
+          retiredSet.add(retired[i].uid.trim().toUpperCase());
+        }
+      }
+      const chunkSize: number = 200;
+      for (let start: number = 1; start < lineUids.length; start = start + chunkSize) {
+        const chunk: string[] = lineUids.slice(start, Math.min(start + chunkSize, lineUids.length));
+        const marks: string = chunk.map((): string => '?').join(',');
+        const upArgs: (string | number)[] = [now, now, this.currentBookId];
+        for (let i: number = 0; i < chunk.length; i = i + 1) {
+          upArgs.push(chunk[i]);
+        }
+        await store.executeSql(
+          `UPDATE ${TABLE_PERSON} SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE book_id = ? AND UPPER(uid) IN (${marks})`,
+          upArgs);
+        const delArgs: (string | number)[] = [this.currentBookId];
+        for (let i: number = 0; i < chunk.length; i = i + 1) {
+          delArgs.push(chunk[i]);
+        }
+        for (let i: number = 0; i < chunk.length; i = i + 1) {
+          delArgs.push(chunk[i]);
+        }
+        await store.executeSql(
+          `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) IN (${marks}) OR UPPER(spouse_uid) IN (${marks}))`,
+          delArgs);
+        for (let i: number = 0; i < chunk.length; i = i + 1) {
+          const u: string = chunk[i];
+          if (retiredSet.has(u)) {
+            continue;
+          }
+          const tomb: Person | null = this.getPerson(u);
+          const item: RetiredUid = new RetiredUid();
+          item.uid = u;
+          item.name = tomb === null ? '' : tomb.name;
+          item.deletedAt = now;
+          retired.push(item);
+          retiredSet.add(u);
+          this.retiredUids.set(u, item.name);
+        }
+      }
+      if (retired.length > 5000) {
+        retired = retired.slice(retired.length - 5000);
+      }
+      await this.setMeta(retireKey, JSON.stringify(retired));
       store.commit();
     } catch (e) {
       store.rollBack();
@@ -1701,7 +1810,8 @@ export class GenealogyService {
         stack.push(n.children[k]);
       }
       const gen: number = n.person.generation;
-      if (gen < 5 || gen % 5 !== 0 || n.descendants < 2000 ||
+      // 单次建支上限 5000：只建议 1000~5000 人的房支，避免用户点了一个必然失败的大支
+      if (gen < 5 || n.descendants < 1000 || n.descendants > 5000 ||
         n.height < 3 || n.children.length === 0) {
         continue;
       }

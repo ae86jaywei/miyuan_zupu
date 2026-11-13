@@ -83,8 +83,17 @@ struct ImportExport {
         value: '建分支',
         fontColor: Theme.primary,
         action: async (): Promise<void> => {
+          if (this.busy) {
+            return;
+          }
+          this.busy = true;
+          this.setProgress('正在建立分支…', 1);
           try {
-            const b: Genealogy = await this.svc().createBranchFromPerson(uid);
+            const b: Genealogy = await this.svc().createBranchFromPerson(uid,
+              (done: number, total: number): void => {
+                this.setProgress('正在迁移分支数据 ' + done.toString() + '/' + total.toString() + '…',
+                  Math.min(99, Math.round(done * 100 / Math.max(total, 1))));
+              });
             this.peopleCount = this.svc().getPeople().length;
             const books: Genealogy[] = this.svc().getBooks();
             const ids: number[] = [];
@@ -101,6 +110,9 @@ struct ImportExport {
           } catch (e) {
             const err = e as BusinessError;
             this.getUIContext().getPromptAction().showToast({ message: '建分支失败：' + (err.message ?? String(e)) });
+          } finally {
+            this.busy = false;
+            this.showProgress = false;
           }
         }
       }
