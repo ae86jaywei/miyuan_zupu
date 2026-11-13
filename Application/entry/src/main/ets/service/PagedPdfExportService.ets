@@ -377,7 +377,19 @@ export class PagedPdfExportService {
           }
           globalPage++;
           const pageNoInVol: number = g - startG + 1; // 卷内页码：第X页/共 volCount 页
-          const canvas: EuCanvas | SuCanvas | null = style === 'su' ? svc.suPage(localIdx) : svc.euPage(localIdx);
+          let canvas: EuCanvas | SuCanvas | null = null;
+          if (singleRoot) {
+            canvas = await PageCacheService.getInstance().loadCanvas(style, 'standard',
+              roots[0].uid, localIdx);
+          }
+          if (canvas === null) {
+            canvas = style === 'su' ? svc.suPage(localIdx) : svc.euPage(localIdx);
+            if (canvas !== null && singleRoot) {
+              // 布局缓存：下次导出直接复用本页坐标，省掉重复布局
+              await PageCacheService.getInstance().saveCanvas(style, 'standard', roots[0].uid,
+                localIdx, canvas);
+            }
+          }
           if (canvas === null) {
             throw new Error('第 ' + localIdx.toString() + ' 页布局为空');
           }

@@ -49,6 +49,8 @@ export class PageJump {
 export class PagePlan {
   /** 图册内页码，从 1 开始 */
   index: number = 1;
+  /** 本页所属房支标识（顶级房根 uid；页内混房时为空） */
+  branchId: string = '';
   /** 本页最低/最高世代（0 表示未编世） */
   genFrom: number = 0;
   genTo: number = 0;
@@ -158,6 +160,8 @@ export class PaginationService {
   private cached: PrintBook | null = null;
   private euCache: Map<number, EuCanvas> = new Map<number, EuCanvas>();
   private suCache: Map<number, SuCanvas> = new Map<number, SuCanvas>();
+  /** 当前树的 uid→节点索引（缓存恢复页计划/画布时复用，数据变化时清空） */
+  private static nodeIndexCache: Map<string, PersonNode> | null = null;
 
   static getInstance(): PaginationService {
     if (PaginationService.instance === null) {
@@ -172,6 +176,100 @@ export class PaginationService {
     this.cached = null;
     this.euCache.clear();
     this.suCache.clear();
+    PaginationService.nodeIndexCache = null;
+  }
+
+  /** 当前树的 uid→节点索引（O(N) 只建一次；分页缓存恢复、布局缓存恢复共用） */
+  static nodeIndexOfCurrentBook(): Map<string, PersonNode> {
+    if (PaginationService.nodeIndexCache !== null) {
+      return PaginationService.nodeIndexCache;
+    }
+    const map: Map<string, PersonNode> = new Map<string, PersonNode>();
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const stack: PersonNode[] = [];
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      stack.push(roots[i]);
+    }
+    while (stack.length > 0) {
+      const n: PersonNode = stack.pop() as PersonNode;
+      if (map.has(n.uid)) {
+        continue;
+      }
+      map.set(n.uid, n);
+      for (let k: number = 0; k < n.children.length; k = k + 1) {
+        stack.push(n.children[k]);
+      }
+    }
+    PaginationService.nodeIndexCache = map;
+    return map;
+  }
+
+  /**
+   * 重新编号并重建索引/页脚链接。
+   * 用于房支增量重排后拼接：页内内容不变，只把页码、承接页、兄弟链接与页脚文案按新顺序重算。
+   */
+  static rebuildIndexAndLinks(book: PrintBook): void {
+    for (let i: number = 0; i < book.pages.length; i = i + 1) {
+      book.pages[i].index = i + 1;
+    }
+    book.indexByUid.clear();
+    const nodes: Map<string, PersonNode> = PaginationService.nodeIndexOfCurrentBook();
+    for (let i: number = 0; i < book.pages.length; i = i + 1) {
+      const page: PagePlan = book.pages[i];
+      page.uids.forEach((uid: string): void => {
+        if (!book.indexByUid.has(uid)) {
+          book.indexByUid.set(uid, page.index);
+        }
+        const n: PersonNode | undefined = nodes.get(uid);
+        if (n === undefined) {
+          return;
+        }
+        for (let k: number = 0; k < n.spouses.length; k = k + 1) {
+          if (!book.indexByUid.has(n.spouses[k].uid)) {
+            book.indexByUid.set(n.spouses[k].uid, page.index);
+          }
+        }
+      });
+    }
+    for (let i: number = 0; i < book.pages.length; i = i + 1) {
+      const page: PagePlan = book.pages[i];
+      for (let r: number = 0; r < page.roots.length; r = r + 1) {
+        const home: number = book.pageOf(page.roots[r].uid);
+        if (home > 0) {
+          page.roots[r].fromPage = home;
+        }
+      }
+      for (let s: number = 0; s < page.siblingLinks.length; s = s + 1) {
+        const target: number = book.pageOf(page.siblingLinks[s].uid);
+        if (target > 0) {
+          page.siblingLinks[s].page = target;
+        }
+      }
+      const notes: string[] = [];
+      for (let c: number = 0; c < page.cuts.length; c = c + 1) {
+        const cut: PageCut = page.cuts[c];
+        let lo: number = 0;
+        let hi: number = 0;
+        for (let k: number = 0; k < cut.childUids.length; k = k + 1) {
+          const p: number | undefined = book.indexByUid.get(cut.childUids[k]);
+          if (p === undefined) {
+            continue;
+          }
+          if (lo === 0 || p < lo) {
+            lo = p;
+          }
+          if (p > hi) {
+            hi = p;
+          }
+        }
+        if (lo > 0) {
+          const span: string = lo === hi ? lo.toString() : (lo.toString() + '—' + hi.toString());
+          notes.push('续见第 ' + span + ' 页（' + cut.parentName + '以下 ' + cut.relationText + '）');
+        }
+      }
+      page.footerText = notes.join('　');
+    }
+    book.pageCount = book.pages.length;
   }
 
   /**
@@ -895,6 +993,22 @@ export class PaginationService {
         continue;
       }
       page.branchName = first.branchName;
+      // 房支归属：页内全部节点同属一房时才记 branchId；混房页置空，增量重排时回退全量
+      const firstNode: PersonNode = first;
+      page.branchId = firstNode.branchId;
+      let mixedBranch: boolean = false;
+      page.uids.forEach((uid: string): void => {
+        if (mixedBranch) {
+          return;
+        }
+        const n: PersonNode | undefined = nodeMap.get(uid);
+        if (n !== undefined && n.branchId !== firstNode.branchId) {
+          mixedBranch = true;
+        }
+      });
+      if (mixedBranch) {
+        page.branchId = '';
+      }
 
       let cur: PersonNode = first;
       for (let k: number = 0; k < 2; k = k + 1) {
