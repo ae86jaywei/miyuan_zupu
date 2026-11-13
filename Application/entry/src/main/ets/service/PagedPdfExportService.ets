@@ -16,6 +16,7 @@ import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
   JPEG_QUALITY, PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
 import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
+import { TreeLayoutCache } from './TreeLayoutCache';
 
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
@@ -44,9 +45,11 @@ const MEASURE_H: number = 256;
  * 4 页/卷会让 4000 页的谱导出成 1000 个文件，既难管理也拖慢导出；
  * 48 页/卷（约 192 张图）在主流机型上仍可控，卷数降到几十卷。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 48;
-/** 分页导出内存软上限（KB）：超过则主动停止并提示，避免 native OOM 闪退 */
-const PAGED_MEMORY_SOFT_LIMIT_KB: number = 850 * 1024;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 12;
+/** 分页导出绝对内存上限（KB）：仅在进程整体接近系统限制时兜底 */
+const PAGED_MEMORY_SOFT_LIMIT_KB: number = 1800 * 1024;
+/** 导出过程允许的内存增长（KB）：超过说明 PDFKit 在持续膨胀 */
+const PAGED_MEMORY_GROWTH_LIMIT_KB: number = 600 * 1024;
 /** 每渲染多少页检查一次 PSS */
 const PAGED_MEMORY_CHECK_PAGES: number = 2;
 
@@ -248,6 +251,8 @@ export class PagedPdfExportService {
 
     // 先建册拿到总页数；单宗支优先读持久化分页缓存，命中则跳过整树装箱
     const version: number = Date.now();
+    // 导出前释放连续视图的布局画布缓存（最多 8 本/谱式），给导出腾出内存
+    TreeLayoutCache.getInstance().invalidate();
     // 大谱自动用紧凑档：卡 16×8mm、字号 6/5pt，单页容量提升约 1.5 倍，
     // 页数与卷数同步下降；1.5 万人以下仍用标准档保证阅读舒适度
     const peopleCount: number = GenealogyService.getInstance().getPeople().length;
@@ -320,6 +325,8 @@ export class PagedPdfExportService {
 
     const outPaths: string[] = [];
     let globalPage: number = 0; // 已渲染的全局页数（进度用）
+    // 记录导出基线 PSS：大谱基础占用高时，用增量判断比绝对值更可靠
+    const basePssKb: number = currentPssKb();
 
     for (let v: number = 0; v < volumeCount; v++) {
       const startG: number = v * maxPagesPerVolume;
@@ -352,8 +359,11 @@ export class PagedPdfExportService {
           if (PAGED_MEMORY_SOFT_LIMIT_KB > 0 && globalPage > 0 &&
             globalPage % PAGED_MEMORY_CHECK_PAGES === 0) {
             const pssKb: number = currentPssKb();
-            if (pssKb > PAGED_MEMORY_SOFT_LIMIT_KB) {
-              throw new Error('导出内存不足（PSS ' + Math.round(pssKb / 1024).toString() +
+            const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
+            if (pssKb > 0 && (pssKb > PAGED_MEMORY_SOFT_LIMIT_KB ||
+              growthKb > PAGED_MEMORY_GROWTH_LIMIT_KB)) {
+              throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024).toString() +
+                'MB，较导出开始增长 ' + Math.round(growthKb / 1024).toString() +
                 'MB，已渲染 ' + globalPage.toString() + '/' + total.toString() +
                 ' 页）。请减少单卷页数或分批导出。');
             }

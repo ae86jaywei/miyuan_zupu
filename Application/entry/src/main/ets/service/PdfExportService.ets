@@ -9,6 +9,7 @@ import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { displayDate } from '../util/DateUtil';
 import { GenealogyService } from './GenealogyService';
+import { TreeLayoutCache } from './TreeLayoutCache';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -42,10 +43,10 @@ const CANVAS_H: number = 1684;
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
 // 软上限按设备内存可调；设为 0 表示关闭监控。
 // 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
-const MEMORY_SOFT_LIMIT_KB: number = 1100 * 1024;
-const MEMORY_CHECK_EVERY_PAGES: number = 8;
+const MEMORY_SOFT_LIMIT_KB: number = 1800 * 1024;
+const MEMORY_CHECK_EVERY_PAGES: number = 16;
 /** 导出过程允许的内存增长（KB）：超过即认为 PDFKit 在持续膨胀 */
-const MEMORY_GROWTH_LIMIT_KB: number = 500 * 1024;
+const MEMORY_GROWTH_LIMIT_KB: number = 700 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -1136,6 +1137,8 @@ export class PdfExportService {
     if (people.length === 0) {
       throw new Error('没有可导出的人物数据');
     }
+    // 导出前释放连续视图的布局画布缓存，给 PDFKit 腾出内存
+    TreeLayoutCache.getInstance().invalidate();
 
     // 1. 输出目录
     const outDir: string = context.filesDir + '/pdf_export';
