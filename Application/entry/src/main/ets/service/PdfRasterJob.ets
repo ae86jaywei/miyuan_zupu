@@ -24,8 +24,12 @@ export const RENDER_DPI: number = 150;
 export const PX_PER_MM: number = RENDER_DPI / 25.4;
 export const RENDER_W: number = Math.round(PAGE_W_MM * PX_PER_MM);
 export const RENDER_H: number = Math.round(PAGE_H_MM * PX_PER_MM);
-export const TILE_COLS: number = 2;
-export const TILE_ROWS: number = 2;
+/**
+ * 整页单图（不切块）：150dpi 整页约 1890×1299，小于 4096 纹理上限。
+ * PDFKit 每页只登记 1 个 image 对象（原来 4 块），显著减少 native 图片对象与保存时的解码开销。
+ */
+export const TILE_COLS: number = 1;
+export const TILE_ROWS: number = 1;
 export const TILE_W: number = Math.ceil(RENDER_W / TILE_COLS);
 export const TILE_H: number = Math.ceil(RENDER_H / TILE_ROWS);
 

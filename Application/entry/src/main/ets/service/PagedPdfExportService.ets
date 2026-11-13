@@ -45,7 +45,7 @@ const MEASURE_H: number = 256;
  * 981 人的分支谱仍有 100+ 页；PDFKit 在 saveDocument 时会一次性加载整卷图片，
  * 4 页/卷能把单卷峰值压到约 70MB，代价是卷数变多（可接受）。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 4;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 2;
 /** 分页导出软上限：超过只记日志并继续，不再主动中止导出 */
 const PAGED_MEMORY_SOFT_LIMIT_KB: number = 2400 * 1024;
 /** 分页导出硬上限：仅进程接近系统限制时才中止 */
