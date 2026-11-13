@@ -41,8 +41,11 @@ const CANVAS_H: number = 1684;
 // 逐页写 PDF 时监控进程 PSS，超过软上限就主动抛可捕获错误并提示分卷，
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
 // 软上限按设备内存可调；设为 0 表示关闭监控。
-const MEMORY_SOFT_LIMIT_KB: number = 900 * 1024;
-const MEMORY_CHECK_EVERY_PAGES: number = 4;
+// 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
+const MEMORY_SOFT_LIMIT_KB: number = 1100 * 1024;
+const MEMORY_CHECK_EVERY_PAGES: number = 8;
+/** 导出过程允许的内存增长（KB）：超过即认为 PDFKit 在持续膨胀 */
+const MEMORY_GROWTH_LIMIT_KB: number = 500 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -1224,6 +1227,8 @@ export class PdfExportService {
         doc.deletePage(0, 1);
       }
       const t0: number = Date.now();
+      // 大谱基础 PSS 可能已有几百 MB，用「导出增量」比绝对阈值更准确
+      const basePssKb: number = currentPssKb();
       for (let i: number = 0; i < total; i++) {
         drawPageToPdf(ctx, doc, all[i], i + 1, total, i < coverPages.length);
         if (onProgress && (i % 5 === 0 || i === total - 1)) {
@@ -1237,11 +1242,15 @@ export class PdfExportService {
         // 而不是让 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）
         if (MEMORY_SOFT_LIMIT_KB > 0 && i > 0 && i % MEMORY_CHECK_EVERY_PAGES === 0) {
           const pssKb: number = currentPssKb();
-          if (pssKb > 0 && pssKb > MEMORY_SOFT_LIMIT_KB) {
-            console.info('[PdfExport] memory guard hit, pss=' + Math.round(pssKb / 1024) + 'MB, page='
-              + i + '/' + total);
-            throw new Error('导出内存占用过高（当前约 ' + Math.round(pssKb / 1024)
-              + 'MB），请减少单卷人数后重试（数据量较大时请分卷导出）');
+          const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
+          if (pssKb > 0 && (pssKb > MEMORY_SOFT_LIMIT_KB ||
+            (growthKb > MEMORY_GROWTH_LIMIT_KB))) {
+            console.info('[PdfExport] memory guard hit, pss=' + Math.round(pssKb / 1024) +
+              'MB base=' + Math.round(basePssKb / 1024) + 'MB growth=' +
+              Math.round(growthKb / 1024) + 'MB, page=' + i + '/' + total);
+            throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024) +
+              'MB，较导出开始增长 ' + Math.round(growthKb / 1024) +
+              'MB，第 ' + i + '/' + total + ' 页）。请减少单卷人数后重试');
           }
         }
         await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应

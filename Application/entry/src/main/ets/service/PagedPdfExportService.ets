@@ -41,12 +41,10 @@ const MEASURE_H: number = 256;
 
 /**
  * 欧式/苏式分页导出：单卷最大页数。
- * 每页是 4 块 300dpi 栅格图，PDFKit 在 saveDocument 时会一次性加载整卷图片；
- * 页数过多会让 native 内存暴涨并被系统直接杀进程（JS 层来不及 catch，日志也无报错）。
- * 8 页（32 张图）在部分机型上会崩溃，因此收紧到 4 页（16 张图）。
- * 设为 0 表示不分卷。
+ * 4 页/卷会让 4000 页的谱导出成 1000 个文件，既难管理也拖慢导出；
+ * 48 页/卷（约 192 张图）在主流机型上仍可控，卷数降到几十卷。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 4;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 48;
 /** 分页导出内存软上限（KB）：超过则主动停止并提示，避免 native OOM 闪退 */
 const PAGED_MEMORY_SOFT_LIMIT_KB: number = 850 * 1024;
 /** 每渲染多少页检查一次 PSS */
@@ -250,6 +248,10 @@ export class PagedPdfExportService {
 
     // 先建册拿到总页数；单宗支优先读持久化分页缓存，命中则跳过整树装箱
     const version: number = Date.now();
+    // 大谱自动用紧凑档：卡 16×8mm、字号 6/5pt，单页容量提升约 1.5 倍，
+    // 页数与卷数同步下降；1.5 万人以下仍用标准档保证阅读舒适度
+    const peopleCount: number = GenealogyService.getInstance().getPeople().length;
+    const profileName: string = peopleCount > 15000 ? 'compact' : 'standard';
     const books: RootBook[] = [];
     let total: number = 0;
     const singleRoot: boolean = roots.length === 1;
@@ -261,14 +263,14 @@ export class PagedPdfExportService {
       rb.rootName = roots[i].person.name.length > 0 ? roots[i].person.name : roots[i].uid;
       let bk: PrintBook | null = null;
       if (singleRoot) {
-        bk = await PageCacheService.getInstance().loadBook(style, 'standard', roots[i].uid);
+        bk = await PageCacheService.getInstance().loadBook(style, profileName, roots[i].uid);
         if (bk !== null) {
           rb.fromCache = true;
           svc.adoptBook(bk);
         }
       }
       if (bk === null) {
-        bk = await svc.book(roots[i].uid, style, version, 'standard', (pct: number): void => {
+        bk = await svc.book(roots[i].uid, style, version, profileName, (pct: number): void => {
           if (onProgress) {
             onProgress({ current: 0, total: 0, message: '正在排版 ' + pct.toString() + '%' });
           }
@@ -362,7 +364,7 @@ export class PagedPdfExportService {
             // 跨宗支时重新取回该宗支的分页册；命中持久化缓存的本无需重建
             const rb: RootBook = books[bi];
             if (!rb.fromCache) {
-              rb.book = await svc.book(rb.rootUid, style, version, 'standard');
+              rb.book = await svc.book(rb.rootUid, style, version, profileName);
             }
             currentBook = rb.book as PrintBook;
             currentRootName = rb.rootName;
@@ -379,14 +381,14 @@ export class PagedPdfExportService {
           const pageNoInVol: number = g - startG + 1; // 卷内页码：第X页/共 volCount 页
           let canvas: EuCanvas | SuCanvas | null = null;
           if (singleRoot) {
-            canvas = await PageCacheService.getInstance().loadCanvas(style, 'standard',
+            canvas = await PageCacheService.getInstance().loadCanvas(style, profileName,
               roots[0].uid, localIdx);
           }
           if (canvas === null) {
             canvas = style === 'su' ? svc.suPage(localIdx) : svc.euPage(localIdx);
             if (canvas !== null && singleRoot) {
               // 布局缓存：下次导出直接复用本页坐标，省掉重复布局
-              await PageCacheService.getInstance().saveCanvas(style, 'standard', roots[0].uid,
+              await PageCacheService.getInstance().saveCanvas(style, profileName, roots[0].uid,
                 localIdx, canvas);
             }
           }
@@ -427,7 +429,7 @@ export class PagedPdfExportService {
     }
     // 导出完成后再落缓存：不与导出争主线程，数据版本变化时自动丢弃
     if (cacheBook !== null) {
-      PageCacheService.getInstance().scheduleSave(cacheBook, style, 'standard', cacheRootUid,
+      PageCacheService.getInstance().scheduleSave(cacheBook, style, profileName, cacheRootUid,
         PAGED_MAX_PAGES_PER_VOLUME);
     }
     return outPaths;

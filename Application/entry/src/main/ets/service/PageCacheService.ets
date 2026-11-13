@@ -36,7 +36,7 @@ const WARMUP_PSS_LIMIT_KB: number = 600 * 1024;
 /** 写入缓存的批量大小 */
 const WRITE_BATCH: number = 50;
 /** 导出缓存默认分卷页数（与 PagedPdfExportService 保持一致） */
-export const CACHE_VOLUME_PAGES: number = 4;
+export const CACHE_VOLUME_PAGES: number = 48;
 /** 只保留最近 N 个族谱/谱式缓存，避免缓存库无限增长 */
 const CACHE_KEEP_KEYS: number = 3;
 /** 布局缓存写入内存门槛：PSS 超限时只读不写，避免导出峰值叠加 */
