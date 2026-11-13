@@ -41,8 +41,8 @@ const CANVAS_H: number = 1684;
 // 逐页写 PDF 时监控进程 PSS，超过软上限就主动抛可捕获错误并提示分卷，
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
 // 软上限按设备内存可调；设为 0 表示关闭监控。
-const MEMORY_SOFT_LIMIT_KB: number = 1200 * 1024;
-const MEMORY_CHECK_EVERY_PAGES: number = 8;
+const MEMORY_SOFT_LIMIT_KB: number = 900 * 1024;
+const MEMORY_CHECK_EVERY_PAGES: number = 4;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -961,6 +961,11 @@ export class PdfExportService {
       return [];
     }
     const volumes: PdfVolume[] = [];
+    // 小房不单独成卷：几十个「一房一卷」会让每卷都建文档/保存，导出时间成倍增加，
+    // 也更容易在中途触发系统内存回收。这里只让大房独立成卷，小房合并为合卷。
+    const minSingle: number = Math.max(200, Math.floor(maxPerVolume / 2));
+    let mergePeople: Person[] = [];
+    let mergeNameCount: number = 0;
     for (let g: number = 0; g < order.length; g = g + 1) {
       const key: string = order[g];
       const list: Person[] | undefined = groups.get(key);
@@ -971,20 +976,46 @@ export class PdfExportService {
       const branchName: string = firstInfo !== undefined ? firstInfo.branchName : '本支';
       const rootName: string = firstInfo !== undefined ? firstInfo.rootName : '';
       const name: string = branchName + (rootName.length > 0 ? '·' + rootName : '');
-      if (list.length <= maxPerVolume) {
-        const vol: PdfVolume = {
-          title: '第' + (volumes.length + 1).toString() + '卷（' + name + '）',
-          people: list
-        };
-        volumes.push(vol);
+      if (list.length >= minSingle) {
+        if (list.length <= maxPerVolume) {
+          const vol: PdfVolume = {
+            title: '第' + (volumes.length + 1).toString() + '卷（' + name + '）',
+            people: list
+          };
+          volumes.push(vol);
+        } else {
+          const subs: PdfVolume[] = PdfExportService.slicePeopleByGeneration(list, maxPerVolume);
+          for (let s: number = 0; s < subs.length; s = s + 1) {
+            subs[s].title = '第' + (volumes.length + 1).toString() + '卷（' + name +
+              (s > 0 ? '·续' : '') + '）';
+            volumes.push(subs[s]);
+          }
+        }
         continue;
       }
-      const subs: PdfVolume[] = PdfExportService.slicePeopleByGeneration(list, maxPerVolume);
-      for (let s: number = 0; s < subs.length; s = s + 1) {
-        subs[s].title = '第' + (volumes.length + 1).toString() + '卷（' + name +
-          (s > 0 ? '·续' : '') + '）';
-        volumes.push(subs[s]);
+      // 小房累积：超过单卷容量先落一卷，避免超限
+      if (mergePeople.length > 0 && mergePeople.length + list.length > maxPerVolume) {
+        const merged: PdfVolume = {
+          title: '第' + (volumes.length + 1).toString() + '卷（合卷·' +
+            mergeNameCount.toString() + '房）',
+          people: mergePeople
+        };
+        volumes.push(merged);
+        mergePeople = [];
+        mergeNameCount = 0;
       }
+      for (let k: number = 0; k < list.length; k = k + 1) {
+        mergePeople.push(list[k]);
+      }
+      mergeNameCount = mergeNameCount + 1;
+    }
+    if (mergePeople.length > 0) {
+      const merged: PdfVolume = {
+        title: '第' + (volumes.length + 1).toString() + '卷（合卷·' +
+          mergeNameCount.toString() + '房）',
+        people: mergePeople
+      };
+      volumes.push(merged);
     }
     return volumes;
   }

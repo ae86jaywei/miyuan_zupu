@@ -28,6 +28,13 @@ export const TILE_ROWS: number = 2;
 export const TILE_W: number = Math.ceil(RENDER_W / TILE_COLS);
 export const TILE_H: number = Math.ceil(RENDER_H / TILE_ROWS);
 
+/**
+ * JPEG 质量：95 → 88。
+ * 分页 PDF 的栅格层只承载纸面/装订口/页框/连线/卡片框，88 已足够印刷；
+ * 单块文件更小，PDFKit 保存时解码总量随之下降，显著降低 OOM 风险。
+ */
+export const JPEG_QUALITY: number = 88;
+
 /** 页面几何（与 PrintLayout 保持一致） */
 export const GUTTER_MM: number = 20;
 export const INNER_X_MM: number = 26;
@@ -120,7 +127,7 @@ export async function renderTileImpl(pageNo: number, r: number, c: number, lineW
   const packer: image.ImagePacker = image.createImagePacker();
   let buf: ArrayBuffer;
   try {
-    const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
+    const opt: image.PackingOption = { format: 'image/jpeg', quality: JPEG_QUALITY };
     buf = await packer.packing(pm, opt);
   } finally {
     pm.release();

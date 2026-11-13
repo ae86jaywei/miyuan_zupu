@@ -4,6 +4,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { Font, LengthMetricsUnit } from '@kit.ArkUI';
 import { taskpool } from '@kit.ArkTS';
+import { hidebug } from '@kit.PerformanceAnalysisKit';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { PaginationService, PrintBook, PagePlan } from './PaginationService';
@@ -12,7 +13,7 @@ import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
 import { compactUid } from '../util/StringUtil';
 import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
-  PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
+  JPEG_QUALITY, PAGE_H_MM, PAGE_W_MM, RENDER_H, RENDER_W, TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
 import { renderTileJob } from './PdfTileTask';
 
 /** PDF 点：1mm = 72/25.4 pt */
@@ -38,10 +39,26 @@ const MEASURE_W: number = 1024;
 const MEASURE_H: number = 256;
 
 /**
- * 欧式/苏式分页导出：单卷最大页数。每页是 300dpi 栅格图，页数过多会让 PDF 文档内存暴涨甚至崩溃，
- * 超过则自动拆成多个分卷 PDF；未超阈值时合并为一个文件（与旧版一致）。设为 0 表示不分卷。
+ * 欧式/苏式分页导出：单卷最大页数。
+ * 每页是 4 块 300dpi 栅格图，PDFKit 在 saveDocument 时会一次性加载整卷图片；
+ * 页数过多会让 native 内存暴涨并被系统直接杀进程（JS 层来不及 catch，日志也无报错）。
+ * 8 页（32 张图）在部分机型上会崩溃，因此收紧到 4 页（16 张图）。
+ * 设为 0 表示不分卷。
  */
-const PAGED_MAX_PAGES_PER_VOLUME: number = 8;
+const PAGED_MAX_PAGES_PER_VOLUME: number = 4;
+/** 分页导出内存软上限（KB）：超过则主动停止并提示，避免 native OOM 闪退 */
+const PAGED_MEMORY_SOFT_LIMIT_KB: number = 850 * 1024;
+/** 每渲染多少页检查一次 PSS */
+const PAGED_MEMORY_CHECK_PAGES: number = 2;
+
+/** 读取当前进程 PSS（KB），失败返回 -1；hidebug.getPss() 返回 bigint */
+function currentPssKb(): number {
+  try {
+    return Number(hidebug.getPss());
+  } catch (_e) {
+    return -1;
+  }
+}
 
 export interface PagedPdfProgress {
   current: number;
@@ -308,6 +325,16 @@ export class PagedPdfExportService {
         let currentRootName: string = '';
         let currentBook: PrintBook | null = null;
         for (let g: number = startG; g < endG; g++) {
+          // 先查内存再渲染下一页：超过软上限时主动停止，避免 native OOM 直接杀进程
+          if (PAGED_MEMORY_SOFT_LIMIT_KB > 0 && globalPage > 0 &&
+            globalPage % PAGED_MEMORY_CHECK_PAGES === 0) {
+            const pssKb: number = currentPssKb();
+            if (pssKb > PAGED_MEMORY_SOFT_LIMIT_KB) {
+              throw new Error('导出内存不足（PSS ' + Math.round(pssKb / 1024).toString() +
+                'MB，已渲染 ' + globalPage.toString() + '/' + total.toString() +
+                ' 页）。请减少单卷页数或分批导出。');
+            }
+          }
           const bi: number = pageBook[g];
           const localIdx: number = pageLocal[g];
           if (bi !== lastBook) {
@@ -360,6 +387,8 @@ export class PagedPdfExportService {
         doc.releaseDocument();
         PagedPdfExportService.cleanupTiles(volTiles);
       }
+      // 每卷之间让出 UI 并给 GC 回收 native 内存的机会
+      await PagedPdfExportService.yieldToUi();
     }
     return outPaths;
   }
@@ -384,28 +413,30 @@ export class PagedPdfExportService {
     const lineData: number[] = packLineData(canvas);
     const boxData: number[] = packBoxData(canvas, style);
     const metas: TileImage[] = [];
-    const jobs: Array<Promise<Object>> = [];
-    for (let r: number = 0; r < TILE_ROWS; r++) {
-      const y0: number = Math.round(r * RENDER_H / TILE_ROWS);
-      const y1: number = Math.round((r + 1) * RENDER_H / TILE_ROWS);
-      for (let c: number = 0; c < TILE_COLS; c++) {
-        const x0: number = Math.round(c * RENDER_W / TILE_COLS);
-        const x1: number = Math.round((c + 1) * RENDER_W / TILE_COLS);
-        const tile: TileImage = new TileImage();
-        tile.path = context.cacheDir + '/paged_pdf_' + pageNo.toString() +
-          '_' + r.toString() + '_' + c.toString() + '.jpg';
-        tile.xPx = x0;
-        tile.yPx = y0;
-        tile.wPx = x1 - x0;
-        tile.hPx = y1 - y0;
-        metas.push(tile);
-        const task: taskpool.Task = new taskpool.Task(renderTileJob, pageNo, r, c, lineWidthMm,
-          lineData, boxData, context.cacheDir);
-        jobs.push(taskpool.execute(task));
-      }
-    }
     try {
-      await Promise.all(jobs);
+      for (let r: number = 0; r < TILE_ROWS; r++) {
+        const y0: number = Math.round(r * RENDER_H / TILE_ROWS);
+        const y1: number = Math.round((r + 1) * RENDER_H / TILE_ROWS);
+        const jobs: Array<Promise<Object>> = [];
+        for (let c: number = 0; c < TILE_COLS; c++) {
+          const x0: number = Math.round(c * RENDER_W / TILE_COLS);
+          const x1: number = Math.round((c + 1) * RENDER_W / TILE_COLS);
+          const tile: TileImage = new TileImage();
+          tile.path = context.cacheDir + '/paged_pdf_' + pageNo.toString() +
+            '_' + r.toString() + '_' + c.toString() + '.jpg';
+          tile.xPx = x0;
+          tile.yPx = y0;
+          tile.wPx = x1 - x0;
+          tile.hPx = y1 - y0;
+          metas.push(tile);
+          const task: taskpool.Task = new taskpool.Task(renderTileJob, pageNo, r, c, lineWidthMm,
+            lineData, boxData, context.cacheDir);
+          jobs.push(taskpool.execute(task));
+        }
+        // 按行提交：同一时刻最多 2 个 worker，把离屏画布峰值从 4 块降到 2 块，
+        // 低内存机型上明显降低被系统杀进程的概率
+        await Promise.all(jobs);
+      }
     } catch (_e) {
       PagedPdfExportService.cleanupTiles(metas);
       return PagedPdfExportService.renderTilesSerial(canvas, style, pageNo, lineWidthMm, context);
@@ -435,7 +466,7 @@ export class PagedPdfExportService {
           const pm: image.PixelMap = g.getPixelMap(0, 0, w, h);
           let buf: ArrayBuffer;
           try {
-            const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
+            const opt: image.PackingOption = { format: 'image/jpeg', quality: JPEG_QUALITY };
             buf = await packer.packing(pm, opt);
           } finally {
             pm.release();
