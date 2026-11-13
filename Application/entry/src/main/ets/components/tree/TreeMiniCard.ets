@@ -31,6 +31,10 @@ export struct TreeMiniCard {
   /** 是否在卡片内展示配偶（欧式/苏式由外层单独绘制配偶卡时传 false） */
   @Prop showSpouseInline: boolean = false;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
+  /** 长按卡片：打开族人详情（点击只做选中高亮） */
+  onLongPressPerson: (uid: string) => void = (uid: string): void => {};
+  /** 鼠标悬浮提示：桌面/2in1 上显示「长按显示族人详情」 */
+  @State tipVisible: boolean = false;
 
   private genChar(): string {
     return this.person.generationChar.length > 0 ? this.person.generationChar + '字' : '';
@@ -160,6 +164,21 @@ export struct TreeMiniCard {
     .alignItems(HorizontalAlign.Start)
     .onClick((): void => {
       this.onTapPerson(this.person.uid);
+    })
+    .gesture(
+      LongPressGesture({ repeat: false, duration: 500 })
+        .onAction((): void => {
+          this.onLongPressPerson(this.person.uid);
+        })
+    )
+    .onHover((isHover: boolean): void => {
+      this.tipVisible = isHover;
+    })
+    .bindPopup(this.tipVisible, {
+      message: '长按显示族人详情',
+      placement: Placement.Top,
+      enableArrow: true,
+      autoCancel: false
     })
   }
 }

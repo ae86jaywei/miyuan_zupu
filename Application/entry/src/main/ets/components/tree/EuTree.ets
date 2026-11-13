@@ -44,6 +44,8 @@ export struct EuTree {
   private cachedCanvas: EuCanvas | null = null;
   private cachedCanvasKey: string = '';
   onTapPerson: (uid: string) => void = (uid: string): void => {};
+  /** 长按卡片：打开族人详情（点击只做选中高亮） */
+  onOpenDetail: (uid: string) => void = (uid: string): void => {};
   /** 点击房支气泡：跳转到该房起始分页（空实现时退化为放大） */
   onBubbleTap: (uid: string) => void = (uid: string): void => {};
   onSize: (w: number, h: number) => void = (w: number, h: number): void => {};
@@ -209,6 +211,9 @@ export struct EuTree {
                 dense: this.dense,
                 onTapPerson: (uid: string): void => {
                   this.onTapPerson(uid);
+                },
+                onLongPressPerson: (uid: string): void => {
+                  this.onOpenDetail(uid);
                 }
               })
                 .position({ x: box.x, y: box.y })
@@ -233,6 +238,12 @@ export struct EuTree {
               .onClick((): void => {
                 this.onTapPerson(box.node.uid);
               })
+              .gesture(
+                LongPressGesture({ repeat: false, duration: 500 })
+                  .onAction((): void => {
+                    this.onOpenDetail(box.node.uid);
+                  })
+              )
             }
           }, (box: EuBox) => 'bx_' + this.rootUid + '_' + this.layoutVersion.toString() + '_' +
             this.cardWidth.toString() + '_' + this.dense.toString() + '_' + this.lodLevel.toString() +

@@ -107,6 +107,11 @@ export struct TreeCanvas {
   /** 面包屑：当前人物上溯的祖先链（根→当前，最多 4 级） */
   @State trailUids: string[] = [];
   @State trailNames: string[] = [];
+  /** 卡片点击选中：与页面高亮解耦，点击只选中、不打开详情 */
+  @State selectedUid: string = '';
+  /** 选中后的「长按查看详情」操作提示条 */
+  @State hintVisible: boolean = false;
+  private hintTimer: number = -1;
   /** 布局计算进行中：先渲染加载态，避免切换谱式那一帧同时做大布局与大渲染 */
   @State layoutBusy: boolean = false;
 
@@ -192,6 +197,10 @@ export struct TreeCanvas {
       clearTimeout(this.layoutTimer);
       this.layoutTimer = -1;
     }
+    if (this.hintTimer >= 0) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = -1;
+    }
   }
 
   /** AppStorage 里的分页状态变化（本组件点“分页/连续”，或页面切换谱式时复位） */
@@ -219,6 +228,8 @@ export struct TreeCanvas {
   /** 切换谱式后画布尺寸与布局完全变化，平移偏移必须归零 */
   onStyleChanged(): void {
     this.branchMenuOpen = false;
+    this.selectedUid = '';
+    this.hintVisible = false;
     this.offsetX = 0;
     this.offsetY = 0;
     if (!this.isPagedStyle()) {
@@ -262,6 +273,9 @@ export struct TreeCanvas {
   }
 
   onHighlightChanged(): void {
+    // 页面高亮（搜索/详情联动）优先于本地点选，清掉本地选中避免盖住新目标
+    this.selectedUid = '';
+    this.hintVisible = false;
     this.rebuildTrail();
     if (this.style === TreeStyle.DIE) {
       this.dieSource.setData(this.diePeople);
@@ -413,9 +427,14 @@ export struct TreeCanvas {
     }
   }
 
-  /** 面包屑：当前高亮人物上溯到本支根，最多保留 4 级 */
+  /** 面包屑：当前选中/高亮人物上溯到本支根，最多保留 4 级 */
   private rebuildTrail(): void {
-    const uid: string = this.highlightUid.length > 0 ? this.highlightUid : this.activeRootUid();
+    const uid: string = this.selectedUid.length > 0 ? this.selectedUid :
+      (this.highlightUid.length > 0 ? this.highlightUid : this.activeRootUid());
+    this.rebuildTrailFor(uid);
+  }
+
+  private rebuildTrailFor(uid: string): void {
     const chain: PersonNode[] = [];
     let cur: PersonNode | undefined = this.nodeIndex.get(uid);
     let guard: number = 0;
@@ -434,6 +453,47 @@ export struct TreeCanvas {
     this.trailUids = chain.map((n: PersonNode): string => n.uid);
     this.trailNames = chain.map((n: PersonNode): string =>
       n.person.name.length > 0 ? n.person.name : n.uid);
+  }
+
+  /** 当前选中高亮：卡片点选优先于页面高亮 */
+  private selectionUid(): string {
+    if (this.selectedUid.length > 0) {
+      return this.selectedUid;
+    }
+    return this.effectiveHighlight(this.activeRootUid());
+  }
+
+  /** 点击卡片：只做选中高亮，不打开详情 */
+  private selectPerson(uid: string): void {
+    if (uid.length === 0) {
+      return;
+    }
+    this.selectedUid = uid;
+    this.viewState = 'FOCUS';
+    this.rebuildTrailFor(uid);
+    this.showSelectHint();
+  }
+
+  /** 长按卡片：先保持选中，再打开族人详情 */
+  private openPersonDetail(uid: string): void {
+    if (uid.length === 0) {
+      return;
+    }
+    this.selectedUid = uid;
+    this.rebuildTrailFor(uid);
+    this.onTapPerson(uid);
+  }
+
+  /** 选中后短暂提示：告诉用户长按可看详情（手机上无 hover 时的兜底） */
+  private showSelectHint(): void {
+    this.hintVisible = true;
+    if (this.hintTimer >= 0) {
+      clearTimeout(this.hintTimer);
+    }
+    this.hintTimer = setTimeout((): void => {
+      this.hintVisible = false;
+      this.hintTimer = -1;
+    }, 2600);
   }
 
   /** 上溯到所在宗支根 uid */
@@ -587,6 +647,8 @@ export struct TreeCanvas {
   /** 切换宗支：单支渲染，切换后归零平移并重新居中 */
   private switchBranch(i: number): void {
     this.branchMenuOpen = false;
+    this.selectedUid = '';
+    this.hintVisible = false;
     if (this.rootUids.length <= 1) {
       return;
     }
@@ -1469,7 +1531,7 @@ export struct TreeCanvas {
                       EuTree({
                         rootUid: this.activeRootUid(),
                         layoutVersion: this.dataVersion,
-                        highlightUid: this.effectiveHighlight(this.activeRootUid()),
+                        highlightUid: this.selectionUid(),
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showSpouse: true,
@@ -1481,7 +1543,10 @@ export struct TreeCanvas {
                         interacting: this.interacting,
                         contentTop: this.currentContentTop(),
                         onTapPerson: (id: string): void => {
-                          this.onTapPerson(id);
+                          this.selectPerson(id);
+                        },
+                        onOpenDetail: (id: string): void => {
+                          this.openPersonDetail(id);
                         },
                         onBubbleTap: (id: string): void => {
                           this.openBranchPage(id).then((): void => {
@@ -1498,7 +1563,7 @@ export struct TreeCanvas {
                       SuTree({
                         rootUid: this.activeRootUid(),
                         layoutVersion: this.dataVersion,
-                        highlightUid: this.effectiveHighlight(this.activeRootUid()),
+                        highlightUid: this.selectionUid(),
                         cardWidth: this.cardWidth(),
                         dense: this.isNarrow(),
                         showGenMark: true,
@@ -1511,7 +1576,10 @@ export struct TreeCanvas {
                         interacting: this.interacting,
                         contentTop: this.currentContentTop(),
                         onTapPerson: (id: string): void => {
-                          this.onTapPerson(id);
+                          this.selectPerson(id);
+                        },
+                        onOpenDetail: (id: string): void => {
+                          this.openPersonDetail(id);
                         },
                         onBubbleTap: (id: string): void => {
                           this.openBranchPage(id).then((): void => {
@@ -1654,6 +1722,21 @@ export struct TreeCanvas {
           .position({ x: 0, y: this.rootUids.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0 })
           .zIndex(4)
           .padding({ left: 8, right: 8 })
+        }
+        if (this.hintVisible && !this.pagedMode) {
+          Column() {
+            Text('已选中 · 长按卡片查看族人详情')
+              .fontSize(12)
+              .fontColor('#FFFFFF')
+              .backgroundColor('rgba(0,0,0,0.72)')
+              .borderRadius(14)
+              .padding({ left: 14, right: 14, top: 6, bottom: 6 })
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Center)
+          .position({ x: 0, y: Math.max(12, this.viewH - 112) })
+          .zIndex(6)
+          .hitTestBehavior(HitTestMode.Transparent)
         }
         this.MiniMap()
         if (this.branchMenuOpen && this.rootUids.length > 1) {
