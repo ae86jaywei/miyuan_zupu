@@ -44,6 +44,8 @@ export struct EuTree {
   private cachedCanvas: EuCanvas | null = null;
   private cachedCanvasKey: string = '';
   onTapPerson: (uid: string) => void = (uid: string): void => {};
+  /** 点击房支气泡：跳转到该房起始分页（空实现时退化为放大） */
+  onBubbleTap: (uid: string) => void = (uid: string): void => {};
   onSize: (w: number, h: number) => void = (w: number, h: number): void => {};
   /** 点击聚合气泡：请求画布以该内容点为中心放大 */
   onZoomAt: (contentX: number, contentY: number, contentTop: number) => void =
@@ -163,22 +165,33 @@ export struct EuTree {
 
         if (this.lodLevel === DETAIL_BUBBLE) {
           ForEach(this.bubbles, (b: Bubble) => {
-            Stack({ alignContent: Alignment.Center }) {
-              if (b.count > 1) {
-                Text(b.count.toString())
-                  .fontSize(11 / this.safeZoom())
-                  .fontColor('#FFFFFF')
-                  .fontWeight(FontWeight.Medium)
-              }
+            Column() {
+              Text(b.label)
+                .fontSize(11 / this.safeZoom())
+                .fontColor('#FFFFFF')
+                .fontWeight(FontWeight.Medium)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
+              Text(b.countLabel)
+                .fontSize(9 / this.safeZoom())
+                .fontColor('rgba(255,255,255,0.86)')
+                .maxLines(1)
             }
-            .width(b.r * 2)
-            .height(b.r * 2)
-            .borderRadius(b.r)
+            .width(b.bw)
+            .height(b.bh)
+            .padding({ left: 6 / this.safeZoom(), right: 6 / this.safeZoom() })
+            .justifyContent(FlexAlign.Center)
+            .alignItems(HorizontalAlign.Center)
+            .borderRadius(8 / this.safeZoom())
             .backgroundColor(b.femaleRatio > 0.6 ? Theme.female : Theme.male)
-            .border({ width: 1.5 / this.safeZoom(), color: 'rgba(255,255,255,0.75)' })
-            .position({ x: b.x - b.r, y: b.y - b.r })
+            .border({ width: 1.2 / this.safeZoom(), color: 'rgba(255,255,255,0.8)' })
+            .position({ x: b.bx, y: b.by })
             .onClick((): void => {
-              this.onZoomAt(b.x, b.y, this.contentTop);
+              if (b.anchorUid.length > 0) {
+                this.onBubbleTap(b.anchorUid);
+              } else {
+                this.onZoomAt(b.x, b.y, this.contentTop);
+              }
             })
           }, (b: Bubble) => 'bub_' + this.rootUid + '_' + this.layoutVersion.toString() + '_' + b.key)
         } else {

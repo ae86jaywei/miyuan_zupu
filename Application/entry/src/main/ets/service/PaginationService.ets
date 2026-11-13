@@ -35,6 +35,16 @@ export class PageCut {
   relationText: string = '';
 }
 
+/** 页脚软链接：本页未展开的兄弟分支，可直接翻到它的起页 */
+export class PageJump {
+  uid: string = '';
+  name: string = '';
+  /** 目标页（1 起，0 表示未排进本书） */
+  page: number = 0;
+  /** 分支称谓，如「二房·韦承恩」 */
+  relation: string = '';
+}
+
 /** 一页的排版计划（屏幕分页视图与未来 PDF 共用） */
 export class PagePlan {
   /** 图册内页码，从 1 开始 */
@@ -50,6 +60,13 @@ export class PagePlan {
   uids: Set<string> = new Set<string>();
   /** 被切到后页的子女（仅父卡所在页记录） */
   cuts: PageCut[] = [];
+  /** 页首祖先上下文：上溯两代的 uid（由近到远），PDF 与屏幕页首据此画承接卡 */
+  contextAncestors: string[] = [];
+  contextAncestorNames: string[] = [];
+  /** 本页所属房支名称（如「三房」） */
+  branchName: string = '';
+  /** 页脚兄弟分支软链接：点击可直接翻到该房起页 */
+  siblingLinks: PageJump[] = [];
   /** 页脚接续文案 */
   footerText: string = '';
   /** 奇数页为单页（装订口在左），偶数页镜像 */
@@ -115,6 +132,12 @@ const MAX_PAGES: number = 20000;
 const MAX_ITER: number = 400000;
 /** 容量判定的浮点容差（mm） */
 const FIT_EPS: number = 0.2;
+/**
+ * 分支点提前切页的最小页人数。
+ * 页面已排下至少这么多人、且下一支属于另一房时，优先在新房起点换页，
+ * 避免同一页混排多个房支导致「树冠在十几页反复出现」。
+ */
+const MIN_PEOPLE_PER_PAGE: number = 20;
 
 /**
  * 分页规划与逐页布局。
@@ -338,6 +361,16 @@ export class PaginationService {
         continue;
       }
       const unit: PendingUnit = queue[0];
+
+      // 分支点优先换页：本页已排够人、下一支属于另一房且正好是房支起点时，
+      // 先落页再从新房起页开始排，避免同一房支的树冠在后续多页重复出现
+      if (this.shouldCutBeforeBranchPoint(unit, cur, nodeMap)) {
+        this.commitPending(queue, pending);
+        placed = placed + this.flushPage(cur, pages, nodeMap);
+        cur = new PagePlan();
+        cur.index = pages.length + 1;
+        continue;
+      }
 
       // 空页：页根 = 承接父卡（宗支根页则用本支始祖）
       if (cur.uids.size === 0) {
@@ -729,6 +762,106 @@ export class PaginationService {
         }
       }
       page.footerText = notes.join('　');
+    }
+    this.decoratePages(book, nodeMap);
+  }
+
+  /**
+   * 分支点优先换页判定。
+   *
+   * 只在新房支的起点（branchRootUid === 自身）且本页已混入其他房时触发；
+   * 同一房支内部即使再出现分支点也不切页，避免把一房拆得过碎。
+   */
+  private shouldCutBeforeBranchPoint(unit: PendingUnit, cur: PagePlan,
+    nodeMap: Map<string, PersonNode>): boolean {
+    const node: PersonNode = unit.node;
+    if (cur.uids.size < MIN_PEOPLE_PER_PAGE) {
+      return false;
+    }
+    if (!node.isBranchPoint || node.branchRootUid !== node.uid) {
+      return false;
+    }
+    if (cur.uids.has(node.uid)) {
+      return false;
+    }
+    let otherBranch: boolean = false;
+    cur.uids.forEach((uid: string): void => {
+      if (otherBranch) {
+        return;
+      }
+      const n: PersonNode | undefined = nodeMap.get(uid);
+      if (n !== undefined && n.branchId !== node.branchId) {
+        otherBranch = true;
+      }
+    });
+    return otherBranch;
+  }
+
+  /**
+   * 给每页补房支与承接信息：
+   *  - branchName：页内首个节点的房名；
+   *  - contextAncestors：页根上溯两代父辈（屏幕页首卡片、PDF 页首共用）；
+   *  - siblingLinks：若页根就是房支起点，把父辈名下其他房的起页做成页脚软链接。
+   */
+  private decoratePages(book: PrintBook, nodeMap: Map<string, PersonNode>): void {
+    for (let i: number = 0; i < book.pages.length; i = i + 1) {
+      const page: PagePlan = book.pages[i];
+      let first: PersonNode | null = null;
+      page.uids.forEach((uid: string): void => {
+        if (first !== null) {
+          return;
+        }
+        const n: PersonNode | undefined = nodeMap.get(uid);
+        if (n !== undefined) {
+          first = n;
+        }
+      });
+      if (first === null && page.rootNodes.length > 0) {
+        first = page.rootNodes[0];
+      }
+      if (first === null) {
+        continue;
+      }
+      page.branchName = first.branchName;
+
+      let cur: PersonNode = first;
+      for (let k: number = 0; k < 2; k = k + 1) {
+        const parent: PersonNode | null = cur.father !== null ? cur.father : cur.mother;
+        if (parent === null || parent === cur) {
+          break;
+        }
+        page.contextAncestors.push(parent.uid);
+        page.contextAncestorNames.push(parent.person.name.length > 0 ? parent.person.name : parent.uid);
+        cur = parent;
+      }
+
+      const anchor: PersonNode = page.rootNodes.length > 0 ? page.rootNodes[0] : first;
+      if (anchor.branchRootUid !== anchor.uid || anchor.branchParentUid.length === 0) {
+        continue;
+      }
+      const parentNode: PersonNode | undefined = nodeMap.get(anchor.branchParentUid);
+      if (parentNode === undefined) {
+        continue;
+      }
+      for (let c: number = 0; c < parentNode.children.length; c = c + 1) {
+        const sibling: PersonNode = parentNode.children[c];
+        if (sibling.uid === anchor.uid || sibling.branchRootUid !== sibling.uid) {
+          continue;
+        }
+        const target: number = book.pageOf(sibling.uid);
+        if (target <= 0) {
+          continue;
+        }
+        const jump: PageJump = new PageJump();
+        jump.uid = sibling.uid;
+        jump.name = sibling.person.name.length > 0 ? sibling.person.name : sibling.uid;
+        jump.page = target;
+        jump.relation = sibling.branchName + '·' + jump.name;
+        page.siblingLinks.push(jump);
+        if (page.siblingLinks.length >= 4) {
+          break;
+        }
+      }
     }
   }
 

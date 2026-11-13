@@ -26,6 +26,9 @@ const MIN_ZOOM: number = 0.05;
 const MAX_ZOOM: number = 1.5;
 /** 点击聚合气泡后放大到的目标比例 */
 const BUBBLE_ZOOM: number = 0.85;
+/** 左下角小地图尺寸（vp） */
+const MINI_W: number = 84;
+const MINI_H: number = 58;
 
 /**
  * 谱式画布：按所选谱式渲染整部族谱。
@@ -71,6 +74,8 @@ export struct TreeCanvas {
   private viewGlobalY: number = 0;
   /** 当前族谱的宗支根 uid 列表 */
   @State rootUids: string[] = [];
+  /** uid → 渲染节点索引：面包屑、定位与气泡跳转共用，数据刷新时重建 */
+  private nodeIndex: Map<string, PersonNode> = new Map<string, PersonNode>();
   @State peopleCount: number = 0;
   /** 世代索引（一次构建，供索引条与牒记/现代谱式复用） */
   @State genLabels: string[] = [];
@@ -94,6 +99,14 @@ export struct TreeCanvas {
   /** 分页视图：按 320×220mm 横版纸页排版，一页一屏，跨页不画线 */
   @State pagedMode: boolean = false;
   @State pageNo: number = 1;
+  /**
+   * 视图语义状态：MAP=全景地图（房支聚簇）、PAGED=分页阅读、FOCUS=聚焦单人。
+   * 以 pagedMode 为渲染真相源，viewState 只描述当前交互语义，供导航/面包屑判断。
+   */
+  @State viewState: string = 'MAP';
+  /** 面包屑：当前人物上溯的祖先链（根→当前，最多 4 级） */
+  @State trailUids: string[] = [];
+  @State trailNames: string[] = [];
   /** 布局计算进行中：先渲染加载态，避免切换谱式那一帧同时做大布局与大渲染 */
   @State layoutBusy: boolean = false;
 
@@ -188,6 +201,7 @@ export struct TreeCanvas {
       return;
     }
     this.pagedMode = next;
+    this.viewState = next ? 'PAGED' : 'MAP';
     if (next) {
       this.pageNo = 1;
       // 分页册要按全谱重排，先出加载态再做计算，避免切换那一帧整页卡住
@@ -248,6 +262,7 @@ export struct TreeCanvas {
   }
 
   onHighlightChanged(): void {
+    this.rebuildTrail();
     if (this.style === TreeStyle.DIE) {
       this.dieSource.setData(this.diePeople);
     }
@@ -302,6 +317,8 @@ export struct TreeCanvas {
     }
     TreePerf.end('tree_groups', 'people=' + this.peopleCount.toString() +
       ' generations=' + gens.length.toString());
+    this.rebuildNodeIndex(roots);
+    this.rebuildTrail();
   }
 
   private rebuildDieSource(): void {
@@ -375,6 +392,196 @@ export struct TreeCanvas {
   /** 当前宗支的内容起点：单支渲染时只有一支，固定取第 0 项 */
   private currentContentTop(): number {
     return this.branchTops.length > 0 ? this.branchTops[0] : 0;
+  }
+
+  /** 重建 uid → 节点索引：面包屑、定位与气泡跳转共用 */
+  private rebuildNodeIndex(roots: PersonNode[]): void {
+    this.nodeIndex.clear();
+    const stack: PersonNode[] = [];
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      stack.push(roots[i]);
+    }
+    while (stack.length > 0) {
+      const n: PersonNode = stack.pop() as PersonNode;
+      if (this.nodeIndex.has(n.uid)) {
+        continue;
+      }
+      this.nodeIndex.set(n.uid, n);
+      for (let k: number = 0; k < n.children.length; k = k + 1) {
+        stack.push(n.children[k]);
+      }
+    }
+  }
+
+  /** 面包屑：当前高亮人物上溯到本支根，最多保留 4 级 */
+  private rebuildTrail(): void {
+    const uid: string = this.highlightUid.length > 0 ? this.highlightUid : this.activeRootUid();
+    const chain: PersonNode[] = [];
+    let cur: PersonNode | undefined = this.nodeIndex.get(uid);
+    let guard: number = 0;
+    while (cur !== undefined && guard < 64) {
+      chain.unshift(cur);
+      const parent: PersonNode | null = cur.father !== null ? cur.father : cur.mother;
+      if (parent === null || parent === cur) {
+        break;
+      }
+      cur = this.nodeIndex.get(parent.uid);
+      guard = guard + 1;
+    }
+    if (chain.length > 4) {
+      chain.splice(0, chain.length - 4);
+    }
+    this.trailUids = chain.map((n: PersonNode): string => n.uid);
+    this.trailNames = chain.map((n: PersonNode): string =>
+      n.person.name.length > 0 ? n.person.name : n.uid);
+  }
+
+  /** 上溯到所在宗支根 uid */
+  private rootUidOf(node: PersonNode): string {
+    let cur: PersonNode = node;
+    let guard: number = 0;
+    while (guard < 256) {
+      const parent: PersonNode | null = cur.father !== null ? cur.father : cur.mother;
+      if (parent === null || parent === cur) {
+        break;
+      }
+      cur = parent;
+      guard = guard + 1;
+    }
+    return cur.uid;
+  }
+
+  /** 定位并居中某位族人（面包屑点击） */
+  private centerOnUid(uid: string): void {
+    const target: PersonNode | undefined = this.nodeIndex.get(uid);
+    if (target === undefined || this.viewW <= 0 || this.viewH <= 0) {
+      return;
+    }
+    const rootUid: string = this.rootUidOf(target);
+    const rootIdx: number = this.rootUids.indexOf(rootUid);
+    if (rootIdx >= 0 && rootIdx !== this.clampBranchIndex()) {
+      this.activeBranch = rootIdx;
+    }
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    if (roots.length === 0) {
+      return;
+    }
+    const root: PersonNode = roots[this.clampBranchIndex()];
+    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    let bx: number = -1;
+    let by: number = 0;
+    let bw: number = 0;
+    let bh: number = 0;
+    if (this.style === TreeStyle.SU) {
+      const c: SuCanvas = cache.su(root.uid, [root], this.cardWidth(), this.isNarrow(), true);
+      for (let i: number = 0; i < c.boxes.length; i = i + 1) {
+        if (c.boxes[i].node.uid === uid) {
+          bx = c.boxes[i].x;
+          by = c.boxes[i].y;
+          bw = c.boxes[i].w;
+          bh = c.boxes[i].h;
+          break;
+        }
+      }
+    } else {
+      const c: EuCanvas = cache.eu(root.uid, [root], this.cardWidth(),
+        this.isNarrow() ? 66 : 78, true, 6);
+      for (let i: number = 0; i < c.boxes.length; i = i + 1) {
+        if (c.boxes[i].node.uid === uid) {
+          bx = c.boxes[i].x;
+          by = c.boxes[i].y;
+          bw = c.boxes[i].w;
+          bh = c.boxes[i].h;
+          break;
+        }
+      }
+    }
+    if (bx < 0) {
+      return;
+    }
+    const top: number = this.currentContentTop();
+    this.offsetX = this.clampX(this.viewW / 2 - (bx + bw / 2) * this.scaleValue);
+    this.offsetY = this.clampY(this.viewH / 2 - (by + bh / 2) * this.scaleValue - top);
+    this.viewState = 'FOCUS';
+    this.onFocusPerson(uid);
+  }
+
+  /**
+   * 气泡 → 分页闭环：找到目标房所属宗支，切到分页并定位到该房起页。
+   * 点击全览图上的「三房·韦耀定」即走这里。
+   */
+  private async openBranchPage(uid: string): Promise<void> {
+    if (uid.length === 0) {
+      return;
+    }
+    const target: PersonNode | undefined = this.nodeIndex.get(uid);
+    if (target === undefined) {
+      return;
+    }
+    const rootUid: string = this.rootUidOf(target);
+    const rootIdx: number = this.rootUids.indexOf(rootUid);
+    if (rootIdx >= 0) {
+      this.activeBranch = rootIdx;
+    }
+    let page: number = 1;
+    try {
+      const book: PrintBook = await PaginationService.getInstance().book(rootUid, this.style,
+        this.dataVersion, 'standard');
+      const found: number = book.pageOf(uid);
+      if (found > 0) {
+        page = found;
+      }
+    } catch (err) {
+      page = 1;
+    }
+    AppStorage.setOrCreate<boolean>('pagedMode', true);
+    this.pagedMode = true;
+    this.viewState = 'PAGED';
+    this.pageNo = page;
+  }
+
+  /** 小地图视口左上角/尺寸（映射到 MINI_W × MINI_H） */
+  private miniMapX(): number {
+    if (this.canvasW <= 0) {
+      return 0;
+    }
+    const v: number = (-this.offsetX) / this.canvasW * MINI_W;
+    return Math.max(0, Math.min(MINI_W - this.miniMapW(), v));
+  }
+
+  private miniMapW(): number {
+    if (this.canvasW <= 0) {
+      return MINI_W;
+    }
+    return Math.max(8, Math.min(MINI_W, this.viewW / this.canvasW * MINI_W));
+  }
+
+  private miniMapY(): number {
+    if (this.canvasH <= 0) {
+      return 0;
+    }
+    const v: number = (-this.offsetY - this.currentContentTop()) / this.canvasH * MINI_H;
+    return Math.max(0, Math.min(MINI_H - this.miniMapH(), v));
+  }
+
+  private miniMapH(): number {
+    if (this.canvasH <= 0) {
+      return MINI_H;
+    }
+    return Math.max(8, Math.min(MINI_H, this.viewH / this.canvasH * MINI_H));
+  }
+
+  /** 点小地图：把该位置的内容点居中到视口 */
+  private onMiniMapTap(x: number, y: number): void {
+    if (this.canvasW <= 0 || this.canvasH <= 0 || this.viewW <= 0) {
+      return;
+    }
+    const screenX: number = x / MINI_W * this.canvasW;
+    const screenY: number = y / MINI_H * this.canvasH;
+    const contentX: number = (screenX - this.offsetX) / this.scaleValue;
+    const contentY: number = (screenY - this.offsetY - this.currentContentTop()) / this.scaleValue;
+    this.offsetX = this.clampX(this.viewW / 2 - contentX * this.scaleValue);
+    this.offsetY = this.clampY(this.viewH / 2 - contentY * this.scaleValue - this.currentContentTop());
   }
 
   /** 切换宗支：单支渲染，切换后归零平移并重新居中 */
@@ -951,6 +1158,82 @@ export struct TreeCanvas {
     .margin({ top: 10 })
   }
 
+  /** 面包屑：本支根 → 当前人物，点击任一级立即居中 */
+  @Builder
+  BreadcrumbBar() {
+    if (this.trailUids.length > 1 && !this.pagedMode) {
+      Scroll() {
+        Row() {
+          ForEach(this.trailUids, (uid: string, i: number) => {
+            Row() {
+              Text(this.trailNames.length > i ? this.trailNames[i] : uid)
+                .fontSize(12)
+                .fontColor(i === this.trailUids.length - 1 ? Theme.primary : Theme.inkSecondary)
+                .fontWeight(i === this.trailUids.length - 1 ? FontWeight.Medium : FontWeight.Normal)
+                .maxLines(1)
+              if (i < this.trailUids.length - 1) {
+                Text('›')
+                  .fontSize(12)
+                  .fontColor(Theme.inkTertiary)
+                  .margin({ left: 4, right: 4 })
+              }
+            }
+            .onClick((): void => {
+              this.centerOnUid(uid);
+            })
+          }, (uid: string, i: number) => 'trail_' + uid + '_' + i.toString())
+        }
+        .padding({ left: 10, right: 10 })
+        .height(24)
+        .alignItems(VerticalAlign.Center)
+      }
+      .width('100%')
+      .scrollable(ScrollDirection.Horizontal)
+      .scrollBar(BarState.Off)
+      .backgroundColor(Theme.glass)
+      .borderRadius(6)
+    }
+  }
+
+  /** 左下角小地图：缩略视口 + 点击快速导航（仅在平板及以上显示，避免手机窄屏遮挡画布） */
+  @Builder
+  MiniMap() {
+    if (!this.pagedMode && this.windowWidth >= Breakpoint.SM
+      && (this.style === TreeStyle.EU || this.style === TreeStyle.SU)
+      && this.canvasW > 0 && this.canvasH > 0) {
+      Stack({ alignContent: Alignment.TopStart }) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(Theme.card)
+        // 宗支缩略条：按各支在画布中的起点/高度等比投影
+        ForEach(this.branchTops, (top: number, i: number) => {
+          Column()
+            .width(MINI_W - 4)
+            .height(Math.max(2, (i < this.branchH.length ? this.branchH[i] : 0) * this.scaleValue /
+              Math.max(1, this.canvasH) * MINI_H))
+            .position({ x: 2, y: 2 + top / Math.max(1, this.canvasH) * MINI_H })
+            .backgroundColor('rgba(201,162,39,0.28)')
+        }, (top: number, i: number) => 'mm_' + i.toString())
+        Column()
+          .width(this.miniMapW())
+          .height(this.miniMapH())
+          .position({ x: this.miniMapX(), y: this.miniMapY() })
+          .backgroundColor('rgba(156,47,30,0.16)')
+          .border({ width: 1, color: Theme.primary })
+      }
+      .width(MINI_W)
+      .height(MINI_H)
+      .borderRadius(6)
+      .clip(true)
+      .border({ width: 1, color: Theme.glassBorder })
+      .position({ x: 12, y: Math.max(12, this.viewH - MINI_H - 12) })
+      .onClick((event: ClickEvent): void => {
+        this.onMiniMapTap(event.x, event.y);
+      })
+    }
+  }
+
   @Builder
   SearchOverlay() {
     Column() {
@@ -1200,6 +1483,10 @@ export struct TreeCanvas {
                         onTapPerson: (id: string): void => {
                           this.onTapPerson(id);
                         },
+                        onBubbleTap: (id: string): void => {
+                          this.openBranchPage(id).then((): void => {
+                          });
+                        },
                         onZoomAt: (cx: number, cy: number, top: number): void => {
                           this.zoomInto(cx, cy, top);
                         },
@@ -1225,6 +1512,10 @@ export struct TreeCanvas {
                         contentTop: this.currentContentTop(),
                         onTapPerson: (id: string): void => {
                           this.onTapPerson(id);
+                        },
+                        onBubbleTap: (id: string): void => {
+                          this.openBranchPage(id).then((): void => {
+                          });
                         },
                         onZoomAt: (cx: number, cy: number, top: number): void => {
                           this.zoomInto(cx, cy, top);
@@ -1355,6 +1646,16 @@ export struct TreeCanvas {
             .align(Alignment.TopStart)
             .width('100%')
             .height('100%')
+        if (!this.pagedMode && this.trailUids.length > 1) {
+          Column() {
+            this.BreadcrumbBar()
+          }
+          .width('100%')
+          .position({ x: 0, y: this.rootUids.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0 })
+          .zIndex(4)
+          .padding({ left: 8, right: 8 })
+        }
+        this.MiniMap()
         if (this.branchMenuOpen && this.rootUids.length > 1) {
           this.BranchDropdown()
         }

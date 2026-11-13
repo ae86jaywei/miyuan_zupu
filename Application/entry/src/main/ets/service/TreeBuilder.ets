@@ -1,6 +1,7 @@
 import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
 import { parseDate } from '../util/DateUtil';
+import { toChineseNumber } from '../util/StringUtil';
 
 /**
  * 世系树构建器：把扁平人物列表转换为可渲染的树结构，
@@ -9,6 +10,8 @@ import { parseDate } from '../util/DateUtil';
 export class TreeBuilder {
   /** 计算树指标时的递归深度上限：脏数据长链不应让整页栈溢出 */
   private static readonly MAX_METRICS_DEPTH: number = 256;
+  /** 后代超过该规模即视为分支点：分页优先在房支起点换页 */
+  private static readonly BRANCH_POINT_DESCENDANTS: number = 45;
 
   /**
    * 构建森林：返回所有“根节点”（无父无母，或父母未录入）。
@@ -268,7 +271,92 @@ export class TreeBuilder {
     roots.forEach((r: PersonNode, idx: number): void => {
       r.siblingIndex = idx;
     });
+    // 房支标记：全览气泡聚簇、分页切页、面包屑都依赖这组派生字段
+    roots.forEach((r: PersonNode): void => {
+      TreeBuilder.assignBranches(r);
+    });
     return roots;
+  }
+
+  /** 顶级房支名称：长房、二房、三房… */
+  private static houseName(index: number): string {
+    if (index <= 0) {
+      return '长房';
+    }
+    return toChineseNumber(index + 1) + '房';
+  }
+
+  /**
+   * 给一棵宗支树打房支标记。
+   *
+   * 规则：
+   *  - 宗支根为「本支」，其后代继承本支；
+   *  - 根的直接子女各自成为一个「房」，按长幼命名（长房/二房/…）；
+   *  - 更深层节点继承所属房，仅记录自身是否为分支点（用于分页切页）。
+   *
+   * 用显式栈而不是递归：五万人谱的深链可能逼近调用栈上限。
+   */
+  private static assignBranches(root: PersonNode): void {
+    root.branchId = root.uid;
+    root.branchName = '本支';
+    root.branchRootUid = root.uid;
+    root.branchParentUid = '';
+    root.branchLevel = 0;
+    root.isBranchPoint = root.children.length >= 2 ||
+      root.descendants > TreeBuilder.BRANCH_POINT_DESCENDANTS;
+    TreeBuilder.inheritBranchToSpouses(root);
+
+    const seen: Set<string> = new Set<string>();
+    seen.add(root.uid);
+    const stack: PersonNode[] = [];
+    for (let i: number = 0; i < root.children.length; i = i + 1) {
+      const child: PersonNode = root.children[i];
+      child.branchId = child.uid;
+      child.branchName = TreeBuilder.houseName(i);
+      child.branchRootUid = child.uid;
+      child.branchParentUid = root.uid;
+      child.branchLevel = 1;
+      child.isBranchPoint = child.children.length >= 2 ||
+        child.descendants > TreeBuilder.BRANCH_POINT_DESCENDANTS;
+      TreeBuilder.inheritBranchToSpouses(child);
+      seen.add(child.uid);
+      stack.push(child);
+    }
+    while (stack.length > 0) {
+      const node: PersonNode = stack.pop() as PersonNode;
+      for (let i: number = 0; i < node.children.length; i = i + 1) {
+        const child: PersonNode = node.children[i];
+        if (seen.has(child.uid)) {
+          continue;
+        }
+        seen.add(child.uid);
+        child.branchId = node.branchId;
+        child.branchName = node.branchName;
+        child.branchRootUid = node.branchRootUid;
+        child.branchParentUid = node.branchParentUid;
+        child.branchLevel = node.branchLevel;
+        child.isBranchPoint = child.children.length >= 2 ||
+          child.descendants > TreeBuilder.BRANCH_POINT_DESCENDANTS;
+        TreeBuilder.inheritBranchToSpouses(child);
+        stack.push(child);
+      }
+    }
+  }
+
+  /** 配偶卡跟随主卡房支：配偶若本身已有独立房支（娘家在本谱）则保持原标记 */
+  private static inheritBranchToSpouses(node: PersonNode): void {
+    for (let i: number = 0; i < node.spouses.length; i = i + 1) {
+      const sp: PersonNode = node.spouses[i];
+      if (sp.branchLevel > 0 || sp.branchId.length > 0) {
+        continue;
+      }
+      sp.branchId = node.branchId;
+      sp.branchName = node.branchName;
+      sp.branchRootUid = node.branchRootUid;
+      sp.branchParentUid = node.branchParentUid;
+      sp.branchLevel = node.branchLevel;
+      sp.isBranchPoint = false;
+    }
   }
 
   /** 挂接配偶节点及其名分（去重，第一位即主配偶） */

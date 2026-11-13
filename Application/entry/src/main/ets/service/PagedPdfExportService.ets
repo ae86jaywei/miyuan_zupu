@@ -478,6 +478,18 @@ export class PagedPdfExportService {
     page.addTextObject(header, INNER_X_MM * MM_TO_PT, baselineOfMm(6, HEADER_PT),
       pdfTextStyle(HEADER_PT, C_INK2, false));
 
+    // 页首先祖承接：与屏幕页首的浅灰祖先卡一致，PDF 里用一行虚线语义文字表达
+    if (plan.contextAncestorNames.length > 0) {
+      const names: string[] = [];
+      for (let a: number = 0; a < plan.contextAncestorNames.length; a++) {
+        names.push(plan.contextAncestorNames[a]);
+      }
+      const ancestorText: string = '承：' + names.join(' › ');
+      const ancestorW: number = (TRIM_W_MM - INNER_X_MM * 2) * MM_TO_PT;
+      page.addTextObject(fitText(measureCtx, ancestorText, ancestorW, 6),
+        INNER_X_MM * MM_TO_PT, baselineOfMm(9, 6), pdfTextStyle(6, C_INK3, false));
+    }
+
     // 卡片文字：与画布上的卡片一致，姓名 / 字辈+故 / 世代+UID / 配偶，全部限制在卡片内
     const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
     for (let i: number = 0; i < boxes.length; i++) {
@@ -546,6 +558,19 @@ export class PagedPdfExportService {
           baselineOfMm(INNER_Y_MM + b.y + spouseTop, spouseSize),
           pdfTextStyle(spouseSize, C_INK2, false));
       }
+    }
+
+    // 页脚兄弟分支软链接：屏幕页脚的「旁支 → 第 N 页」在 PDF 中落成可检索文本
+    if (plan.siblingLinks.length > 0) {
+      const links: string[] = [];
+      for (let s: number = 0; s < plan.siblingLinks.length; s++) {
+        links.push('旁支 ' + plan.siblingLinks[s].relation + ' → 第' +
+          plan.siblingLinks[s].page.toString() + '页');
+      }
+      const linkW: number = (TRIM_W_MM - INNER_X_MM - 10) * MM_TO_PT;
+      page.addTextObject(fitText(measureCtx, links.join('　'), linkW, FOOTER_PT),
+        INNER_X_MM * MM_TO_PT,
+        baselineOfMm(TRIM_H_MM - 19, FOOTER_PT), pdfTextStyle(FOOTER_PT, C_FOOT, false));
     }
 
     // 页脚接续文案：单独一行（距底 12mm），给下方页码留出位置

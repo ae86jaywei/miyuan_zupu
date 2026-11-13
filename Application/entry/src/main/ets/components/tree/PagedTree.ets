@@ -3,7 +3,7 @@ import { TreeStyle, generationLabel } from '../../model/Enums';
 import { Theme } from '../../theme/Theme';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
-import { PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
+import { PageJump, PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
 import { DeviceUtil } from '../../util/DeviceUtil';
 import { compactUid } from '../../util/StringUtil';
 
@@ -106,6 +106,10 @@ export struct PagedTree {
   /** 正在规划整本分页：五万人的谱要算几十秒，期间必须给出明确反馈 */
   @State planning: boolean = false;
   @State planningPct: number = 0;
+  /** 页首承接祖先（上溯两代）与页脚兄弟分支软链接 */
+  @State ancestorUids: string[] = [];
+  @State ancestorNames: string[] = [];
+  @State siblingLinks: PageJump[] = [];
 
   private book: PrintBook | null = null;
   private page: PagePlan | null = null;
@@ -169,12 +173,18 @@ export struct PagedTree {
     this.suBoxes = [];
     this.lines = [];
     this.footer = '';
+    this.ancestorUids = [];
+    this.ancestorNames = [];
+    this.siblingLinks = [];
     if (page === null) {
       this.header = '世系图';
       return;
     }
     this.header = pageGenText(page) + (this.branchName.length > 0 ? ' · ' + this.branchName : '');
     this.footer = page.footerText;
+    this.ancestorUids = page.contextAncestors;
+    this.ancestorNames = page.contextAncestorNames;
+    this.siblingLinks = page.siblingLinks;
     for (let i: number = 0; i < page.roots.length; i = i + 1) {
       const from: number = page.roots[i].fromPage;
       if (from > 0 && from < idx) {
@@ -278,6 +288,71 @@ export struct PagedTree {
     return text;
   }
 
+  /** 跳到某人所在页（页首祖先卡/页脚软链接使用） */
+  private gotoUid(uid: string): void {
+    if (this.book === null || uid.length === 0) {
+      return;
+    }
+    const p: number = this.book.pageOf(uid);
+    if (p > 0) {
+      this.goto(p);
+    }
+  }
+
+  /**
+   * 页首承接祖先卡：上溯两代，虚线连接到本页页根。
+   * 解决「翻页后不知道这一页从谁续来」的断裂感。
+   */
+  @Builder
+  AncestorCards() {
+    if (this.ancestorUids.length > 0) {
+      Row({ space: this.mm(2) }) {
+        ForEach(this.ancestorUids, (uid: string, i: number) => {
+          Column() {
+            Text('承')
+              .fontSize(this.pt(5.5))
+              .fontColor('#9A8A74')
+            Text(this.ancestorNames.length > i ? this.ancestorNames[i] : uid)
+              .fontSize(this.pt(7))
+              .fontColor('#5F4F3E')
+              .maxLines(1)
+              .textOverflow({ overflow: TextOverflow.Ellipsis })
+          }
+          .width(this.mm(30))
+          .height(this.mm(9))
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor('#F8F3E7')
+          .border({ width: 0.3, color: '#D8CBB2', style: BorderStyle.Dashed })
+          .onClick((): void => {
+            this.gotoUid(uid);
+          })
+        }, (uid: string, i: number) => 'anc_' + this.pageNo.toString() + '_' + uid + '_' + i.toString())
+      }
+      .position({ x: this.mm(this.innerX()), y: this.mm(9) })
+    }
+  }
+
+  /** 页脚兄弟分支软链接：本页只展开一房时，其余房一键直达 */
+  @Builder
+  BranchLinks() {
+    if (this.siblingLinks.length > 0) {
+      Row({ space: this.mm(3) }) {
+        ForEach(this.siblingLinks, (link: PageJump, i: number) => {
+          Text('旁支 ' + link.relation + ' → 第' + link.page.toString() + '页')
+            .fontSize(this.pt(6.5))
+            .fontColor('#8C2F1E')
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+            .onClick((): void => {
+              this.goto(link.page);
+            })
+        }, (link: PageJump) => 'sib_' + this.pageNo.toString() + '_' + link.uid)
+      }
+      .width(this.mm(this.spec.trimW - this.innerX() - 10))
+      .position({ x: this.mm(this.innerX()), y: this.mm(this.spec.trimH - 19) })
+    }
+  }
+
   @Builder
   PageSheet() {
     Stack({ alignContent: Alignment.TopStart }) {
@@ -297,6 +372,9 @@ export struct PagedTree {
           x: 0,
           y: 0
         })
+
+      // 页首承接祖先卡
+      this.AncestorCards()
 
       // 页眉：谱名/支系 + 世代范围
       Text(this.header)
@@ -377,6 +455,9 @@ export struct PagedTree {
         }, (b: SuBox, idx: number) => 'su_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
       }
 
+      // 页脚软链接：兄弟分支直达
+      this.BranchLinks()
+
       // 页脚接续 + 页码（分两行：接续距底 12mm，页码距底 6mm）
       if (this.footer.length > 0) {
         Text(this.footer)
@@ -402,6 +483,17 @@ export struct PagedTree {
     .height(this.mm(this.spec.trimH))
     .backgroundColor('#FFFDF6')
     .clip(true)
+    .parallelGesture(
+      PanGesture({ fingers: 1, distance: 24, direction: PanDirection.Horizontal })
+        .onActionEnd((event: GestureEvent): void => {
+          // 横滑翻页：左滑看下一页，右滑回上一页（像翻纸质谱）
+          if (event.offsetX < -60) {
+            this.goto(this.pageNo + 1);
+          } else if (event.offsetX > 60) {
+            this.goto(this.pageNo - 1);
+          }
+        })
+    )
   }
 
   /** 版心左边界（屏幕坐标） */

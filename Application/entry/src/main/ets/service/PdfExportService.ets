@@ -4,9 +4,11 @@ import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { hidebug } from '@kit.PerformanceAnalysisKit';
 import { Person, SpouseRelation, childStatusLabel, spouseRelationLabel } from '../model/Person';
+import { PersonNode } from '../model/PersonNode';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { displayDate } from '../util/DateUtil';
+import { GenealogyService } from './GenealogyService';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -141,6 +143,13 @@ function todayStr(): string {
 }
 
 // ─── 内容构建 ─────────────────────────────────────────────
+
+/** 房支索引项：用于按房分卷与卷名生成 */
+class BranchInfo {
+  branchName: string = '';
+  rootUid: string = '';
+  rootName: string = '';
+}
 
 /** 一个家庭单元：一名本支成员（锚点）+ 其配偶（配偶世代即使录错也跟随锚点） */
 class FamilyUnit {
@@ -868,7 +877,8 @@ function drawPageToPdf(ctx: OffscreenCanvasRenderingContext2D, doc: pdfService.P
 export class PdfExportService {
 
   /**
-   * 分卷规划：按世代顺序聚合，单卷人数不超过 maxPerVolume；
+   * 分卷规划：优先按「房支」自然分卷（长房/二房/三房各成卷），
+   * 单房超限时再按世代 + 家庭单元续切；无法取得房支信息时回退旧的世代分卷。
    * 以「家庭单元」为最小切分单位，夫妻永远不会被分到两卷。
    * 返回空数组表示无需分卷（人数未超限）。
    */
@@ -876,6 +886,111 @@ export class PdfExportService {
     if (people.length <= maxPerVolume || maxPerVolume <= 0) {
       return [];
     }
+    const index: Map<string, BranchInfo> = PdfExportService.branchIndex();
+    if (index.size > 0) {
+      const byBranch: PdfVolume[] = PdfExportService.planBranchVolumes(people, maxPerVolume, index);
+      if (byBranch.length > 0) {
+        return byBranch;
+      }
+    }
+    return PdfExportService.slicePeopleByGeneration(people, maxPerVolume);
+  }
+
+  /** 组装 uid → 房支信息（从当前宗支树一次性提取） */
+  private static branchIndex(): Map<string, BranchInfo> {
+    const infos: Map<string, BranchInfo> = new Map<string, BranchInfo>();
+    const nameOf: Map<string, string> = new Map<string, string>();
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const stack: PersonNode[] = [];
+    for (let i: number = 0; i < roots.length; i = i + 1) {
+      stack.push(roots[i]);
+    }
+    while (stack.length > 0) {
+      const n: PersonNode = stack.pop() as PersonNode;
+      if (infos.has(n.uid.trim().toUpperCase())) {
+        continue;
+      }
+      const info: BranchInfo = new BranchInfo();
+      info.branchName = n.branchName.length > 0 ? n.branchName : '本支';
+      info.rootUid = n.branchRootUid.length > 0 ? n.branchRootUid : n.uid;
+      infos.set(n.uid.trim().toUpperCase(), info);
+      nameOf.set(n.uid.trim().toUpperCase(), n.person.name.length > 0 ? n.person.name : n.uid);
+      // 配偶卡跟随主卡房支，导出名单里配偶也不会被算作「未识别」
+      for (let s: number = 0; s < n.spouses.length; s = s + 1) {
+        const sp: PersonNode = n.spouses[s];
+        const spKey: string = sp.uid.trim().toUpperCase();
+        if (!infos.has(spKey)) {
+          infos.set(spKey, info);
+          nameOf.set(spKey, sp.person.name.length > 0 ? sp.person.name : sp.uid);
+        }
+      }
+      for (let k: number = 0; k < n.children.length; k = k + 1) {
+        stack.push(n.children[k]);
+      }
+    }
+    infos.forEach((info: BranchInfo): void => {
+      const rootName: string | undefined = nameOf.get(info.rootUid.trim().toUpperCase());
+      info.rootName = rootName !== undefined ? rootName : '';
+    });
+    return infos;
+  }
+
+  /** 按房支分卷；覆盖度不足（导出子集不属于当前树）时返回空数组由调用方回退 */
+  private static planBranchVolumes(people: Person[], maxPerVolume: number,
+    index: Map<string, BranchInfo>): PdfVolume[] {
+    let hit: number = 0;
+    const order: string[] = [];
+    const groups: Map<string, Person[]> = new Map<string, Person[]>();
+    for (let i: number = 0; i < people.length; i = i + 1) {
+      const p: Person = people[i];
+      const info: BranchInfo | undefined = index.get(p.uid.trim().toUpperCase());
+      if (info === undefined) {
+        continue;
+      }
+      hit = hit + 1;
+      const key: string = info.rootUid.length > 0 ? info.rootUid : p.uid;
+      let arr: Person[] | undefined = groups.get(key);
+      if (arr === undefined) {
+        arr = [];
+        groups.set(key, arr);
+        order.push(key);
+      }
+      arr.push(p);
+    }
+    if (hit < Math.floor(people.length * 0.8)) {
+      return [];
+    }
+    const volumes: PdfVolume[] = [];
+    for (let g: number = 0; g < order.length; g = g + 1) {
+      const key: string = order[g];
+      const list: Person[] | undefined = groups.get(key);
+      if (list === undefined || list.length === 0) {
+        continue;
+      }
+      const firstInfo: BranchInfo | undefined = index.get(list[0].uid.trim().toUpperCase());
+      const branchName: string = firstInfo !== undefined ? firstInfo.branchName : '本支';
+      const rootName: string = firstInfo !== undefined ? firstInfo.rootName : '';
+      const name: string = branchName + (rootName.length > 0 ? '·' + rootName : '');
+      if (list.length <= maxPerVolume) {
+        const vol: PdfVolume = {
+          title: '第' + (volumes.length + 1).toString() + '卷（' + name + '）',
+          people: list
+        };
+        volumes.push(vol);
+        continue;
+      }
+      const subs: PdfVolume[] = PdfExportService.slicePeopleByGeneration(list, maxPerVolume);
+      for (let s: number = 0; s < subs.length; s = s + 1) {
+        subs[s].title = '第' + (volumes.length + 1).toString() + '卷（' + name +
+          (s > 0 ? '·续' : '') + '）';
+        volumes.push(subs[s]);
+      }
+    }
+    return volumes;
+  }
+
+  /** 世代 + 家庭单元分卷（旧逻辑保留，作为房支信息缺失时的回退） */
+  private static slicePeopleByGeneration(people: Person[], maxPerVolume: number): PdfVolume[] {
     const units: FamilyUnit[] = buildFamilyUnits(people);
     const volumes: PdfVolume[] = [];
     let i: number = 0;

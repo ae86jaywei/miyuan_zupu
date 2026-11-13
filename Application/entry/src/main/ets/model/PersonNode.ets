@@ -25,6 +25,21 @@ export class PersonNode {
   descendants: number = 1;
   /** 在父节点 children 中的横向占位宽度（用于纯视图计算） */
   slotWidth: number = 1;
+  /** 所属房支标识（顶级房支根 uid；本支根节点为自身 uid） */
+  branchId: string = '';
+  /** 房支显示名，如「长房」「二房」 */
+  branchName: string = '';
+  /** 房支始祖 uid（房支气泡的锚点，也是分页跳转目标） */
+  branchRootUid: string = '';
+  /** 上一级分支根 uid（本支根为空） */
+  branchParentUid: string = '';
+  /** 分支层级：0 本支、1 房、2 及以后为更深支系 */
+  branchLevel: number = 0;
+  /**
+   * 是否分支点：儿子数 ≥2 或后代规模超过一页容量。
+   * 分页规划据此优先在房支起点换页，避免一个房支被拆得到处都是。
+   */
+  isBranchPoint: boolean = false;
 
   constructor(person: Person) {
     this.person = person;
