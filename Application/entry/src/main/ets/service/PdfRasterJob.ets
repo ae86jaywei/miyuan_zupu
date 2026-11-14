@@ -24,10 +24,11 @@ export const PX_PER_MM: number = RENDER_DPI / 25.4;
 export const RENDER_W: number = Math.round(PAGE_W_MM * PX_PER_MM);
 export const RENDER_H: number = Math.round(PAGE_H_MM * PX_PER_MM);
 /**
- * 恢复 4625ab1：2×2 分块并行渲染，每页 4 块，页内渲染完立即删除临时图。
+ * 方案 F 使用整页单图：300dpi 整页 3780×2598（<4096），1×1 不分块。
+ * JPEG 直接嵌入 PDF，不解码，因此不牺牲清晰度。
  */
-export const TILE_COLS: number = 2;
-export const TILE_ROWS: number = 2;
+export const TILE_COLS: number = 1;
+export const TILE_ROWS: number = 1;
 export const TILE_W: number = Math.ceil(RENDER_W / TILE_COLS);
 export const TILE_H: number = Math.ceil(RENDER_H / TILE_ROWS);
 

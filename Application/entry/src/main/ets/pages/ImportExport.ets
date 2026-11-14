@@ -218,9 +218,9 @@ struct ImportExport {
         throw new Error('整谱 ' + people.length.toString() +
           ' 人，移动端无法一次导出。请先在「建议拆分」中建立分支，再选择分支导出。');
       }
-      // 欧式/苏式：直接导出分页画布（320×220mm 横版，一页一张），页码与屏幕上完全一致
+      // 欧式/苏式：方案 F，自写 PDF（300dpi 整页 JPEG 直嵌，逐页写，绕开 PDFKit 内存峰值）
       if (this.pdfStyle === 'eu' || this.pdfStyle === 'su') {
-        const paths: string[] = await PagedPdfExportService.exportPdf(ctx, book, this.pdfStyle,
+        const paths: string[] = await PagedPdfExportService.exportRawPdf(ctx, book, this.pdfStyle,
           (p: PagedPdfProgress): void => {
             this.previewText = p.message;
             this.setProgress(p.message, p.total > 0 ? Math.min(96, Math.round(p.current * 96 / p.total)) : 2);
