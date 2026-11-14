@@ -18,7 +18,7 @@ import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
 import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
 import { TreeLayoutCache } from './TreeLayoutCache';
-import { RawPdfWriter } from './RawPdfWriter';
+import { RawPdfWriter, PdfTextRun } from './RawPdfWriter';
 
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
@@ -69,6 +69,12 @@ export interface PagedPdfProgress {
   current: number;
   total: number;
   message: string;
+}
+
+/** 整页渲染结果：JPEG 路径 + 不可见文本层（F2 检索用） */
+class RawPageResult {
+  path: string = '';
+  runs: PdfTextRun[] = [];
 }
 
 class RootBook {
@@ -339,11 +345,11 @@ export class PagedPdfExportService {
         if (canvas === null) {
           throw new Error('第 ' + localIdx.toString() + ' 页布局为空');
         }
-        const jpg: string = await PagedPdfExportService.renderRawPage(canvas, plan, genealogy,
+        const raw: RawPageResult = await PagedPdfExportService.renderRawPage(canvas, plan, genealogy,
           style, currentRootName, v + 1, globalPage + 1, volCount, context);
-        writer.addJpegPage(jpg, '');
+        writer.addJpegPage(raw.path, raw.runs);
         try {
-          fileIo.unlinkSync(jpg);
+          fileIo.unlinkSync(raw.path);
         } catch (_e) {
         }
         globalPage = globalPage + 1;
@@ -362,17 +368,17 @@ export class PagedPdfExportService {
     return outPaths;
   }
 
-  /** 渲染整页 300dpi JPEG：线条/卡片框 + 中文文字都画进图，再交给 RawPdfWriter 直嵌 */
+  /** 渲染整页 300dpi JPEG：线条/卡片框 + 中文文字都画进图，同时收集不可见文本层 */
   private static async renderRawPage(canvas: EuCanvas | SuCanvas, plan: PagePlan,
     genealogy: Genealogy, style: string, rootName: string, volumeNo: number, pageNo: number,
-    totalPages: number, context: common.UIAbilityContext): Promise<string> {
+    totalPages: number, context: common.UIAbilityContext): Promise<RawPageResult> {
     const lineData: number[] = packLineData(canvas);
     const boxData: number[] = packBoxData(canvas, style);
     const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H);
     const ctx: OffscreenCanvasRenderingContext2D = off.getContext('2d');
     paintRasterTile(ctx, 0, 0, RENDER_W, RENDER_H, 0.2, lineData, boxData);
-    PagedPdfExportService.drawRawText(ctx, canvas, plan, genealogy, style, rootName,
-      volumeNo, pageNo, totalPages);
+    const runs: PdfTextRun[] = PagedPdfExportService.drawRawText(ctx, canvas, plan, genealogy,
+      style, rootName, volumeNo, pageNo, totalPages);
     const pm: image.PixelMap = off.getPixelMap(0, 0, RENDER_W, RENDER_H);
     const packer: image.ImagePacker = image.createImagePacker();
     const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
@@ -388,13 +394,17 @@ export class PagedPdfExportService {
     }
     pm.release();
     packer.release();
-    return path;
+    const result: RawPageResult = new RawPageResult();
+    result.path = path;
+    result.runs = runs;
+    return result;
   }
 
-  /** 画页眉、卡片姓名/UID、页脚（300dpi 栅格内，中文由系统字体渲染） */
+  /** 画页眉、卡片姓名/UID、页脚，并收集不可见文本层（F2 检索） */
   private static drawRawText(ctx: OffscreenCanvasRenderingContext2D, canvas: EuCanvas | SuCanvas,
     plan: PagePlan, genealogy: Genealogy, style: string, rootName: string,
-    volumeNo: number, pageNo: number, totalPages: number): void {
+    volumeNo: number, pageNo: number, totalPages: number): PdfTextRun[] {
+    const runs: PdfTextRun[] = [];
     const maxTextW: number = RENDER_W - 2 * INNER_X_MM * PX_PER_MM;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -408,18 +418,20 @@ export class PagedPdfExportService {
       ctx.font = headerSize.toString() + 'px sans-serif';
     }
     ctx.fillText(header, RENDER_W / 2, 46);
+    const headerW: number = ctx.measureText(header).width;
+    runs.push(PagedPdfExportService.textRun(header, RENDER_W / 2 - headerW / 2, 46, headerSize));
 
     if (style === 'su') {
       const su: SuCanvas = canvas as SuCanvas;
       for (let i: number = 0; i < su.boxes.length; i = i + 1) {
         const b: SuBox = su.boxes[i];
-        PagedPdfExportService.drawBoxText(ctx, b.node, b.x, b.y, b.w, b.h);
+        PagedPdfExportService.drawBoxText(ctx, b.node, b.x, b.y, b.w, b.h, runs);
       }
     } else {
       const eu: EuCanvas = canvas as EuCanvas;
       for (let i: number = 0; i < eu.boxes.length; i = i + 1) {
         const b: EuBox = eu.boxes[i];
-        PagedPdfExportService.drawBoxText(ctx, b.node, b.x, b.y, b.w, b.h);
+        PagedPdfExportService.drawBoxText(ctx, b.node, b.x, b.y, b.w, b.h, runs);
       }
     }
 
@@ -430,11 +442,14 @@ export class PagedPdfExportService {
     const foot: string = '第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
       ' 页 / 共 ' + totalPages.toString() + ' 页';
     ctx.fillText(foot, RENDER_W / 2, RENDER_H - 24);
+    const footW: number = ctx.measureText(foot).width;
+    runs.push(PagedPdfExportService.textRun(foot, RENDER_W / 2 - footW / 2, RENDER_H - 24, 22));
+    return runs;
   }
 
-  /** 卡片内文字：姓名 + UID（坐标从 mm 转到 300dpi 像素） */
+  /** 卡片内文字：姓名 + UID（坐标从 mm 转到 300dpi 像素），同时收集文本层 */
   private static drawBoxText(ctx: OffscreenCanvasRenderingContext2D, node: PersonNode,
-    xMm: number, yMm: number, wMm: number, hMm: number): void {
+    xMm: number, yMm: number, wMm: number, hMm: number, runs: PdfTextRun[]): void {
     const px: number = (INNER_X_MM + xMm) * PX_PER_MM;
     const py: number = (INNER_Y_MM + yMm) * PX_PER_MM;
     const wPx: number = wMm * PX_PER_MM;
@@ -446,9 +461,24 @@ export class PagedPdfExportService {
     ctx.font = 'bold ' + fs.toString() + 'px sans-serif';
     const name: string = node.person.name.length > 0 ? node.person.name : node.uid;
     ctx.fillText(name, px + 2, py + hPx * 0.52, wPx - 4);
+    runs.push(PagedPdfExportService.textRun(name, px + 2, py + hPx * 0.52, fs));
     ctx.fillStyle = '#7A6A5A';
-    ctx.font = Math.max(10, Math.round(fs * 0.7)).toString() + 'px sans-serif';
-    ctx.fillText(compactUid(node.uid), px + 2, py + hPx * 0.82, wPx - 4);
+    const uidFs: number = Math.max(10, Math.round(fs * 0.7));
+    ctx.font = uidFs.toString() + 'px sans-serif';
+    const uidText: string = compactUid(node.uid);
+    ctx.fillText(uidText, px + 2, py + hPx * 0.82, wPx - 4);
+    runs.push(PagedPdfExportService.textRun(uidText, px + 2, py + hPx * 0.82, uidFs));
+  }
+
+  /** 像素坐标 → PDF 点坐标（文本层不可见，只用于检索） */
+  private static textRun(text: string, px: number, py: number, fsPx: number): PdfTextRun {
+    const r: PdfTextRun = new PdfTextRun();
+    r.text = text;
+    r.xPt = px / RENDER_W * PAGE_W_PT;
+    r.yPt = PAGE_H_PT - py / RENDER_H * PAGE_H_PT;
+    r.sizePt = Math.max(3, fsPx / RENDER_W * PAGE_W_PT);
+    r.invisible = true;
+    return r;
   }
 
   private static safeName(s: string): string {

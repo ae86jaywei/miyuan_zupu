@@ -18,6 +18,15 @@ const OBJ_PAGES: number = 2;
 const OBJ_FONT: number = 3;
 const FIRST_PAGE_OBJ: number = 4;
 
+/** 一页上的一段可搜索文本（F2）：默认不可见，只用于检索/复制，视觉由栅格图承载 */
+export class PdfTextRun {
+  text: string = '';
+  xPt: number = 0;
+  yPt: number = 0;
+  sizePt: number = 9;
+  invisible: boolean = true;
+}
+
 export class RawPdfWriter {
   private fd: number = -1;
   private offset: number = 0;
@@ -28,6 +37,8 @@ export class RawPdfWriter {
   private pageH: number = 0;
   private imageW: number = 0;
   private imageH: number = 0;
+  /** 文档中用到的字符（Unicode 码点），用于生成 ToUnicode，保证可检索 */
+  private usedChars: Set<number> = new Set<number>();
 
   constructor(path: string, pageW: number, pageH: number, imageW: number, imageH: number) {
     this.pageW = pageW;
@@ -78,7 +89,7 @@ export class RawPdfWriter {
    * 追加一页：整页 JPEG + 可选 ASCII 页码。
    * JPEG 文件写完即可删除，PDF 中已经保存了字节副本。
    */
-  addJpegPage(jpegPath: string, footerText: string): void {
+  addJpegPage(jpegPath: string, runs: PdfTextRun[]): void {
     const size: number = fileIo.statSync(jpegPath).size;
     const pageId: number = this.nextObj;
     const imageId: number = this.nextObj + 1;
@@ -105,11 +116,20 @@ export class RawPdfWriter {
     }
     this.writeAscii('\nendstream\nendobj\n');
 
-    // Content：整页铺图 + 可选 ASCII 页码
+    // Content：整页铺图 + 不可见的可搜索文本层（UniGB-UCS2-H）
     let content: string = 'q\n' + this.pageW.toString() + ' 0 0 ' + this.pageH.toString() +
       ' 0 0 cm\n/Im0 Do\nQ\n';
-    if (footerText.length > 0) {
-      content = content + 'BT /F1 9 Tf 24 18 Td (' + RawPdfWriter.escape(footerText) + ') Tj ET\n';
+    for (let i: number = 0; i < runs.length; i = i + 1) {
+      const r: PdfTextRun = runs[i];
+      if (r.text.length === 0) {
+        continue;
+      }
+      for (let k: number = 0; k < r.text.length; k = k + 1) {
+        this.usedChars.add(r.text.charCodeAt(k));
+      }
+      content = content + 'BT /F1 ' + r.sizePt.toFixed(2) + ' Tf ' +
+        (r.invisible ? '3 Tr' : '0 Tr') + ' ' + r.xPt.toFixed(2) + ' ' + r.yPt.toFixed(2) +
+        ' Td <' + RawPdfWriter.utf16Hex(r.text) + '> Tj ET\n';
     }
     this.beginObj(contentId);
     this.writeAscii('<< /Length ' + content.length.toString() + ' >>\nstream\n' + content +
@@ -120,9 +140,48 @@ export class RawPdfWriter {
 
   /** 完成文档：写 Pages / Catalog / Font / xref / trailer */
   finish(): void {
-    // Font（标准 Helvetica，仅用于 ASCII 页码）
+    // 中文字体（F2）：Type0 + UniGB-UCS2-H；ToUnicode 保证姓名/UID/页脚可检索
+    const cidFontId: number = this.nextObj;
+    const descId: number = this.nextObj + 1;
+    const toUnicodeId: number = this.nextObj + 2;
+    this.nextObj = this.nextObj + 3;
+
     this.beginObj(OBJ_FONT);
-    this.writeAscii('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n');
+    this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light' +
+      ' /Encoding /UniGB-UCS2-H /DescendantFonts [' + cidFontId.toString() + ' 0 R]' +
+      ' /ToUnicode ' + toUnicodeId.toString() + ' 0 R >>\nendobj\n');
+    this.beginObj(cidFontId);
+    this.writeAscii('<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light' +
+      ' /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 2 >>' +
+      ' /FontDescriptor ' + descId.toString() + ' 0 R /DW 1000 >>\nendobj\n');
+    this.beginObj(descId);
+    this.writeAscii('<< /Type /FontDescriptor /FontName /STSong-Light /Flags 4' +
+      ' /FontBBox [-25 -254 1000 880] /ItalicAngle 0 /Ascent 880 /Descent -120' +
+      ' /CapHeight 880 /StemV 80 >>\nendobj\n');
+
+    // ToUnicode：UniGB-UCS2-H 的文本码就是 Unicode，映射恒等
+    const codes: number[] = [];
+    this.usedChars.forEach((c: number): void => {
+      codes.push(c);
+    });
+    codes.sort((a: number, b: number): number => a - b);
+    let cmap: string = '/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n' +
+      '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n' +
+      '/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n' +
+      '1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n';
+    for (let i: number = 0; i < codes.length; i = i + 100) {
+      const end: number = Math.min(i + 100, codes.length);
+      cmap = cmap + (end - i).toString() + ' beginbfchar\n';
+      for (let k: number = i; k < end; k = k + 1) {
+        const hex: string = RawPdfWriter.hex4(codes[k]);
+        cmap = cmap + '<' + hex + '> <' + hex + '>\n';
+      }
+      cmap = cmap + 'endbfchar\n';
+    }
+    cmap = cmap + 'endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n';
+    this.beginObj(toUnicodeId);
+    this.writeAscii('<< /Length ' + cmap.length.toString() + ' >>\nstream\n' + cmap +
+      'endstream\nendobj\n');
 
     // Pages
     this.beginObj(OBJ_PAGES);
@@ -151,6 +210,23 @@ export class RawPdfWriter {
       fileIo.closeSync(this.fd);
       this.fd = -1;
     }
+  }
+
+  /** 文本转 UTF-16BE 十六进制（UniGB-UCS2-H 编码） */
+  private static utf16Hex(s: string): string {
+    let out: string = '';
+    for (let i: number = 0; i < s.length; i = i + 1) {
+      out = out + RawPdfWriter.hex4(s.charCodeAt(i));
+    }
+    return out;
+  }
+
+  private static hex4(code: number): string {
+    let s: string = code.toString(16);
+    while (s.length < 4) {
+      s = '0' + s;
+    }
+    return s;
   }
 
   private static pad10(n: number): string {
