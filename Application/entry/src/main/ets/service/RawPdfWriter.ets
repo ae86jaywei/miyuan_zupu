@@ -30,6 +30,8 @@ export class PdfTextRun {
 export class RawPdfWriter {
   /** 新版本 fileIo.openSync 返回 File 对象（不再返回 fd） */
   private fd: fileIo.File | null = null;
+  /** 输出路径：中断导出时用于删除半成品 */
+  private path: string = '';
   private offset: number = 0;
   private offsets: number[] = [];
   private pageIds: number[] = [];
@@ -42,6 +44,7 @@ export class RawPdfWriter {
   private usedChars: Set<number> = new Set<number>();
 
   constructor(path: string, pageW: number, pageH: number, imageW: number, imageH: number) {
+    this.path = path;
     this.pageW = pageW;
     this.pageH = pageH;
     this.imageW = imageW;
@@ -146,6 +149,21 @@ export class RawPdfWriter {
       'endstream\nendobj\n');
 
     this.pageIds.push(pageId);
+  }
+
+  /** 中断导出：关闭句柄并删除半成品，避免留下损坏的 PDF */
+  abort(): void {
+    if (this.fd !== null) {
+      try {
+        fileIo.closeSync(this.fd);
+      } catch (_e) {
+      }
+      this.fd = null;
+    }
+    try {
+      fileIo.unlinkSync(this.path);
+    } catch (_e2) {
+    }
   }
 
   /** 完成文档：写 Pages / Catalog / Font / xref / trailer */

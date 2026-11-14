@@ -1,5 +1,6 @@
 import { pdfService } from '@kit.PDFKit';
-import { Font } from '@kit.ArkUI';
+import { Font, LengthMetricsUnit } from '@kit.ArkUI';
+import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { hidebug } from '@kit.PerformanceAnalysisKit';
@@ -10,6 +11,7 @@ import { generationLabel } from '../model/Enums';
 import { displayDate } from '../util/DateUtil';
 import { GenealogyService } from './GenealogyService';
 import { TreeLayoutCache } from './TreeLayoutCache';
+import { RawPdfWriter, PdfTextRun } from './RawPdfWriter';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -38,6 +40,17 @@ const S: number = 2;
 const CANVAS_W: number = 1191;
 const CANVAS_H: number = 1684;
 
+// ─── 方案 F（牒记式）：A4 整页栅格 ────────────────────────
+/**
+ * 与欧式/苏式同一思路：每页画成 300dpi 整页 JPEG 直嵌 PDF，另附不可见文本层。
+ * 2480×3508 单页单图（<4096 纹理上限），逐页写完即删除临时图，内存与页数无关。
+ */
+const DIE_DPI: number = 300;
+const DIE_SCALE: number = DIE_DPI / 72;
+const DIE_W: number = Math.round(PAGE_W * DIE_SCALE);
+const DIE_H: number = Math.round(PAGE_H * DIE_SCALE);
+const DIE_JPEG_QUALITY: number = 92;
+
 // ─── 导出内存看门狗常量 ───────────────────────────────────
 // 逐页写 PDF 时监控进程 PSS，超过软上限就主动抛可捕获错误并提示分卷，
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
@@ -45,10 +58,16 @@ const CANVAS_H: number = 1684;
 // 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
 const MEMORY_SOFT_LIMIT_KB: number = 2200 * 1024;
 const MEMORY_CHECK_EVERY_PAGES: number = 16;
-/** 硬上限：仅进程接近系统限制时才中止 */
-const MEMORY_HARD_LIMIT_KB: number = 2600 * 1024;
+/**
+ * 硬上限：仅进程接近系统限制时才中止。
+ * 大谱（数万人）基础 PSS 已占几百 MB，且 PDFKit native 内存在卷内累积，
+ * 2600MB 会把本来还能写完的牒记卷误杀；放到 3200MB，同时用「卷内增量」兜底。
+ */
+const MEMORY_HARD_LIMIT_KB: number = 3200 * 1024;
 /** 导出过程允许的内存增长（KB）：超过只告警 */
 const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
+/** 卷内内存增量硬上限（KB）：增长到这个程度说明本卷已经不可控，必须中止 */
+const MEMORY_GROWTH_HARD_LIMIT_KB: number = 1800 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 const C_INK: string = '#1a1a1a';
@@ -690,6 +709,12 @@ interface PageSpec {
   chapter: string;
 }
 
+/** 一卷的排版结果：逐页内容 + 封面页数（封面页不排页眉页脚） */
+interface LayoutResult {
+  pages: PageSpec[];
+  coverCount: number;
+}
+
 /**
  * 流式分页：把「世代分隔头 + 条目」按自然断点切到 A4 页内。
  * 条目整体不拆页（一人一条不跨页），同时记录每人的最终页码。
@@ -1151,28 +1176,12 @@ export class PdfExportService {
     return out;
   }
 
-  static async exportPdf(
-    context: common.UIAbilityContext,
-    people: Person[],
-    book: Genealogy,
-    options: PdfExportOptions,
-    onProgress?: (p: PdfExportProgress) => void
-  ): Promise<string> {
-    if (people.length === 0) {
-      throw new Error('没有可导出的人物数据');
-    }
-    // 导出前释放连续视图的布局画布缓存，给 PDFKit 腾出内存
-    TreeLayoutCache.getInstance().invalidate();
-
-    // 1. 输出目录
-    const outDir: string = context.filesDir + '/pdf_export';
-    if (!fileIo.accessSync(outDir)) {
-      fileIo.mkdirSync(outDir);
-    }
-
-    // 2. 排版（需要一个离屏 ctx 做 measureText）
-    const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
-    const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
+  /**
+   * 排版一卷：封面 → 谱序 → 正文（两遍：先定页码，再回填互引页码）→ 家训。
+   * 只产出逐页文本模型（PageSpec），PDFKit 与自写 PDF 两条链路共用同一份排版结果。
+   */
+  private static async layoutBook(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
+    book: Genealogy, options: PdfExportOptions): Promise<LayoutResult> {
     const ts: number = Date.now();
     // 分卷导出时用全量人物建索引，本卷只负责排版
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
@@ -1229,6 +1238,33 @@ export class PdfExportService {
     // 至此所有页面已并入 all（共享同一批 PageSpec/文本对象），第二遍的 entries2 与 genealogyPages 数组本身不再需要，主动释放
     entries2 = [];
     genealogyPages = [];
+    return { pages: all, coverCount: coverPages.length };
+  }
+
+  static async exportPdf(
+    context: common.UIAbilityContext,
+    people: Person[],
+    book: Genealogy,
+    options: PdfExportOptions,
+    onProgress?: (p: PdfExportProgress) => void
+  ): Promise<string> {
+    if (people.length === 0) {
+      throw new Error('没有可导出的人物数据');
+    }
+    // 导出前释放连续视图的布局画布缓存，给 PDFKit 腾出内存
+    TreeLayoutCache.getInstance().invalidate();
+
+    // 1. 输出目录
+    const outDir: string = context.filesDir + '/pdf_export';
+    if (!fileIo.accessSync(outDir)) {
+      fileIo.mkdirSync(outDir);
+    }
+
+    // 2. 排版（离屏 ctx 只用于 measureText 断行/居中度量）
+    const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
+    const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
+    const layout: LayoutResult = await PdfExportService.layoutBook(ctx, people, book, options);
+    const all: PageSpec[] = layout.pages;
     const total: number = all.length;
     if (total === 0) {
       throw new Error('排版结果为空');
@@ -1257,7 +1293,7 @@ export class PdfExportService {
       // 大谱基础 PSS 可能已有几百 MB，用「导出增量」比绝对阈值更准确
       const basePssKb: number = currentPssKb();
       for (let i: number = 0; i < total; i++) {
-        drawPageToPdf(ctx, doc, all[i], i + 1, total, i < coverPages.length);
+        drawPageToPdf(ctx, doc, all[i], i + 1, total, i < layout.coverCount);
         if (onProgress && (i % 5 === 0 || i === total - 1)) {
           onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
         }
@@ -1275,10 +1311,10 @@ export class PdfExportService {
               'MB base=' + Math.round(basePssKb / 1024) + 'MB growth=' +
               Math.round(growthKb / 1024) + 'MB, page=' + i + '/' + total);
           }
-          if (pssKb > MEMORY_HARD_LIMIT_KB) {
+          if (pssKb > MEMORY_HARD_LIMIT_KB || growthKb > MEMORY_GROWTH_HARD_LIMIT_KB) {
             throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024) +
-              'MB，较导出开始增长 ' + Math.round(growthKb / 1024) +
-              'MB，第 ' + i + '/' + total + ' 页）。请减少单卷人数后重试');
+              'MB，较本卷开始增长 ' + Math.round(growthKb / 1024) +
+              'MB，第 ' + i + '/' + total + ' 页）。已完成的卷会先保存，剩余卷可减少单卷人数后重试');
           }
         }
         await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应
@@ -1307,5 +1343,151 @@ export class PdfExportService {
       onProgress({ current: total + 1, total: total + 1, message: '完成' });
     }
     return outPath;
+  }
+
+  /**
+   * 方案 F（牒记式）：自写 PDF，逐页栅格 + 不可见文本层。
+   * 与欧式/苏式同一思路：不依赖 PDFKit，内存占用与页数无关；
+   * 每页 JPEG 写完即嵌入 PDF 并删除临时图，几万人的谱也不会撞 native 内存上限。
+   */
+  static async exportRawPdf(context: common.UIAbilityContext, people: Person[], book: Genealogy,
+    options: PdfExportOptions, onProgress?: (p: PdfExportProgress) => void): Promise<string> {
+    if (people.length === 0) {
+      throw new Error('没有可导出的人物数据');
+    }
+    TreeLayoutCache.getInstance().invalidate();
+
+    const outDir: string = context.filesDir + '/pdf_export';
+    if (!fileIo.accessSync(outDir)) {
+      fileIo.mkdirSync(outDir);
+    }
+
+    // 排版仍用离屏 ctx 做 measureText 断行/居中度量，产出逐页文本模型
+    const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
+    const measureCtx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
+    const layout: LayoutResult = await PdfExportService.layoutBook(measureCtx, people, book, options);
+    const total: number = layout.pages.length;
+    if (total === 0) {
+      throw new Error('排版结果为空');
+    }
+
+    const d: Date = new Date();
+    const stamp: string = d.getFullYear().toString() +
+      (d.getMonth() + 1).toString().padStart(2, '0') +
+      d.getDate().toString().padStart(2, '0');
+    const vol: string = (options.volumeTitle !== undefined && options.volumeTitle.length > 0)
+      ? '_' + options.volumeTitle : '';
+    const outPath: string = outDir + '/' + book.title + vol + '_' + stamp + '.pdf';
+
+    const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W, PAGE_H, DIE_W, DIE_H);
+    // 显式 PX 单位：1 单位 = 1 像素（默认 vp 会乘屏幕密度，分辨率与坐标全错）
+    const pageCanvas: OffscreenCanvas = new OffscreenCanvas(DIE_W, DIE_H, LengthMetricsUnit.PX);
+    const g: OffscreenCanvasRenderingContext2D = pageCanvas.getContext('2d');
+    const t0: number = Date.now();
+    try {
+      for (let i: number = 0; i < total; i++) {
+        const runs: PdfTextRun[] = PdfExportService.renderTextPage(g, measureCtx, layout.pages[i],
+          i + 1, total, i < layout.coverCount);
+        const pm: image.PixelMap = g.getPixelMap(0, 0, DIE_W, DIE_H);
+        let buf: ArrayBuffer = new ArrayBuffer(0);
+        const packer: image.ImagePacker = image.createImagePacker();
+        try {
+          const opt: image.PackingOption = { format: 'image/jpeg', quality: DIE_JPEG_QUALITY };
+          buf = await packer.packing(pm, opt);
+        } finally {
+          pm.release();
+          packer.release();
+        }
+        const tmpPath: string = context.cacheDir + '/die_pdf_' + (i + 1).toString() + '_' +
+          Date.now().toString() + '.jpg';
+        const fh: fileIo.File = fileIo.openSync(tmpPath,
+          fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
+        try {
+          fileIo.writeSync(fh.fd, buf);
+        } finally {
+          fileIo.closeSync(fh);
+        }
+        writer.addJpegPage(tmpPath, runs);
+        try {
+          fileIo.unlinkSync(tmpPath);
+        } catch (_e) {
+        }
+        if (onProgress && (i % 3 === 0 || i === total - 1)) {
+          onProgress({ current: i + 1, total: total, message: '渲染第 ' + (i + 1).toString() + '/' + total.toString() + ' 页' });
+        }
+        if (i % 100 === 0) {
+          console.info('[PdfExport] raw page ' + i.toString() + '/' + total.toString() +
+            ' pss=' + Math.round(currentPssKb() / 1024).toString() + 'MB cost ' + (Date.now() - t0).toString() + 'ms');
+        }
+        await yieldToUi();
+      }
+      writer.finish();
+    } catch (e) {
+      // 中断时关闭句柄并删除半成品，避免用户拿到坏 PDF
+      writer.abort();
+      throw e as Error;
+    }
+    return outPath;
+  }
+
+  /**
+   * 把一页排版结果画成 300dpi 栅格，并按 pt 坐标收集不可见文本层（可检索、可复制）。
+   * 坐标换算与 PDFKit 版完全一致：基线距页顶 = 行顶 y + 字号。
+   */
+  private static renderTextPage(g: OffscreenCanvasRenderingContext2D,
+    measureCtx: OffscreenCanvasRenderingContext2D, spec: PageSpec, pageNo: number, total: number,
+    isCover: boolean): PdfTextRun[] {
+    const runs: PdfTextRun[] = [];
+    g.fillStyle = '#FFFFFF';
+    g.fillRect(0, 0, DIE_W, DIE_H);
+    g.textAlign = 'left';
+    g.textBaseline = 'alphabetic';
+
+    if (!isCover && spec.chapter.length > 0) {
+      const wPt: number = measurePt(measureCtx, spec.chapter, 9);
+      const xPt: number = PAGE_W - MARGIN_LR - wPt;
+      g.fillStyle = C_INK3;
+      g.font = Math.round(9 * DIE_SCALE).toString() + 'px sans-serif';
+      g.fillText(spec.chapter, xPt * DIE_SCALE, (MARGIN_TOP - 16 + 9) * DIE_SCALE);
+      runs.push(PdfExportService.rawRun(spec.chapter, xPt, baselineOf(MARGIN_TOP - 16, 9), 9));
+    }
+
+    let yTop: number = isCover ? 0 : MARGIN_TOP;
+    for (let i: number = 0; i < spec.lines.length; i++) {
+      const ln: TextLine = spec.lines[i];
+      if (ln.text.trim().length > 0) {
+        let xPt: number = MARGIN_LR + ln.indent;
+        if (ln.center) {
+          xPt = (PAGE_W - measurePt(measureCtx, ln.text, ln.font)) / 2;
+        }
+        g.fillStyle = ln.color;
+        g.font = (ln.bold ? 'bold ' : '') + Math.round(ln.font * DIE_SCALE).toString() + 'px sans-serif';
+        g.fillText(ln.text, xPt * DIE_SCALE, (yTop + ln.font) * DIE_SCALE);
+        runs.push(PdfExportService.rawRun(ln.text, xPt, baselineOf(yTop, ln.font), ln.font));
+      }
+      yTop += ln.lineH;
+    }
+
+    if (!isCover) {
+      const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
+      const xPt: number = (PAGE_W - measurePt(measureCtx, footer, 9.5)) / 2;
+      const yBasePt: number = MARGIN_BOTTOM / 2;
+      g.fillStyle = C_INK2;
+      g.font = Math.round(9.5 * DIE_SCALE).toString() + 'px sans-serif';
+      g.fillText(footer, xPt * DIE_SCALE, (PAGE_H - yBasePt) * DIE_SCALE);
+      runs.push(PdfExportService.rawRun(footer, xPt, yBasePt, 9.5));
+    }
+    return runs;
+  }
+
+  /** 组装一段不可见文本层：坐标直接用 PDF pt，不参与视觉渲染 */
+  private static rawRun(text: string, xPt: number, yPt: number, sizePt: number): PdfTextRun {
+    const r: PdfTextRun = new PdfTextRun();
+    r.text = text;
+    r.xPt = xPt;
+    r.yPt = yPt;
+    r.sizePt = sizePt;
+    r.invisible = true;
+    return r;
   }
 }
