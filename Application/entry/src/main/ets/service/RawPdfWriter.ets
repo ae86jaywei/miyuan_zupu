@@ -28,7 +28,8 @@ export class PdfTextRun {
 }
 
 export class RawPdfWriter {
-  private fd: number = -1;
+  /** 新版本 fileIo.openSync 返回 File 对象（不再返回 fd） */
+  private fd: fileIo.File | null = null;
   private offset: number = 0;
   private offsets: number[] = [];
   private pageIds: number[] = [];
@@ -56,22 +57,31 @@ export class RawPdfWriter {
     for (let i: number = 0; i < s.length; i = i + 1) {
       bytes[i] = s.charCodeAt(i) & 0x7f;
     }
-    fileIo.writeSync(this.fd, bytes.buffer);
+    fileIo.writeSync(this.fdOrThrow().fd, bytes.buffer);
     this.offset += bytes.length;
   }
 
+  /** 取当前写入句柄；已关闭则报错，避免静默丢字节 */
+  private fdOrThrow(): fileIo.File {
+    const f: fileIo.File | null = this.fd;
+    if (f === null) {
+      throw new Error('RawPdfWriter: 文件已关闭');
+    }
+    return f;
+  }
+
   /** 写 JPEG 原始字节：只复制，不解码 */
-  private writeJpegBytes(srcFd: number, size: number): void {
+  private writeJpegBytes(srcFile: fileIo.File, size: number): void {
     const chunk: ArrayBuffer = new ArrayBuffer(65536);
     let left: number = size;
     while (left > 0) {
-      const n: number = fileIo.readSync(srcFd, chunk);
+      const n: number = fileIo.readSync(srcFile.fd, chunk);
       if (n <= 0) {
         break;
       }
       const part: Uint8Array = new Uint8Array(n);
       part.set(new Uint8Array(chunk, 0, n));
-      fileIo.writeSync(this.fd, part.buffer);
+      fileIo.writeSync(this.fdOrThrow().fd, part.buffer);
       this.offset += n;
       left -= n;
     }
@@ -108,11 +118,11 @@ export class RawPdfWriter {
     this.writeAscii('<< /Type /XObject /Subtype /Image /Width ' + this.imageW.toString() +
       ' /Height ' + this.imageH.toString() + ' /ColorSpace /DeviceRGB /BitsPerComponent 8' +
       ' /Filter /DCTDecode /Length ' + size.toString() + ' >>\nstream\n');
-    const srcFd: number = fileIo.openSync(jpegPath, fileIo.OpenMode.READ_ONLY);
+    const srcFile: fileIo.File = fileIo.openSync(jpegPath, fileIo.OpenMode.READ_ONLY);
     try {
-      this.writeJpegBytes(srcFd, size);
+      this.writeJpegBytes(srcFile, size);
     } finally {
-      fileIo.closeSync(srcFd);
+      fileIo.closeSync(srcFile);
     }
     this.writeAscii('\nendstream\nendobj\n');
 
@@ -206,9 +216,9 @@ export class RawPdfWriter {
     }
     this.writeAscii('trailer\n<< /Size ' + totalObj.toString() + ' /Root ' +
       OBJ_CATALOG.toString() + ' 0 R >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n');
-    if (this.fd >= 0) {
+    if (this.fd !== null) {
       fileIo.closeSync(this.fd);
-      this.fd = -1;
+      this.fd = null;
     }
   }
 

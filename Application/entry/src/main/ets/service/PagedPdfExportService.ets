@@ -7,7 +7,7 @@ import { taskpool } from '@kit.ArkTS';
 import { hidebug } from '@kit.PerformanceAnalysisKit';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
-import { PaginationService, PrintBook, PagePlan } from './PaginationService';
+import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
@@ -374,23 +374,24 @@ export class PagedPdfExportService {
     totalPages: number, context: common.UIAbilityContext): Promise<RawPageResult> {
     const lineData: number[] = packLineData(canvas);
     const boxData: number[] = packBoxData(canvas, style);
-    const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H);
+    // 显式 PX 单位：1 单位 = 1 像素，避免默认 vp 再乘屏幕密度
+    const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H, LengthMetricsUnit.PX);
     const ctx: OffscreenCanvasRenderingContext2D = off.getContext('2d');
     paintRasterTile(ctx, 0, 0, RENDER_W, RENDER_H, 0.2, lineData, boxData);
     const runs: PdfTextRun[] = PagedPdfExportService.drawRawText(ctx, canvas, plan, genealogy,
       style, rootName, volumeNo, pageNo, totalPages);
-    const pm: image.PixelMap = off.getPixelMap(0, 0, RENDER_W, RENDER_H);
+    const pm: image.PixelMap = ctx.getPixelMap(0, 0, RENDER_W, RENDER_H);
     const packer: image.ImagePacker = image.createImagePacker();
     const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
     const buf: ArrayBuffer = await packer.packing(pm, opt);
     const path: string = context.cacheDir + '/raw_pdf_' + pageNo.toString() + '_' +
       Date.now().toString() + '.jpg';
-    const fd: number = fileIo.openSync(path,
+    const fh: fileIo.File = fileIo.openSync(path,
       fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
     try {
-      fileIo.writeSync(fd, buf);
+      fileIo.writeSync(fh.fd, buf);
     } finally {
-      fileIo.closeSync(fd);
+      fileIo.closeSync(fh);
     }
     pm.release();
     packer.release();
@@ -410,8 +411,8 @@ export class PagedPdfExportService {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#5B4B3B';
     let headerSize: number = 28;
-    const header: string = genealogy.title + (rootName.length > 0 ? ' · ' + rootName : '') +
-      ' · ' + pageGenText(plan);
+    const header: string = genealogy.title + ' · ' + pageGenText(plan) +
+      (rootName.length > 0 ? ' · ' + rootName : '');
     ctx.font = headerSize.toString() + 'px sans-serif';
     while (headerSize > 14 && ctx.measureText(header).width > maxTextW) {
       headerSize = headerSize - 2;
