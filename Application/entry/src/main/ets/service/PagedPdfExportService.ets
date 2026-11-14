@@ -12,6 +12,7 @@ import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
 import { compactUid } from '../util/StringUtil';
+import { parseYear } from '../util/DateUtil';
 import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_X_MM, INNER_Y_MM,
   JPEG_QUALITY, PAGE_H_MM, PAGE_W_MM, PX_PER_MM, RENDER_H, RENDER_W,
   TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
@@ -453,27 +454,80 @@ export class PagedPdfExportService {
     return runs;
   }
 
-  /** 卡片内文字：姓名 + UID（坐标从 mm 转到 300dpi 像素），同时收集文本层 */
+  /** 卡片内文字：第1行「姓名 字：xxx」，第2行「ID 排行」，第3行「生卒：xxxx年-xxxx年」 */
   private static drawBoxText(ctx: OffscreenCanvasRenderingContext2D, node: PersonNode,
     xMm: number, yMm: number, wMm: number, hMm: number, runs: PdfTextRun[]): void {
     const px: number = (INNER_X_MM + xMm) * PX_PER_MM;
     const py: number = (INNER_Y_MM + yMm) * PX_PER_MM;
     const wPx: number = wMm * PX_PER_MM;
     const hPx: number = hMm * PX_PER_MM;
-    const fs: number = Math.max(12, Math.round(hPx * 0.26));
+    const p = node.person;
+
+    // 第 1 行：姓名 + 字（曾用名/小名）
+    const name: string = p.name.length > 0 ? p.name : node.uid;
+    const alias: string = p.alias.trim();
+    const line1: string = alias.length > 0 ? name + ' 字：' + alias : name;
+    // 第 2 行：ID + 排行（只显示「长子」这类值，不加「排行」前缀）
+    const rank: string = p.rank.trim();
+    const idText: string = compactUid(node.uid);
+    const line2: string = rank.length > 0 ? idText + ' ' + rank : idText;
+    // 第 3 行：生卒年份（只有生/只有卒时改用「生于/卒于」）
+    const by: number = parseYear(p.birthDate);
+    const dy: number = parseYear(p.deathDate);
+    let line3: string = '';
+    if (by > 0 && dy > 0) {
+      line3 = '生卒：' + by.toString() + '年-' + dy.toString() + '年';
+    } else if (by > 0) {
+      line3 = '生于：' + by.toString() + '年';
+    } else if (dy > 0) {
+      line3 = '卒于：' + dy.toString() + '年';
+    }
+    const all: string[] = line3.length > 0 ? [line1, line2, line3] : [line1, line2];
+
+    // 左上对齐：顶边起排，按行数压缩字号，保证不出卡片
+    const padX: number = Math.max(2, Math.round(wPx * 0.03));
+    const padY: number = Math.max(1, Math.round(hPx * 0.04));
+    const availW: number = Math.max(12, wPx - padX * 2);
+    const availH: number = Math.max(12, hPx - padY * 2);
+    const lineH: number = availH / all.length;
+    const nameFs: number = Math.max(10, Math.min(Math.round(hPx * 0.26),
+      Math.floor(lineH * 0.86)));
+    const detailFs: number = Math.max(8, Math.round(nameFs * 0.72));
+
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#2B2B2B';
-    ctx.font = 'bold ' + fs.toString() + 'px sans-serif';
-    const name: string = node.person.name.length > 0 ? node.person.name : node.uid;
-    ctx.fillText(name, px + 2, py + hPx * 0.52, wPx - 4);
-    runs.push(PagedPdfExportService.textRun(name, px + 2, py + hPx * 0.52, fs));
-    ctx.fillStyle = '#7A6A5A';
-    const uidFs: number = Math.max(10, Math.round(fs * 0.7));
-    ctx.font = uidFs.toString() + 'px sans-serif';
-    const uidText: string = compactUid(node.uid);
-    ctx.fillText(uidText, px + 2, py + hPx * 0.82, wPx - 4);
-    runs.push(PagedPdfExportService.textRun(uidText, px + 2, py + hPx * 0.82, uidFs));
+    ctx.textBaseline = 'top';
+    for (let i: number = 0; i < all.length; i = i + 1) {
+      const isName: boolean = i === 0;
+      const fontOf = (size: number): string =>
+        (isName ? 'bold ' : '') + size.toString() + 'px sans-serif';
+      let fs: number = isName ? nameFs : detailFs;
+      ctx.font = fontOf(fs);
+      const raw: string = all[i];
+      const need: number = ctx.measureText(raw).width;
+      // 行太长（姓名+字、生卒串）先按比例缩字号，缩到下限仍放不下再截断
+      if (need > availW && need > 0) {
+        fs = Math.max(isName ? 10 : 8, Math.floor(fs * availW / need));
+        ctx.font = fontOf(fs);
+      }
+      ctx.fillStyle = isName ? '#2B2B2B' : '#7A6A5A';
+      const text: string = PagedPdfExportService.fitTextPx(ctx, raw, availW);
+      const yTop: number = py + padY + lineH * i + Math.max(0, (lineH - fs) / 2);
+      ctx.fillText(text, px + padX, yTop, availW);
+      runs.push(PagedPdfExportService.textRun(text, px + padX, yTop + fs * 0.8, fs));
+    }
+  }
+
+  /** 按像素宽度截断，超出加省略号（ctx.font 需由调用方先设好） */
+  private static fitTextPx(ctx: OffscreenCanvasRenderingContext2D, text: string,
+    maxW: number): string {
+    if (text.length === 0 || ctx.measureText(text).width <= maxW) {
+      return text;
+    }
+    let cut: string = text;
+    while (cut.length > 0 && ctx.measureText(cut + '…').width > maxW) {
+      cut = cut.substring(0, cut.length - 1);
+    }
+    return cut.length > 0 ? cut + '…' : '';
   }
 
   /** 像素坐标 → PDF 点坐标（文本层不可见，只用于检索） */
