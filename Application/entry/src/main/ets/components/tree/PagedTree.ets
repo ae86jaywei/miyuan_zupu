@@ -243,6 +243,56 @@ export struct PagedTree {
     this.onPageChange(idx);
   }
 
+  // ─── 双指缩放：锚点固定在手指中心，放大后仍盯着同一点 ─────────────
+  private pinchZoomStart: number = 1;
+  /** 起始锚点在页面内容坐标（mm）中的位置 */
+  private pinchAnchorCx: number = 0;
+  private pinchAnchorCy: number = 0;
+
+  /** 滚动内容宽度（与 build 里 Column 的 width 保持一致） */
+  private contentW(): number {
+    return Math.max(this.mm(this.spec.trimW),
+      Math.min(this.viewW, DeviceUtil.screenWidthVp()));
+  }
+
+  /** 滚动内容高度（与 build 里 Column 的 height 保持一致） */
+  private contentH(): number {
+    return Math.max(this.viewH - 38, this.mm(this.spec.trimH));
+  }
+
+  /** 页面在滚动内容中的左内边距（Column 居中对齐） */
+  private contentPadX(): number {
+    return Math.max(0, (this.contentW() - this.mm(this.spec.trimW)) / 2);
+  }
+
+  /** 缩放前的可视滚动偏移 */
+  private scrollX(): number {
+    return this.scroller.currentOffset().xOffset;
+  }
+
+  private scrollY(): number {
+    return this.scroller.currentOffset().yOffset;
+  }
+
+  /** 以 (focusX, focusY) 为锚点缩放到 target（视口坐标） */
+  private zoomAt(target: number, focusX: number, focusY: number): void {
+    const t: number = Math.min(3, Math.max(1, target));
+    if (Math.abs(t - this.zoom) < 0.001 || this.k <= 0) {
+      return;
+    }
+    // 锚点内容坐标（mm）：旧 k 下由「滚动偏移 + 手指位置 - 页边留白」反算
+    const cx: number = (this.scrollX() + focusX - this.contentPadX()) / this.k;
+    const cy: number = (this.scrollY() + focusY - 2) / this.k;
+    this.zoom = t;
+    this.updateScale();
+    const sx: number = Math.max(0, cx * this.k + this.contentPadX() - focusX);
+    const sy: number = Math.max(0, cy * this.k + 2 - focusY);
+    // 布局尺寸要等这一帧刷新后再滚，否则会被旧的 maxOffset 夹住
+    setTimeout((): void => {
+      this.scroller.scrollTo({ xOffset: sx, yOffset: sy, animation: false });
+    }, 0);
+  }
+
   /** pt -> 当前屏幕 vp */
   private pt(ptSize: number): number {
     return ptSize * 0.3527778 * this.k;
@@ -548,8 +598,7 @@ export struct PagedTree {
           .backgroundColor(Theme.card)
           .borderRadius(14)
           .onClick((): void => {
-            this.zoom = Math.max(1, this.zoom - 0.5);
-            this.updateScale();
+            this.zoomAt(this.zoom - 0.5, this.viewW / 2, (this.viewH - 36) / 2);
           })
         Text(Math.round(this.zoom * 100).toString() + '%')
           .fontSize(10)
@@ -563,8 +612,7 @@ export struct PagedTree {
           .backgroundColor(Theme.card)
           .borderRadius(14)
           .onClick((): void => {
-            this.zoom = Math.min(3, this.zoom + 0.5);
-            this.updateScale();
+            this.zoomAt(this.zoom + 0.5, this.viewW / 2, (this.viewH - 36) / 2);
           })
       }
       .width('100%')
@@ -608,6 +656,37 @@ export struct PagedTree {
           .backgroundColor('rgba(255,253,246,0.88)')
         }
       }
+      // 双指缩放：与连续视图一致，以两指中心为锚点，放大后同一点仍在指下
+      .parallelGesture(
+        PinchGesture({ fingers: 2 })
+          .onActionStart((event: GestureEvent): void => {
+            this.pinchZoomStart = this.zoom;
+            if (this.k <= 0) {
+              return;
+            }
+            const cx: number = event.pinchCenterX ?? 0;
+            const cy: number = event.pinchCenterY ?? 0;
+            this.pinchAnchorCx = (this.scrollX() + cx - this.contentPadX()) / this.k;
+            this.pinchAnchorCy = (this.scrollY() + cy - 2) / this.k;
+          })
+          .onActionUpdate((event: GestureEvent): void => {
+            const target: number = Math.min(3, Math.max(1, this.pinchZoomStart * event.scale));
+            if (Math.abs(target - this.zoom) < 0.002) {
+              return;
+            }
+            this.zoom = target;
+            this.updateScale();
+            const cx: number = event.pinchCenterX ?? 0;
+            const cy: number = event.pinchCenterY ?? 0;
+            const sx: number = Math.max(0,
+              this.pinchAnchorCx * this.k + this.contentPadX() - cx);
+            const sy: number = Math.max(0,
+              this.pinchAnchorCy * this.k + 2 - cy);
+            setTimeout((): void => {
+              this.scroller.scrollTo({ xOffset: sx, yOffset: sy, animation: false });
+            }, 0);
+          })
+      )
       .layoutWeight(1)
       .width('100%')
     }
