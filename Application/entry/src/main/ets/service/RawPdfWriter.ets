@@ -27,6 +27,15 @@ export class PdfTextRun {
   invisible: boolean = true;
 }
 
+/** 牒记式文本页的一行（矢量文字，直接可搜索） */
+export class PdfTextLine {
+  text: string = '';
+  xPt: number = 0;
+  yPt: number = 0;
+  sizePt: number = 10;
+  color: string = '#2B2B2B';
+}
+
 export class RawPdfWriter {
   private fd: number = -1;
   private offset: number = 0;
@@ -142,6 +151,45 @@ export class RawPdfWriter {
       'endstream\nendobj\n');
 
     this.pageIds.push(pageId);
+  }
+
+  /** 追加一页纯文本（牒记式）：无图片，文字矢量写入，可搜索/复制 */
+  addTextLinePage(lines: PdfTextLine[]): void {
+    const pageId: number = this.nextObj;
+    const contentId: number = this.nextObj + 1;
+    this.nextObj = this.nextObj + 2;
+
+    this.beginObj(pageId);
+    this.writeAscii('<< /Type /Page /Parent ' + OBJ_PAGES.toString() + ' 0 R /MediaBox [0 0 ' +
+      this.pageW.toString() + ' ' + this.pageH.toString() + '] /Resources << /Font << /F1 ' +
+      OBJ_FONT.toString() + ' 0 R >> >> /Contents ' + contentId.toString() + ' 0 R >>\nendobj\n');
+
+    let content: string = 'q\n0.98 0.97 0.94 rg\n0 0 ' + this.pageW.toString() + ' ' +
+      this.pageH.toString() + ' re\nf\nQ\n';
+    for (let i: number = 0; i < lines.length; i = i + 1) {
+      const ln: PdfTextLine = lines[i];
+      if (ln.text.trim().length === 0) {
+        continue;
+      }
+      content = content + 'BT /F1 ' + ln.sizePt.toFixed(2) + ' Tf ' +
+        RawPdfWriter.rgbOp(ln.color) + ' ' + ln.xPt.toFixed(2) + ' ' + ln.yPt.toFixed(2) +
+        ' Td <' + this.textHex(ln.text) + '> Tj ET\n';
+    }
+    this.beginObj(contentId);
+    this.writeAscii('<< /Length ' + content.length.toString() + ' >>\nstream\n' + content +
+      'endstream\nendobj\n');
+    this.pageIds.push(pageId);
+  }
+
+  /** 十六进制颜色 → `r g b rg` */
+  private static rgbOp(color: string): string {
+    if (color.length === 7 && color.charAt(0) === '#') {
+      const r: number = parseInt(color.substring(1, 3), 16) / 255;
+      const g: number = parseInt(color.substring(3, 5), 16) / 255;
+      const b: number = parseInt(color.substring(5, 7), 16) / 255;
+      return r.toFixed(3) + ' ' + g.toFixed(3) + ' ' + b.toFixed(3) + ' rg';
+    }
+    return '0 0 0 rg';
   }
 
   /** 完成文档：写 Pages / Catalog / Font / xref / trailer */
