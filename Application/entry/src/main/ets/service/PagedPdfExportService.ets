@@ -7,7 +7,7 @@ import { taskpool } from '@kit.ArkTS';
 import { hidebug } from '@kit.PerformanceAnalysisKit';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
-import { PaginationService, PrintBook, PagePlan } from './PaginationService';
+import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
@@ -20,6 +20,7 @@ import { PageCacheService } from './PageCacheService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextRun } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
+import { PdfFontUtil } from './PdfFontUtil';
 
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
@@ -269,8 +270,8 @@ export class PagedPdfExportService {
     const peopleCount: number = GenealogyService.getInstance().getPeople().length;
     const profileName: string = peopleCount > 15000 ? 'compact' : 'standard';
     // F3：嵌入系统 HarmonyOS Sans；读取失败时 RawPdfWriter 自动回退 STSong-Light
-    const fontPath: string = pdfFontInfo().fontPath;
-    const rawFont: RawPdfFont | null = fontPath.length > 0 ? RawPdfFont.load(fontPath) : null;
+    const fontPath: string = PdfFontUtil.fontPath();
+    const rawFont: RawPdfFont | null = PdfFontUtil.rawFont();
     const version: number = Date.now();
     const books: PrintBook[] = [];
     let total: number = 0;
@@ -379,23 +380,23 @@ export class PagedPdfExportService {
     totalPages: number, context: common.UIAbilityContext): Promise<RawPageResult> {
     const lineData: number[] = packLineData(canvas);
     const boxData: number[] = packBoxData(canvas, style);
-    const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H);
+    const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H, LengthMetricsUnit.PX);
     const ctx: OffscreenCanvasRenderingContext2D = off.getContext('2d');
     paintRasterTile(ctx, 0, 0, RENDER_W, RENDER_H, 0.2, lineData, boxData);
     const runs: PdfTextRun[] = PagedPdfExportService.drawRawText(ctx, canvas, plan, genealogy,
       style, rootName, volumeNo, pageNo, totalPages);
-    const pm: image.PixelMap = off.getPixelMap(0, 0, RENDER_W, RENDER_H);
+    const pm: image.PixelMap = ctx.getPixelMap(0, 0, RENDER_W, RENDER_H);
     const packer: image.ImagePacker = image.createImagePacker();
     const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
     const buf: ArrayBuffer = await packer.packing(pm, opt);
     const path: string = context.cacheDir + '/raw_pdf_' + pageNo.toString() + '_' +
       Date.now().toString() + '.jpg';
-    const fd: number = fileIo.openSync(path,
+    const fh: fileIo.File = fileIo.openSync(path,
       fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
     try {
-      fileIo.writeSync(fd, buf);
+      fileIo.writeSync(fh.fd, buf);
     } finally {
-      fileIo.closeSync(fd);
+      fileIo.closeSync(fh);
     }
     pm.release();
     packer.release();

@@ -12,6 +12,7 @@ import { GenealogyService } from './GenealogyService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextLine } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
+import { PdfFontUtil } from './PdfFontUtil';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -793,17 +794,29 @@ function hexToNum(hex: string): number {
 /** 系统字体信息（进程内缓存，避免逐行取字体路径） */
 let cachedFontInfo: pdfService.FontInfo | null = null;
 
+/** 关系索引跨卷复用：全量索引（数万人）每卷重建一次是分卷导出的主要固定开销 */
+let cachedKinIndex: KinshipIndex | null = null;
+let cachedKinSource: Person[] | null = null;
+
+function kinshipFor(people: Person[]): KinshipIndex {
+  if (cachedKinIndex !== null && cachedKinSource === people) {
+    return cachedKinIndex;
+  }
+  const idx: KinshipIndex = new KinshipIndex(people);
+  cachedKinIndex = idx;
+  cachedKinSource = people;
+  return idx;
+}
+
 function pdfFontInfo(): pdfService.FontInfo {
   if (cachedFontInfo === null) {
     const fi: pdfService.FontInfo = new pdfService.FontInfo();
-    try {
-      const f: Font = new Font();
-      const info = f.getFontByName('HarmonyOS Sans');
-      fi.fontPath = info.path;
-    } catch (_e) {
-      // 取不到系统字体时交给 PDF 默认字体
+    // 统一走 PdfFontUtil：只认含 CJK 的字体，避免命中 342KB 的拉丁字体导致整卷中文缺字
+    const p: string = PdfFontUtil.fontPath();
+    if (p.length > 0) {
+      fi.fontPath = p;
+      fi.fontName = 'HarmonyOS Sans SC';
     }
-    fi.fontName = '';
     cachedFontInfo = fi;
   }
   return cachedFontInfo;
@@ -1134,7 +1147,7 @@ export class PdfExportService {
     }
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
     const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
-    const kinIndex: KinshipIndex = new KinshipIndex(people);
+    const kinIndex: KinshipIndex = kinshipFor(people);
     for (let i: number = 0; i < jobs.length; i++) {
       const vol: PdfVolume = jobs[i];
       const coverPages: PageSpec[] = includeCover
@@ -1175,7 +1188,7 @@ export class PdfExportService {
     const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
-    const kinIndex: KinshipIndex = new KinshipIndex(kinPeople);
+    const kinIndex: KinshipIndex = kinshipFor(kinPeople);
     const coverPages: PageSpec[] = options.includeCover
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0) : [];
     const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
@@ -1225,8 +1238,10 @@ export class PdfExportService {
       ? '_' + options.volumeTitle : '';
     const outPath: string = outDir + '/' + book.title + vol + '_' + stamp + '.pdf';
 
-    const fontPath: string = pdfFontInfo().fontPath;
-    const rawFont: RawPdfFont | null = fontPath.length > 0 ? RawPdfFont.load(fontPath) : null;
+    const fontPath: string = pdfFontInfo().fontPath ?? '';
+    const rawFont: RawPdfFont | null = PdfFontUtil.rawFont();
+    console.info('[PdfExport] raw text pdf font=' +
+      (rawFont === null ? 'fallback:STSong-Light' : fontPath) + ', pages=' + total.toString());
     const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W, PAGE_H, 0, 0, rawFont);
     for (let i: number = 0; i < total; i = i + 1) {
       const lines: PdfTextLine[] = PdfExportService.buildRawTextLines(ctx, all[i], i + 1, total,

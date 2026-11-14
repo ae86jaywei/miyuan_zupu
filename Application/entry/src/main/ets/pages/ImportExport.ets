@@ -28,6 +28,25 @@ const PDF_VOLUME_MAX: number = 1000;
  */
 const MAX_PEOPLE_IN_MEMORY: number = 60000;
 
+/**
+ * 整谱（总谱）单次导出人数上限。
+ * 0 = 不限制：用于验证 5 万人以上整谱一次性导出；恢复限制时改回 5000。
+ * 分支谱不受此限制。
+ */
+const PDF_PEOPLE_LIMIT: number = 0;
+
+/**
+ * 牒记式单卷人数：自写 PDF 逐页写，卷大小不再受内存限制，
+ * 卷越大每卷的固定开销（字体、谱序、关系索引）均摊得越少。
+ * 2 万人以上按 1500 人/卷（6 万人 → 40 卷）。
+ */
+function volumeMaxFor(total: number): number {
+  if (total > 20000) {
+    return 1500;
+  }
+  return PDF_VOLUME_MAX;
+}
+
 
 /**
  * 导入 / 导出中心。
@@ -205,6 +224,9 @@ struct ImportExport {
     const originalBookId: number = this.svc().getBook().key;
     const targetBookId: number = this.exportBookId > 0 ? this.exportBookId : originalBookId;
     let switched: boolean = false;
+    /** 已完成的卷文件：中途失败也能把已导出的部分交给用户，避免几小时白跑 */
+    const donePaths: string[] = [];
+    const doneNames: string[] = [];
     try {
       if (targetBookId !== originalBookId) {
         await this.svc().switchGenealogy(targetBookId);
@@ -213,8 +235,8 @@ struct ImportExport {
       const ctx = GenealogyScope.context();
       const people: Person[] = this.svc().getPeople();
       const book: Genealogy = this.svc().getBook();
-      // 移动端硬限制：整谱超过 5000 人不可能一次导出，必须先拆分支
-      if (book.parentBookId <= 0 && people.length > 5000) {
+      // 整谱人数限制（PDF_PEOPLE_LIMIT=0 时暂不限制，仅用于大谱验证）
+      if (PDF_PEOPLE_LIMIT > 0 && book.parentBookId <= 0 && people.length > PDF_PEOPLE_LIMIT) {
         throw new Error('整谱 ' + people.length.toString() +
           ' 人，移动端无法一次导出。请先在「建议拆分」中建立分支，再选择分支导出。');
       }
@@ -245,13 +267,16 @@ struct ImportExport {
         this.getUIContext().getPromptAction().showToast({ message: msg });
         return;
       }
-      // 牒记式：先算全谱每一卷的卷号/页码并回填，再逐卷生成 PDF
-      const planned: PdfVolume[] = PdfExportService.planVolumes(people, PDF_VOLUME_MAX);
+      // 牒记式：方案 F 自写 PDF（矢量文本页 + 嵌入字体），逐卷生成
+      const planned: PdfVolume[] = PdfExportService.planVolumes(people, volumeMaxFor(people.length));
       const jobs: PdfVolume[] = planned.length > 0 ? planned : [{ title: '', people: people }];
-      this.setProgress('正在计算各卷页码…', 3);
-      const crossRef: Map<string, string> = await PdfExportService.prepareCrossRefs(people, book, jobs, true);
-      const paths: string[] = [];
-      const names: string[] = [];
+      // 卷数一多，「逐卷预排一遍全谱页码」会多出几十次全量排版，既慢又抬内存峰值：
+      // 超过 30 卷时跳过预排，关系人统一标注「另卷」
+      let crossRef: Map<string, string> | null = null;
+      if (jobs.length <= 30) {
+        this.setProgress('正在计算各卷页码…', 3);
+        crossRef = await PdfExportService.prepareCrossRefs(people, book, jobs, true);
+      }
       for (let i: number = 0; i < jobs.length; i++) {
         const vol: PdfVolume = jobs[i];
         const base: number = Math.floor(i * 96 / jobs.length);
@@ -262,29 +287,46 @@ struct ImportExport {
             volumeTitle: vol.title,
             kinSource: people,
             style: 'die',
-            crossRef: crossRef
+            crossRef: crossRef === null ? undefined : crossRef
           },
           (p: PdfExportProgress): void => {
             this.previewText = p.message;
             const pct: number = p.total > 0 ? base + Math.round(p.current * span / p.total) : base;
             this.setProgress(p.message, pct);
           });
-        paths.push(path);
-        names.push(path.substring(path.lastIndexOf('/') + 1));
+        donePaths.push(path);
+        doneNames.push(path.substring(path.lastIndexOf('/') + 1));
+        console.info('[PdfExport] volume ' + (i + 1).toString() + '/' + jobs.length.toString() + ' done');
       }
-      this.setProgress('正在保存 ' + names.length + ' 个文件…', 98);
-      const saved: number = await ExportService.saveBinariesAsFiles(ctx, paths, names);
+      this.setProgress('正在保存 ' + doneNames.length + ' 个文件…', 98);
+      const saved: number = await ExportService.saveBinariesAsFiles(ctx, donePaths, doneNames);
       if (saved === 0) {
         this.setProgress('已取消保存', 100);
         return;
       }
-      const msg: string = jobs.length > 1 ? '已导出 ' + saved + ' 卷 PDF' : '已导出 ' + names[0];
+      const msg: string = jobs.length > 1 ? '已导出 ' + saved + ' 卷 PDF' : '已导出 ' + doneNames[0];
       this.setProgress(msg, 100);
       this.getUIContext().getPromptAction().showToast({ message: msg });
     } catch (e) {
       const err = e as BusinessError;
-      this.setProgress('导出失败：' + (err.message ?? String(e)), 100);
-      this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + (err.message ?? String(e)) });
+      const reason: string = err.message ?? String(e);
+      // 已完成的卷先交付：几万人牒记要跑很久，中途出错不该全部作废
+      if (donePaths.length > 0) {
+        try {
+          const savedPart: number = await ExportService.saveBinariesAsFiles(GenealogyScope.context(),
+            donePaths, doneNames);
+          if (savedPart > 0) {
+            this.setProgress('导出中断（' + reason + '）：已完成 ' + savedPart.toString() + ' 卷，已保存', 100);
+            this.getUIContext().getPromptAction().showToast({
+              message: '已完成 ' + savedPart.toString() + ' 卷并保存，剩余卷可重试'
+            });
+            return;
+          }
+        } catch (_e2) {
+        }
+      }
+      this.setProgress('导出失败：' + reason, 100);
+      this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + reason });
     } finally {
       if (switched) {
         try {

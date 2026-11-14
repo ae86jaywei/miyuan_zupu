@@ -37,7 +37,8 @@ export class PdfTextLine {
 }
 
 export class RawPdfWriter {
-  private fd: number = -1;
+  /** 新版本 fileIo.openSync 返回 File 对象（不再返回 fd） */
+  private fd: fileIo.File | null = null;
   private offset: number = 0;
   private offsets: number[] = [];
   private pageIds: number[] = [];
@@ -71,22 +72,31 @@ export class RawPdfWriter {
     for (let i: number = 0; i < s.length; i = i + 1) {
       bytes[i] = s.charCodeAt(i) & 0x7f;
     }
-    fileIo.writeSync(this.fd, bytes.buffer);
+    fileIo.writeSync(this.fdOrThrow().fd, bytes.buffer);
     this.offset += bytes.length;
   }
 
+  /** 取当前写入句柄；已关闭则报错，避免静默丢字节 */
+  private fdOrThrow(): fileIo.File {
+    const f: fileIo.File | null = this.fd;
+    if (f === null) {
+      throw new Error('RawPdfWriter: 文件已关闭');
+    }
+    return f;
+  }
+
   /** 写 JPEG 原始字节：只复制，不解码 */
-  private writeJpegBytes(srcFd: number, size: number): void {
+  private writeJpegBytes(srcFile: fileIo.File, size: number): void {
     const chunk: ArrayBuffer = new ArrayBuffer(65536);
     let left: number = size;
     while (left > 0) {
-      const n: number = fileIo.readSync(srcFd, chunk);
+      const n: number = fileIo.readSync(srcFile.fd, chunk);
       if (n <= 0) {
         break;
       }
       const part: Uint8Array = new Uint8Array(n);
       part.set(new Uint8Array(chunk, 0, n));
-      fileIo.writeSync(this.fd, part.buffer);
+      fileIo.writeSync(this.fdOrThrow().fd, part.buffer);
       this.offset += n;
       left -= n;
     }
@@ -123,11 +133,11 @@ export class RawPdfWriter {
     this.writeAscii('<< /Type /XObject /Subtype /Image /Width ' + this.imageW.toString() +
       ' /Height ' + this.imageH.toString() + ' /ColorSpace /DeviceRGB /BitsPerComponent 8' +
       ' /Filter /DCTDecode /Length ' + size.toString() + ' >>\nstream\n');
-    const srcFd: number = fileIo.openSync(jpegPath, fileIo.OpenMode.READ_ONLY);
+    const srcFile: fileIo.File = fileIo.openSync(jpegPath, fileIo.OpenMode.READ_ONLY);
     try {
-      this.writeJpegBytes(srcFd, size);
+      this.writeJpegBytes(srcFile, size);
     } finally {
-      fileIo.closeSync(srcFd);
+      fileIo.closeSync(srcFile);
     }
     this.writeAscii('\nendstream\nendobj\n');
 
@@ -207,10 +217,24 @@ export class RawPdfWriter {
       this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /HarmonyOS-Sans' +
         ' /Encoding /Identity-H /DescendantFonts [' + cidFontId.toString() + ' 0 R]' +
         ' /ToUnicode ' + toUnicodeId.toString() + ' 0 R >>\nendobj\n');
+      // /W 字宽表：缺了它阅读器统一按 /DW=1000 排版，数字/标点会被当成全角，间距明显过宽
+      const gidList: number[] = [];
+      this.usedGids.forEach((code: number, gid: number): void => {
+        gidList.push(gid);
+      });
+      gidList.sort((a: number, b: number): number => a - b);
+      let widths: string = '[';
+      for (let i: number = 0; i < gidList.length; i = i + 1) {
+        const gid: number = gidList[i];
+        widths = widths + gid.toString() + ' [' + f.advance1000(gid).toString() + '] ';
+      }
+      widths = widths + ']';
+
       this.beginObj(cidFontId);
       this.writeAscii('<< /Type /Font /Subtype /CIDFontType2 /BaseFont /HarmonyOS-Sans' +
         ' /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>' +
-        ' /FontDescriptor ' + descId.toString() + ' 0 R /CIDToGIDMap /Identity /DW 1000 >>\nendobj\n');
+        ' /FontDescriptor ' + descId.toString() + ' 0 R /CIDToGIDMap /Identity /DW 1000' +
+        ' /W ' + widths + ' >>\nendobj\n');
       this.beginObj(descId);
       this.writeAscii('<< /Type /FontDescriptor /FontName /HarmonyOS-Sans /Flags 4' +
         ' /FontBBox [' + f.xMin.toString() + ' ' + f.yMin.toString() + ' ' +
@@ -245,11 +269,17 @@ export class RawPdfWriter {
         'endstream\nendobj\n');
 
       // FontFile2：整字体 TTF 原始字节
+      // 子集化：只保留本卷用到的字形（GID 不变），20.6MB 字体通常裁剪到几百 KB
+      const gidSet: Set<number> = new Set<number>();
+      this.usedGids.forEach((code: number, gid: number): void => {
+        gidSet.add(gid);
+      });
+      const fontBytes: Uint8Array = f.subsetBytes(gidSet);
       this.beginObj(fontFileId);
-      this.writeAscii('<< /Length ' + f.bytes.length.toString() + ' /Length1 ' +
-        f.bytes.length.toString() + ' >>\nstream\n');
-      fileIo.writeSync(this.fd, f.bytes.buffer);
-      this.offset += f.bytes.length;
+      this.writeAscii('<< /Length ' + fontBytes.length.toString() + ' /Length1 ' +
+        fontBytes.length.toString() + ' >>\nstream\n');
+      fileIo.writeSync(this.fdOrThrow().fd, fontBytes.buffer);
+      this.offset += fontBytes.length;
       this.writeAscii('\nendstream\nendobj\n');
     } else {
       // 回退：STSong-Light（不嵌入），UniGB-UCS2-H
@@ -318,9 +348,9 @@ export class RawPdfWriter {
     }
     this.writeAscii('trailer\n<< /Size ' + totalObj.toString() + ' /Root ' +
       OBJ_CATALOG.toString() + ' 0 R >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n');
-    if (this.fd >= 0) {
+    if (this.fd !== null) {
       fileIo.closeSync(this.fd);
-      this.fd = -1;
+      this.fd = null;
     }
   }
 
