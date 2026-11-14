@@ -361,33 +361,33 @@ struct Index {
       Scroll() {
         Column() {
           Row() {
-            Text('谱').fontSize(collapsed ? 22 : 20).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
+            Text('谱').fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
           }
-          .width(collapsed ? 36 : '100%')
-          .height(40)
+          .width(this.navCompact() ? 32 : (collapsed ? 36 : '100%'))
+          .height(this.navCompact() ? 32 : 40)
           .borderRadius(10)
           .backgroundColor(Theme.primary)
           .justifyContent(FlexAlign.Center)
-          .margin({ bottom: collapsed ? Spacing.L : Spacing.M })
+          .margin({ bottom: this.navCompact() ? 8 : (collapsed ? Spacing.L : Spacing.M) })
 
           ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
             Column() {
-              Text(item.icon).fontSize(collapsed ? 16 : 17)
+              Text(item.icon).fontSize(this.navCompact() ? 14 : (collapsed ? 16 : 17))
               Text(item.title)
-                .fontSize(collapsed ? 9 : 14)
+                .fontSize(this.navCompact() ? 8 : (collapsed ? 9 : 14))
                 .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
                 .maxLines(1)
                 .margin(collapsed ? { top: 2 } : { left: Spacing.S })
                 .layoutWeight(collapsed ? 0 : 1)
             }
-            .height(collapsed ? 42 : 42)
-            .width(collapsed ? 38 : '100%')
+            .height(this.navCompact() ? 34 : 42)
+            .width(this.navCompact() ? 32 : (collapsed ? 38 : '100%'))
             .borderRadius(10)
             .backgroundColor(this.currentTab === idx ? '#FBEFD9' : Color.Transparent)
             .justifyContent(FlexAlign.Center)
             .alignItems(collapsed ? HorizontalAlign.Center : HorizontalAlign.Start)
-            .padding(collapsed ? 0 : { left: Spacing.M })
-            .margin({ bottom: 4 })
+            .padding(collapsed || this.navCompact() ? 0 : { left: Spacing.M })
+            .margin({ bottom: this.navCompact() ? 2 : 4 })
             .onClick((): void => {
               this.switchTab(idx, false);
             })
@@ -403,10 +403,10 @@ struct Index {
       .align(Alignment.Top)
 
       Text('＋')
-        .fontSize(20)
+        .fontSize(this.navCompact() ? 16 : 20)
         .fontColor('#FFFFFF')
-        .width(collapsed ? 36 : 44)
-        .height(40)
+        .width(this.navCompact() ? 30 : (collapsed ? 36 : 44))
+        .height(this.navCompact() ? 30 : 40)
         .textAlign(TextAlign.Center)
         .backgroundColor(Theme.primary)
         .borderRadius(20)
@@ -419,16 +419,17 @@ struct Index {
         })
 
       Text('人 ' + this.peopleCount().toString())
-        .fontSize(11)
+        .fontSize(this.navCompact() ? 9 : 11)
         .fontColor(Theme.inkTertiary)
-        .margin({ top: Spacing.S })
+        .margin({ top: this.navCompact() ? 2 : Spacing.S })
 
-      Text('v1.0.0').fontSize(10).fontColor(Theme.inkTertiary).margin({ top: 2 })
-      Column().height(Spacing.M)
+      Text('v1.0.0').fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
+        .margin({ top: 1 })
+      Column().height(this.navCompact() ? 4 : Spacing.M)
     }
     .width(collapsed ? NAV_WIDTH_COLLAPSED : NAV_WIDTH_EXPANDED)
     .height(LayoutPolicy.matchParent)
-    .padding({ top: Spacing.L, left: Spacing.S, right: Spacing.S })
+    .padding({ top: this.navCompact() ? 6 : Spacing.L, left: Spacing.S, right: Spacing.S })
     .backgroundColor(Theme.card)
     .border({ width: { right: 0.5 }, color: Theme.line })
   }
@@ -635,6 +636,8 @@ struct Index {
       highlightUid: this.selectedUid,
       showPrivate: this.showPrivate && !this.publicMode,
       windowWidth: this.layoutWidth(),
+      // 三栏已有常驻详情栏：点击卡片直接显示详情，不再走「长按查看」提示
+      tapOpensDetail: this.hasDockedDetail(),
       onTapPerson: (uid: string): void => {
         this.openPerson(uid);
       },
@@ -1102,6 +1105,14 @@ struct Index {
     return DeviceUtil.deviceType() === 'phone';
   }
 
+  /**
+   * 手机横屏：纵向空间只有 ~360vp，左侧导航必须整体压缩，
+   * 否则「统计 / 设置」会被底部的「＋」按钮挤出可视区（看起来像被覆盖）。
+   */
+  private navCompact(): boolean {
+    return this.isPhone() && this.windowWidth > this.windowHeight;
+  }
+
   /** 布局宽度：手机取短边，横屏不会被当成平板/折叠展开的阔屏 */
   private layoutWidth(): number {
     if (this.isPhone()) {
@@ -1124,8 +1135,9 @@ struct Index {
    */
   private isTriplePane(): boolean {
     if (DeviceUtil.isFoldable()) {
-      return DeviceUtil.isFoldExpanded() && this.windowWidth > this.windowHeight &&
-        this.windowWidth >= Breakpoint.SM;
+      // 折叠屏（双折叠 / 三折叠 / 阔折叠）：只要窗口不是超窄外屏就统一三栏，
+      // 不再要求「横屏 + 展开」——竖屏展开、三折叠折叠态同样应该有常驻详情栏
+      return this.windowWidth >= Breakpoint.SM;
     }
     return this.layoutWidth() >= Breakpoint.MD;
   }
@@ -1169,9 +1181,35 @@ struct Index {
     return Math.max(160, this.windowWidth - nav - pad * 2);
   }
 
+  /** 内容区右侧留白：三栏详情栏要求贴边（2vp），其余保持页边距 */
+  private contentRightPadding(): number {
+    if (this.currentTab === 1 && this.isTriplePane() && !this.treeDetailCollapsed) {
+      return 2;
+    }
+    return Layout.pagePadding(this.windowWidth);
+  }
+
+  /**
+   * 内容列真实可用宽度。
+   * 谱系三栏的右侧详情要求贴边（右留白 2vp），此时只能扣掉「左页边距 + 2」，
+   * 不能再按左右两个页边距扣——否则详情栏右侧会平白空出一整条边距。
+   */
+  private contentWidthLimit(hasSidebar: boolean): number {
+    const nav: number = hasSidebar ?
+      (this.sidebarCollapsed() ? NAV_WIDTH_COLLAPSED : NAV_WIDTH_EXPANDED) : 0;
+    const leftPad: number = Layout.pagePadding(this.windowWidth);
+    const rightPad: number = (this.currentTab === 1 && this.isTriplePane() && !this.treeDetailCollapsed)
+      ? 2 : leftPad;
+    return Math.max(240, this.windowWidth - nav - leftPad - rightPad);
+  }
+
   /** 内容区实际可用总宽（与内容列 constraintSize 的上限保持一致） */
   private paneRowWidth(): number {
-    return Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(this.showSidebar()));
+    // 三栏要求详情贴边：宽屏（≥1600vp）也不套 contentMaxWidth，否则右侧仍空一条
+    if (this.currentTab === 1 && this.isTriplePane() && !this.treeDetailCollapsed) {
+      return this.contentWidthLimit(this.showSidebar());
+    }
+    return Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentWidthLimit(this.showSidebar()));
   }
 
   /**
@@ -1295,7 +1333,7 @@ struct Index {
               // 收敛到真实可用宽度：父级有 padding 时 width('100%') 会多出一个边距，
               // 最右侧「切换」「新增族人」被顶出屏幕（手机横屏必现）
               .constraintSize({
-                maxWidth: Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(true))
+                maxWidth: this.contentWidthLimit(true)
               })
             }
             // 宽度必须交给 Row 分配：windowWidth 是断点用的代表值（400/720/1000），
@@ -1304,7 +1342,7 @@ struct Index {
             .height(LayoutPolicy.matchParent)
             .padding({
               left: Layout.pagePadding(this.windowWidth),
-              right: Layout.pagePadding(this.windowWidth),
+              right: this.contentRightPadding(),
               top: 0,
               bottom: 0
             })
@@ -1323,14 +1361,14 @@ struct Index {
             .width('100%')
             .height('100%')
             .constraintSize({
-              maxWidth: Math.min(Layout.contentMaxWidth(this.windowWidth), this.contentAvailWidth(false))
+              maxWidth: this.contentWidthLimit(false)
             })
           }
           .width('100%')
           .layoutWeight(1)
           .padding({
             left: Layout.pagePadding(this.windowWidth),
-            right: Layout.pagePadding(this.windowWidth),
+            right: this.contentRightPadding(),
             top: 0,
             bottom: 0
           })

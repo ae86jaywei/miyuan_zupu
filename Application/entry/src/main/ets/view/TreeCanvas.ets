@@ -52,6 +52,8 @@ export struct TreeCanvas {
   @Prop @Watch('onHighlightChanged') highlightUid: string = '';
   @Prop showPrivate: boolean = true;
   @Prop @Watch('onWindowWidthChanged') windowWidth: number = 360;
+  /** 页面已有常驻详情栏（三栏）：点击卡片直接显示详情，不再弹「长按查看」提示 */
+  @Prop tapOpensDetail: boolean = false;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
   /** 查找定位：只把该族人设为高亮，不打开人员卡片 */
   onFocusPerson: (uid: string) => void = (uid: string): void => {};
@@ -111,6 +113,9 @@ export struct TreeCanvas {
   @State selectedUid: string = '';
   /** 选中后的「长按查看详情」操作提示条 */
   @State hintVisible: boolean = false;
+  /** 提示条位置：跟随被选中的卡片（不再固定在屏幕底部） */
+  @State hintX: number = 0;
+  @State hintY: number = 0;
   private hintTimer: number = -1;
   /** 布局计算进行中：先渲染加载态，避免切换谱式那一帧同时做大布局与大渲染 */
   @State layoutBusy: boolean = false;
@@ -463,7 +468,7 @@ export struct TreeCanvas {
     return this.effectiveHighlight(this.activeRootUid());
   }
 
-  /** 点击卡片：只做选中高亮，不打开详情 */
+  /** 点击卡片：三栏直接显示详情；二栏/手机只选中并给出长按提示 */
   private selectPerson(uid: string): void {
     if (uid.length === 0) {
       return;
@@ -471,7 +476,17 @@ export struct TreeCanvas {
     this.selectedUid = uid;
     this.viewState = 'FOCUS';
     this.rebuildTrailFor(uid);
-    this.showSelectHint();
+    if (this.tapOpensDetail) {
+      // 三栏：详情栏常驻，不再提示「长按查看详情」
+      this.hintVisible = false;
+      if (this.hintTimer >= 0) {
+        clearTimeout(this.hintTimer);
+        this.hintTimer = -1;
+      }
+      this.onTapPerson(uid);
+      return;
+    }
+    this.showSelectHint(uid);
   }
 
   /** 长按卡片：先保持选中，再打开族人详情 */
@@ -485,7 +500,8 @@ export struct TreeCanvas {
   }
 
   /** 选中后短暂提示：告诉用户长按可看详情（手机上无 hover 时的兜底） */
-  private showSelectHint(): void {
+  private showSelectHint(uid: string): void {
+    this.updateHintPos(uid);
     this.hintVisible = true;
     if (this.hintTimer >= 0) {
       clearTimeout(this.hintTimer);
@@ -494,6 +510,68 @@ export struct TreeCanvas {
       this.hintVisible = false;
       this.hintTimer = -1;
     }, 2600);
+  }
+
+  /** 取某卡片在内容坐标系中的 [x, y, w, h]；找不到返回空数组 */
+  private layoutBoxOf(uid: string): number[] {
+    const target: PersonNode | undefined = this.nodeIndex.get(uid);
+    if (target === undefined) {
+      return [];
+    }
+    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    if (roots.length === 0) {
+      return [];
+    }
+    const rootIdx: number = this.rootUids.indexOf(this.rootUidOf(target));
+    const idx: number = rootIdx >= 0 ? rootIdx : this.clampBranchIndex();
+    const root: PersonNode | undefined = roots[idx];
+    if (root === undefined) {
+      return [];
+    }
+    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    if (this.style === TreeStyle.SU) {
+      const c: SuCanvas = cache.su(root.uid, [root], this.cardWidth(), this.isNarrow(), true);
+      for (let i: number = 0; i < c.boxes.length; i = i + 1) {
+        const b: SuBox = c.boxes[i];
+        if (b.node.uid === uid) {
+          return [b.x, b.y, b.w, b.h];
+        }
+      }
+    } else {
+      const c: EuCanvas = cache.eu(root.uid, [root], this.cardWidth(),
+        this.isNarrow() ? 66 : 78, true, 6);
+      for (let i: number = 0; i < c.boxes.length; i = i + 1) {
+        const b: EuBox = c.boxes[i];
+        if (b.node.uid === uid) {
+          return [b.x, b.y, b.w, b.h];
+        }
+      }
+    }
+    return [];
+  }
+
+  /** 提示条贴到选中卡片下方（放不下就放上方），并夹在可视区内 */
+  private updateHintPos(uid: string): void {
+    const hintW: number = 228;
+    const hintH: number = 30;
+    const box: number[] = this.layoutBoxOf(uid);
+    if (box.length < 4 || this.viewW <= 0) {
+      this.hintX = Math.max(8, (this.viewW - hintW) / 2);
+      this.hintY = Math.max(12, this.viewH - 112);
+      return;
+    }
+    const top: number = this.currentContentTop();
+    const sx: number = box[0] * this.scaleValue + this.offsetX;
+    const sy: number = box[1] * this.scaleValue + this.offsetY + top;
+    const sw: number = box[2] * this.scaleValue;
+    const sh: number = box[3] * this.scaleValue;
+    const maxX: number = Math.max(8, this.viewW - hintW - 8);
+    this.hintX = Math.min(Math.max(8, sx + sw / 2 - hintW / 2), maxX);
+    let y: number = sy + sh + 6;
+    if (y + hintH > this.viewH - 8) {
+      y = Math.max(8, sy - hintH - 6);
+    }
+    this.hintY = y;
   }
 
   /** 上溯到所在宗支根 uid */
@@ -1732,9 +1810,9 @@ export struct TreeCanvas {
               .borderRadius(14)
               .padding({ left: 14, right: 14, top: 6, bottom: 6 })
           }
-          .width('100%')
+          .width(228)
           .alignItems(HorizontalAlign.Center)
-          .position({ x: 0, y: Math.max(12, this.viewH - 112) })
+          .position({ x: this.hintX, y: this.hintY })
           .zIndex(6)
           .hitTestBehavior(HitTestMode.Transparent)
         }
