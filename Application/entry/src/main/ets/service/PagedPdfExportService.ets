@@ -7,7 +7,7 @@ import { taskpool } from '@kit.ArkTS';
 import { hidebug } from '@kit.PerformanceAnalysisKit';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
-import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
+import { PaginationService, PrintBook, PagePlan } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
@@ -19,6 +19,7 @@ import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextRun } from './RawPdfWriter';
+import { RawPdfFont } from './RawPdfFont';
 
 /** PDF 点：1mm = 72/25.4 pt */
 const MM_TO_PT: number = 72 / 25.4;
@@ -267,6 +268,9 @@ export class PagedPdfExportService {
     }
     const peopleCount: number = GenealogyService.getInstance().getPeople().length;
     const profileName: string = peopleCount > 15000 ? 'compact' : 'standard';
+    // F3：嵌入系统 HarmonyOS Sans；读取失败时 RawPdfWriter 自动回退 STSong-Light
+    const fontPath: string = pdfFontInfo().fontPath;
+    const rawFont: RawPdfFont | null = fontPath.length > 0 ? RawPdfFont.load(fontPath) : null;
     const version: number = Date.now();
     const books: PrintBook[] = [];
     let total: number = 0;
@@ -320,7 +324,8 @@ export class PagedPdfExportService {
       const outPath: string = volumeCount > 1
         ? outDir + '/' + title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '卷.pdf'
         : outDir + '/' + title + '_' + styleName + '_' + stamp + '.pdf';
-      const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W_PT, PAGE_H_PT, RENDER_W, RENDER_H);
+      const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W_PT, PAGE_H_PT, RENDER_W, RENDER_H,
+        rawFont);
       let lastBook: number = -1;
       let currentBook: PrintBook | null = null;
       let currentRootName: string = '';
@@ -374,24 +379,23 @@ export class PagedPdfExportService {
     totalPages: number, context: common.UIAbilityContext): Promise<RawPageResult> {
     const lineData: number[] = packLineData(canvas);
     const boxData: number[] = packBoxData(canvas, style);
-    // 显式 PX 单位：1 单位 = 1 像素，避免默认 vp 再乘屏幕密度
-    const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H, LengthMetricsUnit.PX);
+    const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H);
     const ctx: OffscreenCanvasRenderingContext2D = off.getContext('2d');
     paintRasterTile(ctx, 0, 0, RENDER_W, RENDER_H, 0.2, lineData, boxData);
     const runs: PdfTextRun[] = PagedPdfExportService.drawRawText(ctx, canvas, plan, genealogy,
       style, rootName, volumeNo, pageNo, totalPages);
-    const pm: image.PixelMap = ctx.getPixelMap(0, 0, RENDER_W, RENDER_H);
+    const pm: image.PixelMap = off.getPixelMap(0, 0, RENDER_W, RENDER_H);
     const packer: image.ImagePacker = image.createImagePacker();
     const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
     const buf: ArrayBuffer = await packer.packing(pm, opt);
     const path: string = context.cacheDir + '/raw_pdf_' + pageNo.toString() + '_' +
       Date.now().toString() + '.jpg';
-    const fh: fileIo.File = fileIo.openSync(path,
+    const fd: number = fileIo.openSync(path,
       fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
     try {
-      fileIo.writeSync(fh.fd, buf);
+      fileIo.writeSync(fd, buf);
     } finally {
-      fileIo.closeSync(fh);
+      fileIo.closeSync(fd);
     }
     pm.release();
     packer.release();
@@ -411,8 +415,8 @@ export class PagedPdfExportService {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#5B4B3B';
     let headerSize: number = 28;
-    const header: string = genealogy.title + ' · ' + pageGenText(plan) +
-      (rootName.length > 0 ? ' · ' + rootName : '');
+    const header: string = genealogy.title + (rootName.length > 0 ? ' · ' + rootName : '') +
+      ' · ' + pageGenText(plan);
     ctx.font = headerSize.toString() + 'px sans-serif';
     while (headerSize > 14 && ctx.measureText(header).width > maxTextW) {
       headerSize = headerSize - 2;

@@ -1,5 +1,5 @@
 import { fileIo } from '@kit.CoreFileKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+import { RawPdfFont } from './RawPdfFont';
 
 /**
  * 极简 PDF 写入器（方案 F）。
@@ -28,10 +28,7 @@ export class PdfTextRun {
 }
 
 export class RawPdfWriter {
-  /** 新版本 fileIo.openSync 返回 File 对象（不再返回 fd） */
-  private fd: fileIo.File | null = null;
-  /** 输出路径：中断导出时用于删除半成品 */
-  private path: string = '';
+  private fd: number = -1;
   private offset: number = 0;
   private offsets: number[] = [];
   private pageIds: number[] = [];
@@ -42,13 +39,18 @@ export class RawPdfWriter {
   private imageH: number = 0;
   /** 文档中用到的字符（Unicode 码点），用于生成 ToUnicode，保证可检索 */
   private usedChars: Set<number> = new Set<number>();
+  /** GID → Unicode（F3 嵌入 TTF 时生成 ToUnicode） */
+  private usedGids: Map<number, number> = new Map<number, number>();
+  /** 嵌入字体；为 null 时退回 STSong-Light（不嵌入） */
+  private font: RawPdfFont | null = null;
 
-  constructor(path: string, pageW: number, pageH: number, imageW: number, imageH: number) {
-    this.path = path;
+  constructor(path: string, pageW: number, pageH: number, imageW: number, imageH: number,
+    font: RawPdfFont | null = null) {
     this.pageW = pageW;
     this.pageH = pageH;
     this.imageW = imageW;
     this.imageH = imageH;
+    this.font = font;
     this.fd = fileIo.openSync(path,
       fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
     this.writeAscii('%PDF-1.4\n');
@@ -60,31 +62,22 @@ export class RawPdfWriter {
     for (let i: number = 0; i < s.length; i = i + 1) {
       bytes[i] = s.charCodeAt(i) & 0x7f;
     }
-    fileIo.writeSync(this.fdOrThrow().fd, bytes.buffer);
+    fileIo.writeSync(this.fd, bytes.buffer);
     this.offset += bytes.length;
   }
 
-  /** 取当前写入句柄；已关闭则报错，避免静默丢字节 */
-  private fdOrThrow(): fileIo.File {
-    const f: fileIo.File | null = this.fd;
-    if (f === null) {
-      throw new Error('RawPdfWriter: 文件已关闭');
-    }
-    return f;
-  }
-
   /** 写 JPEG 原始字节：只复制，不解码 */
-  private writeJpegBytes(srcFile: fileIo.File, size: number): void {
+  private writeJpegBytes(srcFd: number, size: number): void {
     const chunk: ArrayBuffer = new ArrayBuffer(65536);
     let left: number = size;
     while (left > 0) {
-      const n: number = fileIo.readSync(srcFile.fd, chunk);
+      const n: number = fileIo.readSync(srcFd, chunk);
       if (n <= 0) {
         break;
       }
       const part: Uint8Array = new Uint8Array(n);
       part.set(new Uint8Array(chunk, 0, n));
-      fileIo.writeSync(this.fdOrThrow().fd, part.buffer);
+      fileIo.writeSync(this.fd, part.buffer);
       this.offset += n;
       left -= n;
     }
@@ -121,11 +114,11 @@ export class RawPdfWriter {
     this.writeAscii('<< /Type /XObject /Subtype /Image /Width ' + this.imageW.toString() +
       ' /Height ' + this.imageH.toString() + ' /ColorSpace /DeviceRGB /BitsPerComponent 8' +
       ' /Filter /DCTDecode /Length ' + size.toString() + ' >>\nstream\n');
-    const srcFile: fileIo.File = fileIo.openSync(jpegPath, fileIo.OpenMode.READ_ONLY);
+    const srcFd: number = fileIo.openSync(jpegPath, fileIo.OpenMode.READ_ONLY);
     try {
-      this.writeJpegBytes(srcFile, size);
+      this.writeJpegBytes(srcFd, size);
     } finally {
-      fileIo.closeSync(srcFile);
+      fileIo.closeSync(srcFd);
     }
     this.writeAscii('\nendstream\nendobj\n');
 
@@ -142,7 +135,7 @@ export class RawPdfWriter {
       }
       content = content + 'BT /F1 ' + r.sizePt.toFixed(2) + ' Tf ' +
         (r.invisible ? '3 Tr' : '0 Tr') + ' ' + r.xPt.toFixed(2) + ' ' + r.yPt.toFixed(2) +
-        ' Td <' + RawPdfWriter.utf16Hex(r.text) + '> Tj ET\n';
+        ' Td <' + this.textHex(r.text) + '> Tj ET\n';
     }
     this.beginObj(contentId);
     this.writeAscii('<< /Length ' + content.length.toString() + ' >>\nstream\n' + content +
@@ -151,65 +144,108 @@ export class RawPdfWriter {
     this.pageIds.push(pageId);
   }
 
-  /** 中断导出：关闭句柄并删除半成品，避免留下损坏的 PDF */
-  abort(): void {
-    if (this.fd !== null) {
-      try {
-        fileIo.closeSync(this.fd);
-      } catch (_e) {
-      }
-      this.fd = null;
-    }
-    try {
-      fileIo.unlinkSync(this.path);
-    } catch (_e2) {
-    }
-  }
-
   /** 完成文档：写 Pages / Catalog / Font / xref / trailer */
   finish(): void {
-    // 中文字体（F2）：Type0 + UniGB-UCS2-H；ToUnicode 保证姓名/UID/页脚可检索
-    const cidFontId: number = this.nextObj;
-    const descId: number = this.nextObj + 1;
-    const toUnicodeId: number = this.nextObj + 2;
-    this.nextObj = this.nextObj + 3;
+    if (this.font !== null) {
+      // F3：嵌入 TTF，Identity-H（CID=GID），ToUnicode 保证可检索
+      const f: RawPdfFont = this.font;
+      const cidFontId: number = this.nextObj;
+      const descId: number = this.nextObj + 1;
+      const toUnicodeId: number = this.nextObj + 2;
+      const fontFileId: number = this.nextObj + 3;
+      this.nextObj = this.nextObj + 4;
 
-    this.beginObj(OBJ_FONT);
-    this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light' +
-      ' /Encoding /UniGB-UCS2-H /DescendantFonts [' + cidFontId.toString() + ' 0 R]' +
-      ' /ToUnicode ' + toUnicodeId.toString() + ' 0 R >>\nendobj\n');
-    this.beginObj(cidFontId);
-    this.writeAscii('<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light' +
-      ' /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 2 >>' +
-      ' /FontDescriptor ' + descId.toString() + ' 0 R /DW 1000 >>\nendobj\n');
-    this.beginObj(descId);
-    this.writeAscii('<< /Type /FontDescriptor /FontName /STSong-Light /Flags 4' +
-      ' /FontBBox [-25 -254 1000 880] /ItalicAngle 0 /Ascent 880 /Descent -120' +
-      ' /CapHeight 880 /StemV 80 >>\nendobj\n');
+      this.beginObj(OBJ_FONT);
+      this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /HarmonyOS-Sans' +
+        ' /Encoding /Identity-H /DescendantFonts [' + cidFontId.toString() + ' 0 R]' +
+        ' /ToUnicode ' + toUnicodeId.toString() + ' 0 R >>\nendobj\n');
+      this.beginObj(cidFontId);
+      this.writeAscii('<< /Type /Font /Subtype /CIDFontType2 /BaseFont /HarmonyOS-Sans' +
+        ' /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>' +
+        ' /FontDescriptor ' + descId.toString() + ' 0 R /CIDToGIDMap /Identity /DW 1000 >>\nendobj\n');
+      this.beginObj(descId);
+      this.writeAscii('<< /Type /FontDescriptor /FontName /HarmonyOS-Sans /Flags 4' +
+        ' /FontBBox [' + f.xMin.toString() + ' ' + f.yMin.toString() + ' ' +
+        f.xMax.toString() + ' ' + f.yMax.toString() + '] /ItalicAngle 0' +
+        ' /Ascent ' + f.ascent.toString() + ' /Descent ' + f.descent.toString() +
+        ' /CapHeight ' + f.ascent.toString() + ' /StemV 80 /FontFile2 ' +
+        fontFileId.toString() + ' 0 R >>\nendobj\n');
 
-    // ToUnicode：UniGB-UCS2-H 的文本码就是 Unicode，映射恒等
-    const codes: number[] = [];
-    this.usedChars.forEach((c: number): void => {
-      codes.push(c);
-    });
-    codes.sort((a: number, b: number): number => a - b);
-    let cmap: string = '/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n' +
-      '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n' +
-      '/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n' +
-      '1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n';
-    for (let i: number = 0; i < codes.length; i = i + 100) {
-      const end: number = Math.min(i + 100, codes.length);
-      cmap = cmap + (end - i).toString() + ' beginbfchar\n';
-      for (let k: number = i; k < end; k = k + 1) {
-        const hex: string = RawPdfWriter.hex4(codes[k]);
-        cmap = cmap + '<' + hex + '> <' + hex + '>\n';
+      // ToUnicode：GID → Unicode
+      const gids: number[] = [];
+      this.usedGids.forEach((code: number, gid: number): void => {
+        gids.push(gid);
+      });
+      gids.sort((a: number, b: number): number => a - b);
+      let cmap: string = '/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n' +
+        '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n' +
+        '/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n' +
+        '1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n';
+      for (let i: number = 0; i < gids.length; i = i + 100) {
+        const end: number = Math.min(i + 100, gids.length);
+        cmap = cmap + (end - i).toString() + ' beginbfchar\n';
+        for (let k: number = i; k < end; k = k + 1) {
+          const gid: number = gids[k];
+          const code: number = this.usedGids.get(gid) ?? 0;
+          cmap = cmap + '<' + RawPdfWriter.hex4(gid) + '> <' + RawPdfWriter.hex4(code) + '>\n';
+        }
+        cmap = cmap + 'endbfchar\n';
       }
-      cmap = cmap + 'endbfchar\n';
+      cmap = cmap + 'endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n';
+      this.beginObj(toUnicodeId);
+      this.writeAscii('<< /Length ' + cmap.length.toString() + ' >>\nstream\n' + cmap +
+        'endstream\nendobj\n');
+
+      // FontFile2：整字体 TTF 原始字节
+      this.beginObj(fontFileId);
+      this.writeAscii('<< /Length ' + f.bytes.length.toString() + ' /Length1 ' +
+        f.bytes.length.toString() + ' >>\nstream\n');
+      fileIo.writeSync(this.fd, f.bytes.buffer);
+      this.offset += f.bytes.length;
+      this.writeAscii('\nendstream\nendobj\n');
+    } else {
+      // 回退：STSong-Light（不嵌入），UniGB-UCS2-H
+      const cidFontId: number = this.nextObj;
+      const descId: number = this.nextObj + 1;
+      const toUnicodeId: number = this.nextObj + 2;
+      this.nextObj = this.nextObj + 3;
+
+      this.beginObj(OBJ_FONT);
+      this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /STSong-Light' +
+        ' /Encoding /UniGB-UCS2-H /DescendantFonts [' + cidFontId.toString() + ' 0 R]' +
+        ' /ToUnicode ' + toUnicodeId.toString() + ' 0 R >>\nendobj\n');
+      this.beginObj(cidFontId);
+      this.writeAscii('<< /Type /Font /Subtype /CIDFontType0 /BaseFont /STSong-Light' +
+        ' /CIDSystemInfo << /Registry (Adobe) /Ordering (GB1) /Supplement 2 >>' +
+        ' /FontDescriptor ' + descId.toString() + ' 0 R /DW 1000 >>\nendobj\n');
+      this.beginObj(descId);
+      this.writeAscii('<< /Type /FontDescriptor /FontName /STSong-Light /Flags 4' +
+        ' /FontBBox [-25 -254 1000 880] /ItalicAngle 0 /Ascent 880 /Descent -120' +
+        ' /CapHeight 880 /StemV 80 >>\nendobj\n');
+
+      const codes: number[] = [];
+      this.usedChars.forEach((c: number): void => {
+        codes.push(c);
+      });
+      codes.sort((a: number, b: number): number => a - b);
+      let cmap: string = '/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\n' +
+        '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n' +
+        '/CMapName /Adobe-Identity-UCS def\n/CMapType 2 def\n' +
+        '1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n';
+      for (let i: number = 0; i < codes.length; i = i + 100) {
+        const end: number = Math.min(i + 100, codes.length);
+        cmap = cmap + (end - i).toString() + ' beginbfchar\n';
+        for (let k: number = i; k < end; k = k + 1) {
+          const hex: string = RawPdfWriter.hex4(codes[k]);
+          cmap = cmap + '<' + hex + '> <' + hex + '>\n';
+        }
+        cmap = cmap + 'endbfchar\n';
+      }
+      cmap = cmap + 'endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n';
+      this.beginObj(toUnicodeId);
+      this.writeAscii('<< /Length ' + cmap.length.toString() + ' >>\nstream\n' + cmap +
+        'endstream\nendobj\n');
     }
-    cmap = cmap + 'endcmap\nCMapName currentdict /CMap defineresource pop\nend\nend\n';
-    this.beginObj(toUnicodeId);
-    this.writeAscii('<< /Length ' + cmap.length.toString() + ' >>\nstream\n' + cmap +
-      'endstream\nendobj\n');
 
     // Pages
     this.beginObj(OBJ_PAGES);
@@ -234,10 +270,27 @@ export class RawPdfWriter {
     }
     this.writeAscii('trailer\n<< /Size ' + totalObj.toString() + ' /Root ' +
       OBJ_CATALOG.toString() + ' 0 R >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n');
-    if (this.fd !== null) {
+    if (this.fd >= 0) {
       fileIo.closeSync(this.fd);
-      this.fd = null;
+      this.fd = -1;
     }
+  }
+
+  /** 文本编码：嵌入字体时用 GID，回退时用 UTF-16BE */
+  private textHex(s: string): string {
+    if (this.font === null) {
+      return RawPdfWriter.utf16Hex(s);
+    }
+    let out: string = '';
+    for (let i: number = 0; i < s.length; i = i + 1) {
+      const code: number = s.charCodeAt(i);
+      const gid: number = this.font.gidOf(code);
+      if (gid > 0) {
+        this.usedGids.set(gid, code);
+      }
+      out = out + RawPdfWriter.hex4(gid);
+    }
+    return out;
   }
 
   /** 文本转 UTF-16BE 十六进制（UniGB-UCS2-H 编码） */
