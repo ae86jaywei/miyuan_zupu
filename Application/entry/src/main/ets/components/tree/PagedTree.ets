@@ -122,7 +122,9 @@ export struct PagedTree {
   private rootPages: Map<string, number> = new Map<string, number>();
   /** 当前书的 key：宗支/谱式/数据版本变化时强制重建 */
   private lastKey: string = '';
-  private scroller: Scroller = new Scroller();
+  /** 视口平移量（vp）：页面左上角在可视区中的位置，由单指拖动/缩放共同维护 */
+  @State panX: number = 0;
+  @State panY: number = 0;
 
   aboutToAppear(): void {
     PageSpec.defaultDuplex = this.printDuplex;
@@ -216,6 +218,9 @@ export struct PagedTree {
       }
     }
     this.updateScale();
+    if (this.viewW > 0) {
+      this.resetPan();
+    }
     console.info('[PGBOX] p=' + idx.toString() + ' boxes=' + this.euBoxes.length.toString() +
       ' su=' + this.suBoxes.length.toString() + ' lines=' + this.lines.length.toString() +
       ' roots=' + page.roots.length.toString());
@@ -254,54 +259,111 @@ export struct PagedTree {
     this.onPageChange(idx);
   }
 
-  // ─── 双指缩放：锚点固定在手指中心，放大后仍盯着同一点 ─────────────
+  // ─── 视口：自己管平移/缩放，锚点精确可控（不依赖 Scroll 内部行为） ───
+  private panReady: boolean = false;
   private pinchZoomStart: number = 1;
   /** 起始锚点在页面内容坐标（mm）中的位置 */
   private pinchAnchorCx: number = 0;
   private pinchAnchorCy: number = 0;
+  private panStartX: number = 0;
+  private panStartY: number = 0;
+  private barStartX: number = 0;
+  private barStartY: number = 0;
 
-  /** 滚动内容宽度（与 build 里 Column 的 width 保持一致） */
-  private contentW(): number {
-    return Math.max(this.mm(this.spec.trimW),
-      Math.min(this.viewW, DeviceUtil.screenWidthVp()));
+  /** 分页区可视高度（扣除顶部 36vp 翻页栏） */
+  private pageViewH(): number {
+    return Math.max(60, this.viewH - 36);
   }
 
-  /** 滚动内容高度（与 build 里 Column 的 height 保持一致） */
-  private contentH(): number {
-    return Math.max(this.viewH - 38, this.mm(this.spec.trimH));
+  /** 页面在视口坐标中的宽/高（已含缩放） */
+  private pageW(): number {
+    return this.mm(this.spec.trimW);
   }
 
-  /** 页面在滚动内容中的左内边距（Column 居中对齐） */
-  private contentPadX(): number {
-    return Math.max(0, (this.contentW() - this.mm(this.spec.trimW)) / 2);
+  private pageH(): number {
+    return this.mm(this.spec.trimH);
   }
 
-  /** 缩放前的可视滚动偏移 */
-  private scrollX(): number {
-    return this.scroller.currentOffset().xOffset;
+  /** 夹住平移：内容小于视口时居中，大于视口时不许拖出空边 */
+  private clampPan(): void {
+    const pw: number = this.pageW();
+    const ph: number = this.pageH();
+    const vw: number = this.viewW;
+    const vh: number = this.pageViewH();
+    if (pw <= vw) {
+      this.panX = (vw - pw) / 2;
+    } else {
+      this.panX = Math.min(0, Math.max(vw - pw, this.panX));
+    }
+    if (ph <= vh) {
+      this.panY = Math.max(0, (vh - ph) / 2);
+    } else {
+      this.panY = Math.min(0, Math.max(vh - ph, this.panY));
+    }
   }
 
-  private scrollY(): number {
-    return this.scroller.currentOffset().yOffset;
+  /** 100% 时整页水平居中、顶部对齐 */
+  private resetPan(): void {
+    this.panX = (this.viewW - this.pageW()) / 2;
+    this.panY = 0;
+    this.clampPan();
   }
 
-  /** 以 (focusX, focusY) 为锚点缩放到 target（视口坐标） */
+  /** 以视口坐标 (focusX, focusY) 为锚点缩放到 target */
   private zoomAt(target: number, focusX: number, focusY: number): void {
     const t: number = Math.min(3, Math.max(1, target));
     if (Math.abs(t - this.zoom) < 0.001 || this.k <= 0) {
       return;
     }
-    // 锚点内容坐标（mm）：旧 k 下由「滚动偏移 + 手指位置 - 页边留白」反算
-    const cx: number = (this.scrollX() + focusX - this.contentPadX()) / this.k;
-    const cy: number = (this.scrollY() + focusY - 2) / this.k;
+    const cx: number = (focusX - this.panX) / this.k;
+    const cy: number = (focusY - this.panY) / this.k;
     this.zoom = t;
     this.updateScale();
-    const sx: number = Math.max(0, cx * this.k + this.contentPadX() - focusX);
-    const sy: number = Math.max(0, cy * this.k + 2 - focusY);
-    // 布局尺寸要等这一帧刷新后再滚，否则会被旧的 maxOffset 夹住
-    setTimeout((): void => {
-      this.scroller.scrollTo({ xOffset: sx, yOffset: sy, animation: false });
-    }, 0);
+    if (t <= 1.001) {
+      this.resetPan();
+      return;
+    }
+    this.panX = focusX - cx * this.k;
+    this.panY = focusY - cy * this.k;
+    this.clampPan();
+  }
+
+  /** 垂直滚动条滑块高度；内容未超出返回 0 */
+  private vBarH(): number {
+    const ph: number = this.pageH();
+    const vh: number = this.pageViewH();
+    if (ph <= vh + 0.5) {
+      return 0;
+    }
+    return Math.max(28, vh * vh / ph);
+  }
+
+  private vBarY(): number {
+    const th: number = this.vBarH();
+    const vh: number = this.pageViewH();
+    const max: number = this.pageH() - vh;
+    if (max <= 0 || th <= 0) {
+      return 2;
+    }
+    return Math.min(Math.max(0, vh - th), (-this.panY / max) * (vh - th));
+  }
+
+  /** 水平滚动条滑块宽度；内容未超出返回 0 */
+  private hBarW(): number {
+    const pw: number = this.pageW();
+    if (pw <= this.viewW + 0.5) {
+      return 0;
+    }
+    return Math.max(30, this.viewW * this.viewW / pw);
+  }
+
+  private hBarX(): number {
+    const tw: number = this.hBarW();
+    const max: number = this.pageW() - this.viewW;
+    if (max <= 0 || tw <= 0) {
+      return 2;
+    }
+    return Math.min(Math.max(0, this.viewW - tw), (-this.panX / max) * (this.viewW - tw));
   }
 
   /** pt -> 当前屏幕 vp */
@@ -542,19 +604,9 @@ export struct PagedTree {
     }
     .width(this.mm(this.spec.trimW))
     .height(this.mm(this.spec.trimH))
+    .position({ x: this.panX, y: this.panY })
     .backgroundColor('#FFFDF6')
     .clip(true)
-    .parallelGesture(
-      PanGesture({ fingers: 1, distance: 24, direction: PanDirection.Horizontal })
-        .onActionEnd((event: GestureEvent): void => {
-          // 横滑翻页：左滑看下一页，右滑回上一页（像翻纸质谱）
-          if (event.offsetX < -60) {
-            this.goto(this.pageNo + 1);
-          } else if (event.offsetX > 60) {
-            this.goto(this.pageNo - 1);
-          }
-        })
-    )
   }
 
   /** 版心左边界（屏幕坐标） */
@@ -601,29 +653,31 @@ export struct PagedTree {
             this.goto(this.pageNo + 1);
           })
         Blank()
-        Button('－')
-          .fontSize(13)
+        Text('－')
+          .fontSize(16)
           .height(30)
           .width(34)
+          .textAlign(TextAlign.Center)
           .fontColor(Theme.inkSecondary)
           .backgroundColor(Theme.card)
           .borderRadius(14)
           .onClick((): void => {
-            this.zoomAt(this.zoom - 0.5, this.viewW / 2, (this.viewH - 36) / 2);
+            this.zoomAt(this.zoom - 0.5, this.viewW / 2, this.pageViewH() / 2);
           })
         Text(Math.round(this.zoom * 100).toString() + '%')
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 5, right: 5 })
-        Button('＋')
-          .fontSize(13)
+        Text('＋')
+          .fontSize(16)
           .height(30)
           .width(34)
+          .textAlign(TextAlign.Center)
           .fontColor(Theme.inkSecondary)
           .backgroundColor(Theme.card)
           .borderRadius(14)
           .onClick((): void => {
-            this.zoomAt(this.zoom + 0.5, this.viewW / 2, (this.viewH - 36) / 2);
+            this.zoomAt(this.zoom + 0.5, this.viewW / 2, this.pageViewH() / 2);
           })
       }
       .width('100%')
@@ -631,23 +685,9 @@ export struct PagedTree {
       .padding({ left: 10, right: 10 })
       .backgroundColor(Theme.paper)
 
-      // 页面：整页可滚动查看；k 已包含用户缩放
-      Stack() {
-        Scroll(this.scroller) {
-          Column() {
-            this.PageSheet()
-          }
-          .width(Math.max(this.mm(this.spec.trimW), Math.min(this.viewW, DeviceUtil.screenWidthVp())))
-          .height(Math.max(this.viewH - 38, this.mm(this.spec.trimH)))
-          .alignItems(HorizontalAlign.Center)
-          .justifyContent(FlexAlign.Start)
-          .padding({ top: 2, bottom: 4 })
-        }
-        .width('100%')
-        .height('100%')
-        .scrollable(ScrollDirection.Free)
-        .scrollBar(BarState.Off)
-        .edgeEffect(EdgeEffect.None)
+      // 页面：自管视口（平移 + 缩放），双指锚点与滚动条都可控
+      Stack({ alignContent: Alignment.TopStart }) {
+        this.PageSheet()
 
         // 整本分页规划期间遮住空白页，并显示真实进度
         if (this.planning) {
@@ -666,40 +706,124 @@ export struct PagedTree {
           .justifyContent(FlexAlign.Center)
           .backgroundColor('rgba(255,253,246,0.88)')
         }
+
+        // 垂直滚动条：放大后内容高于视口时出现，可直接拖动
+        if (this.vBarH() > 0) {
+          Column() {
+            Column()
+              .width(3)
+              .height(this.vBarH())
+              .backgroundColor('rgba(0,0,0,0.30)')
+              .borderRadius(2)
+          }
+          .width(10)
+          .height(this.vBarH())
+          .justifyContent(FlexAlign.Center)
+          .position({ x: this.viewW - 12, y: this.vBarY() })
+          .gesture(
+            PanGesture({ fingers: 1 })
+              .onActionStart((): void => {
+                this.barStartY = this.panY;
+              })
+              .onActionUpdate((event: GestureEvent): void => {
+                const range: number = this.pageViewH() - this.vBarH();
+                const contentRange: number = this.pageH() - this.pageViewH();
+                if (range <= 0 || contentRange <= 0) {
+                  return;
+                }
+                this.panY = this.barStartY - (event.offsetY / range) * contentRange;
+                this.clampPan();
+              })
+          )
+        }
+
+        // 水平滚动条：放大后内容宽于视口时出现
+        if (this.hBarW() > 0) {
+          Row() {
+            Row()
+              .width(this.hBarW())
+              .height(3)
+              .backgroundColor('rgba(0,0,0,0.30)')
+              .borderRadius(2)
+          }
+          .width(this.hBarW())
+          .height(10)
+          .alignItems(VerticalAlign.Center)
+          .position({ x: this.hBarX(), y: this.pageViewH() - 12 })
+          .gesture(
+            PanGesture({ fingers: 1 })
+              .onActionStart((): void => {
+                this.barStartX = this.panX;
+              })
+              .onActionUpdate((event: GestureEvent): void => {
+                const range: number = this.viewW - this.hBarW();
+                const contentRange: number = this.pageW() - this.viewW;
+                if (range <= 0 || contentRange <= 0) {
+                  return;
+                }
+                this.panX = this.barStartX - (event.offsetX / range) * contentRange;
+                this.clampPan();
+              })
+          )
+        }
       }
-      // 双指缩放：与连续视图一致，以两指中心为锚点，放大后同一点仍在指下
-      .parallelGesture(
-        PinchGesture({ fingers: 2 })
-          .onActionStart((event: GestureEvent): void => {
-            this.pinchZoomStart = this.zoom;
-            if (this.k <= 0) {
-              return;
-            }
-            const cx: number = event.pinchCenterX ?? 0;
-            const cy: number = event.pinchCenterY ?? 0;
-            this.pinchAnchorCx = (this.scrollX() + cx - this.contentPadX()) / this.k;
-            this.pinchAnchorCy = (this.scrollY() + cy - 2) / this.k;
-          })
-          .onActionUpdate((event: GestureEvent): void => {
-            const target: number = Math.min(3, Math.max(1, this.pinchZoomStart * event.scale));
-            if (Math.abs(target - this.zoom) < 0.002) {
-              return;
-            }
-            this.zoom = target;
-            this.updateScale();
-            const cx: number = event.pinchCenterX ?? 0;
-            const cy: number = event.pinchCenterY ?? 0;
-            const sx: number = Math.max(0,
-              this.pinchAnchorCx * this.k + this.contentPadX() - cx);
-            const sy: number = Math.max(0,
-              this.pinchAnchorCy * this.k + 2 - cy);
-            setTimeout((): void => {
-              this.scroller.scrollTo({ xOffset: sx, yOffset: sy, animation: false });
-            }, 0);
-          })
-      )
-      .layoutWeight(1)
       .width('100%')
+      .layoutWeight(1)
+      .clip(true)
+      .gesture(
+        GestureGroup(GestureMode.Parallel,
+          // 双指缩放：锚点固定在两指中心，放大后同一点仍在指下
+          PinchGesture({ fingers: 2 })
+            .onActionStart((event: GestureEvent): void => {
+              this.pinchZoomStart = this.zoom;
+              if (this.k <= 0) {
+                return;
+              }
+              const cx: number = event.pinchCenterX ?? 0;
+              const cy: number = event.pinchCenterY ?? 0;
+              this.pinchAnchorCx = (cx - this.panX) / this.k;
+              this.pinchAnchorCy = (cy - this.panY) / this.k;
+            })
+            .onActionUpdate((event: GestureEvent): void => {
+              const target: number = Math.min(3, Math.max(1, this.pinchZoomStart * event.scale));
+              if (Math.abs(target - this.zoom) < 0.002 || this.k <= 0) {
+                return;
+              }
+              const cx: number = event.pinchCenterX ?? 0;
+              const cy: number = event.pinchCenterY ?? 0;
+              this.zoom = target;
+              this.updateScale();
+              this.panX = cx - this.pinchAnchorCx * this.k;
+              this.panY = cy - this.pinchAnchorCy * this.k;
+              this.clampPan();
+            }),
+          // 单指拖动：放大后平移查看；100% 时整页可见，横滑翻页
+          PanGesture({ fingers: 1, distance: 8 })
+            .onActionStart((): void => {
+              this.panStartX = this.panX;
+              this.panStartY = this.panY;
+            })
+            .onActionUpdate((event: GestureEvent): void => {
+              if (this.zoom <= 1.001) {
+                return;
+              }
+              this.panX = this.panStartX + event.offsetX;
+              this.panY = this.panStartY + event.offsetY;
+              this.clampPan();
+            })
+            .onActionEnd((event: GestureEvent): void => {
+              if (this.zoom > 1.001) {
+                return;
+              }
+              // 横滑翻页：左滑看下一页，右滑回上一页（像翻纸质谱）
+              if (event.offsetX < -60) {
+                this.goto(this.pageNo + 1);
+              } else if (event.offsetX > 60) {
+                this.goto(this.pageNo - 1);
+              }
+            })
+        )
+      )
     }
     .width('100%')
     .height('100%')
@@ -707,6 +831,12 @@ export struct PagedTree {
       this.viewW = Number(newArea.width);
       this.viewH = Number(newArea.height);
       this.updateScale();
+      if (!this.panReady) {
+        this.panReady = true;
+        this.resetPan();
+      } else {
+        this.clampPan();
+      }
     })
   }
 }
