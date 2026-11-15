@@ -71,7 +71,7 @@ export class PagePlan {
   siblingLinks: PageJump[] = [];
   /** 页脚接续文案 */
   footerText: string = '';
-  /** 奇数页为单页（装订口在左），偶数页镜像 */
+  /** 奇数页为单页（recto）；装订侧由 PageSpec.binding 决定，不随奇偶页镜像 */
   recto: boolean = true;
 }
 
@@ -357,6 +357,9 @@ export class PaginationService {
     const profile: LayoutProfile = PaginationService.profileOf(profileName);
     const key: string = rootUid + '|' + style + '|' + version.toString() + '|' + profile.key() + '|' + spec.key();
     if (this.cached !== null && this.bookKey === key) {
+      // 单面/双面装订不影响页分配，但会改每页版心起点：
+      // 命中缓存时把最新 PageSpec 挂回去，避免沿用上一次的装订几何。
+      this.cached.spec = spec;
       return this.cached;
     }
     this.euCache.clear();

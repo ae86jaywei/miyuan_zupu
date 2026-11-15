@@ -1,4 +1,4 @@
-import { PersonNode } from '../model/PersonNode';
+﻿import { PersonNode } from '../model/PersonNode';
 import { Person, spouseRelationLevel } from '../model/Person';
 
 /** 欧式谱一个节点在画布上的位置 */
@@ -346,8 +346,9 @@ export class EuCanvas {
  *  - 叶子节点按内容高度（主卡 / 配偶堆叠取大者）+ 自适应兄弟间距依次下排；
  *  - 父节点的纵向中心 = 首末子节点中心的中点；
  *  - 同一层的所有节点 x 相同（= 世次列 x），第 N 世永远在第 N 列；
- *  - 配偶按“正庶先后”纵向堆叠在主卡右侧（男左女右；女方持谱即入赘则女左男右），
- *    婚约以朱砂红双线表示；
+ *  - 版面自右向左：第一世在最右，逐代向左，符合传统右起谱式；
+ *  - 配偶按“正庶先后”纵向堆叠在主卡一侧（男左女右；女方持谱即入赘则女左男右），
+ *    镜像后位于主卡左侧，婚约以朱砂红双线表示；
  *  - 子女按生母分组引出：各组独立母线，组内兄弟相连，不同母的子女经父母相连。
  */
 export class EuLayout {
@@ -367,10 +368,11 @@ export class EuLayout {
     // 配偶卡与主卡等高，堆叠后中心线才能与夫卡中心线一一对齐
     const spouseH: number = cardH;
     // 夫妻卡之间留出间距，保证双线符号看得清
-    const spouseGap: number = metrics !== null ? metrics.spouseGap : 12;
-    // 婚约双线各自偏离中轴的距离：按卡高比例收口，纸质横版小卡上不能再用大画布的 4mm
-    const marriageGap: number = Math.min(MARRIAGE_LINE_GAP, Math.max(0.45, spouseH * 0.08));
-    const stackGap: number = metrics !== null ? metrics.stackGap : 6;
+    const spouseGap: number = metrics !== null ? metrics.spouseGap : 16;
+    // 婚约双线各自偏离中轴的距离：屏幕上收紧到 3vp（两线相距 6vp），
+    // 纸质小卡再按卡高比例收口，避免双线在卡片间隙里糊成一条粗线。
+    const marriageGap: number = Math.min(3, Math.max(0.45, spouseH * 0.08));
+    const stackGap: number = metrics !== null ? metrics.stackGap : 9;
     /** 连线与卡框之间的留白，避免线条贴着卡片 */
     const lineGap: number = metrics !== null ? metrics.lineGap : 6;
 
@@ -507,6 +509,12 @@ export class EuLayout {
     for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
       baseBoxes.push(canvas.boxes[i]);
     }
+    /**
+     * 真正画成配偶卡的人。
+     * 生母/配偶本身也可能是谱内成员（已有父系，被排成正常世系卡），
+     * 此时右侧配偶列里并没有她的卡，出线与列宽判断都必须以这张集合为准。
+     */
+    const spouseCardUids: Set<string> = new Set<string>();
 
     // 配偶卡：按正庶先后纵向下排；婚约用红色双线，竖向细线把后续配偶串到主卡
     if (showSpouse) {
@@ -531,6 +539,7 @@ export class EuLayout {
           slot = slot + 1;
           canvas.boxes.push(sb);
           placed.set(sp.uid, sb);
+          spouseCardUids.add(sp.uid);
           pushDoubleLine(canvas.lines, pb.x + pb.w, sb.centerY, sb.x, sb.centerY, marriageGap);
           if (sb.centerY > lastCy) {
             lastCy = sb.centerY;
@@ -565,19 +574,31 @@ export class EuLayout {
         let edgeX: number = parentBox.x + parentBox.w;
         let railX: number = edgeX + lineGap;
         let ay: number = parentBox.centerY;
+        // 只有生母真的画成「配偶卡」时才从她出线。生母本身若是谱内成员（被排成树卡），
+        // 她的 x 落在别的世代列，从那里引线会横跨数代：线头悬在空白处、子女那端接不上。
+        let fromMotherCard: boolean = false;
         if (group.mother !== null && group.mother !== undefined) {
           const mb: EuBox | undefined = placed.get(group.mother.uid);
-          if (mb !== undefined) {
+          if (mb !== undefined && spouseCardUids.has(group.mother.uid)) {
             edgeX = mb.x + mb.w;
             railX = edgeX + lineGap;
             ay = mb.centerY;
+            fromMotherCard = true;
           }
-        } else if (showSpouse && parentBox.node.spouses.length > 0) {
-          // 无生母且右侧被配偶列占用：越过配偶列出线，避免连线藏在配偶卡下方
-          edgeX = parentBox.x + parentBox.w + spouseGap + spouseW;
-          railX = edgeX + lineGap;
+        }
+        if (!fromMotherCard && showSpouse) {
+          // 父卡右侧确实画出了配偶卡时才越过配偶列；配偶全部被排成树卡时这一格是空的，
+          // 仍按配偶列宽外推会留下一截不与任何卡片相连的悬空线。
+          for (let si: number = 0; si < parentBox.node.spouses.length; si = si + 1) {
+            if (spouseCardUids.has(parentBox.node.spouses[si].uid)) {
+              edgeX = parentBox.x + parentBox.w + spouseGap + spouseW;
+              railX = edgeX + lineGap;
+              break;
+            }
+          }
         }
         let childX: number = -1;
+        let childRight: number = -1;
         let loCy: number = -1;
         let hiCy: number = -1;
         for (let ki: number = 0; ki < group.kids.length; ki = ki + 1) {
@@ -587,6 +608,9 @@ export class EuLayout {
           }
           if (childX < 0 || cb.x < childX) {
             childX = cb.x;
+          }
+          if (childRight < cb.x + cb.w) {
+            childRight = cb.x + cb.w;
           }
           const c: number = cb.centerY;
           if (loCy < 0 || c < loCy) {
@@ -599,20 +623,38 @@ export class EuLayout {
         if (childX < 0) {
           continue;
         }
-        // 母线竖线位于卡框右侧的轨道上；不同生母的母线在轨道上错开，避免连成一条
-        const span: number = childX - railX;
-        let busX: number = railX + Math.min(Math.max(4, span * (0.5 + gi * 0.15)), Math.max(4, span - 4));
-        if (busX > childX - 4) {
-          busX = childX - 4;
-        }
-        if (busX < railX) {
-          busX = railX;
+        // 母线落在子女列的哪一侧由 railX 与子女列的位置决定，不写死方向：
+        // 右起版面（第一世在最右）子女在父代左侧，母线从子女卡「右边缘」进入；
+        // 若沿用左边缘，线会横穿整张卡片，看起来像没接上、又从卡后伸出去。
+        const dirRight: boolean = childX >= railX;
+        const childNearX: number = dirRight ? childX : childRight;
+        const dir: number = dirRight ? 1 : -1;
+        const span: number = Math.abs(childNearX - railX);
+        let busX: number = railX + dir * Math.min(Math.max(4, span * (0.5 + gi * 0.15)),
+          Math.max(4, span - 4));
+        if (dirRight) {
+          if (busX > childNearX - 4) {
+            busX = childNearX - 4;
+          }
+          if (busX < railX) {
+            busX = railX;
+          }
+        } else {
+          if (busX < childNearX + 4) {
+            busX = childNearX + 4;
+          }
+          if (busX > railX) {
+            busX = railX;
+          }
         }
         // 横线自卡框边缘引出，与卡框相接后再接到竖线轨道
-        if (busX - edgeX > 1) {
+        if (Math.abs(busX - edgeX) > 1) {
           pushLine(canvas.lines, edgeX, ay, busX, ay);
         }
-        if (hiCy - loCy > 1) {
+        // 竖线必须覆盖出线起点(ay)到子女中心(loCy..hiCy)的全范围；
+        // 原条件 hiCy-loCy>1 只考虑多子女之间的差距，当只有独子女且配偶卡
+        // 中心(ay)与子女中心不等时，出线和入线在不同水平线上却无竖线连接，导致断裂。
+        if (Math.max(ay, hiCy) - Math.min(ay, loCy) > 1) {
           pushLine(canvas.lines, busX, Math.min(ay, loCy), busX, Math.max(ay, hiCy));
         }
         for (let ki: number = 0; ki < group.kids.length; ki = ki + 1) {
@@ -620,7 +662,8 @@ export class EuLayout {
           if (cb === undefined) {
             continue;
           }
-          pushLine(canvas.lines, busX, cb.centerY, cb.x, cb.centerY);
+          const kidEdgeX: number = dirRight ? cb.x : cb.x + cb.w;
+          pushLine(canvas.lines, busX, cb.centerY, kidEdgeX, cb.centerY);
         }
       }
     }
@@ -639,6 +682,20 @@ export class EuLayout {
     canvas.width = maxX + colGap;
     // 纸上版心已扣过天地头，底部再留 24mm 会少排一整代；屏幕连续视图保持原留白
     canvas.height = maxY + (metrics !== null ? 4 : startY + 24);
+
+    // 传统欧式谱自右向左：第一世在最右，逐代向左推进。
+    // 叶子计数、母线与配偶列的推导全部按「子代在父代右侧」写，方向只在这里翻转一次，
+    // 屏幕连续视图、分页画布与 PDF 导出因此同时得到右起版面，不必各自再判方向。
+    const mirrorW: number = canvas.width;
+    for (let i: number = 0; i < canvas.boxes.length; i = i + 1) {
+      const b: EuBox = canvas.boxes[i];
+      b.x = mirrorW - b.x - b.w;
+    }
+    for (let i: number = 0; i < canvas.lines.length; i = i + 1) {
+      const l: LineSeg = canvas.lines[i];
+      l.x1 = mirrorW - l.x1;
+      l.x2 = mirrorW - l.x2;
+    }
     return canvas;
   }
 }

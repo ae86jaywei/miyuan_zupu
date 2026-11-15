@@ -37,10 +37,10 @@ export const TILE_H: number = Math.ceil(RENDER_H / TILE_ROWS);
  */
 export const JPEG_QUALITY: number = 95;
 
-/** 页面几何（与 PrintLayout 保持一致） */
-export const GUTTER_MM: number = 20;
-export const INNER_X_MM: number = 26;
+/** 页眉/版心上下边界（与 PrintLayout 保持一致） */
 export const INNER_Y_MM: number = 20;
+/** 装订口宽：双面印刷时左右两侧轮流出现，位置由每页几何传入 */
+export const GUTTER_MM: number = 20;
 
 export const C_PAPER: string = '#FFFDF6';
 export const C_BIND: string = '#F4EFE3';
@@ -55,16 +55,21 @@ export const C_FOOT: string = '#8C2F1E';
 /**
  * 在一块 PX 单位的离屏画布上画出整页栅格内容（纸面、装订口、页框、连线、卡片框）。
  * 只画与当前分块相交的元素；文字全部留给 PDF 文本对象，不进栅格层。
+ *
+ * @param innerXMm 本页版心左边界（双面印刷时奇偶页不同）
+ * @param gutterXMm 本页装订口左边界
+ * @param gutterWMm 装订口宽
  */
 export function paintRasterTile(g: OffscreenCanvasRenderingContext2D, x0: number, y0: number,
-  x1: number, y1: number, lineWidthMm: number, lineData: number[], boxData: number[]): void {
+  x1: number, y1: number, lineWidthMm: number, lineData: number[], boxData: number[],
+  innerXMm: number, gutterXMm: number, gutterWMm: number): void {
   g.clearRect(0, 0, TILE_W, TILE_H);
 
   // 底图（纸面 + 装订口 + 页框）：整页坐标绘制，由画布边缘裁切，分块接缝严格对齐
   g.fillStyle = C_PAPER;
   g.fillRect(-x0, -y0, RENDER_W, RENDER_H);
   g.fillStyle = C_BIND;
-  g.fillRect(-x0, -y0, GUTTER_MM * PX_PER_MM, RENDER_H);
+  g.fillRect(gutterXMm * PX_PER_MM - x0, -y0, gutterWMm * PX_PER_MM, RENDER_H);
   g.strokeStyle = C_LINE;
   g.lineWidth = 1;
   g.strokeRect(0.5 - x0, 0.5 - y0, RENDER_W - 1, RENDER_H - 1);
@@ -74,9 +79,9 @@ export function paintRasterTile(g: OffscreenCanvasRenderingContext2D, x0: number
 
   // 连线：红色婚约双线 / 金色世系线
   for (let i: number = 0; i + 4 < lineData.length; i += 5) {
-    const ax: number = (INNER_X_MM + lineData[i]) * PX_PER_MM;
+    const ax: number = (innerXMm + lineData[i]) * PX_PER_MM;
     const ay: number = (INNER_Y_MM + lineData[i + 1]) * PX_PER_MM;
-    const bx: number = (INNER_X_MM + lineData[i + 2]) * PX_PER_MM;
+    const bx: number = (innerXMm + lineData[i + 2]) * PX_PER_MM;
     const by: number = (INNER_Y_MM + lineData[i + 3]) * PX_PER_MM;
     if (Math.max(ax, bx) + pad < x0 || Math.min(ax, bx) - pad > x1
       || Math.max(ay, by) + pad < y0 || Math.min(ay, by) - pad > y1) {
@@ -92,7 +97,7 @@ export function paintRasterTile(g: OffscreenCanvasRenderingContext2D, x0: number
 
   // 卡片：底色 + 描边（女卡绛紫描边）
   for (let i: number = 0; i + 4 < boxData.length; i += 5) {
-    const cx0: number = (INNER_X_MM + boxData[i]) * PX_PER_MM;
+    const cx0: number = (innerXMm + boxData[i]) * PX_PER_MM;
     const cy0: number = (INNER_Y_MM + boxData[i + 1]) * PX_PER_MM;
     const cw: number = boxData[i + 2] * PX_PER_MM;
     const ch: number = boxData[i + 3] * PX_PER_MM;
@@ -113,7 +118,8 @@ export function paintRasterTile(g: OffscreenCanvasRenderingContext2D, x0: number
  * 实际渲染分辨率翻数倍，既慢又占内存）。
  */
 export async function renderTileImpl(pageNo: number, r: number, c: number, lineWidthMm: number,
-  lineData: number[], boxData: number[], cacheDir: string): Promise<string> {
+  lineData: number[], boxData: number[], cacheDir: string, innerXMm: number, gutterXMm: number,
+  gutterWMm: number): Promise<string> {
   const x0: number = Math.round(c * RENDER_W / TILE_COLS);
   const x1: number = Math.round((c + 1) * RENDER_W / TILE_COLS);
   const y0: number = Math.round(r * RENDER_H / TILE_ROWS);
@@ -123,7 +129,8 @@ export async function renderTileImpl(pageNo: number, r: number, c: number, lineW
 
   const off: OffscreenCanvas = new OffscreenCanvas(TILE_W, TILE_H, LengthMetricsUnit.PX);
   const g: OffscreenCanvasRenderingContext2D = off.getContext('2d');
-  paintRasterTile(g, x0, y0, x0 + w, y0 + h, lineWidthMm, lineData, boxData);
+  paintRasterTile(g, x0, y0, x0 + w, y0 + h, lineWidthMm, lineData, boxData,
+    innerXMm, gutterXMm, gutterWMm);
 
   const pm: image.PixelMap = g.getPixelMap(0, 0, w, h);
   const packer: image.ImagePacker = image.createImagePacker();

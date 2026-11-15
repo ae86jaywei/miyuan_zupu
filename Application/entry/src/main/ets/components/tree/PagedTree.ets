@@ -89,6 +89,9 @@ export struct PagedTree {
   @Prop @Watch('onPageChanged') profileName: string = 'standard';
   @Prop branchName: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
+  /** 单面 / 双面装订：与导出设置共用同一个 AppStorage 键 */
+  @StorageLink('printDuplex') @Watch('onDuplex') printDuplex: boolean = true;
+
   onPageChange: (n: number) => void = (n: number): void => {};
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
@@ -122,12 +125,20 @@ export struct PagedTree {
   private scroller: Scroller = new Scroller();
 
   aboutToAppear(): void {
+    PageSpec.defaultDuplex = this.printDuplex;
     this.refresh();
     this.updateScale();
   }
 
   onDark(): void {
     Theme.use(this.darkMode);
+  }
+
+  /** 切换单面/双面：装订侧变了，整本按新几何重建（页分配不变，只重算版心） */
+  onDuplex(): void {
+    PageSpec.defaultDuplex = this.printDuplex;
+    this.lastKey = '';
+    this.refresh();
   }
 
   /** 页码/宗支/数据变化都走这里；同一本书、同一页才跳过 */
@@ -315,12 +326,12 @@ export struct PagedTree {
   /** 当前页版心左边界（mm） */
   private innerX(): number {
     if (this.page === null) {
-      return this.spec.gutter;
+      return this.spec.innerX(true);
     }
     return this.spec.innerX(this.page.recto);
   }
 
-  /** 当前页是否为单页（装订口在左） */
+  /** 当前页是否为单页（奇数页） */
   private isRecto(): boolean {
     return this.page !== null && this.page.recto;
   }
@@ -398,7 +409,7 @@ export struct PagedTree {
             })
         }, (link: PageJump) => 'sib_' + this.pageNo.toString() + '_' + link.uid)
       }
-      .width(this.mm(this.spec.trimW - this.innerX() - 10))
+      .width(this.mm(this.spec.contentWidth() - 10))
       .position({ x: this.mm(this.innerX()), y: this.mm(this.spec.trimH - 19) })
     }
   }
@@ -413,13 +424,13 @@ export struct PagedTree {
         .backgroundColor('#FFFDF6')
         .border({ width: 0.5, color: '#D8CBB2' })
 
-      // 装订口：单页在左，双页镜像到右
+      // 装订口：按 PageSpec.binding 贴在装订侧（欧式谱右起，装订口在右）
       Column()
         .width(this.mm(this.spec.gutter))
         .height('100%')
         .backgroundColor('#F4EFE3')
         .position({
-          x: 0,
+          x: this.mm(this.spec.gutterX(this.isRecto())),
           y: 0
         })
 
@@ -515,7 +526,7 @@ export struct PagedTree {
           .fontColor('#8C2F1E')
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-          .width(this.mm(this.spec.trimW - this.innerX() - 10))
+          .width(this.mm(this.spec.contentWidth() - 10))
           .position({
             x: this.mm(this.innerX()),
             y: this.mm(this.spec.trimH - 12)
@@ -549,7 +560,7 @@ export struct PagedTree {
   /** 版心左边界（屏幕坐标） */
   private contentX(): number {
     if (this.page === null) {
-      return this.mm(this.spec.gutter);
+      return this.mm(this.spec.innerX(true));
     }
     return this.mm(this.spec.innerX(this.page.recto));
   }

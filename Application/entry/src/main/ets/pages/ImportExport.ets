@@ -6,6 +6,7 @@ import { GenealogyService, BranchSuggestion } from '../service/GenealogyService'
 import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfExportService';
 import { PagedPdfExportService, PagedPdfProgress } from '../service/PagedPdfExportService';
+import { PageSpec } from '../service/PrintLayout';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { GenealogyScope } from '../model/Scope';
 import { Person } from '../model/Person';
@@ -64,6 +65,8 @@ struct ImportExport {
   @State includePrivate: boolean = true;
   /** PDF 谱式：die=牒记式（文字流），eu=欧式分页，su=苏式分页 */
   @State pdfStyle: string = 'die';
+  /** 装订方式：true=双面（奇页装订在右、偶页在左），false=单面（统一右侧装订） */
+  @StorageLink('printDuplex') printDuplex: boolean = true;
   /** 导出范围：可选择总谱或某个分支谱，避免 5 万人整谱一次性导出 */
   @State exportBookId: number = 0;
   @State exportBookIds: number[] = [];
@@ -220,6 +223,8 @@ struct ImportExport {
     this.busy = true;
     this.previewText = '正在渲染，请稍候……';
     this.setProgress('正在排版 PDF…', 2);
+    // 导出与屏幕分页共用装订几何：单面/双面以当前设置快照为准
+    PageSpec.defaultDuplex = this.printDuplex;
     // 导出范围：需要时临时切到分支谱，导出结束再切回，避免把 5 万人总谱整本导出
     const originalBookId: number = this.svc().getBook().key;
     const targetBookId: number = this.exportBookId > 0 ? this.exportBookId : originalBookId;
@@ -545,6 +550,32 @@ struct ImportExport {
     })
   }
 
+  /** 装订方式选择按钮：双面（奇右偶左）/ 单面（统一右侧） */
+  @Builder
+  BindChip(label: string, duplex: boolean, hint: string) {
+    Column() {
+      Text(label)
+        .fontSize(12.5)
+        .fontColor(this.printDuplex === duplex ? '#FFFFFF' : Theme.ink)
+        .fontWeight(FontWeight.Medium)
+      Text(hint)
+        .fontSize(9)
+        .fontColor(this.printDuplex === duplex ? '#FFF4DE' : Theme.inkTertiary)
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .layoutWeight(1)
+    .padding({ top: 8, bottom: 8, left: 4, right: 4 })
+    .margin({ right: 6 })
+    .backgroundColor(this.printDuplex === duplex ? Theme.primary : Theme.field)
+    .borderRadius(8)
+    .border({ width: 0.5, color: this.printDuplex === duplex ? Theme.primary : Theme.line })
+    .onClick((): void => {
+      this.printDuplex = duplex;
+      PageSpec.defaultDuplex = duplex;
+    })
+  }
+
   /** 导入/导出进行中拦截返回键，避免页面被销毁导致流程中断 */
   onBackPress(): boolean {
     return this.busy;
@@ -718,11 +749,23 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
+              Text('装订方式')
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .fontWeight(FontWeight.Medium)
+                .width('100%')
+                .margin({ top: 12 })
+              Row() {
+                this.BindChip('双面印刷', true, '奇页装订在右、偶页在左')
+                this.BindChip('单面', false, '每张纸统一右侧装订')
+              }
+              .width('100%')
+              .margin({ top: 8 })
             }
             .width('100%')
             .padding({ top: 12, bottom: 12 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式分卷文字流，或欧式/苏式 320×220mm 横版分页（文字可选中，300dpi）', '打印',
+            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式分卷文字流，或欧式/苏式 320×220mm 横版分页（文字可选中，300dpi；支持单面/双面装订）', '打印',
               (): void => {
                 this.doExportPdf();
               })

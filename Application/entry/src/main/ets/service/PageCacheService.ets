@@ -25,8 +25,8 @@ const TABLE_VOLUME: string = 'page_cache_volume';
 const TABLE_BRANCH: string = 'page_cache_branch';
 const TABLE_CANVAS: string = 'page_cache_canvas';
 
-/** 缓存结构版本：排序规则、分页算法、纸张规格变化时必须 +1 */
-const CACHE_VERSION: number = 2;
+/** 缓存结构版本：排序规则、分页算法、纸张规格变化时必须 +1（3 = 欧式右起版面 + 装订口在右） */
+const CACHE_VERSION: number = 3;
 /** 预热延迟：数据保存后 6 秒再算，避开用户连续编辑 */
 const WARMUP_DELAY_MS: number = 6000;
 /** 只给中小族谱做后台预热：大谱整树装箱耗时较长，改为导出时计算 */

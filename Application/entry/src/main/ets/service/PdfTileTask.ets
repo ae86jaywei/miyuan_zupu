@@ -11,8 +11,10 @@ import { renderTileImpl } from './PdfRasterJob';
  */
 @Concurrent
 async function renderTileJob(pageNo: number, r: number, c: number, lineWidthMm: number,
-  lineData: number[], boxData: number[], cacheDir: string): Promise<string> {
-  return await renderTileImpl(pageNo, r, c, lineWidthMm, lineData, boxData, cacheDir);
+  lineData: number[], boxData: number[], cacheDir: string, innerXMm: number, gutterXMm: number,
+  gutterWMm: number): Promise<string> {
+  return await renderTileImpl(pageNo, r, c, lineWidthMm, lineData, boxData, cacheDir,
+    innerXMm, gutterXMm, gutterWMm);
 }
 
 export { renderTileJob };

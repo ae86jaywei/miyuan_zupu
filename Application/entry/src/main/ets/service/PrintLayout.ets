@@ -5,7 +5,7 @@ import { LayoutMetrics } from './TreeLayout';
  *
  * 成品 320×220mm（横版，与 220×320 的纸同尺寸，只是横放）：
  *  - 装订口 gutter、翻口 fold、天头 head、地脚 foot 都在成品内，出血 bleed 在成品外；
- *  - 版心 = 成品减去上述四边，奇偶页镜像只改版心起点，不改布局；
+ *  - 版心 = 成品减去上述四边；装订侧由 binding 决定，所有页共用同一版心起点；
  *  - 1mm = 3.7795vp(96dpi) = 2.8346pt(72dpi) = 11.811px(300dpi)。
  *
  * 屏幕分页视图与将来的 PDF 导出共用这一份规格，避免两边各写一套尺寸。
@@ -27,11 +27,21 @@ export class PageSpec {
   bleed: number = 3;
   /** 装订侧安全内缩：卡片不贴装订线，留出翻阅与装订余量 */
   safeInset: number = 6;
-  /** 装订方向：left / right（传统右翻） */
-  binding: string = 'left';
+  /** 装订方向：left / right（传统右翻，欧式谱右起，装订口在右） */
+  binding: string = 'right';
+  /**
+   * 双面印刷：奇偶页装订口分居纸张两侧。
+   * 一张纸正反两面，背面页左右颠倒后装订口会落到另一侧；不交替的话
+   * 双面装订后一半页的版心会贴到书脊上（只剩 1mm），文字被订进去。
+   */
+  duplex: boolean = true;
+  /** 全局默认装订方式：导出设置与分页预览共用，由 UI 写入 */
+  static defaultDuplex: boolean = true;
 
   static landscape(): PageSpec {
-    return new PageSpec();
+    const spec: PageSpec = new PageSpec();
+    spec.duplex = PageSpec.defaultDuplex;
+    return spec;
   }
 
   /** 版心宽：成品减去装订口、翻口与装订侧安全内缩 */
@@ -45,17 +55,29 @@ export class PageSpec {
   }
 
   /**
+   * 该页的装订口是否在纸面右侧。
+   * 单面印刷时每张纸单独装订，统一按 binding 侧；
+   * 双面印刷时背面页左右颠倒，装订口随之换到另一侧，装订后两页才同样贴订口。
+   */
+  bindOnRight(recto: boolean): boolean {
+    if (!this.duplex) {
+      return this.binding === 'right';
+    }
+    return this.binding === 'right' ? recto : !recto;
+  }
+
+  /**
    * 版心左边界（mm）。
-   * 单页（recto=true）装订口在左；双面印刷的偶数页（verso）镜像到右侧，
-   * 保证装订后两页版心到装订线的距离一致；装订侧再内缩 safeInset，卡片不压装订线。
+   * 装订口在右时版心从翻口一侧起排，装订口在左时从装订口内侧起排，
+   * 两侧都内缩 safeInset，卡片不压到装订线。
    */
   innerX(recto: boolean): number {
-    // 单面预览/印刷统一按「装订口在左」排：左右页版心同一起点，
-    // 任何一页的首列卡片都不会越过装订线（偶数页也不再镜像到左翻口）。
-    if (this.binding === 'right') {
-      return this.fold + this.safeInset;
-    }
-    return this.gutter + this.safeInset;
+    return this.bindOnRight(recto) ? this.fold + this.safeInset : this.gutter + this.safeInset;
+  }
+
+  /** 装订口在纸面上的左边界（mm）：右装订贴成品右边，左装订贴左边 */
+  gutterX(recto: boolean): number {
+    return this.bindOnRight(recto) ? this.trimW - this.gutter : 0;
   }
 
   /** 版心上边界（mm） */
