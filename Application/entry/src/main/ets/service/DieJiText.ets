@@ -38,6 +38,12 @@ export class DieJiRefOptions {
   crossRef: Map<string, string> | null = null;
 }
 
+/** 姓名在正文中的区间（UTF-16 下标），供屏幕/PDF 做加粗放大 */
+export class DieJiNameRange {
+  start: number = 0;
+  end: number = 0;
+}
+
 /** 排行前缀 → 行第序号（长子/次子/三子…；独子/随母子返回 -1） */
 function rankIndex(rank: string): number {
   const r: string = rank.trim();
@@ -376,6 +382,45 @@ export class DieJiText {
       }
     }
     return DieJiText.personParagraph(p, idx, opts);
+  }
+
+  /** 姓名在正文中的位置：优先整名，妻妾条目拆成「姓氏」与「讳名」两段 */
+  static nameRanges(p: Person, text: string): DieJiNameRange[] {
+    const out: DieJiNameRange[] = [];
+    const full: string = p.name.trim();
+    if (full.length === 0 || text.length === 0) {
+      return out;
+    }
+    const at: number = text.indexOf(full);
+    if (at >= 0) {
+      const r: DieJiNameRange = new DieJiNameRange();
+      r.start = at;
+      r.end = at + full.length;
+      out.push(r);
+      return out;
+    }
+    const clan: string = clanName(full);
+    if (clan.length > 0) {
+      const ci: number = text.indexOf(clan);
+      if (ci >= 0) {
+        const r: DieJiNameRange = new DieJiNameRange();
+        r.start = ci;
+        r.end = ci + clan.length;
+        out.push(r);
+      }
+    }
+    const given: string = givenNameOf(full);
+    if (given.length > 0) {
+      const lastEnd: number = out.length > 0 ? out[out.length - 1].end : 0;
+      const gi: number = text.indexOf(given, lastEnd);
+      if (gi >= 0) {
+        const r: DieJiNameRange = new DieJiNameRange();
+        r.start = gi;
+        r.end = gi + given.length;
+        out.push(r);
+      }
+    }
+    return out;
   }
 
   /** 本人 UID：PDF 正文标记「谁是谁」 */

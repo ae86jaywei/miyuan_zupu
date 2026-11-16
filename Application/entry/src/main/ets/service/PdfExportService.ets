@@ -14,7 +14,7 @@ import { RawPdfWriter, PdfTextLine, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 import { PageSpec as PrintPageSpec } from './PrintLayout';
-import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
+import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange } from './DieJiText';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -121,6 +121,13 @@ export interface PdfExportProgress {
 }
 
 // ─── 排版中间结构 ─────────────────────────────────────────
+interface TextRun {
+  text: string;
+  font: number;   // pt
+  color: string;
+  bold: boolean;
+}
+
 interface TextLine {
   text: string;
   font: number;   // pt
@@ -129,6 +136,8 @@ interface TextLine {
   bold: boolean;
   indent: number; // pt，左缩进
   center: boolean;
+  /** 混排片段：姓名 30pt、正文 12.5pt 时按片段绘制，text 仍保留整行文本用于分页/书签 */
+  runs?: TextRun[];
 }
 
 /** 行高：字号 × 1.75（中文留白） */
@@ -192,6 +201,85 @@ function wrapLines(text: string, font: number, indent: number, color: string,
       start = end;
     }
   }
+  return out;
+}
+
+/** 单字宽度：ASCII 实测，中文按字号（全角近似），避免逐字 measureText 拖慢整谱导出 */
+function charWidth(ctx: OffscreenCanvasRenderingContext2D, ch: string, font: number): number {
+  const cp: number = ch.codePointAt(0) ?? 0;
+  return cp < 0x80 ? measurePt(ctx, ch, font) : font;
+}
+
+/**
+ * 混排行：正文 12.5pt、姓名 30pt 加粗。
+ * 按字符宽度折行，行内按 runs 记录不同字号片段；只有含姓名的行才带 runs。
+ */
+function wrapStyledLines(ctx: OffscreenCanvasRenderingContext2D, text: string,
+  ranges: DieJiNameRange[], baseFont: number, baseColor: string,
+  nameFont: number, nameColor: string, indent: number = 0,
+  maxW: number = CONTENT_W): TextLine[] {
+  const out: TextLine[] = [];
+  const lineChars: string[] = [];
+  let lineRuns: TextRun[] = [];
+  let lineW: number = 0;
+  let maxFont: number = baseFont;
+  const flush = (): void => {
+    if (lineChars.length === 0) {
+      return;
+    }
+    const onlyBase: boolean = lineRuns.length === 1 && lineRuns[0].font === baseFont &&
+      !lineRuns[0].bold;
+    const ln: TextLine = {
+      text: lineChars.join(''), font: maxFont, lineH: lineHOf(maxFont), color: baseColor,
+      bold: false, indent: indent, center: false
+    };
+    if (!onlyBase) {
+      ln.runs = lineRuns.slice();
+    }
+    out.push(ln);
+    lineChars.length = 0;
+    lineRuns = [];
+    lineW = 0;
+    maxFont = baseFont;
+  };
+  let i: number = 0;
+  while (i < text.length) {
+    const cp: number = text.codePointAt(i) ?? 0;
+    const step: number = cp > 0xffff ? 2 : 1;
+    const ch: string = text.substring(i, i + step);
+    if (ch === '\n') {
+      flush();
+      i = i + step;
+      continue;
+    }
+    let inName: boolean = false;
+    for (let r: number = 0; r < ranges.length; r++) {
+      if (i >= ranges[r].start && i < ranges[r].end) {
+        inName = true;
+        break;
+      }
+    }
+    const font: number = inName ? nameFont : baseFont;
+    const color: string = inName ? nameColor : baseColor;
+    const w: number = charWidth(ctx, ch, font);
+    if (lineChars.length > 0 && lineW + w > maxW - indent) {
+      flush();
+    }
+    lineChars.push(ch);
+    const last: TextRun | null = lineRuns.length > 0 ? lineRuns[lineRuns.length - 1] : null;
+    if (last !== null && last.font === font && last.color === color && last.bold === inName) {
+      last.text = last.text + ch;
+    } else {
+      const run: TextRun = { text: ch, font: font, color: color, bold: inName };
+      lineRuns.push(run);
+    }
+    lineW = lineW + w;
+    if (font > maxFont) {
+      maxFont = font;
+    }
+    i = i + step;
+  }
+  flush();
   return out;
 }
 
@@ -402,8 +490,8 @@ let gCrossRef: Map<string, string> | null = null;
 
 // ─── 条目字号 ─────────────────────────────────────────────
 // PDF 默认 100% 缩放时原字号偏小；姓名加大一档，详情加大到原姓名的字号
-const F_NAME: number = 22;   // 中文字号「2 号」= 22pt
-const H_NAME: number = 34;
+const F_NAME: number = 30;   // 牒记姓名标题：30pt 加粗
+const H_NAME: number = 42;
 const F_DETAIL: number = 12.5;
 const H_DETAIL: number = 22;
 
@@ -427,7 +515,10 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   opts.enabled = true;
   opts.refs = refs;
   opts.crossRef = gCrossRef;
-  pushAll(lines, wrapLines(DieJiText.paragraph(p, dieIndex, opts), F_DETAIL, 0, C_INK, contentW));
+  const text: string = DieJiText.paragraph(p, dieIndex, opts);
+  const nameColor: string = p.gender === '女' ? C_FEMALE : C_INK;
+  pushAll(lines, wrapStyledLines(ctx, text, DieJiText.nameRanges(p, text),
+    F_DETAIL, C_INK, F_NAME, nameColor, 0, contentW));
   lines.push({ text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false });
   return lines;
 }
@@ -1720,7 +1811,31 @@ export class PdfExportService {
     }
     for (let i: number = 0; i < spec.lines.length; i = i + 1) {
       const ln: TextLine = spec.lines[i];
-      if (ln.text.trim().length > 0) {
+      if (ln.runs !== undefined && ln.runs.length > 0) {
+        // 混排行：姓名 30pt、正文 12.5pt，同一基线逐字排
+        let rx: number = x0 + ln.indent;
+        const baseY: number = baselineOf(y, ln.font);
+        for (let ri: number = 0; ri < ln.runs.length; ri++) {
+          const run: TextRun = ln.runs[ri];
+          const runText: string = replaceParens(run.text, false);
+          let ci: number = 0;
+          while (ci < runText.length) {
+            const cp: number = runText.codePointAt(ci) ?? 0;
+            const step: number = cp > 0xffff ? 2 : 1;
+            const ch: string = runText.substring(ci, ci + step);
+            const r: PdfTextLine = new PdfTextLine();
+            r.text = ch;
+            r.xPt = rx;
+            r.yPt = baseY;
+            r.sizePt = run.font;
+            r.color = run.color;
+            r.bold = run.bold;
+            out.push(r);
+            rx = rx + charWidth(ctx, ch, run.font);
+            ci = ci + step;
+          }
+        }
+      } else if (ln.text.trim().length > 0) {
         const r: PdfTextLine = new PdfTextLine();
         r.text = replaceParens(ln.text, false);
         r.xPt = ln.center ? centerX - measurePt(ctx, ln.text, ln.font) / 2
@@ -1766,6 +1881,66 @@ export class PdfExportService {
     let cursorRight: number = innerX + contentW;
     for (let i: number = 0; i < spec.lines.length; i = i + 1) {
       const ln: TextLine = spec.lines[i];
+      if (ln.runs !== undefined && ln.runs.length > 0) {
+        // 混排行竖排：按字逐个累计列高，姓名列自动加宽（仿古版最大 22pt）
+        const chars: string[] = [];
+        const fonts: number[] = [];
+        const colors: string[] = [];
+        const bolds: boolean[] = [];
+        for (let ri: number = 0; ri < ln.runs.length; ri++) {
+          const run: TextRun = ln.runs[ri];
+          const full: string = replaceParens(T(run.text), true);
+          let ci: number = 0;
+          while (ci < full.length) {
+            const cp: number = full.codePointAt(ci) ?? 0;
+            const step: number = cp > 0xffff ? 2 : 1;
+            chars.push(full.substring(ci, ci + step));
+            fonts.push(run.font);
+            colors.push(run.color);
+            bolds.push(run.bold);
+            ci = ci + step;
+          }
+        }
+        let ci: number = 0;
+        while (ci < chars.length) {
+          const start: number = ci;
+          let used: number = 0;
+          let colW: number = 0;
+          let colFont: number = 0;
+          while (ci < chars.length) {
+            const st: number = classicStep(fonts[ci]);
+            if (ci > start && used + st > segmentH - 6) {
+              break;
+            }
+            used = used + st;
+            const cw: number = classicColW(fonts[ci]);
+            if (cw > colW) {
+              colW = cw;
+            }
+            const f: number = classicFont(fonts[ci]);
+            if (f > colFont) {
+              colFont = f;
+            }
+            ci = ci + 1;
+          }
+          const colX: number = cursorRight - colFont;
+          let yy: number = 0;
+          for (let k: number = start; k < ci; k++) {
+            const f: number = classicFont(fonts[k]);
+            const r: PdfTextLine = new PdfTextLine();
+            r.text = chars[k];
+            r.xPt = colX;
+            r.yPt = baselineOf(y0 + yy, f);
+            r.sizePt = f;
+            r.color = colors[k];
+            r.bold = bolds[k];
+            out.push(r);
+            yy = yy + classicStep(fonts[k]);
+          }
+          cursorRight = cursorRight - colW;
+        }
+        continue;
+      }
       const font: number = classicFont(ln.font);
       const step: number = classicStep(ln.font);
       const colW: number = classicColW(ln.font);
