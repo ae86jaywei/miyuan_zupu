@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /**
  * 云数据库访问（协作 Zone）。
@@ -17,7 +17,7 @@
  */
 
 const { BizError, CODE } = require('./core');
-const { DEFAULT_ZONE, T } = require('./constants');
+const { DEFAULT_ZONE, T, UPSERT_CHUNK } = require('./constants');
 
 const fs = require('fs');
 const os = require('os');
@@ -400,7 +400,11 @@ async function upsertMany(typeName, objects) {
     rows.push(toGeneric(typeName, sanitizeForWrite(objects[i])));
   }
   try {
-    await col.upsert(rows);
+    // 单次上传人数已放宽到 500，但 AGC 单次 upsert 仍按 100 条分块，避免写入超限
+    const chunk = UPSERT_CHUNK > 0 ? UPSERT_CHUNK : 100;
+    for (let start = 0; start < rows.length; start += chunk) {
+      await col.upsert(rows.slice(start, start + chunk));
+    }
     return rows.length;
   } catch (e) {
     throw toBizError(e);

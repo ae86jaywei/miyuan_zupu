@@ -102,9 +102,11 @@ export class SolarTerms {
   static termJulianDay(year: number, termIndex: number): number {
     // 节气黄经：立春 315°，每节气递增 15°
     const targetLong: number = (315 + termIndex * 15) % 360;
-    // 立春约在 2 月 4 日，用粗略起点迭代逼近
-    const approxMonth: number = Math.floor((termIndex * 15 + 315) / 30) % 12;
-    let jd: number = GanZhi.julianDay(year, approxMonth + 1, 5);
+    // 立春在 2 月上旬，其后每个节气约隔半个月：
+    // 起始月必须落在该节气所在月份，否则立春会从当年 11 月起步、迭代到次年 2 月。
+    // termIndex 0/1 → 2 月，2/3 → 3 月……22/23 → 次年 1 月。
+    const approxMonth: number = ((1 + Math.floor(termIndex / 2)) % 12) + 1;
+    let jd: number = GanZhi.julianDay(year, approxMonth, 5);
     for (let i: number = 0; i < 12; i++) {
       const diff: number = SolarTerms.angleDiff(targetLong, SolarTerms.sunLongitude(jd));
       jd = jd + diff / 360.0 * 365.2422;

@@ -413,6 +413,8 @@ export class FamilySyncService {
       p.generation = num(src, 'generation');
     }
     p.alias = str(src, 'alias');
+    p.courtesyName = str(src, 'courtesyName');
+    p.artName = str(src, 'artName');
     p.gender = str(src, 'gender').length > 0 ? str(src, 'gender') : '男';
     p.generationChar = str(src, 'generationChar');
     p.lifeStatus = str(src, 'lifeStatus').length > 0 ? str(src, 'lifeStatus') : '在世';
@@ -424,7 +426,9 @@ export class FamilySyncService {
     p.birthPlace = str(src, 'birthPlace');
     p.residence = str(src, 'residence');
     p.fatherId = str(src, 'fatherId');
+    p.fatherName = str(src, 'fatherName');
     p.motherId = str(src, 'motherId');
+    p.motherName = str(src, 'motherName');
     p.spouseId = str(src, 'spouseId');
     p.rank = str(src, 'rank');
     p.adoption = str(src, 'adoption');

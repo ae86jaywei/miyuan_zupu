@@ -447,6 +447,8 @@ struct PersonEdit {
   /** 唯一ID 是否为自动生成（自动生成的会在切换性别时重新计算） */
   @State uidAuto: boolean = true;
   @State fName: string = '';
+  @State fCourtesyName: string = '';
+  @State fArtName: string = '';
   @State fAlias: string = '';
   @State fGender: string = '男';
   @State fGenChar: string = '';
@@ -459,7 +461,9 @@ struct PersonEdit {
   @State fBirthPlace: string = '';
   @State fResidence: string = '';
   @State fFatherId: string = '';
+  @State fFatherName: string = '';
   @State fMotherId: string = '';
+  @State fMotherName: string = '';
   /** 配偶关系（可多位：元配 / 继室 / 妾） */
   @State fSpouses: SpouseRelation[] = [];
   @State fRank: string = '';
@@ -633,6 +637,8 @@ struct PersonEdit {
     this.fUid = p.uid;
     this.uidAuto = p.uid.trim().length === 0;
     this.fName = p.name;
+    this.fCourtesyName = p.courtesyName;
+    this.fArtName = p.artName;
     this.fAlias = p.alias;
     this.fGender = p.gender;
     this.fGenChar = p.generationChar;
@@ -645,7 +651,9 @@ struct PersonEdit {
     this.fBirthPlace = p.birthPlace;
     this.fResidence = p.residence;
     this.fFatherId = p.fatherId;
+    this.fFatherName = p.fatherName;
     this.fMotherId = p.motherId;
+    this.fMotherName = p.motherName;
     this.fSpouses = p.spouses.map((r: SpouseRelation): SpouseRelation => {
       const c: SpouseRelation = cloneSpouseRelation(r);
       // 历史数据可能把等级写进称谓（如“夫（侧室）”），统一回“夫”，
@@ -682,6 +690,8 @@ struct PersonEdit {
     p.generation = this.fGeneration;
     p.uid = this.fUid.trim().toUpperCase();
     p.name = this.fName.trim();
+    p.courtesyName = this.fCourtesyName.trim();
+    p.artName = this.fArtName.trim();
     p.alias = this.fAlias;
     p.gender = this.fGender;
     p.generationChar = this.fGenChar;
@@ -694,7 +704,9 @@ struct PersonEdit {
     p.birthPlace = this.fBirthPlace;
     p.residence = this.fResidence;
     p.fatherId = this.fFatherId;
+    p.fatherName = this.fFatherName.trim();
     p.motherId = this.fMotherId;
+    p.motherName = this.fMotherName.trim();
     p.spouses = this.buildSpouses();
     p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
     p.rank = this.fRank;
@@ -2037,6 +2049,23 @@ struct PersonEdit {
         this.fAlias = v;
       })
 
+      Row() {
+        Column() {
+          this.TextField('字', this.fCourtesyName, '表字，如：昭远；牒记写作「字昭远」', false, (v: string): void => {
+            this.fCourtesyName = v;
+          })
+        }
+        .layoutWeight(1)
+        Column() {
+          this.TextField('号', this.fArtName, '别号，如：朴庵；牒记写作「号朴庵」', false, (v: string): void => {
+            this.fArtName = v;
+          })
+        }
+        .layoutWeight(1)
+        .margin({ left: Spacing.S })
+      }
+      .width('100%')
+
       // 时间信息
       this.GroupHeader('时间信息', '📅')
       Row() {
@@ -2133,6 +2162,25 @@ struct PersonEdit {
           this.fMotherId = v;
         }
       })
+      // 父母未录入族谱时的兜底姓名：妻子的父亲/母亲即丈夫条目中的岳父/岳母
+      Row() {
+        Column() {
+          this.TextField('父名（未收录）', this.fFatherName, '父亲未录入族谱时填写；妻子的父亲即岳父', false,
+            (v: string): void => {
+              this.fFatherName = v;
+            })
+        }
+        .layoutWeight(1)
+        Column() {
+          this.TextField('母名（未收录）', this.fMotherName, '母亲未录入族谱时填写；妻子的母亲即岳母', false,
+            (v: string): void => {
+              this.fMotherName = v;
+            })
+        }
+        .layoutWeight(1)
+        .margin({ left: Spacing.S })
+      }
+      .width('100%')
       this.SpouseSection()
       SelectField({
         label: '排行',

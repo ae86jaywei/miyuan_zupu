@@ -68,8 +68,8 @@ function makeChange(b: Object | null, a: Object): FieldChange {
 }
 
 /** 文本字段（与云侧 PATCHABLE_FIELDS 保持一致） */
-const TEXT_FIELDS: string[] = ['uid', 'name', 'alias', 'gender', 'generationChar', 'lifeStatus', 'childStatus',
-  'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'motherId',
+const TEXT_FIELDS: string[] = ['uid', 'name', 'courtesyName', 'artName', 'alias', 'gender', 'generationChar', 'lifeStatus', 'childStatus',
+  'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'fatherName', 'motherId', 'motherName',
   'spouseId', 'rank', 'adoption', 'education', 'occupation', 'biography', 'graveInfo', 'phone', 'wechat',
   'avatar', 'videos', 'photos'];
 
@@ -80,6 +80,8 @@ function textOf(p: Person, key: string): string {
   switch (key) {
     case 'uid': return p.uid;
     case 'name': return p.name;
+    case 'courtesyName': return p.courtesyName;
+    case 'artName': return p.artName;
     case 'alias': return p.alias;
     case 'gender': return p.gender;
     case 'generationChar': return p.generationChar;
@@ -92,7 +94,9 @@ function textOf(p: Person, key: string): string {
     case 'birthPlace': return p.birthPlace;
     case 'residence': return p.residence;
     case 'fatherId': return p.fatherId;
+    case 'fatherName': return p.fatherName;
     case 'motherId': return p.motherId;
+    case 'motherName': return p.motherName;
     case 'spouseId': return p.spouseId;
     case 'rank': return p.rank;
     case 'adoption': return p.adoption;
@@ -142,6 +146,8 @@ export function fieldLabel(key: string): string {
   const root: string = idx >= 0 ? key.substring(0, idx) : key;
   switch (root) {
     case 'name': return '谱名';
+    case 'courtesyName': return '字';
+    case 'artName': return '号';
     case 'alias': return '曾用名';
     case 'gender': return '性别';
     case 'generation': return '世代';
@@ -155,7 +161,9 @@ export function fieldLabel(key: string): string {
     case 'birthPlace': return '出生地';
     case 'residence': return '现居地';
     case 'fatherId': return '父亲ID';
+    case 'fatherName': return '父名（未收录）';
     case 'motherId': return '母亲ID';
+    case 'motherName': return '母名（未收录）';
     case 'spouses': return '配偶';
     case 'rank': return '排行';
     case 'adoption': return '过继/出嗣';

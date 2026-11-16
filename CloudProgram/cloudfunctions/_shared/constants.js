@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 /** 协作 Zone 默认名（AGC 控制台创建存储区时保持一致，可用环境变量覆盖） */
 const DEFAULT_ZONE = 'miyuanfamily';
@@ -63,7 +63,9 @@ const MEMBER_COUNT_BANDS = ['0-50', '50-100', '100-500', '500-1000', '1000+'];
 /** 单次请求 payload 上限（2MB 对象限制之内的安全值） */
 const MAX_PAYLOAD_BYTES = 900 * 1024;
 /** 单次批量写入上限 */
-const MAX_BATCH = 100;
+const MAX_BATCH = 500;
+/** 云端单次 upsert 分块大小：AGC 单次写入不宜过大，100 条已在线验证 */
+const UPSERT_CHUNK = 100;
 
 /** 门槛①「申请认证」默认期限：180 天（§13.7 W11 已决） */
 const VIEW_APPLY_DEFAULT_DAYS = 180;
@@ -85,5 +87,6 @@ module.exports = {
   MEMBER_COUNT_BANDS,
   MAX_PAYLOAD_BYTES,
   MAX_BATCH,
+  UPSERT_CHUNK,
   VIEW_APPLY_DEFAULT_DAYS
 };

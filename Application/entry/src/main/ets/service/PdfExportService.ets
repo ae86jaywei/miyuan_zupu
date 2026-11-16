@@ -4,17 +4,17 @@ import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { hidebug } from '@kit.PerformanceAnalysisKit';
-import { Person, SpouseRelation, childStatusLabel, spouseRelationLabel } from '../model/Person';
+import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
-import { displayDate } from '../util/DateUtil';
 import { GenealogyService } from './GenealogyService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextLine, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 import { PageSpec as PrintPageSpec } from './PrintLayout';
+import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -396,46 +396,9 @@ class KinshipIndex {
   }
 }
 
-/** 跨卷位置：uid →「第2卷358页」。由 prepareCrossRefs 在生成 PDF 前算好并回填 */
+// 牒记正文由 DieJiText 统一生成；PDF 的 UID / 页码互引通过 DieJiRefOptions 打开。
+/** 跨卷位置：uid →「第2卷358页」，分卷导出第二遍排版时回填 */
 let gCrossRef: Map<string, string> | null = null;
-
-/** 关系人标注：姓名（UID·第N页）；第一遍排版用等宽占位页码，保证两遍折行数可比 */
-function refText(name: string, uid: string, refs: Map<string, number> | null): string {
-  const id: string = uid.trim().toUpperCase();
-  let text: string = name + '（' + id;
-  if (refs !== null) {
-    const n: number | undefined = refs.get(id);
-    if (n !== undefined) {
-      text += '·第' + n.toString() + '页';
-    } else if (gCrossRef !== null) {
-      // 分卷导出：本卷 refs 查不到时，用预先算好的跨卷「第N卷M页」
-      const cross: string | undefined = gCrossRef.get(id);
-      text += cross === undefined ? '·另卷' : '·' + cross;
-    } else {
-      text += '·另卷';
-    }
-  } else {
-    // 第一遍：占位串不短于真实页码，第二遍折行只会更少，再补空行对齐
-    text += '·第00卷0000页';
-  }
-  return text + '）';
-}
-
-/** 配偶文本：名分（含正妻/平妻等层级）+ 姓名（UID·页码） */
-function spouseText(idx: KinshipIndex, p: Person, refs: Map<string, number> | null): string {
-  const parts: string[] = [];
-  for (let i: number = 0; i < p.spouses.length; i++) {
-    const r: SpouseRelation = p.spouses[i];
-    const rel: string = r.relation.length > 0 ? spouseRelationLabel(r.relation) : '配偶';
-    const sp: Person | null = idx.person(r.uid);
-    if (sp === null) {
-      parts.push(rel + ' ' + r.uid + '（未录入）');
-    } else {
-      parts.push(rel + ' ' + refText(sp.name, sp.uid, refs));
-    }
-  }
-  return parts.join('、');
-}
 
 // ─── 条目字号 ─────────────────────────────────────────────
 // PDF 默认 100% 缩放时原字号偏小；姓名加大一档，详情加大到原姓名的字号
@@ -444,151 +407,27 @@ const H_NAME: number = 34;
 const F_DETAIL: number = 12.5;
 const H_DETAIL: number = 22;
 
-/** 普通详情行（可折行，内容不丢） */
-function detailLine(text: string, color: string): TextLine {
-  return { text: text, font: F_DETAIL, lineH: H_DETAIL, color: color, bold: false, indent: 10, center: false };
-}
+
 
 /** 补齐行：只占高度，不写文本对象（用于对齐两遍排版的行数） */
 function padLine(): TextLine {
   return { text: ' ', font: F_DETAIL, lineH: H_DETAIL, color: C_BG, bold: false, indent: 0, center: false };
 }
 
-/** 一个人物的条目：字段与「个人信息」详情页一致 */
+/**
+ * 一个人物的牒记条目。
+ * 正文统一由 DieJiText 生成（与屏幕 / Markdown 同一套文言句式），
+ * 这里只负责断行与行高；refs 非空时在正文中写 UID 与页码互引。
+ */
 function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
-  kinIndex: KinshipIndex, refs: Map<string, number> | null,
+  dieIndex: DieJiIndex, refs: Map<string, number> | null,
   contentW: number = CONTENT_W): TextLine[] {
   const lines: TextLine[] = [];
-  const uid: string = p.uid.trim().toUpperCase();
-  // 姓名单独一行：2 号字 + 加粗；世代/UID/字派另起小字行，避免 22pt 长行溢出
-  const nameColor: string = p.gender === '女' ? C_FEMALE : C_INK;
-  lines.push({
-    text: p.name, font: F_NAME, lineH: H_NAME,
-    color: nameColor, bold: true, indent: 0, center: false
-  });
-  let meta: string = '（' + generationLabel(p.generation);
-  if (uid.length > 0) {
-    meta += '，' + uid;
-  }
-  meta += '）';
-  if (p.gender === '女') {
-    meta += '，女';
-  }
-  if (p.generationChar.length > 0) {
-    meta += '，字派“' + p.generationChar + '”';
-  }
-  pushAll(lines, wrapLines(meta, F_DETAIL, 0, nameColor, contentW));
-  // 配偶：名分 + 姓名（UID·页码）
-  if (p.spouses.length > 0) {
-    pushAll(lines, wrapLines('配偶：' + spouseText(kinIndex, p, refs), F_DETAIL, 10, C_FEMALE, contentW));
-  }
-  // 亲属：父/母 + 页码互引
-  const kinParts: string[] = [];
-  if (p.fatherId.trim().length > 0) {
-    const f: Person | null = kinIndex.person(p.fatherId);
-    if (f !== null) {
-      kinParts.push('父 ' + refText(f.name, f.uid, refs));
-    }
-  }
-  if (p.motherId.trim().length > 0) {
-    const m: Person | null = kinIndex.person(p.motherId);
-    if (m !== null) {
-      kinParts.push('母 ' + refText(m.name, m.uid, refs));
-    }
-  }
-  if (kinParts.length > 0) {
-    pushAll(lines, wrapLines('亲属：' + kinParts.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  }
-  // 子嗣：全部列出，一行放不下自动换行
-  const kids: Person[] = kinIndex.childrenOf(p.uid);
-  if (kids.length > 0) {
-    const parts: string[] = [];
-    for (let i: number = 0; i < kids.length; i++) {
-      parts.push(refText(kids[i].name, kids[i].uid, refs));
-    }
-    const txt: string = '子嗣：' + parts.join('、') + '（共' + kids.length.toString() + '人）';
-    pushAll(lines, wrapLines(txt, F_DETAIL, 10, C_INK2, contentW));
-  }
-  if (p.alias.length > 0) {
-    lines.push(detailLine('曾用名/小名：' + p.alias, C_INK2));
-  }
-  // 身份：性别 / 排行 / 本人身份（子女出身或妻妾名分）/ 过继 / 在世状态
-  const idParts: string[] = ['性别 ' + p.gender];
-  if (p.rank.length > 0) {
-    idParts.push('排行 ' + p.rank);
-  }
-  if (p.childStatus.length > 0 && p.childStatus !== '未记') {
-    idParts.push(childStatusLabel(p.childStatus, p.gender));
-  }
-  if (p.adoption.length > 0) {
-    idParts.push('过继/出嗣 ' + p.adoption);
-  }
-  if (p.lifeStatus.length > 0) {
-    idParts.push(p.lifeStatus);
-  }
-  pushAll(lines, wrapLines('身份：' + idParts.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  // 生卒：完整日期，保留公历/农历标注
-  const life: string[] = [];
-  const bd: string = displayDate(p.birthDate, p.birthCalendar);
-  const dd: string = displayDate(p.deathDate, p.deathCalendar);
-  if (bd.length > 0) {
-    life.push('生于 ' + bd);
-  }
-  if (dd.length > 0) {
-    life.push('卒于 ' + dd);
-  }
-  if (life.length > 0) {
-    pushAll(lines, wrapLines(life.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  }
-  // 出生地 / 现居地
-  const places: string[] = [];
-  if (p.birthPlace.length > 0) {
-    places.push('出生地 ' + p.birthPlace);
-  }
-  if (p.residence.length > 0) {
-    places.push('现居 ' + p.residence);
-  }
-  if (places.length > 0) {
-    pushAll(lines, wrapLines(places.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  }
-  // 学历 / 职业
-  const career: string[] = [];
-  if (p.education.length > 0) {
-    career.push('学历/学位 ' + p.education);
-  }
-  if (p.occupation.length > 0) {
-    career.push('职业/职务 ' + p.occupation);
-  }
-  if (career.length > 0) {
-    pushAll(lines, wrapLines(career.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  }
-  // 墓葬（含 GPS 经纬度与海拔）
-  const grave: string[] = [];
-  if (p.graveInfo.length > 0) {
-    grave.push(p.graveInfo);
-  }
-  if (p.graveLat !== 0) {
-    grave.push('GPS 东经 ' + p.graveLng.toFixed(6) + '° 北纬 ' + p.graveLat.toFixed(6)
-      + '° 海拔 ' + p.graveAltitude.toFixed(1) + 'm');
-  }
-  if (grave.length > 0) {
-    pushAll(lines, wrapLines('墓葬：' + grave.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  }
-  // 生平简介
-  if (p.biography.length > 0) {
-    pushAll(lines, wrapLines('生平：' + p.biography, F_DETAIL, 10, C_INK, contentW));
-  }
-  // 联系方式（与 JSON/CSV 导出一致，默认包含）
-  const contact: string[] = [];
-  if (p.phone.length > 0) {
-    contact.push('手机 ' + p.phone);
-  }
-  if (p.wechat.length > 0) {
-    contact.push('微信 ' + p.wechat);
-  }
-  if (contact.length > 0) {
-    pushAll(lines, wrapLines('联系：' + contact.join('　'), F_DETAIL, 10, C_INK2, contentW));
-  }
+  const opts: DieJiRefOptions = new DieJiRefOptions();
+  opts.enabled = true;
+  opts.refs = refs;
+  opts.crossRef = gCrossRef;
+  pushAll(lines, wrapLines(DieJiText.paragraph(p, dieIndex, opts), F_DETAIL, 0, C_INK, contentW));
   lines.push({ text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false });
   return lines;
 }
@@ -626,7 +465,9 @@ function needsAncestorEntry(people: Person[], units: FamilyUnit[], ancestorName:
  */
 async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
   kinIndex: KinshipIndex, refs: Map<string, number> | null,
-  contentW: number = CONTENT_W, ancestorName: string = ''): Promise<EntryBlock[]> {
+  contentW: number = CONTENT_W, ancestorName: string = '',
+  dieIndex?: DieJiIndex): Promise<EntryBlock[]> {
+  const index: DieJiIndex = dieIndex === undefined ? new DieJiIndex(people) : dieIndex;
   const units: FamilyUnit[] = buildFamilyUnits(people);
   // 每个展示世代的人数按锚点世代统计，配偶世代录错也归入同一节
   const genCount: Map<number, number> = new Map<number, number>();
@@ -680,7 +521,7 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
       entries.push({
         uid: p.uid.trim().toUpperCase(),
         unitId: unitId,
-        lines: personEntryLines(ctx, p, kinIndex, refs, contentW)
+        lines: personEntryLines(ctx, p, index, refs, contentW)
       });
     }
     // 每 100 人让出一次主线程：逐字断行 + measureText 是同步 Native 调用，
@@ -1658,6 +1499,8 @@ export class PdfExportService {
     const contentW: number = dieContentW(printSpec);
     const contentH: number = dieContentH(printSpec);
     const kinIndex: KinshipIndex = kinshipFor(people);
+    // 牒记正文与分卷页码同源：关系索引一次建好，各卷复用
+    const dieIndex: DieJiIndex = new DieJiIndex(people);
     for (let i: number = 0; i < jobs.length; i++) {
       const vol: PdfVolume = jobs[i];
       const coverPages: PageSpec[] = includeCover
@@ -1668,7 +1511,7 @@ export class PdfExportService {
       const offset: number = coverPages.length + prefacePages.length;
       const entries: EntryBlock[] =
         await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW,
-          jobs.length === 1 ? book.ancestorName : '');
+          jobs.length === 1 ? book.ancestorName : '', dieIndex);
       const pg: PaginateResult = classicLayout
         ? await paginateEntriesVerticalColumns(entries, offset, contentW, contentH)
         : await paginateEntries(entries, offset, contentH);
@@ -1711,6 +1554,8 @@ export class PdfExportService {
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = kinshipFor(kinPeople);
+    // 牒记文言生成器：与屏幕、Markdown 共用，按全量亲缘解析配偶与子嗣
+    const dieIndex: DieJiIndex = new DieJiIndex(kinPeople);
     const coverPages: PageSpec[] = options.includeCover
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0,
         contentH) : [];
@@ -1724,11 +1569,12 @@ export class PdfExportService {
 
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW,
-      ancestorForBody);
+      ancestorForBody, dieIndex);
     const firstPass: PaginateResult = classic
       ? await paginateEntriesVerticalColumns(entries1, offset, contentW, contentH)
       : await paginateEntries(entries1, offset, contentH);
     const uidPageMap: Map<string, number> = firstPass.uidPage;
+    // 第二遍排版回填真实页码；分卷时用跨卷位置兜底
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     const heights: Map<string, number> = new Map<string, number>();
     for (let i: number = 0; i < entries1.length; i = i + 1) {
@@ -1737,7 +1583,7 @@ export class PdfExportService {
     entries1 = [];
     firstPass.pages = [];
     let entries2: EntryBlock[] =
-      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW, ancestorForBody);
+      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW, ancestorForBody, dieIndex);
     if (!classic) {
       // 横排版靠补空行稳住两遍分页；竖排按字符数分页，补空行反而会多占列
       for (let i: number = 0; i < entries2.length; i = i + 1) {
@@ -1754,6 +1600,7 @@ export class PdfExportService {
       ? (await paginateEntriesVerticalColumns(entries2, offset, contentW, contentH)).pages
       : (await paginateEntries(entries2, offset, contentH)).pages;
     gCrossRef = null;
+    
     const backPages: PageSpec[] = classic
       ? paginateLinesVertical(buildBack(ctx, book, contentW), '家 训', contentW, contentH)
       : paginateLines(ctx, buildBack(ctx, book, contentW), '家 训', 36, contentH);
@@ -1997,6 +1844,7 @@ export class PdfExportService {
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = new KinshipIndex(kinPeople);
+    const dieIndex: DieJiIndex = new DieJiIndex(kinPeople);
     console.info('[PdfExport] index ' + (Date.now() - ts) + 'ms, kin=' + kinPeople.length + ', volume=' + people.length);
 
     const coverPages: PageSpec[] = options.includeCover
@@ -2011,16 +1859,18 @@ export class PdfExportService {
     // 先让进度条跑完一帧，再进入耗时的同步断行与分页
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, CONTENT_W,
-      ancestorForBody);
+      ancestorForBody, dieIndex);
     const firstPass: PaginateResult = await paginateEntries(entries1, offset);
     console.info('[PdfExport] pass1 ' + (Date.now() - tA) + 'ms, pages=' + firstPass.pages.length);
     // 第一遍整页排版仅用于页码映射与行数校验，取出 uidPage 后即可释放，
     // 避免其与第二遍数据同时常驻，降低大数据导出时的内存峰值
     const uidPageMap: Map<string, number> = firstPass.uidPage;
+    // 第二遍排版回填真实页码；分卷时用跨卷位置兜底
+    gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     // 第二遍：回填真实页码。占位串比真实页码长，折行数可能变少，
     // 用空行补齐到第一遍的行数，保证分页结果与页码互引完全一致
     const tB: number = Date.now();
-    gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
+    
     const heights: Map<string, number> = new Map<string, number>();
     for (let i: number = 0; i < entries1.length; i++) {
       heights.set(entries1[i].uid, entries1[i].lines.length);
@@ -2029,7 +1879,7 @@ export class PdfExportService {
     entries1 = [];
     firstPass.pages = [];
     let entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, CONTENT_W,
-      ancestorForBody);
+      ancestorForBody, dieIndex);
     for (let i: number = 0; i < entries2.length; i++) {
       const e: EntryBlock = entries2[i];
       const want: number | undefined = heights.get(e.uid);
@@ -2042,6 +1892,7 @@ export class PdfExportService {
     let genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset)).pages;
     console.info('[PdfExport] pass2 ' + (Date.now() - tB) + 'ms, pages=' + genealogyPages.length);
     gCrossRef = null;
+    
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
 
     const all: PageSpec[] = [];

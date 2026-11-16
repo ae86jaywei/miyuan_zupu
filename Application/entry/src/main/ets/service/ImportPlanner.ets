@@ -686,6 +686,8 @@ export class ImportPlanner {
     out.uid = ImportPlanner.up(local.uid);
     out.generation = ImportPlanner.pickNumber(local.generation, incoming.generation, localFirst);
     out.name = ImportPlanner.pickText(local.name, incoming.name, localFirst);
+    out.courtesyName = ImportPlanner.pickText(local.courtesyName, incoming.courtesyName, localFirst);
+    out.artName = ImportPlanner.pickText(local.artName, incoming.artName, localFirst);
     out.alias = ImportPlanner.pickText(local.alias, incoming.alias, localFirst);
     out.gender = ImportPlanner.pickText(local.gender, incoming.gender, localFirst);
     out.generationChar = ImportPlanner.pickText(local.generationChar, incoming.generationChar, localFirst);
@@ -697,6 +699,8 @@ export class ImportPlanner {
     out.deathCalendar = ImportPlanner.pickText(local.deathCalendar, incoming.deathCalendar, localFirst);
     out.birthPlace = ImportPlanner.pickText(local.birthPlace, incoming.birthPlace, localFirst);
     out.residence = ImportPlanner.pickText(local.residence, incoming.residence, localFirst);
+    out.fatherName = ImportPlanner.pickText(local.fatherName, incoming.fatherName, localFirst);
+    out.motherName = ImportPlanner.pickText(local.motherName, incoming.motherName, localFirst);
     out.rank = ImportPlanner.pickText(local.rank, incoming.rank, localFirst);
     out.adoption = ImportPlanner.pickText(local.adoption, incoming.adoption, localFirst);
     out.education = ImportPlanner.pickText(local.education, incoming.education, localFirst);

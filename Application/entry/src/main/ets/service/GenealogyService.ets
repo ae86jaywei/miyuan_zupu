@@ -145,6 +145,8 @@ export class GenealogyService {
         uid TEXT NOT NULL,
         generation INTEGER,
         name TEXT,
+        courtesy_name TEXT,
+        art_name TEXT,
         alias TEXT,
         gender TEXT,
         generation_char TEXT,
@@ -157,7 +159,9 @@ export class GenealogyService {
         birth_place TEXT,
         residence TEXT,
         father_id TEXT,
+        father_name TEXT,
         mother_id TEXT,
+        mother_name TEXT,
         spouse_id TEXT,
         rank TEXT,
         adoption TEXT,
@@ -189,6 +193,12 @@ export class GenealogyService {
       )`);
       // 兼容旧库：补充新增列（child_status / level / book_id）
       await this.ensureColumn(TABLE_PERSON, 'child_status', 'TEXT');
+      // 牒记「字」「号」：古谱句式需要表字与别号，旧库自动补列
+      await this.ensureColumn(TABLE_PERSON, 'courtesy_name', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'art_name', 'TEXT');
+      // 父母未录入族谱时的自定义姓名（妻子条目中即岳父/岳母）
+      await this.ensureColumn(TABLE_PERSON, 'father_name', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'mother_name', 'TEXT');
       // 协作同步所需列（方案 §七「本地 RDB」行）：
       //   rev        —— 本人物的云端修订号（0 表示尚未上云）
       //   base_rev   —— 最近一次同步到本地时的家族 rev 基线（冲突判定用）
@@ -604,6 +614,8 @@ export class GenealogyService {
         || p.alias.toLowerCase().indexOf(k) >= 0
         || p.uid.toLowerCase().indexOf(k) >= 0
         || p.generationChar.toLowerCase().indexOf(k) >= 0
+|| p.courtesyName.toLowerCase().indexOf(k) >= 0
+|| p.artName.toLowerCase().indexOf(k) >= 0
         || p.birthPlace.toLowerCase().indexOf(k) >= 0
         || p.residence.toLowerCase().indexOf(k) >= 0
         || p.occupation.toLowerCase().indexOf(k) >= 0;
@@ -2335,6 +2347,8 @@ export class GenealogyService {
       'uid': p.uid,
       'generation': p.generation,
       'name': p.name,
+      'courtesy_name': p.courtesyName,
+      'art_name': p.artName,
       'alias': p.alias,
       'gender': p.gender,
       'generation_char': p.generationChar,
@@ -2347,7 +2361,9 @@ export class GenealogyService {
       'birth_place': p.birthPlace,
       'residence': p.residence,
       'father_id': p.fatherId,
+      'father_name': p.fatherName,
       'mother_id': p.motherId,
+      'mother_name': p.motherName,
       'spouse_id': p.spouseId,
       'rank': p.rank,
       'adoption': p.adoption,
@@ -2557,6 +2573,8 @@ export class GenealogyService {
           p.uid = resultSet.getString(resultSet.getColumnIndex('uid'));
           p.generation = resultSet.getLong(resultSet.getColumnIndex('generation'));
           p.name = resultSet.getString(resultSet.getColumnIndex('name'));
+          p.courtesyName = resultSet.getString(resultSet.getColumnIndex('courtesy_name'));
+          p.artName = resultSet.getString(resultSet.getColumnIndex('art_name'));
           p.alias = resultSet.getString(resultSet.getColumnIndex('alias'));
           p.gender = resultSet.getString(resultSet.getColumnIndex('gender'));
           p.generationChar = resultSet.getString(resultSet.getColumnIndex('generation_char'));
@@ -2570,7 +2588,9 @@ export class GenealogyService {
           p.birthPlace = resultSet.getString(resultSet.getColumnIndex('birth_place'));
           p.residence = resultSet.getString(resultSet.getColumnIndex('residence'));
           p.fatherId = resultSet.getString(resultSet.getColumnIndex('father_id'));
+          p.fatherName = resultSet.getString(resultSet.getColumnIndex('father_name'));
           p.motherId = resultSet.getString(resultSet.getColumnIndex('mother_id'));
+          p.motherName = resultSet.getString(resultSet.getColumnIndex('mother_name'));
           p.spouseId = resultSet.getString(resultSet.getColumnIndex('spouse_id'));
           p.rank = resultSet.getString(resultSet.getColumnIndex('rank'));
           p.adoption = resultSet.getString(resultSet.getColumnIndex('adoption'));

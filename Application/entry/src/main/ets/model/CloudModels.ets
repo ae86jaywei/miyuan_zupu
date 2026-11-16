@@ -248,6 +248,8 @@ export function cloudMemberToPerson(doc: CloudFamilyMember): Person {
   p.fatherId = asText(src.fatherId, p.fatherId);
   p.updatedAt = asNumber(src.updatedAt, p.updatedAt);
   p.alias = asText(src.alias, '');
+  p.courtesyName = asText(src.courtesyName, '');
+  p.artName = asText(src.artName, '');
   p.gender = asText(src.gender, '男');
   p.generationChar = asText(src.generationChar, '');
   p.lifeStatus = asText(src.lifeStatus, '在世');
@@ -259,6 +261,8 @@ export function cloudMemberToPerson(doc: CloudFamilyMember): Person {
   p.birthPlace = asText(src.birthPlace, '');
   p.residence = asText(src.residence, '');
   p.motherId = asText(src.motherId, '');
+  p.fatherName = asText(src.fatherName, '');
+  p.motherName = asText(src.motherName, '');
   p.spouseId = asText(src.spouseId, '');
   p.spouses = normalizeSpouses(src.spouses);
   p.rank = asText(src.rank, '');

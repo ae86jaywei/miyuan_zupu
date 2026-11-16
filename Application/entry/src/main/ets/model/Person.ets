@@ -281,6 +281,10 @@ export class Person {
   generation: number = 1;
   /** 谱名：族谱上的正式名字 */
   name: string = '';
+  /** 字：表字，如「昭远」；古谱牒记「字昭远」 */
+  courtesyName: string = '';
+  /** 号：别号，如「朴庵」；古谱牒记「号朴庵」 */
+  artName: string = '';
   /** 曾用名/小名：多个用逗号隔开 */
   alias: string = '';
   /** 性别：男 / 女 */
@@ -305,8 +309,12 @@ export class Person {
   residence: string = '';
   /** 父亲ID（关联 person.uid） */
   fatherId: string = '';
+  /** 父亲姓名（族谱未收录父亲时填写；作为妻子的父亲即岳父） */
+  fatherName: string = '';
   /** 母亲ID（关联 person.uid） */
   motherId: string = '';
+  /** 母亲姓名（族谱未收录母亲时填写；作为妻子的母亲即岳母） */
+  motherName: string = '';
   /** 配偶ID（主配偶，兼容旧数据；始终等于 spouses[0].uid） */
   spouseId: string = '';
   /** 配偶关系（可多位，含元配/继室/妾等名分与顺序） */
@@ -370,6 +378,8 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'generation', label: '世代', hint: '如：始祖（一世）、二世、三世', group: '身份标识', type: 'number', privacy: false },
   { key: 'uid', label: '唯一ID', hint: '自动生成或按规则编号，如 F001；主键不可重复', group: '身份标识', type: 'text', privacy: false },
   { key: 'name', label: '谱名', hint: '族谱上的正式名字，如：李德明', group: '身份标识', type: 'text', privacy: false },
+  { key: 'courtesyName', label: '字', hint: '表字，如：昭远；牒记写作「字昭远」，在世者可写', group: '身份标识', type: 'text', privacy: false },
+  { key: 'artName', label: '号', hint: '别号，如：朴庵；牒记写作「号朴庵」', group: '身份标识', type: 'text', privacy: false },
   { key: 'alias', label: '曾用名/小名', hint: '如有多个用逗号隔开，如：建国, 狗剩', group: '身份标识', type: 'text', privacy: false },
   { key: 'gender', label: '性别', hint: '男 / 女', group: '身份标识', type: 'select', privacy: false },
   { key: 'generationChar', label: '辈分/字派', hint: '所属字辈，如：德', group: '身份标识', type: 'text', privacy: false },
@@ -380,7 +390,9 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'birthPlace', label: '出生地', hint: '省-市-县-乡镇-村，如：广东-梅州-兴宁-罗岗镇', group: '时间信息', type: 'text', privacy: false },
   { key: 'residence', label: '现居地', hint: '同上，精确到小区/街道', group: '时间信息', type: 'text', privacy: false },
   { key: 'fatherId', label: '父亲ID', hint: '填写父亲的【唯一ID】，如：F000', group: '亲属关系', type: 'relation', privacy: false },
+  { key: 'fatherName', label: '父名（未收录）', hint: '父亲未录入族谱时填姓名；妻子的父亲即岳父', group: '亲属关系', type: 'text', privacy: false },
   { key: 'motherId', label: '母亲ID', hint: '填写母亲的【唯一ID】，如：M050', group: '亲属关系', type: 'relation', privacy: false },
+  { key: 'motherName', label: '母名（未收录）', hint: '母亲未录入族谱时填姓名；妻子的母亲即岳母', group: '亲属关系', type: 'text', privacy: false },
   { key: 'spouses', label: '配偶关系', hint: '支持多位配偶：元配 / 继室 / 妾，按先后顺序记录', group: '亲属关系', type: 'relation', privacy: false },
   { key: 'rank', label: '排行', hint: '第几子/女，如：长子、次女、三子', group: '亲属关系', type: 'text', privacy: false },
   { key: 'adoption', label: '过继/出嗣', hint: '若有过继，填“过继自XX”或“出嗣给XX”', group: '亲属关系', type: 'text', privacy: false },
@@ -408,6 +420,8 @@ export function copyPersonInto(target: Person, src: Person): void {
   target.uid = src.uid;
   target.generation = src.generation;
   target.name = src.name;
+  target.courtesyName = src.courtesyName;
+  target.artName = src.artName;
   target.alias = src.alias;
   target.gender = src.gender;
   target.generationChar = src.generationChar;
@@ -420,7 +434,9 @@ export function copyPersonInto(target: Person, src: Person): void {
   target.birthPlace = src.birthPlace;
   target.residence = src.residence;
   target.fatherId = src.fatherId;
+  target.fatherName = src.fatherName;
   target.motherId = src.motherId;
+  target.motherName = src.motherName;
   target.spouseId = src.spouseId;
   target.spouses = src.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
   target.rank = src.rank;

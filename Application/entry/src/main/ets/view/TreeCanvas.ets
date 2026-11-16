@@ -6,6 +6,7 @@ import { EuTree } from '../components/tree/EuTree';
 import { SuTree } from '../components/tree/SuTree';
 import { PagodaTree } from '../components/tree/PagodaTree';
 import { DieRecord } from '../components/tree/DieRecord';
+import { DieJiIndex } from '../service/DieJiText';
 import { ModernTree } from '../components/tree/ModernTree';
 import { PagedTree } from '../components/tree/PagedTree';
 import { EmptyHint } from '../components/EmptyHint';
@@ -156,6 +157,8 @@ export struct TreeCanvas {
   private lastViewH: number = 0;
   private dieSource: FlatListSource<Person> = new FlatListSource<Person>();
   private diePeople: Person[] = [];
+  /** 牒记正文关系索引：随列表数据一次重建，卡片逐条复用 */
+  private dieIndex: DieJiIndex | null = null;
   private dieScroller: Scroller = new Scroller();
   /** 宗支下拉列表的数据源：只用 LazyForEach 创建可见行，宗支多时打开面板不再一次性建满 */
   private branchSource: FlatListSource<string> = new FlatListSource<string>();
@@ -351,6 +354,7 @@ export struct TreeCanvas {
       });
     });
     this.diePeople = people;
+    this.dieIndex = new DieJiIndex(people);
     this.dieSource.setData(people);
   }
 
@@ -1433,6 +1437,7 @@ export struct TreeCanvas {
             }
             DieRecord({
               person: person,
+              ctx: this.dieIndex,
               index: 0,
               showPrivate: this.showPrivate,
               highlight: person.uid === this.highlightUid,

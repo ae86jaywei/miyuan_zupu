@@ -10,6 +10,7 @@ import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
 import { T, ScriptService } from './ScriptService';
+import { DieJiIndex, DieJiText } from './DieJiText';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
 export class JsonBundle {
@@ -24,8 +25,8 @@ export class ExportService {
 
   /** Excel 表头（与《关键信息字段》字段名称一致） */
   private static readonly HEADERS: string[] = [
-    '世代', '唯一ID', '谱名', '曾用名/小名', '性别', '辈分/字派', '在世状态', '子女身份',
-    '出生日期', '逝世日期', '出生地', '现居地', '父亲ID', '母亲ID', '配偶关系', '排行', '过继/出嗣',
+    '世代', '唯一ID', '谱名', '字', '号', '曾用名/小名', '性别', '辈分/字派', '在世状态', '子女身份',
+    '出生日期', '逝世日期', '出生地', '现居地', '父亲ID', '父名（未收录）', '母亲ID', '母名（未收录）', '配偶关系', '排行', '过继/出嗣',
     '学历/学位', '职业/职务', '生平简介', '墓葬信息', '手机号', '微信号', '头像'
   ];
 
@@ -34,6 +35,8 @@ export class ExportService {
       case '世代': return p.generation.toString();
       case '唯一ID': return p.uid;
       case '谱名': return p.name;
+      case '字': return p.courtesyName;
+      case '号': return p.artName;
       case '曾用名/小名': return p.alias;
       case '性别': return p.gender;
       case '辈分/字派': return p.generationChar;
@@ -44,7 +47,9 @@ export class ExportService {
       case '出生地': return p.birthPlace;
       case '现居地': return p.residence;
       case '父亲ID': return p.fatherId;
+      case '父名（未收录）': return p.fatherName;
       case '母亲ID': return p.motherId;
+      case '母名（未收录）': return p.motherName;
       case '配偶关系': return ExportService.spousesText(p);
       case '排行': return p.rank;
       case '过继/出嗣': return p.adoption;
@@ -85,6 +90,8 @@ export class ExportService {
         '世代': p.generation,
         '唯一ID': p.uid,
         '谱名': p.name,
+        '字': p.courtesyName,
+        '号': p.artName,
         '曾用名/小名': p.alias,
         '性别': p.gender,
         '辈分/字派': p.generationChar,
@@ -95,7 +102,9 @@ export class ExportService {
         '出生地': p.birthPlace,
         '现居地': p.residence,
         '父亲ID': p.fatherId,
+        '父名（未收录）': p.fatherName,
         '母亲ID': p.motherId,
+        '母名（未收录）': p.motherName,
         '配偶ID': p.spouseId,
         '配偶关系': ExportService.spousesText(p),
         '排行': p.rank,
@@ -176,6 +185,8 @@ export class ExportService {
     for (let i: number = 0; i < people.length; i++) {
       nameMap.set(people[i].uid.trim().toUpperCase(), people[i].name);
     }
+    // 牒记正文与屏幕 / PDF 共用同一套文言生成器
+    const dieIndex: DieJiIndex = new DieJiIndex(people);
     let lastGen: number = -1;
     sorted.forEach((p: Person): void => {
       if (p.generation !== lastGen) {
@@ -184,45 +195,7 @@ export class ExportService {
         lines.push(T('### ' + generationLabel(p.generation)));
         lines.push('');
       }
-      const by: number = parseYear(p.birthDate);
-      const dy: number = parseYear(p.deathDate);
-      let text: string = '**' + p.name + '**（' + p.uid + '）';
-      if (p.gender === '女') {
-        text = text + '，女';
-      }
-      if (p.rank.length > 0) {
-        text = text + '，' + p.rank;
-      }
-      if (p.childStatus.length > 0 && p.childStatus !== '未记') {
-        text = text + '，' + childStatusLabel(p.childStatus, p.gender);
-      }
-      const spText: string = ExportService.spouseMarkdown(p, nameMap);
-      if (spText.length > 0) {
-        text = text + '，' + spText;
-      }
-      if (p.generationChar.length > 0) {
-        text = text + '，字派“' + p.generationChar + '”';
-      }
-      if (by > 0) {
-        text = text + '，' + by + '年生';
-      }
-      if (dy > 0) {
-        text = text + '，' + dy + '年卒';
-      }
-      if (p.birthPlace.length > 0) {
-        text = text + '，籍' + p.birthPlace;
-      }
-      if (p.education.length > 0) {
-        text = text + '，' + p.education;
-      }
-      if (p.occupation.length > 0) {
-        text = text + '，' + p.occupation;
-      }
-      text = text + '。';
-      if (p.biography.length > 0) {
-        text = text + p.biography;
-      }
-      lines.push(T('- ' + text));
+      lines.push(T('- ' + DieJiText.paragraph(p, dieIndex)));
     });
     lines.push('');
     lines.push(T('## 家训'));
@@ -388,6 +361,8 @@ export class ExportService {
       }
       p.uid = r['唯一ID'] ?? '';
       p.name = r['谱名'] ?? '';
+      p.courtesyName = r['字'] ?? '';
+      p.artName = r['号'] ?? '';
       p.alias = r['曾用名/小名'] ?? '';
       p.gender = ScriptService.getInstance().toSimplified(r['性别'] ?? '男');
       p.generationChar = r['辈分/字派'] ?? '';
@@ -398,7 +373,9 @@ export class ExportService {
       p.birthPlace = r['出生地'] ?? '';
       p.residence = r['现居地'] ?? '';
       p.fatherId = r['父亲ID'] ?? '';
+      p.fatherName = r['父名（未收录）'] ?? '';
       p.motherId = r['母亲ID'] ?? '';
+      p.motherName = r['母名（未收录）'] ?? '';
       p.spouseId = r['配偶ID'] ?? '';
       p.spouses = ExportService.parseSpouses(r['配偶关系'] ?? '', p.gender);
       ExportService.finalizeSpouses(p);
@@ -462,6 +439,8 @@ export class ExportService {
           case '世代': p.generation = parseInt(value, 10) || 1; break;
           case '唯一ID': p.uid = value; break;
           case '谱名': p.name = value; break;
+          case '字': p.courtesyName = value; break;
+          case '号': p.artName = value; break;
           case '曾用名/小名': p.alias = value; break;
           case '性别': p.gender = norm.length > 0 ? norm : '男'; break;
           case '辈分/字派': p.generationChar = value; break;
@@ -478,7 +457,9 @@ export class ExportService {
           case '出生地': p.birthPlace = value; break;
           case '现居地': p.residence = value; break;
           case '父亲ID': p.fatherId = value; break;
+          case '父名（未收录）': p.fatherName = value; break;
           case '母亲ID': p.motherId = value; break;
+          case '母名（未收录）': p.motherName = value; break;
           case '配偶ID': p.spouseId = value; break;
           case '配偶关系': p.spouses = ExportService.parseSpouses(value, p.gender); break;
           case '排行': p.rank = value; break;

@@ -9,11 +9,16 @@ import { Person } from '../model/Person';
 import { SyncMode, SyncResult } from '../model/FamilyDomain';
 
 const TAG: string = '[Genealogy][Bootstrap]';
-/** 单批人数必须与云端 family-bootstrap 的 MAX_BATCH（100）保持一致，否则云端返回 400 */
-const MAX_BATCH_SIZE: number = 100;
-const MAX_BATCH_CHARS: number = 220000;
+/**
+ * 单批人数：与云端 family-bootstrap 的 MAX_BATCH（500）保持一致。
+ * 网络往返是首次发布的主要耗时，批越大请求越少；云端再按 100 条分块写库。
+ */
+const MAX_BATCH_SIZE: number = 500;
+/** 单批字符上限：中文 UTF-8 约 3 字节/字，25 万字≈750KB，低于云端 900KB 校验 */
+const MAX_BATCH_CHARS: number = 250000;
 const MAX_BOOK_CHARS: number = 300000;
-const BATCH_INTERVAL_MS: number = 150;
+/** 批次间隔：批大了以后请求数约为原来的 1/5，间隔同步压缩 */
+const BATCH_INTERVAL_MS: number = 80;
 const MAX_RETRY: number = 4;
 const MAX_RATE_RETRY: number = 6;
 const FUNCTION_TIMEOUT_MS: number = 35 * 1000;

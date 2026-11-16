@@ -145,6 +145,12 @@ export struct PersonDetailPanel {
               InfoRow({ label: '世代', value: generationLabel((this.person() as Person).generation) })
               InfoRow({ label: '唯—ID', value: (this.person() as Person).uid })
               InfoRow({ label: '谱名', value: (this.person() as Person).name })
+              if ((this.person() as Person).courtesyName.length > 0) {
+                InfoRow({ label: '字', value: (this.person() as Person).courtesyName })
+              }
+              if ((this.person() as Person).artName.length > 0) {
+                InfoRow({ label: '号', value: (this.person() as Person).artName })
+              }
               if ((this.person() as Person).alias.length > 0) {
                 InfoRow({ label: '曾用名/小名', value: (this.person() as Person).alias })
               }
@@ -206,10 +212,18 @@ export struct PersonDetailPanel {
                 label: '父亲',
                 value: this.relationText((this.person() as Person).fatherId)
               })
+              if ((this.person() as Person).fatherId.length === 0
+                && (this.person() as Person).fatherName.length > 0) {
+                InfoRow({ label: '父名（未收录）', value: (this.person() as Person).fatherName })
+              }
               InfoRow({
                 label: '母亲',
                 value: this.relationText((this.person() as Person).motherId)
               })
+              if ((this.person() as Person).motherId.length === 0
+                && (this.person() as Person).motherName.length > 0) {
+                InfoRow({ label: '母名（未收录）', value: (this.person() as Person).motherName })
+              }
               if ((this.person() as Person).spouses.length > 0) {
                 InfoRow({ label: '配偶', value: this.spouseInfoText() })
               }
