@@ -136,6 +136,11 @@ function lineHOf(font: number): number {
   return Math.round(font * 1.75 * 10) / 10;
 }
 
+/** 牒记版括号：中文圆括号（ ）→ 竖排方括号 ﹇﹈（U+FE47 / U+FE48） */
+function replaceParens(text: string): string {
+  return text.split('（').join('﹇').split('）').join('﹈');
+}
+
 function spacerLine(): TextLine {
   return { text: ' ', font: 10, lineH: 16, color: C_BG, bold: false, indent: 0, center: false };
 }
@@ -1520,7 +1525,7 @@ export class PdfExportService {
       const ln: TextLine = spec.lines[i];
       if (ln.text.trim().length > 0) {
         const r: PdfTextLine = new PdfTextLine();
-        r.text = ln.text;
+        r.text = replaceParens(ln.text);
         r.xPt = ln.center ? centerX - measurePt(ctx, ln.text, ln.font) / 2
           : innerX + ln.indent;
         r.yPt = baselineOf(y, ln.font);
@@ -1565,7 +1570,7 @@ export class PdfExportService {
         continue;
       }
       // 先按整行做一次简繁转换，保留 OpenCC 的词条匹配，再拆成单字
-      const full: string = T(ln.text);
+      const full: string = replaceParens(T(ln.text));
       let idx: number = 0;
       while (idx < full.length) {
         const slice: CodeSlice = sliceCodePoints(full, idx, rows);
