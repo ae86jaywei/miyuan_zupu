@@ -137,14 +137,17 @@ function lineHOf(font: number): number {
 }
 
 /**
- * 牒记版标点：圆括号（ ）→ ﹇﹈。
- * 书名号：仿古竖排用 ﹃﹄（U+FE43/FE44），现代横排用 『』（U+300E/F）。
+ * 牒记版标点：现代横排圆括号保持（ ）、书名号《》→『』；
+ * 仿古竖排圆括号（ ）→﹇﹈、书名号《》→﹃﹄。
  */
 function replaceParens(text: string, classic: boolean = false): string {
-  const t: string = text.split('（').join('﹇').split('）').join('﹈');
-  return classic
-    ? t.split('《').join('﹃').split('》').join('﹄')
-    : t.split('《').join('『').split('》').join('』');
+  // 现代横排：圆括号保持（ ），书名号《》→『』
+  if (!classic) {
+    return text.split('《').join('『').split('》').join('』');
+  }
+  // 仿古竖排：圆括号（ ）→﹇﹈，书名号《》→﹃﹄
+  return text.split('（').join('﹇').split('）').join('﹈')
+    .split('《').join('﹃').split('》').join('﹄');
 }
 
 function spacerLine(): TextLine {
