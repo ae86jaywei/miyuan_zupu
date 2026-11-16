@@ -521,9 +521,9 @@ export class RawPdfWriter {
     }
     let out: string = '';
     let i: number = 0;
-    while (i < s.length) {
+    while (i < text.length) {
       // 按 Unicode 码点遍历：CJK Ext-B 等非 BMP 字符是代理对，不能拆成两个码元查表
-      const code: number = s.codePointAt(i) ?? 0;
+      const code: number = text.codePointAt(i) ?? 0;
       const gid: number = this.font.gidOf(code);
       if (gid > 0) {
         this.usedGids.set(gid, code);
