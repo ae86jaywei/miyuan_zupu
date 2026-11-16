@@ -752,8 +752,8 @@ const COLUMNS: number = 3;
 const COLUMN_GAP: number = 14;
 
 /**
- * 现代版三栏分页：每页三栏，每栏独立排满版心高后换下一栏，三栏满再换页。
- * 条目仍按家庭单元整体换栏，夫妻不会被拆开。
+ * 现代版三栏分页：每人独占栏，一栏写不完续到下一栏；只有空栏才写下一人。
+ * 上一位族人没用完的栏也不与他人共用，避免把两个人的内容挤在同一栏。
  */
 async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
   contentW: number, contentH: number): Promise<PaginateResult> {
@@ -763,62 +763,48 @@ async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
   let cur: TextLine[] = [];
   let used: number = 0;
   let column: number = 0;
-  const keepHead: number = 36;
-  const blockHeight = (lines: TextLine[]): number => {
-    let h: number = 0;
-    for (let j: number = 0; j < lines.length; j++) {
-      h += lines[j].lineH;
-    }
-    return h;
-  };
-  let i: number = 0;
-  let processed: number = 0;
-  let nextYield: number = 200;
-  while (i < entries.length) {
-    const unitId: string = entries[i].unitId;
-    let groupEnd: number = i + 1;
-    let groupH: number = blockHeight(entries[i].lines);
-    if (unitId.length > 0) {
-      while (groupEnd < entries.length && entries[groupEnd].unitId === unitId) {
-        groupH += blockHeight(entries[groupEnd].lines);
-        groupEnd++;
-      }
-    } else if (entries[i].uid.length === 0 && groupEnd < entries.length
-      && entries[groupEnd].unitId.length > 0) {
-      const nextUnit: string = entries[groupEnd].unitId;
-      while (groupEnd < entries.length && entries[groupEnd].unitId === nextUnit) {
-        groupH += blockHeight(entries[groupEnd].lines);
-        groupEnd++;
-      }
-    }
-    const need: number = (used === 0 ? keepHead : 8) + groupH;
-    if (used + need > contentH && cur.length > 0) {
+  let curHasPerson: boolean = false;
+  const flush = (): void => {
+    if (cur.length > 0) {
       pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
       cur = [];
       used = 0;
       column = (column + 1) % COLUMNS;
+      curHasPerson = false;
     }
-    for (let k: number = i; k < groupEnd; k++) {
-      if (entries[k].uid.length > 0) {
-        uidPage.set(entries[k].uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
+  };
+  let processed: number = 0;
+  let nextYield: number = 200;
+  for (let i: number = 0; i < entries.length; i = i + 1) {
+    const e: EntryBlock = entries[i];
+    if (curHasPerson) {
+      flush();
+    }
+    if (e.uid.length > 0) {
+      uidPage.set(e.uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
+    }
+    for (let j: number = 0; j < e.lines.length; j = j + 1) {
+      const ln: TextLine = e.lines[j];
+      if (used + ln.lineH > contentH && cur.length > 0) {
+        flush();
       }
-      pushAll(cur, entries[k].lines);
-      used += blockHeight(entries[k].lines);
+      cur.push(ln);
+      used = used + ln.lineH;
     }
-    processed += groupEnd - i;
-    i = groupEnd;
+    if (e.uid.length > 0) {
+      curHasPerson = true;
+    }
+    processed = processed + 1;
     if (processed >= nextYield) {
-      nextYield += 200;
+      nextYield = nextYield + 200;
       await yieldToUi();
     }
   }
-  if (cur.length > 0) {
-    pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
-  }
+  flush();
   return { pages: pages, uidPage: uidPage };
 }
 
-/** 仿古版三栏分页：每栏从右往左排满后换下一栏，三栏满再换页 */
+/** 仿古版三栏分页：每人独占栏，一栏写不完按列续到下一栏 */
 async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset: number,
   contentW: number, contentH: number): Promise<PaginateResult> {
   const columnW: number = (contentW - COLUMN_GAP * (COLUMNS - 1)) / COLUMNS;
@@ -827,38 +813,37 @@ async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset:
   let cur: TextLine[] = [];
   let usedW: number = 0;
   let column: number = 0;
+  let curHasPerson: boolean = false;
+  const flush = (): void => {
+    if (cur.length > 0) {
+      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+      cur = [];
+      usedW = 0;
+      column = (column + 1) % COLUMNS;
+      curHasPerson = false;
+    }
+  };
   let processed: number = 0;
   let nextYield: number = 200;
   for (let i: number = 0; i < entries.length; i = i + 1) {
     const e: EntryBlock = entries[i];
+    if (curHasPerson) {
+      flush();
+    }
     if (e.uid.length > 0) {
-      let firstNeed: number = 0;
-      for (let f: number = 0; f < e.lines.length; f = f + 1) {
-        if (e.lines[f].text.trim().length > 0) {
-          firstNeed = classicCols(e.lines[f].text, contentH, e.lines[f].font) *
-            classicColW(e.lines[f].font);
-          break;
-        }
-      }
-      if (usedW + firstNeed > columnW && cur.length > 0) {
-        pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
-        cur = [];
-        usedW = 0;
-        column = (column + 1) % COLUMNS;
-      }
       uidPage.set(e.uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
     }
     for (let j: number = 0; j < e.lines.length; j = j + 1) {
       const ln: TextLine = e.lines[j];
       const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
       if (usedW + needW > columnW && cur.length > 0) {
-        pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
-        cur = [];
-        usedW = 0;
-        column = (column + 1) % COLUMNS;
+        flush();
       }
       cur.push(ln);
       usedW = usedW + needW;
+    }
+    if (e.uid.length > 0) {
+      curHasPerson = true;
     }
     processed = processed + 1;
     if (processed >= nextYield) {
@@ -866,9 +851,7 @@ async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset:
       await yieldToUi();
     }
   }
-  if (cur.length > 0) {
-    pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
-  }
+  flush();
   return { pages: pages, uidPage: uidPage };
 }
 
