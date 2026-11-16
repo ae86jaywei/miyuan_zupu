@@ -1,5 +1,5 @@
-import { T } from './ScriptService';
 import { pdfService } from '@kit.PDFKit';
+import { T } from './ScriptService';
 import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
@@ -104,6 +104,8 @@ export interface PdfExportOptions {
   style?: string;
   /** 跨卷位置索引：uid →「第2卷358页」，分卷导出时由 prepareCrossRefs 预先算好 */
   crossRef?: Map<string, string>;
+  /** 牒记版式：true=仿古竖排（右起左行、从上到下），缺省=现代横排 */
+  classicLayout?: boolean;
 }
 
 /** 分卷单元 */
@@ -825,6 +827,149 @@ function paginateLines(ctx: OffscreenCanvasRenderingContext2D,
   return pages;
 }
 
+// ─── 仿古竖排（右起左行、从上到下） ───────────────────────
+
+/** 竖排字号上限：标题不压过正文，避免单字占满一列 */
+const CLASSIC_MAX_FONT: number = 16;
+/** 竖排列间距（pt） */
+const CLASSIC_COL_GAP: number = 6;
+
+function classicFont(font: number): number {
+  return Math.min(font, CLASSIC_MAX_FONT);
+}
+
+/** 同一列内相邻字的步长 */
+function classicStep(font: number): number {
+  return Math.round(classicFont(font) * 1.18 * 10) / 10;
+}
+
+/** 一列占用的版心宽度 */
+function classicColW(font: number): number {
+  return classicStep(font) + CLASSIC_COL_GAP;
+}
+
+/** 一列可容纳的字数 */
+function classicRows(contentH: number, font: number): number {
+  return Math.max(1, Math.floor((contentH - 6) / classicStep(font)));
+}
+
+/** 文本按码点计数（Ext-B 代理对算 1 字） */
+function codePointCount(text: string): number {
+  let count: number = 0;
+  let i: number = 0;
+  while (i < text.length) {
+    const cp: number = text.codePointAt(i) ?? 0;
+    i = i + (cp > 0xffff ? 2 : 1);
+    count = count + 1;
+  }
+  return count;
+}
+
+class CodeSlice {
+  text: string = '';
+  next: number = 0;
+}
+
+/** 从 start 开始按码点截取最多 maxCount 个字符 */
+function sliceCodePoints(text: string, start: number, maxCount: number): CodeSlice {
+  let idx: number = start;
+  let count: number = 0;
+  while (idx < text.length && count < maxCount) {
+    const cp: number = text.codePointAt(idx) ?? 0;
+    idx = idx + (cp > 0xffff ? 2 : 1);
+    count = count + 1;
+  }
+  const r: CodeSlice = new CodeSlice();
+  r.text = text.substring(start, idx);
+  r.next = idx;
+  return r;
+}
+
+/** 一行文本占用的列数 */
+function classicCols(text: string, contentH: number, font: number): number {
+  if (text.trim().length === 0) {
+    return 1;
+  }
+  return Math.max(1, Math.ceil(codePointCount(text) / classicRows(contentH, font)));
+}
+
+/** 仿古分页：按列宽累加，超出版心宽换页 */
+function paginateLinesVertical(lines: TextLine[], chapter: string,
+  contentW: number, contentH: number): PageSpec[] {
+  if (lines.length === 0) {
+    return [];
+  }
+  const pages: PageSpec[] = [];
+  let cur: TextLine[] = [];
+  let usedW: number = 0;
+  for (let i: number = 0; i < lines.length; i = i + 1) {
+    const ln: TextLine = lines[i];
+    const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
+    if (usedW + needW > contentW && cur.length > 0) {
+      pages.push({ lines: cur, chapter: chapter });
+      cur = [];
+      usedW = 0;
+    }
+    cur.push(ln);
+    usedW = usedW + needW;
+  }
+  if (cur.length > 0) {
+    pages.push({ lines: cur, chapter: chapter });
+  }
+  return pages;
+}
+
+/** 仿古分页（按条目，记录每人起始页） */
+async function paginateEntriesVertical(entries: EntryBlock[], pageOffset: number,
+  contentW: number, contentH: number): Promise<PaginateResult> {
+  const pages: PageSpec[] = [];
+  const uidPage: Map<string, number> = new Map<string, number>();
+  let cur: TextLine[] = [];
+  let usedW: number = 0;
+  let processed: number = 0;
+  let nextYield: number = 200;
+  for (let i: number = 0; i < entries.length; i = i + 1) {
+    const e: EntryBlock = entries[i];
+    if (e.uid.length > 0) {
+      // 先判断条目首行是否会把当前页挤爆，避免把起始页码记到上一页
+      let firstNeed: number = 0;
+      for (let f: number = 0; f < e.lines.length; f = f + 1) {
+        if (e.lines[f].text.trim().length > 0) {
+          firstNeed = classicCols(e.lines[f].text, contentH, e.lines[f].font) *
+            classicColW(e.lines[f].font);
+          break;
+        }
+      }
+      if (usedW + firstNeed > contentW && cur.length > 0) {
+        pages.push({ lines: cur, chapter: '世 系' });
+        cur = [];
+        usedW = 0;
+      }
+      uidPage.set(e.uid, pageOffset + pages.length + 1);
+    }
+    for (let j: number = 0; j < e.lines.length; j = j + 1) {
+      const ln: TextLine = e.lines[j];
+      const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
+      if (usedW + needW > contentW && cur.length > 0) {
+        pages.push({ lines: cur, chapter: '世 系' });
+        cur = [];
+        usedW = 0;
+      }
+      cur.push(ln);
+      usedW = usedW + needW;
+    }
+    processed = processed + 1;
+    if (processed >= nextYield) {
+      nextYield = nextYield + 200;
+      await yieldToUi();
+    }
+  }
+  if (cur.length > 0) {
+    pages.push({ lines: cur, chapter: '世 系' });
+  }
+  return { pages: pages, uidPage: uidPage };
+}
+
 /** #RRGGBB → PDF 颜色数值 */
 function hexToNum(hex: string): number {
   return parseInt(hex.replace('#', ''), 16);
@@ -1178,7 +1323,8 @@ export class PdfExportService {
     people: Person[],
     book: Genealogy,
     jobs: PdfVolume[],
-    includeCover: boolean
+    includeCover: boolean,
+    classicLayout: boolean = false
   ): Promise<Map<string, string>> {
     const out: Map<string, string> = new Map<string, string>();
     if (jobs.length === 0) {
@@ -1194,12 +1340,15 @@ export class PdfExportService {
       const vol: PdfVolume = jobs[i];
       const coverPages: PageSpec[] = includeCover
         ? paginateLines(ctx, buildCover(book, vol.people.length, vol.title), '封 面', 0, contentH) : [];
-      const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36,
-        contentH);
+      const prefacePages: PageSpec[] = classicLayout
+        ? paginateLinesVertical(buildPreface(ctx, book, contentW), '谱 序', contentW, contentH)
+        : paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36, contentH);
       const offset: number = coverPages.length + prefacePages.length;
       const entries: EntryBlock[] =
         await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW);
-      const pg: PaginateResult = await paginateEntries(entries, offset, contentH);
+      const pg: PaginateResult = classicLayout
+        ? await paginateEntriesVertical(entries, offset, contentW, contentH)
+        : await paginateEntries(entries, offset, contentH);
       const multi: boolean = jobs.length > 1;
       pg.uidPage.forEach((pageNo: number, uid: string): void => {
         out.set(uid, multi
@@ -1234,19 +1383,24 @@ export class PdfExportService {
     const printSpec: PrintPageSpec = dieSpec();
     const contentW: number = dieContentW(printSpec);
     const contentH: number = dieContentH(printSpec);
+    // 牒记版式：仿古竖排时按列分页、逐字右起左行；封面仍横排
+    const classic: boolean = options.classicLayout === true;
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = kinshipFor(kinPeople);
     const coverPages: PageSpec[] = options.includeCover
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0,
         contentH) : [];
-    const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36,
-      contentH);
+    const prefacePages: PageSpec[] = classic
+      ? paginateLinesVertical(buildPreface(ctx, book, contentW), '谱 序', contentW, contentH)
+      : paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36, contentH);
     const offset: number = coverPages.length + prefacePages.length;
 
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW);
-    const firstPass: PaginateResult = await paginateEntries(entries1, offset, contentH);
+    const firstPass: PaginateResult = classic
+      ? await paginateEntriesVertical(entries1, offset, contentW, contentH)
+      : await paginateEntries(entries1, offset, contentH);
     const uidPageMap: Map<string, number> = firstPass.uidPage;
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     const heights: Map<string, number> = new Map<string, number>();
@@ -1257,19 +1411,25 @@ export class PdfExportService {
     firstPass.pages = [];
     let entries2: EntryBlock[] =
       await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW);
-    for (let i: number = 0; i < entries2.length; i = i + 1) {
-      const e: EntryBlock = entries2[i];
-      const want: number | undefined = heights.get(e.uid);
-      if (want !== undefined) {
-        while (e.lines.length < want) {
-          e.lines.push(padLine());
+    if (!classic) {
+      // 横排版靠补空行稳住两遍分页；竖排按字符数分页，补空行反而会多占列
+      for (let i: number = 0; i < entries2.length; i = i + 1) {
+        const e: EntryBlock = entries2[i];
+        const want: number | undefined = heights.get(e.uid);
+        if (want !== undefined) {
+          while (e.lines.length < want) {
+            e.lines.push(padLine());
+          }
         }
       }
     }
-    let genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset, contentH)).pages;
+    let genealogyPages: PageSpec[] = classic
+      ? (await paginateEntriesVertical(entries2, offset, contentW, contentH)).pages
+      : (await paginateEntries(entries2, offset, contentH)).pages;
     gCrossRef = null;
-    const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book, contentW), '家 训', 36,
-      contentH);
+    const backPages: PageSpec[] = classic
+      ? paginateLinesVertical(buildBack(ctx, book, contentW), '家 训', contentW, contentH)
+      : paginateLines(ctx, buildBack(ctx, book, contentW), '家 训', 36, contentH);
     const all: PageSpec[] = [];
     pushAllPages(all, coverPages);
     pushAllPages(all, prefacePages);
@@ -1304,8 +1464,10 @@ export class PdfExportService {
     for (let i: number = 0; i < total; i = i + 1) {
       // 双面印刷按「卷内页序」交替装订侧：每卷单独装订，不按整谱页码判断
       const recto: boolean = ((i + 1) % 2) === 1;
-      const lines: PdfTextLine[] = PdfExportService.buildRawTextLines(ctx, printSpec, all[i],
-        i + 1, total, i < coverPages.length, recto);
+      const isCoverPage: boolean = i < coverPages.length;
+      const lines: PdfTextLine[] = (classic && !isCoverPage)
+        ? PdfExportService.buildVerticalTextLines(ctx, printSpec, all[i], i + 1, total, recto)
+        : PdfExportService.buildRawTextLines(ctx, printSpec, all[i], i + 1, total, isCoverPage, recto);
       writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length),
         PrintPageSpec.mmToPt(printSpec.gutterX(recto)), gutterW);
       if (onProgress && (i % 5 === 0 || i === total - 1)) {
@@ -1375,6 +1537,63 @@ export class PdfExportService {
       r.color = C_INK2;
       out.push(r);
     }
+    return out;
+  }
+
+  /** 仿古竖排：逐字定位，列从右往左、字从上往下；封面仍走横排 */
+  private static buildVerticalTextLines(ctx: OffscreenCanvasRenderingContext2D,
+    printSpec: PrintPageSpec, spec: PageSpec, pageNo: number, total: number,
+    recto: boolean): PdfTextLine[] {
+    const out: PdfTextLine[] = [];
+    const contentW: number = dieContentW(printSpec);
+    const contentH: number = dieContentH(printSpec);
+    const innerX: number = dieInnerX(printSpec, recto);
+    const innerY: number = PrintPageSpec.mmToPt(printSpec.innerY());
+    let cursorRight: number = innerX + contentW;
+    for (let i: number = 0; i < spec.lines.length; i = i + 1) {
+      const ln: TextLine = spec.lines[i];
+      const font: number = classicFont(ln.font);
+      const step: number = classicStep(ln.font);
+      const colW: number = classicColW(ln.font);
+      const rows: number = classicRows(contentH, ln.font);
+      if (ln.text.trim().length === 0) {
+        cursorRight = cursorRight - colW;
+        continue;
+      }
+      // 先按整行做一次简繁转换，保留 OpenCC 的词条匹配，再拆成单字
+      const full: string = T(ln.text);
+      let idx: number = 0;
+      while (idx < full.length) {
+        const slice: CodeSlice = sliceCodePoints(full, idx, rows);
+        const colX: number = cursorRight - font;
+        let k: number = 0;
+        let ci: number = 0;
+        while (ci < slice.text.length) {
+          const cp: number = slice.text.codePointAt(ci) ?? 0;
+          const r: PdfTextLine = new PdfTextLine();
+          r.text = String.fromCodePoint(cp);
+          r.xPt = colX;
+          r.yPt = baselineOf(innerY + k * step, font);
+          r.sizePt = font;
+          r.color = ln.color;
+          out.push(r);
+          ci = ci + (cp > 0xffff ? 2 : 1);
+          k = k + 1;
+        }
+        idx = slice.next;
+        cursorRight = cursorRight - colW;
+      }
+    }
+    // 页码仍横排居中（古籍页码在版心外，这里保留现代可读性）
+    const centerX: number = innerX + contentW / 2;
+    const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
+    const f: PdfTextLine = new PdfTextLine();
+    f.text = footer;
+    f.xPt = centerX - measurePt(ctx, footer, 9.5) / 2;
+    f.yPt = PrintPageSpec.mmToPt(printSpec.foot) / 2;
+    f.sizePt = 9.5;
+    f.color = C_INK2;
+    out.push(f);
     return out;
   }
 

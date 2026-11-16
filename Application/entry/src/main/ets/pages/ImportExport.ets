@@ -68,6 +68,8 @@ struct ImportExport {
   @State includePrivate: boolean = true;
   /** PDF 谱式：die=牒记式（文字流），eu=欧式分页，su=苏式分页 */
   @State pdfStyle: string = 'die';
+  /** 牒记版式：modern=现代横排，classic=仿古竖排（右起左行） */
+  @State pdfLayout: string = 'modern';
   /** 装订方式：true=双面（按所选装订边镜像），false=单面（每页统一装订边） */
   @StorageLink('printDuplex') printDuplex: boolean = true;
   /** 装订方向：left=左侧装订，right=右侧装订（传统右翻） */
@@ -289,7 +291,8 @@ struct ImportExport {
       let crossRef: Map<string, string> | null = null;
       if (jobs.length <= 30) {
         this.setProgress('正在计算各卷页码…', 3);
-        crossRef = await PdfExportService.prepareCrossRefs(people, book, jobs, true);
+        crossRef = await PdfExportService.prepareCrossRefs(people, book, jobs, true,
+          this.pdfLayout === 'classic');
       }
       for (let i: number = 0; i < jobs.length; i++) {
         const vol: PdfVolume = jobs[i];
@@ -301,6 +304,7 @@ struct ImportExport {
             volumeTitle: vol.title,
             kinSource: people,
             style: 'die',
+            classicLayout: this.pdfLayout === 'classic',
             crossRef: crossRef === null ? undefined : crossRef
           },
           (p: PdfExportProgress): void => {
@@ -531,6 +535,31 @@ struct ImportExport {
     .padding({ top: 10, bottom: 10 })
     .onClick((): void => {
       action();
+    })
+  }
+
+  /** 牒记版式选择按钮：现代版 / 仿古版 */
+  @Builder
+  LayoutChip(label: string, value: string, hint: string) {
+    Column() {
+      Text(T(label)).fontFamily(uiFontFamily())
+        .fontSize(12.5)
+        .fontColor(this.pdfLayout === value ? '#FFFFFF' : Theme.ink)
+        .fontWeight(FontWeight.Medium)
+      Text(T(hint)).fontFamily(uiFontFamily())
+        .fontSize(9)
+        .fontColor(this.pdfLayout === value ? '#FFF4DE' : Theme.inkTertiary)
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .layoutWeight(1)
+    .padding({ top: 8, bottom: 8, left: 4, right: 4 })
+    .margin({ right: 6 })
+    .backgroundColor(this.pdfLayout === value ? Theme.primary : Theme.field)
+    .borderRadius(8)
+    .border({ width: 0.5, color: this.pdfLayout === value ? Theme.primary : Theme.line })
+    .onClick((): void => {
+      this.pdfLayout = value;
     })
   }
 
@@ -784,6 +813,20 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
+              if (this.pdfStyle === 'die') {
+                Text(T('牒记版式')).fontFamily(uiFontFamily())
+                  .fontSize(13)
+                  .fontColor(Theme.ink)
+                  .fontWeight(FontWeight.Medium)
+                  .width('100%')
+                  .margin({ top: 12 })
+                Row() {
+                  this.LayoutChip('现代版', 'modern', '横排，现代阅读习惯')
+                  this.LayoutChip('仿古版', 'classic', '竖排，右起左行')
+                }
+                .width('100%')
+                .margin({ top: 8 })
+              }
               Text(T('装订边')).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .fontColor(Theme.ink)
