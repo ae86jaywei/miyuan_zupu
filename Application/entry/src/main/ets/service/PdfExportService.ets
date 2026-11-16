@@ -136,10 +136,15 @@ function lineHOf(font: number): number {
   return Math.round(font * 1.75 * 10) / 10;
 }
 
-/** 牒记版标点：圆括号（ ）→ ﹇﹈；书名号《》→ ﹃﹄ */
-function replaceParens(text: string): string {
-  return text.split('（').join('﹇').split('）').join('﹈')
-    .split('《').join('﹃').split('》').join('﹄');
+/**
+ * 牒记版标点：圆括号（ ）→ ﹇﹈。
+ * 书名号：仿古竖排用 ﹃﹄（U+FE43/FE44），现代横排用 『』（U+300E/F）。
+ */
+function replaceParens(text: string, classic: boolean = false): string {
+  const t: string = text.split('（').join('﹇').split('）').join('﹈');
+  return classic
+    ? t.split('《').join('﹃').split('》').join('﹄')
+    : t.split('《').join('『').split('》').join('』');
 }
 
 function spacerLine(): TextLine {
@@ -1661,7 +1666,7 @@ export class PdfExportService {
       const ln: TextLine = spec.lines[i];
       if (ln.text.trim().length > 0) {
         const r: PdfTextLine = new PdfTextLine();
-        r.text = replaceParens(ln.text);
+        r.text = replaceParens(ln.text, false);
         r.xPt = ln.center ? centerX - measurePt(ctx, ln.text, ln.font) / 2
           : x0 + ln.indent;
         r.yPt = baselineOf(y, ln.font);
@@ -1717,7 +1722,7 @@ export class PdfExportService {
         continue;
       }
       // 先按整行做一次简繁转换，保留 OpenCC 的词条匹配，再拆成单字
-      const full: string = replaceParens(T(ln.text));
+      const full: string = replaceParens(T(ln.text), true);
       let idx: number = 0;
       while (idx < full.length) {
         const slice: CodeSlice = sliceCodePoints(full, idx, rows);
