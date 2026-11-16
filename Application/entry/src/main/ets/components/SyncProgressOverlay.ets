@@ -1,4 +1,4 @@
-import { uiFontFamily } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme } from '../theme/Theme';
 
 /**

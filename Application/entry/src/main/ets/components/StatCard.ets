@@ -1,4 +1,4 @@
-import { uiFontFamily } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Radius, Spacing } from '../theme/Theme';
 
 /** 统计数字卡 */

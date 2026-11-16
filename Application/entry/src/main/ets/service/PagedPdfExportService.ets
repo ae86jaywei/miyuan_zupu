@@ -1,4 +1,4 @@
-﻿import { T } from './ScriptService';
+import { T } from './ScriptService';
 import { pdfService } from '@kit.PDFKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';

@@ -1,3 +1,4 @@
+import { T } from '../service/ScriptService';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { loginComponentManager, LoginPanel } from '@kit.AccountKit';
