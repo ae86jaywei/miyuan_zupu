@@ -136,10 +136,10 @@ function lineHOf(font: number): number {
   return Math.round(font * 1.75 * 10) / 10;
 }
 
-/** 牒记版标点：圆括号（ ）→ ﹇﹈；书名号《》→ 『』 */
+/** 牒记版标点：圆括号（ ）→ ﹇﹈；书名号《》→ ﹃﹄ */
 function replaceParens(text: string): string {
   return text.split('（').join('﹇').split('）').join('﹈')
-    .split('《').join('『').split('》').join('』');
+    .split('《').join('﹃').split('》').join('﹄');
 }
 
 function spacerLine(): TextLine {
@@ -810,7 +810,8 @@ async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
 /** 仿古版三栏分页：每人独占栏，一栏写不完按列续到下一栏 */
 async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset: number,
   contentW: number, contentH: number): Promise<PaginateResult> {
-  const columnW: number = (contentW - COLUMN_GAP * (COLUMNS - 1)) / COLUMNS;
+  // 仿古版同样是上中下三段横条，但段内文字竖排
+  const segmentH: number = (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS;
   const pages: PageSpec[] = [];
   const uidPage: Map<string, number> = new Map<string, number>();
   let cur: TextLine[] = [];
@@ -819,7 +820,7 @@ async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset:
   let curHasPerson: boolean = false;
   const flush = (): void => {
     if (cur.length > 0) {
-      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: contentW });
       cur = [];
       usedW = 0;
       column = (column + 1) % COLUMNS;
@@ -838,8 +839,8 @@ async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset:
     }
     for (let j: number = 0; j < e.lines.length; j = j + 1) {
       const ln: TextLine = e.lines[j];
-      const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
-      if (usedW + needW > columnW && cur.length > 0) {
+      const needW: number = classicCols(ln.text, segmentH, ln.font) * classicColW(ln.font);
+      if (usedW + needW > contentW && cur.length > 0) {
         flush();
       }
       cur.push(ln);
@@ -1696,16 +1697,18 @@ export class PdfExportService {
     const innerY: number = PrintPageSpec.mmToPt(printSpec.innerY());
     const pageNo: number = spec.pageNo ?? 1;
     const col: number = spec.column ?? 0;
-    const baseW: number = (spec.columnW !== undefined && spec.columnW > 0)
-      ? spec.columnW : contentW;
-    // 三栏从右往左：column 0 在最右，column 2 在最左
-    let cursorRight: number = innerX + contentW - col * (baseW + COLUMN_GAP);
+    // 正文三段（上中下），段内竖排；封面/谱序/家训/凡例整页竖排
+    const segmented: boolean = spec.columnW !== undefined && spec.columnW > 0;
+    const segmentH: number = segmented
+      ? (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS : contentH;
+    const y0: number = innerY + (segmented ? col * (segmentH + SEGMENT_GAP) : 0);
+    let cursorRight: number = innerX + contentW;
     for (let i: number = 0; i < spec.lines.length; i = i + 1) {
       const ln: TextLine = spec.lines[i];
       const font: number = classicFont(ln.font);
       const step: number = classicStep(ln.font);
       const colW: number = classicColW(ln.font);
-      const rows: number = classicRows(contentH, ln.font);
+      const rows: number = classicRows(segmentH, ln.font);
       if (ln.text.trim().length === 0) {
         // 封面的 spacer 不占列，避免标题被空白列推到版心左侧
         if (!isCover) {
@@ -1726,7 +1729,7 @@ export class PdfExportService {
           const r: PdfTextLine = new PdfTextLine();
           r.text = String.fromCodePoint(cp);
           r.xPt = colX;
-          r.yPt = baselineOf(innerY + k * step, font);
+          r.yPt = baselineOf(y0 + k * step, font);
           r.sizePt = font;
           r.color = ln.color;
           r.bold = ln.bold;
