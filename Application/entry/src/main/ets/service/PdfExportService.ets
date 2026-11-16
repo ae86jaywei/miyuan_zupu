@@ -10,7 +10,7 @@ import { generationLabel } from '../model/Enums';
 import { displayDate } from '../util/DateUtil';
 import { GenealogyService } from './GenealogyService';
 import { TreeLayoutCache } from './TreeLayoutCache';
-import { RawPdfWriter, PdfTextLine } from './RawPdfWriter';
+import { RawPdfWriter, PdfTextLine, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 
@@ -1242,11 +1242,14 @@ export class PdfExportService {
     const rawFont: RawPdfFont | null = PdfFontUtil.rawFont();
     console.info('[PdfExport] raw text pdf font=' +
       (rawFont === null ? 'fallback:STSong-Light' : fontPath) + ', pages=' + total.toString());
-    const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W, PAGE_H, 0, 0, rawFont);
+    const info: PdfInfo = new PdfInfo(book.title +
+      (options.volumeTitle !== undefined && options.volumeTitle.length > 0
+        ? ' ' + options.volumeTitle : ''));
+    const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W, PAGE_H, 0, 0, rawFont, info);
     for (let i: number = 0; i < total; i = i + 1) {
       const lines: PdfTextLine[] = PdfExportService.buildRawTextLines(ctx, all[i], i + 1, total,
         i < coverPages.length);
-      writer.addTextLinePage(lines);
+      writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length));
       if (onProgress && (i % 5 === 0 || i === total - 1)) {
         onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
       }
@@ -1254,6 +1257,20 @@ export class PdfExportService {
     }
     writer.finish();
     return outPath;
+  }
+
+  /** 书签标题：封面用章节名，正文用「章节 · 页内首行」 */
+  private static rawBookmark(spec: PageSpec, index: number, coverPages: number): string {
+    if (index < coverPages) {
+      return '封面';
+    }
+    for (let i: number = 0; i < spec.lines.length; i = i + 1) {
+      const t: string = spec.lines[i].text.trim();
+      if (t.length > 0) {
+        return spec.chapter + ' · ' + t.substring(0, 24);
+      }
+    }
+    return spec.chapter;
   }
 
   /** 把 PageSpec 的文本行转换为 RawPdfWriter 的绝对坐标（pt） */

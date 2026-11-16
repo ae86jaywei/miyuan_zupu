@@ -8,10 +8,11 @@ import { RawPdfFont } from './RawPdfFont';
  *  - 每页只放 1 张整页 JPEG，直接以 `/Filter /DCTDecode` 原样嵌入，**不解码 PixelMap**；
  *  - 逐页 append 写文件，写完后当前页字节即可释放；
  *  - 只维护 xref 偏移表（每页 3 个对象），内存与页数基本无关；
- *  - 文字已经画进 300dpi 栅格图，PDF 文字层只保留 ASCII 页码（可选）。
+ *  - 文字已经画进 300dpi 栅格图，PDF 文字层以不可见文本保留检索能力；
+ *  - 可选嵌入子集字体（F3）、写 /Info 元信息与 /Outlines 书签。
  *
- * 说明：这里只生成 PDF 1.4 的最小结构（Catalog / Pages / Page / Image XObject / Content），
- * 不依赖 PDFKit，也不做字体嵌入；中文文字在栅格图内，打印清晰，但暂不支持文本搜索。
+ * 说明：这里只生成 PDF 1.4 的最小结构（Catalog / Pages / Page / Image XObject / Content /
+ * Font / Outlines / Info），不依赖 PDFKit。
  */
 const OBJ_CATALOG: number = 1;
 const OBJ_PAGES: number = 2;
@@ -36,6 +37,49 @@ export class PdfTextLine {
   color: string = '#2B2B2B';
 }
 
+/** PDF 文档元信息（/Info），字符串统一按 UTF-16BE 写入 */
+export class PdfInfo {
+  title: string = '';
+  author: string = '';
+  subject: string = '';
+  creator: string = '觅源族谱';
+  producer: string = 'Miyuan RawPdfWriter';
+
+  constructor(title: string) {
+    this.title = title;
+  }
+}
+
+/** 书签项：标题 + 目标页对象 ID */
+class PdfBookmark {
+  title: string = '';
+  pageId: number = 0;
+
+  constructor(title: string, pageId: number) {
+    this.title = title;
+    this.pageId = pageId;
+  }
+}
+
+/** 子集字体名前缀（PDF 规范要求子集字体带 6 个大写字母 + 加号） */
+const SUBSET_TAG: string = 'ABCDEF+';
+const BASE_FONT: string = SUBSET_TAG + 'HarmonyOS-Sans';
+
+function pad2(n: number): string {
+  return n < 10 ? '0' + n.toString() : n.toString();
+}
+
+/** 当前时间的 PDF 日期字符串：D:YYYYMMDDHHmmSS+08'00' */
+function pdfDate(): string {
+  const d: Date = new Date();
+  const offMin: number = -d.getTimezoneOffset();
+  const sign: string = offMin >= 0 ? '+' : '-';
+  const abs: number = Math.abs(offMin);
+  return 'D:' + d.getFullYear().toString() + pad2(d.getMonth() + 1) + pad2(d.getDate()) +
+    pad2(d.getHours()) + pad2(d.getMinutes()) + pad2(d.getSeconds()) +
+    sign + pad2(Math.floor(abs / 60)) + "'" + pad2(abs % 60) + "'";
+}
+
 export class RawPdfWriter {
   /** 新版本 fileIo.openSync 返回 File 对象（不再返回 fd） */
   private fd: fileIo.File | null = null;
@@ -53,14 +97,19 @@ export class RawPdfWriter {
   private usedGids: Map<number, number> = new Map<number, number>();
   /** 嵌入字体；为 null 时退回 STSong-Light（不嵌入） */
   private font: RawPdfFont | null = null;
+  /** 文档元信息；为 null 时不写 /Info */
+  private info: PdfInfo | null = null;
+  /** 页级书签；为空时不写 /Outlines */
+  private bookmarks: PdfBookmark[] = [];
 
   constructor(path: string, pageW: number, pageH: number, imageW: number, imageH: number,
-    font: RawPdfFont | null = null) {
+    font: RawPdfFont | null = null, info: PdfInfo | null = null) {
     this.pageW = pageW;
     this.pageH = pageH;
     this.imageW = imageW;
     this.imageH = imageH;
     this.font = font;
+    this.info = info;
     this.fd = fileIo.openSync(path,
       fileIo.OpenMode.CREATE | fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.TRUNC);
     this.writeAscii('%PDF-1.4\n');
@@ -113,8 +162,9 @@ export class RawPdfWriter {
   /**
    * 追加一页：整页 JPEG + 可选 ASCII 页码。
    * JPEG 文件写完即可删除，PDF 中已经保存了字节副本。
+   * bookmarkTitle 非空时，为这一页登记一个书签。
    */
-  addJpegPage(jpegPath: string, runs: PdfTextRun[]): void {
+  addJpegPage(jpegPath: string, runs: PdfTextRun[], bookmarkTitle: string = ''): void {
     const size: number = fileIo.statSync(jpegPath).size;
     const pageId: number = this.nextObj;
     const imageId: number = this.nextObj + 1;
@@ -161,10 +211,13 @@ export class RawPdfWriter {
       'endstream\nendobj\n');
 
     this.pageIds.push(pageId);
+    if (bookmarkTitle.length > 0) {
+      this.bookmarks.push(new PdfBookmark(bookmarkTitle, pageId));
+    }
   }
 
   /** 追加一页纯文本（牒记式）：无图片，文字矢量写入，可搜索/复制 */
-  addTextLinePage(lines: PdfTextLine[]): void {
+  addTextLinePage(lines: PdfTextLine[], bookmarkTitle: string = ''): void {
     const pageId: number = this.nextObj;
     const contentId: number = this.nextObj + 1;
     this.nextObj = this.nextObj + 2;
@@ -189,6 +242,9 @@ export class RawPdfWriter {
     this.writeAscii('<< /Length ' + content.length.toString() + ' >>\nstream\n' + content +
       'endstream\nendobj\n');
     this.pageIds.push(pageId);
+    if (bookmarkTitle.length > 0) {
+      this.bookmarks.push(new PdfBookmark(bookmarkTitle, pageId));
+    }
   }
 
   /** 十六进制颜色 → `r g b rg` */
@@ -214,7 +270,7 @@ export class RawPdfWriter {
       this.nextObj = this.nextObj + 4;
 
       this.beginObj(OBJ_FONT);
-      this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /HarmonyOS-Sans' +
+      this.writeAscii('<< /Type /Font /Subtype /Type0 /BaseFont /' + BASE_FONT +
         ' /Encoding /Identity-H /DescendantFonts [' + cidFontId.toString() + ' 0 R]' +
         ' /ToUnicode ' + toUnicodeId.toString() + ' 0 R >>\nendobj\n');
       // /W 字宽表：缺了它阅读器统一按 /DW=1000 排版，数字/标点会被当成全角，间距明显过宽
@@ -231,12 +287,12 @@ export class RawPdfWriter {
       widths = widths + ']';
 
       this.beginObj(cidFontId);
-      this.writeAscii('<< /Type /Font /Subtype /CIDFontType2 /BaseFont /HarmonyOS-Sans' +
+      this.writeAscii('<< /Type /Font /Subtype /CIDFontType2 /BaseFont /' + BASE_FONT +
         ' /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >>' +
         ' /FontDescriptor ' + descId.toString() + ' 0 R /CIDToGIDMap /Identity /DW 1000' +
         ' /W ' + widths + ' >>\nendobj\n');
       this.beginObj(descId);
-      this.writeAscii('<< /Type /FontDescriptor /FontName /HarmonyOS-Sans /Flags 4' +
+      this.writeAscii('<< /Type /FontDescriptor /FontName /' + BASE_FONT + ' /Flags 4' +
         ' /FontBBox [' + f.xMin.toString() + ' ' + f.yMin.toString() + ' ' +
         f.xMax.toString() + ' ' + f.yMax.toString() + '] /ItalicAngle 0' +
         ' /Ascent ' + f.ascent.toString() + ' /Descent ' + f.descent.toString() +
@@ -268,13 +324,10 @@ export class RawPdfWriter {
       this.writeAscii('<< /Length ' + cmap.length.toString() + ' >>\nstream\n' + cmap +
         'endstream\nendobj\n');
 
-      // FontFile2：整字体 TTF 原始字节
-      // 子集化：只保留本卷用到的字形（GID 不变），20.6MB 字体通常裁剪到几百 KB
-      const gidSet: Set<number> = new Set<number>();
-      this.usedGids.forEach((code: number, gid: number): void => {
-        gidSet.add(gid);
-      });
-      const fontBytes: Uint8Array = f.subsetBytes(gidSet);
+      // FontFile2：子集 TTF 字节
+      // 子集化：只保留本卷用到的字形（GID 不变），20.6MB 字体通常裁剪到几百 KB；
+      // cmap/post/checkSumAdjustment 由 RawPdfFont 按 OpenType 规范一并补齐
+      const fontBytes: Uint8Array = f.subsetBytes(this.usedGids);
       this.beginObj(fontFileId);
       this.writeAscii('<< /Length ' + fontBytes.length.toString() + ' /Length1 ' +
         fontBytes.length.toString() + ' >>\nstream\n');
@@ -334,9 +387,72 @@ export class RawPdfWriter {
     this.writeAscii('<< /Type /Pages /Kids [' + kids + '] /Count ' +
       this.pageIds.length.toString() + ' >>\nendobj\n');
 
-    // Catalog
+    // Outlines（书签）：每页一条，点击跳转到对应页
+    let outlineRootId: number = 0;
+    if (this.bookmarks.length > 0) {
+      const n: number = this.bookmarks.length;
+      outlineRootId = this.nextObj;
+      const firstItemId: number = outlineRootId + 1;
+      const lastItemId: number = firstItemId + n - 1;
+      this.nextObj = this.nextObj + 1 + n;
+
+      this.beginObj(outlineRootId);
+      this.writeAscii('<< /Type /Outlines /First ' + firstItemId.toString() + ' 0 R /Last ' +
+        lastItemId.toString() + ' 0 R /Count ' + n.toString() + ' >>\nendobj\n');
+      for (let i: number = 0; i < n; i = i + 1) {
+        const bm: PdfBookmark = this.bookmarks[i];
+        const id: number = firstItemId + i;
+        let s: string = '<< /Title <FEFF' + RawPdfWriter.utf16Hex(bm.title) + '>';
+        s = s + ' /Parent ' + outlineRootId.toString() + ' 0 R';
+        if (i > 0) {
+          s = s + ' /Prev ' + (id - 1).toString() + ' 0 R';
+        }
+        if (i < n - 1) {
+          s = s + ' /Next ' + (id + 1).toString() + ' 0 R';
+        }
+        s = s + ' /Dest [' + bm.pageId.toString() + ' 0 R /XYZ 0 ' +
+          this.pageH.toString() + ' null] >>\nendobj\n';
+        this.beginObj(id);
+        this.writeAscii(s);
+      }
+    }
+
+    // Info（文档元数据）
+    let infoId: number = 0;
+    if (this.info !== null) {
+      infoId = this.nextObj;
+      this.nextObj = this.nextObj + 1;
+      const info: PdfInfo = this.info;
+      let s: string = '<<';
+      if (info.title.length > 0) {
+        s = s + ' /Title <FEFF' + RawPdfWriter.utf16Hex(info.title) + '>';
+      }
+      if (info.author.length > 0) {
+        s = s + ' /Author <FEFF' + RawPdfWriter.utf16Hex(info.author) + '>';
+      }
+      if (info.subject.length > 0) {
+        s = s + ' /Subject <FEFF' + RawPdfWriter.utf16Hex(info.subject) + '>';
+      }
+      if (info.creator.length > 0) {
+        s = s + ' /Creator <FEFF' + RawPdfWriter.utf16Hex(info.creator) + '>';
+      }
+      if (info.producer.length > 0) {
+        s = s + ' /Producer <FEFF' + RawPdfWriter.utf16Hex(info.producer) + '>';
+      }
+      const when: string = pdfDate();
+      s = s + ' /CreationDate (' + when + ') /ModDate (' + when + ') >>\nendobj\n';
+      this.beginObj(infoId);
+      this.writeAscii(s);
+    }
+
+    // Catalog：有书签时挂 Outlines，并默认展开书签面板
     this.beginObj(OBJ_CATALOG);
-    this.writeAscii('<< /Type /Catalog /Pages ' + OBJ_PAGES.toString() + ' 0 R >>\nendobj\n');
+    let catalog: string = '<< /Type /Catalog /Pages ' + OBJ_PAGES.toString() + ' 0 R';
+    if (outlineRootId > 0) {
+      catalog = catalog + ' /Outlines ' + outlineRootId.toString() + ' 0 R /PageMode /UseOutlines';
+    }
+    catalog = catalog + ' >>\nendobj\n';
+    this.writeAscii(catalog);
 
     const xrefStart: number = this.offset;
     const totalObj: number = this.nextObj;
@@ -346,8 +462,13 @@ export class RawPdfWriter {
       const off: number = this.offsets.length > i ? this.offsets[i] : 0;
       this.writeAscii(RawPdfWriter.pad10(off) + ' 00000 n \n');
     }
-    this.writeAscii('trailer\n<< /Size ' + totalObj.toString() + ' /Root ' +
-      OBJ_CATALOG.toString() + ' 0 R >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n');
+    let trailer: string = 'trailer\n<< /Size ' + totalObj.toString() + ' /Root ' +
+      OBJ_CATALOG.toString() + ' 0 R';
+    if (infoId > 0) {
+      trailer = trailer + ' /Info ' + infoId.toString() + ' 0 R';
+    }
+    trailer = trailer + ' >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n';
+    this.writeAscii(trailer);
     if (this.fd !== null) {
       fileIo.closeSync(this.fd);
       this.fd = null;

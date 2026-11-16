@@ -19,7 +19,7 @@ import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_Y_MM,
 import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
 import { TreeLayoutCache } from './TreeLayoutCache';
-import { RawPdfWriter, PdfTextRun } from './RawPdfWriter';
+import { RawPdfWriter, PdfTextRun, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 
@@ -74,10 +74,11 @@ export interface PagedPdfProgress {
   message: string;
 }
 
-/** 整页渲染结果：JPEG 路径 + 不可见文本层（F2 检索用） */
+/** 整页渲染结果：JPEG 路径 + 不可见文本层（F2 检索用）+ 页眉标题（书签用） */
 class RawPageResult {
   path: string = '';
   runs: PdfTextRun[] = [];
+  header: string = '';
 }
 
 class RootBook {
@@ -326,8 +327,10 @@ export class PagedPdfExportService {
       const outPath: string = volumeCount > 1
         ? outDir + '/' + title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '卷.pdf'
         : outDir + '/' + title + '_' + styleName + '_' + stamp + '.pdf';
+      const info: PdfInfo = new PdfInfo(genealogy.title +
+        (volumeCount > 1 ? ' 第' + (v + 1).toString() + '卷' : ''));
       const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W_PT, PAGE_H_PT, RENDER_W, RENDER_H,
-        rawFont);
+        rawFont, info);
       let lastBook: number = -1;
       let currentBook: PrintBook | null = null;
       let currentRootName: string = '';
@@ -359,9 +362,9 @@ export class PagedPdfExportService {
         const gutterXMm: number = currentBook.spec.gutterX(recto);
         const gutterWMm: number = currentBook.spec.gutter;
         const raw: RawPageResult = await PagedPdfExportService.renderRawPage(canvas, plan, genealogy,
-          style, currentRootName, v + 1, globalPage + 1, volCount, context, innerXMm, contentWMm,
+          style, currentRootName, v + 1, g - startG + 1, volCount, context, innerXMm, contentWMm,
           gutterXMm, gutterWMm);
-        writer.addJpegPage(raw.path, raw.runs);
+        writer.addJpegPage(raw.path, raw.runs, raw.header);
         try {
           fileIo.unlinkSync(raw.path);
         } catch (_e) {
@@ -413,7 +416,13 @@ export class PagedPdfExportService {
     const result: RawPageResult = new RawPageResult();
     result.path = path;
     result.runs = runs;
+    result.header = PagedPdfExportService.rawHeader(genealogy, rootName, plan);
     return result;
+  }
+
+  /** 页眉文本（页面上画出，同时作为书签标题） */
+  private static rawHeader(genealogy: Genealogy, rootName: string, plan: PagePlan): string {
+    return genealogy.title + (rootName.length > 0 ? ' · ' + rootName : '') + ' · ' + pageGenText(plan);
   }
 
   /** 画页眉、卡片姓名/UID、页脚，并收集不可见文本层（F2 检索） */
@@ -427,8 +436,7 @@ export class PagedPdfExportService {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#5B4B3B';
     let headerSize: number = 28;
-    const header: string = genealogy.title + (rootName.length > 0 ? ' · ' + rootName : '') +
-      ' · ' + pageGenText(plan);
+    const header: string = PagedPdfExportService.rawHeader(genealogy, rootName, plan);
     ctx.font = headerSize.toString() + 'px sans-serif';
     while (headerSize > 14 && ctx.measureText(header).width > maxTextW) {
       headerSize = headerSize - 2;

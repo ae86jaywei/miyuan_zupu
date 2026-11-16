@@ -28,6 +28,17 @@ class CmapGroup {
   gid: number = 0;
 }
 
+/** 子集字体的表条目（按 tag 排序后写入表目录） */
+class SubsetTable {
+  tag: string = '';
+  data: Uint8Array = new Uint8Array(0);
+
+  constructor(tag: string, data: Uint8Array) {
+    this.tag = tag;
+    this.data = data;
+  }
+}
+
 export class RawPdfFont {
   bytes: Uint8Array;
   /** 已换算到 1000 em 的字体度量 */
@@ -319,18 +330,34 @@ export class RawPdfFont {
   /**
    * 生成子集字体（GID 保持不变，只保留用到 + 复合组件 + 0 号字形）。
    * 20.6MB 的中文字体经此裁剪后通常只剩几百 KB，PDF 每卷各带一份也不至于爆体积。
-   * 结构不支持或任何异常时返回原字体（宁可大，不可排版错）。
+   *
+   * 合规性：保留 cmap（format 4）与 post（3.0），并按 OpenType 规范回填
+   * checkSumAdjustment；表目录按 tag 升序。结构不支持或任何异常时返回原字体
+   * （宁可大，不可排版错）。
    */
-  subsetBytes(used: Set<number>): Uint8Array {
+  subsetBytes(usedGids: Map<number, number>): Uint8Array {
+    try {
+      return this.buildSubset(usedGids);
+    } catch (_e) {
+      return this.bytes;
+    }
+  }
+
+  private buildSubset(usedGids: Map<number, number>): Uint8Array {
     if (this.locaOffset === 0 || this.glyfOffset === 0 || this.numGlyphs <= 0 ||
       this.headOffset === 0 || this.maxpOffset === 0 || this.hheaOffset === 0) {
       return this.bytes;
     }
     const keep: Set<number> = new Set<number>();
     keep.add(0);
-    used.forEach((g: number): void => {
-      if (g >= 0 && g < this.numGlyphs) {
-        keep.add(g);
+    // 字符 → GID 反向表：用于重建 cmap（0xFFFF 留给终止段，GID 0 是 .notdef）
+    const charGid: Map<number, number> = new Map<number, number>();
+    usedGids.forEach((code: number, gid: number): void => {
+      if (gid >= 0 && gid < this.numGlyphs) {
+        keep.add(gid);
+        if (gid > 0 && code > 0 && code < 0xffff) {
+          charGid.set(code, gid);
+        }
       }
     });
     const stack: number[] = [];
@@ -393,20 +420,34 @@ export class RawPdfFont {
     const maxp: Uint8Array = this.bytes.subarray(this.maxpOffset, this.maxpOffset + maxpLen);
     const hmtx: Uint8Array = this.bytes.subarray(this.hmtxOffset, this.hmtxOffset + hmtxLen);
 
-    const tags: string[] = ['glyf', 'head', 'hhea', 'hmtx', 'loca', 'maxp'];
-    const datas: Uint8Array[] = [glyf, head, hhea, hmtx, loca, maxp];
+    // 表按 tag 升序排列（OpenType 规范推荐，严格校验器按序检查表目录）
+    const tables: SubsetTable[] = [
+      new SubsetTable('cmap', this.buildCmap(charGid)),
+      new SubsetTable('glyf', glyf),
+      new SubsetTable('head', head),
+      new SubsetTable('hhea', hhea),
+      new SubsetTable('hmtx', hmtx),
+      new SubsetTable('loca', loca),
+      new SubsetTable('maxp', maxp),
+      new SubsetTable('post', RawPdfFont.buildPost())
+    ];
     // 可选表：hinting 与字符边距信息，存在就带上
     const optTags: string[] = ['cvt ', 'fpgm', 'prep'];
     for (let i: number = 0; i < optTags.length; i = i + 1) {
       const off: number = this.findTable(optTags[i]);
       const len: number = this.findTableLen(optTags[i]);
       if (off > 0 && len > 0) {
-        tags.push(optTags[i]);
-        datas.push(this.bytes.subarray(off, off + len));
+        tables.push(new SubsetTable(optTags[i], this.bytes.subarray(off, off + len)));
       }
     }
+    tables.sort((a: SubsetTable, b: SubsetTable): number => {
+      if (a.tag < b.tag) {
+        return -1;
+      }
+      return a.tag > b.tag ? 1 : 0;
+    });
 
-    const n: number = tags.length;
+    const n: number = tables.length;
     let exp: number = 1;
     let expLog: number = 0;
     while (exp * 2 <= n) {
@@ -425,10 +466,11 @@ export class RawPdfFont {
     let offset: number = dirLen;
     const padded: Uint8Array[] = [];
     let total: number = dirLen;
+    let headDataOffset: number = -1;
     for (let i: number = 0; i < n; i = i + 1) {
-      const data: Uint8Array = datas[i];
+      const data: Uint8Array = tables[i].data;
       const rec: number = 12 + i * 16;
-      const tag: string = tags[i];
+      const tag: string = tables[i].tag;
       dvDir.setUint8(rec, tag.charCodeAt(0));
       dvDir.setUint8(rec + 1, tag.charCodeAt(1));
       dvDir.setUint8(rec + 2, tag.charCodeAt(2));
@@ -436,6 +478,9 @@ export class RawPdfFont {
       dvDir.setUint32(rec + 4, RawPdfFont.checksum(data));
       dvDir.setUint32(rec + 8, offset);
       dvDir.setUint32(rec + 12, data.length);
+      if (tag === 'head') {
+        headDataOffset = offset;
+      }
       const padLen: number = (4 - data.length % 4) % 4;
       const pad: Uint8Array = new Uint8Array(data.length + padLen);
       pad.set(data);
@@ -450,6 +495,94 @@ export class RawPdfFont {
       out.set(padded[i], p);
       p = p + padded[i].length;
     }
+
+    // OpenType 规范：整字体校验和 + checkSumAdjustment = 0xB1B0AFBA。
+    // 目录中 head 的 checksum 仍按 adjustment=0 计算，回填后整字体校验和恰好为该魔数。
+    if (headDataOffset >= 0) {
+      const dvOut: DataView = new DataView(out.buffer);
+      let sum: number = 0;
+      for (let i: number = 0; i < out.length; i = i + 4) {
+        sum = (sum + dvOut.getUint32(i)) >>> 0;
+      }
+      dvOut.setUint32(headDataOffset + 8, (0xB1B0AFBA - sum) >>> 0);
+    }
+    return out;
+  }
+
+  /** 为子集生成 cmap format 4：Unicode → GID（每字符一段，idDelta 方式） */
+  private buildCmap(charGid: Map<number, number>): Uint8Array {
+    const codes: number[] = [];
+    charGid.forEach((_gid: number, code: number): void => {
+      if (code > 0 && code < 0xffff) {
+        codes.push(code);
+      }
+    });
+    codes.sort((a: number, b: number): number => a - b);
+
+    const segCount: number = codes.length + 1;
+    const subLen: number = 16 + segCount * 8;
+    const out: Uint8Array = new Uint8Array(12 + subLen);
+    const dv: DataView = new DataView(out.buffer);
+    dv.setUint16(0, 0);
+    dv.setUint16(2, 1);
+    dv.setUint16(4, 3);   // Windows
+    dv.setUint16(6, 1);   // Unicode BMP
+    dv.setUint32(8, 12);
+    dv.setUint16(12, 4);
+    dv.setUint16(14, subLen);
+    dv.setUint16(16, 0);
+
+    const segCountX2: number = segCount * 2;
+    let exp: number = 1;
+    let expLog: number = 0;
+    while (exp * 2 <= segCount) {
+      exp = exp * 2;
+      expLog = expLog + 1;
+    }
+    const searchRange: number = exp * 2;
+    dv.setUint16(18, segCountX2);
+    dv.setUint16(20, searchRange);
+    dv.setUint16(22, expLog);
+    dv.setUint16(24, segCountX2 - searchRange);
+
+    const endBase: number = 26;
+    const startBase: number = endBase + segCount * 2 + 2;
+    const deltaBase: number = startBase + segCount * 2;
+    const rangeBase: number = deltaBase + segCount * 2;
+    for (let i: number = 0; i < codes.length; i = i + 1) {
+      const code: number = codes[i];
+      const gid: number = charGid.get(code) ?? 0;
+      let delta: number = (gid - code) & 0xffff;
+      if (delta >= 0x8000) {
+        delta = delta - 0x10000;
+      }
+      dv.setUint16(endBase + i * 2, code);
+      dv.setUint16(startBase + i * 2, code);
+      dv.setInt16(deltaBase + i * 2, delta);
+      dv.setUint16(rangeBase + i * 2, 0);
+    }
+    // 终止段
+    const last: number = codes.length;
+    dv.setUint16(endBase + last * 2, 0xffff);
+    dv.setUint16(startBase + last * 2, 0xffff);
+    dv.setInt16(deltaBase + last * 2, 1);
+    dv.setUint16(rangeBase + last * 2, 0);
+    return out;
+  }
+
+  /** 子集固定写 post 3.0（32 字节，无字形名），提升阅读器/校验器兼容性 */
+  private static buildPost(): Uint8Array {
+    const out: Uint8Array = new Uint8Array(32);
+    const dv: DataView = new DataView(out.buffer);
+    dv.setUint32(0, 0x00030000);
+    dv.setUint32(4, 0);       // italicAngle
+    dv.setInt16(8, -100);     // underlinePosition
+    dv.setInt16(10, 50);      // underlineThickness
+    dv.setUint32(12, 0);      // isFixedPitch
+    dv.setUint32(16, 0);      // minMemType42
+    dv.setUint32(20, 0);      // maxMemType42
+    dv.setUint32(24, 0);      // minMemType1
+    dv.setUint32(28, 0);      // maxMemType1
     return out;
   }
 
