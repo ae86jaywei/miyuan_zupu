@@ -1483,7 +1483,7 @@ export class PdfExportService {
         await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW);
       const pg: PaginateResult = classicLayout
         ? await paginateEntriesVerticalColumns(entries, offset, contentW, contentH)
-        : await paginateEntriesColumns(entries, offset, contentW, contentH);
+        : await paginateEntries(entries, offset, contentH);
       const multi: boolean = jobs.length > 1;
       pg.uidPage.forEach((pageNo: number, uid: string): void => {
         out.set(uid, multi
@@ -1535,7 +1535,7 @@ export class PdfExportService {
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW);
     const firstPass: PaginateResult = classic
       ? await paginateEntriesVerticalColumns(entries1, offset, contentW, contentH)
-      : await paginateEntriesColumns(entries1, offset, contentW, contentH);
+      : await paginateEntries(entries1, offset, contentH);
     const uidPageMap: Map<string, number> = firstPass.uidPage;
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     const heights: Map<string, number> = new Map<string, number>();
@@ -1560,7 +1560,7 @@ export class PdfExportService {
     }
     let genealogyPages: PageSpec[] = classic
       ? (await paginateEntriesVerticalColumns(entries2, offset, contentW, contentH)).pages
-      : (await paginateEntriesColumns(entries2, offset, contentW, contentH)).pages;
+      : (await paginateEntries(entries2, offset, contentH)).pages;
     gCrossRef = null;
     const backPages: PageSpec[] = classic
       ? paginateLinesVertical(buildBack(ctx, book, contentW), '家 训', contentW, contentH)
@@ -1604,20 +1604,34 @@ export class PdfExportService {
       PrintPageSpec.mmToPt(printSpec.trimW), PrintPageSpec.mmToPt(printSpec.trimH),
       0, 0, rawFont, info);
     const gutterW: number = PrintPageSpec.mmToPt(printSpec.gutter);
-    for (let i: number = 0; i < all.length; i = i + 1) {
-      const spec: PageSpec = all[i];
-      // 双面印刷按「卷内页序」交替装订侧：每页的栏目共用同一装订侧
-      const recto: boolean = ((spec.pageNo ?? (i + 1)) % 2) === 1;
+    let renderedPages: number = 0;
+    let i: number = 0;
+    while (i < all.length) {
+      // 同一 pageNo 的多栏必须合并到同一张 PDF 页，否则三栏会被拆成三页
+      const currentPageNo: number = all[i].pageNo ?? (i + 1);
+      const recto: boolean = (currentPageNo % 2) === 1;
       const isCoverPage: boolean = i < coverPages.length;
-      const lines: PdfTextLine[] = classic
-        ? PdfExportService.buildVerticalTextLines(ctx, printSpec, spec, total, recto, isCoverPage)
-        : PdfExportService.buildRawTextLines(ctx, printSpec, spec, total, isCoverPage, recto);
-      const title: string = (spec.column ?? 0) === 0
-        ? PdfExportService.rawBookmark(spec, i, coverPages.length) : '';
-      writer.addTextLinePage(lines, title,
+      const pageLines: PdfTextLine[] = [];
+      let title: string = '';
+      while (i < all.length && (all[i].pageNo ?? (i + 1)) === currentPageNo) {
+        const spec: PageSpec = all[i];
+        const lines: PdfTextLine[] = classic
+          ? PdfExportService.buildVerticalTextLines(ctx, printSpec, spec, total, recto, isCoverPage)
+          : PdfExportService.buildRawTextLines(ctx, printSpec, spec, total, isCoverPage, recto);
+        for (let k: number = 0; k < lines.length; k = k + 1) {
+          pageLines.push(lines[k]);
+        }
+        if ((spec.column ?? 0) === 0 && title.length === 0) {
+          title = PdfExportService.rawBookmark(spec, i, coverPages.length);
+        }
+        i = i + 1;
+      }
+      writer.addTextLinePage(pageLines, title,
         PrintPageSpec.mmToPt(printSpec.gutterX(recto)), gutterW);
-      if (onProgress && (i % 5 === 0 || i === all.length - 1)) {
-        onProgress({ current: i + 1, total: all.length, message: T('排版第 ') + (i + 1) + '/' + all.length + ' 页' });
+      renderedPages = renderedPages + 1;
+      if (onProgress && (renderedPages % 5 === 0 || i === all.length)) {
+        onProgress({ current: renderedPages, total: total,
+          message: T('排版第 ') + renderedPages + '/' + total + ' 页' });
       }
       await yieldToUi();
     }
