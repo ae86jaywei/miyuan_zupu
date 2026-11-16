@@ -2,7 +2,7 @@ import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, spouseRelationLevel, normalizeSpouseRelation } from '../model/Person';
+import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { PersonNode } from '../model/PersonNode';
 import { GenerationStat, GenealogyStats } from '../model/Stats';
@@ -882,6 +882,8 @@ export class GenealogyService {
     await this.upsertRow(person);
     await this.saveSpouses(person.uid, person.spouses);
     this.applySavedPerson(person, '');
+    // 配偶名分 ↔ 对方身份：丈夫给妻妾设“侧室”等名分后，对方身份自动同步
+    await this.syncSpouseIdentities(person);
     // 协作：本机先落库（唯一真相源），再按在线/离线走「云函数 / outbox」
     await this.notifyPersonChange('ADD', person, null);
     return person;
@@ -918,6 +920,8 @@ export class GenealogyService {
     }
     await this.saveSpouses(person.uid, person.spouses);
     this.applySavedPerson(person, originalUid);
+    // 配偶名分 ↔ 对方身份：女方身份改为“侧室”等名分时，丈夫配偶表里的称谓同步更新
+    await this.syncSpouseIdentities(person);
     // 协作：同一人物的多次本地修改合并成一条 outbox（diff 相对编辑前快照）
     await this.notifyPersonChange('UPDATE', person, originalUid);
     return person;
@@ -2104,6 +2108,34 @@ export class GenealogyService {
         `INSERT OR REPLACE INTO ${TABLE_SPOUSE}(book_id, uid, spouse_uid, relation, level, ord) VALUES(?, ?, ?, ?, ?, ?)`,
         [owner, u, id, rel, spouseRelationLevel(rel), i + 1]);
     }
+    // 反向记录：保证对方配偶表里也有本人，双方重载后都能看到彼此。
+    // 对方已有直接记录（含明确名分）时以对方为准，不用反向关系覆盖。
+    for (let i: number = 0; i < list.length; i++) {
+      const id: string = list[i].uid.trim().toUpperCase();
+      if (id.length === 0 || id === u) {
+        continue;
+      }
+      const partner: Person | undefined = this.peopleMap.get(id);
+      if (partner === undefined) {
+        continue;
+      }
+      const existing: string = await this.spouseRowRelation(owner, id, u);
+      if (existing.length > 0 && existing !== '未记') {
+        continue;
+      }
+      const rel: string = list[i].relation.trim().length > 0 ? list[i].relation.trim() : '未记';
+      let reverseRel: string = rel;
+      if (partner.gender === '女') {
+        reverseRel = '夫';
+      } else if (rel === '夫') {
+        // 本人是女性：男方对她的称谓稍后由 syncSpouseIdentities 按本人身份回填
+        reverseRel = existing.length > 0 ? existing : '未记';
+      }
+      const ord: number = await this.nextSpouseOrd(owner, id);
+      await store.executeSql(
+        `INSERT OR REPLACE INTO ${TABLE_SPOUSE}(book_id, uid, spouse_uid, relation, level, ord) VALUES(?, ?, ?, ?, ?, ?)`,
+        [owner, id, u, reverseRel, spouseRelationLevel(reverseRel), ord]);
+    }
     // 同步相关人物的 spouse_id（兼容旧字段），避免下次启动被迁移逻辑“复活”
     const partners: string[] = Array.from(affected);
     for (let i: number = 0; i < partners.length; i++) {
@@ -2114,6 +2146,126 @@ export class GenealogyService {
       await store.executeSql(
         `UPDATE ${TABLE_PERSON} SET spouse_id = COALESCE((SELECT spouse_uid FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ? ORDER BY ord LIMIT 1), '') WHERE book_id = ? AND UPPER(uid) = ?`,
         [owner, o, owner, o]);
+    }
+  }
+
+  /** 查询某人对配偶的直接名分；不存在返回空串 */
+  private async spouseRowRelation(bookId: number, ownerUid: string, spouseUid: string): Promise<string> {
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT relation FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ? AND UPPER(spouse_uid) = ?`,
+      [bookId, ownerUid.trim().toUpperCase(), spouseUid.trim().toUpperCase()]);
+    let relation: string = '';
+    try {
+      if (rs.goToNextRow()) {
+        const raw: string = rs.getString(rs.getColumnIndex('relation'));
+        relation = raw === null ? '' : raw;
+      }
+    } finally {
+      rs.close();
+    }
+    return relation.trim();
+  }
+
+  /** 某人配偶表下一个排序号 */
+  private async nextSpouseOrd(bookId: number, ownerUid: string): Promise<number> {
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT COALESCE(MAX(ord), 0) AS m FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ?`,
+      [bookId, ownerUid.trim().toUpperCase()]);
+    let ord: number = 1;
+    try {
+      if (rs.goToNextRow()) {
+        ord = rs.getLong(rs.getColumnIndex('m')) + 1;
+      }
+    } finally {
+      rs.close();
+    }
+    return ord;
+  }
+
+  /** 是否为明确的妻妾/配偶名分（不含“夫 / 未记”） */
+  private static isSpouseIdentity(value: string): boolean {
+    const v: string = normalizeSpouseRelation(value);
+    return v !== '夫' && v !== '未记' && SPOUSE_RELATIONS.indexOf(v) >= 0;
+  }
+
+  /**
+   * 配偶名分 ↔ 本人身份双向同步：
+   *  - 丈夫给某位妻妾设“侧室/继室…” → 对方“身份”字段自动写成同名分；
+   *  - 女方“身份”改为名分（如侧室）→ 丈夫配偶表里对她的称谓同步为该名分。
+   * 只同步明确名分，未记/夫/空值不会覆盖已有人工数据。
+   */
+  private async syncSpouseIdentities(person: Person): Promise<void> {
+    if (this.store === null) {
+      return;
+    }
+    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
+    const self: string = person.uid.trim().toUpperCase();
+    let changed: boolean = false;
+    // 1. 本人（男）在配偶关系里写的名分 → 同步为对方（女）的身份
+    if (person.gender === '男') {
+      for (let i: number = 0; i < person.spouses.length; i = i + 1) {
+        const rel: string = normalizeSpouseRelation(person.spouses[i].relation);
+        if (!GenealogyService.isSpouseIdentity(rel)) {
+          continue;
+        }
+        const partner: Person | undefined = this.peopleMap.get(person.spouses[i].uid.trim().toUpperCase());
+        if (partner === undefined || partner.gender !== '女') {
+          continue;
+        }
+        if (partner.childStatus === rel) {
+          continue;
+        }
+        // 丈夫设定的名分就是妻子在家庭中的身份：对方“身份”字段跟随更新
+        partner.childStatus = rel;
+        await store.executeSql(
+          `UPDATE ${TABLE_PERSON} SET child_status = ?, updated_at = ? WHERE book_id = ? AND UPPER(uid) = ?`,
+          [rel, Date.now(), this.currentBookId, partner.uid.trim().toUpperCase()]);
+        changed = true;
+      }
+    }
+    // 2. 本人（女）的身份是名分 → 同步到丈夫配偶表里对她的称谓
+    const own: string = normalizeSpouseRelation(person.childStatus);
+    if (person.gender === '女' && GenealogyService.isSpouseIdentity(own)) {
+      for (let i: number = 0; i < person.spouses.length; i = i + 1) {
+        const husband: Person | undefined = this.peopleMap.get(person.spouses[i].uid.trim().toUpperCase());
+        if (husband === undefined || husband.gender !== '男') {
+          continue;
+        }
+        let found: boolean = false;
+        for (let j: number = 0; j < husband.spouses.length; j = j + 1) {
+          if (husband.spouses[j].uid.trim().toUpperCase() === self) {
+            husband.spouses[j].relation = own;
+            husband.spouses[j].level = spouseRelationLevel(own);
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          const nr: SpouseRelation = new SpouseRelation();
+          nr.uid = self;
+          nr.relation = own;
+          nr.level = spouseRelationLevel(own);
+          nr.order = husband.spouses.length + 1;
+          husband.spouses.push(nr);
+        }
+        const existing: string = await this.spouseRowRelation(this.currentBookId, husband.uid, self);
+        if (existing.length > 0) {
+          await store.executeSql(
+            `UPDATE ${TABLE_SPOUSE} SET relation = ?, level = ? WHERE book_id = ? AND UPPER(uid) = ? AND UPPER(spouse_uid) = ?`,
+            [own, spouseRelationLevel(own), this.currentBookId, husband.uid.trim().toUpperCase(), self]);
+        } else {
+          const ord: number = await this.nextSpouseOrd(this.currentBookId, husband.uid);
+          await store.executeSql(
+            `INSERT OR REPLACE INTO ${TABLE_SPOUSE}(book_id, uid, spouse_uid, relation, level, ord) VALUES(?, ?, ?, ?, ?, ?)`,
+            [this.currentBookId, husband.uid.trim().toUpperCase(), self, own, spouseRelationLevel(own), ord]);
+        }
+        changed = true;
+      }
+    }
+    if (changed) {
+      this.bump();
     }
   }
 

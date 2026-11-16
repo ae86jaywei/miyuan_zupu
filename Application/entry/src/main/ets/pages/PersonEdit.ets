@@ -611,6 +611,22 @@ struct PersonEdit {
     return m;
   }
 
+  /**
+   * 加载排行：第一世固定“始祖”；排行只允许子/女排行。
+   * 历史数据把“正妻/侧室”等名分误写进排行（女性尤其常见）时直接清空：
+   * 身份与排行不是一个意思，只有用户手动选择排行才保留。
+   */
+  private normalizeRank(p: Person): string {
+    if (p.generation === 1) {
+      return ANCESTOR_RANK;
+    }
+    const rank: string = p.rank.trim();
+    if (rank.length === 0 || rank === ANCESTOR_RANK) {
+      return '';
+    }
+    return RANK_OPTIONS.indexOf(rank) >= 0 ? rank : '';
+  }
+
   private fill(p: Person): void {
     this.fGeneration = p.generation;
     // 新增时留空，等选择性别后再生成（编辑时保留原 ID）
@@ -638,8 +654,7 @@ struct PersonEdit {
       c.level = spouseRelationLevel(c.relation);
       return c;
     });
-    this.fRank = p.generation === 1 ? ANCESTOR_RANK :
-      (p.rank === ANCESTOR_RANK ? '' : p.rank);
+    this.fRank = this.normalizeRank(p);
     this.fAdoption = p.adoption;
     this.fEducation = p.education;
     this.fOccupation = p.occupation;
