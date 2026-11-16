@@ -26,6 +26,7 @@ struct PrintCard {
   @Prop female: boolean = false;
   @Prop highlight: boolean = false;
   onTap: () => void = (): void => {};
+  onLongPress: () => void = (): void => {};
 
   build() {
     Column() {
@@ -71,6 +72,12 @@ struct PrintCard {
     .onClick((): void => {
       this.onTap();
     })
+    .gesture(
+      LongPressGesture({ repeat: false, duration: 500 })
+        .onAction((): void => {
+          this.onLongPress();
+        })
+    )
   }
 }
 
@@ -90,6 +97,8 @@ export struct PagedTree {
   @Prop @Watch('onPageChanged') style: string = TreeStyle.EU;
   @Prop @Watch('onPageChanged') highlightUid: string = '';
   @Prop @Watch('onPageChanged') profileName: string = 'standard';
+  /** 点选卡片时是否显示“长按查看详情”轻提示（手机/二栏开启，三栏详情常驻可关闭） */
+  @Prop showTapHint: boolean = true;
   @Prop branchName: string = '';
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
   /** 单面 / 双面装订：与导出设置共用同一个 AppStorage 键 */
@@ -99,6 +108,8 @@ export struct PagedTree {
 
   onPageChange: (n: number) => void = (n: number): void => {};
   onTapPerson: (uid: string) => void = (uid: string): void => {};
+  /** 长按卡片：打开族人详情 */
+  onLongPressPerson: (uid: string) => void = (uid: string): void => {};
 
   @State pageNo: number = 1;
   @State pageCount: number = 1;
@@ -118,6 +129,9 @@ export struct PagedTree {
   @State ancestorUids: string[] = [];
   @State ancestorNames: string[] = [];
   @State siblingLinks: PageJump[] = [];
+  /** 点选提示：当前提示的族人 uid；空串表示不显示，位置实时跟随卡片与平移/缩放 */
+  @State hintUid: string = '';
+  private hintTimer: number = -1;
 
   private book: PrintBook | null = null;
   private page: PagePlan | null = null;
@@ -136,6 +150,10 @@ export struct PagedTree {
     PageSpec.defaultDuplex = this.printDuplex;
     this.refresh();
     this.updateScale();
+  }
+
+  aboutToDisappear(): void {
+    this.clearTapHint();
   }
 
   onDark(): void {
@@ -170,6 +188,7 @@ export struct PagedTree {
   }
 
   private async refresh(): Promise<void> {
+    this.clearTapHint();
     const svc: PaginationService = PaginationService.getInstance();
     this.planning = true;
     this.planningPct = 0;
@@ -424,6 +443,76 @@ export struct PagedTree {
     return text;
   }
 
+  /** 当前页卡片在内容坐标中的 [x,y,w,h]（mm） */
+  private hintBoxOf(uid: string): number[] {
+    if (this.style === TreeStyle.SU) {
+      for (let i: number = 0; i < this.suBoxes.length; i = i + 1) {
+        const b: SuBox = this.suBoxes[i];
+        if (b.node.uid === uid) {
+          return [b.x, b.y, b.w, b.h];
+        }
+      }
+    } else {
+      for (let i: number = 0; i < this.euBoxes.length; i = i + 1) {
+        const b: EuBox = this.euBoxes[i];
+        if (b.node.uid === uid) {
+          return [b.x, b.y, b.w, b.h];
+        }
+      }
+    }
+    return [];
+  }
+
+  /** 提示条横坐标：卡片水平居中，夹在页视口内 */
+  private tapHintX(): number {
+    const w: number = 168;
+    const box: number[] = this.hintBoxOf(this.hintUid);
+    if (box.length < 4) {
+      return Math.max(8, (this.viewW - w) / 2);
+    }
+    const cx: number = this.panX + this.contentX() + (box[0] + box[2] / 2) * this.k;
+    return Math.min(Math.max(8, cx - w / 2), Math.max(8, this.viewW - w - 8));
+  }
+
+  /** 提示条纵坐标：贴在卡片下方，放不下就翻到上方 */
+  private tapHintY(): number {
+    const box: number[] = this.hintBoxOf(this.hintUid);
+    const hintH: number = 28;
+    if (box.length < 4) {
+      return Math.max(8, this.pageViewH() - 60);
+    }
+    const top: number = this.panY + this.contentY() + box[1] * this.k;
+    const bottom: number = this.panY + this.contentY() + (box[1] + box[3]) * this.k;
+    let y: number = bottom + 6;
+    if (y + hintH > this.pageViewH() - 6) {
+      y = top - hintH - 6;
+    }
+    return Math.min(Math.max(4, y), Math.max(4, this.pageViewH() - hintH - 4));
+  }
+
+  /** 每次点选都提示“长按查看详情”；连续点选会重置计时并重新贴合新卡片 */
+  private showTapHintFor(uid: string): void {
+    if (!this.showTapHint || uid.length === 0) {
+      return;
+    }
+    this.hintUid = uid;
+    if (this.hintTimer >= 0) {
+      clearTimeout(this.hintTimer);
+    }
+    this.hintTimer = setTimeout((): void => {
+      this.hintUid = '';
+      this.hintTimer = -1;
+    }, 2600);
+  }
+
+  private clearTapHint(): void {
+    this.hintUid = '';
+    if (this.hintTimer >= 0) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = -1;
+    }
+  }
+
   /** 跳到某人所在页（页首祖先卡/页脚软链接使用） */
   private gotoUid(uid: string): void {
     if (this.book === null || uid.length === 0) {
@@ -560,6 +649,10 @@ export struct PagedTree {
             highlight: b.node.uid === this.highlightUid,
             onTap: (): void => {
               this.onTapPerson(b.node.uid);
+              this.showTapHintFor(b.node.uid);
+            },
+            onLongPress: (): void => {
+              this.onLongPressPerson(b.node.uid);
             }
           })
             .position({
@@ -582,6 +675,10 @@ export struct PagedTree {
             highlight: b.node.uid === this.highlightUid,
             onTap: (): void => {
               this.onTapPerson(b.node.uid);
+              this.showTapHintFor(b.node.uid);
+            },
+            onLongPress: (): void => {
+              this.onLongPressPerson(b.node.uid);
             }
           })
             .position({
@@ -718,6 +815,22 @@ export struct PagedTree {
           .height('100%')
           .justifyContent(FlexAlign.Center)
           .backgroundColor('rgba(255,253,246,0.88)')
+        }
+
+        // 点选轻提示：贴在被点卡片旁，随页面平移/缩放实时跟随
+        if (this.hintUid.length > 0) {
+          Text(T('已选中，长按可查看详情')).fontFamily(uiFontFamily())
+            .fontSize(11)
+            .fontColor('#3D3226')
+            .textAlign(TextAlign.Center)
+            .width(168)
+            .height(28)
+            .backgroundColor('#FBF1D6')
+            .border({ width: 0.8, color: '#C9A227' })
+            .borderRadius(14)
+            .position({ x: this.tapHintX(), y: this.tapHintY() })
+            .hitTestBehavior(HitTestMode.None)
+            .zIndex(6)
         }
 
         // 垂直滚动条：放大后内容高于视口时出现，可直接拖动

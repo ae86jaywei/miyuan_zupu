@@ -492,6 +492,28 @@ export struct TreeCanvas {
     this.showSelectHint(uid);
   }
 
+  /**
+   * 分页视图点选卡片：只做选中高亮（金色描边 + 面包屑跟随）；
+   * 三栏布局右侧详情栏常驻，点选时同步刷新详情；二栏/手机留给长按打开详情。
+   * “长按查看详情”轻提示由 PagedTree 内部贴卡片显示，每次点选都会出现。
+   */
+  private selectPagedPerson(uid: string): void {
+    if (uid.length === 0) {
+      return;
+    }
+    this.selectedUid = uid;
+    this.viewState = 'FOCUS';
+    this.rebuildTrailFor(uid);
+    this.hintVisible = false;
+    if (this.hintTimer >= 0) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = -1;
+    }
+    if (this.tapOpensDetail) {
+      this.onTapPerson(uid);
+    }
+  }
+
   /** 长按卡片：先保持选中，再打开族人详情 */
   private openPersonDetail(uid: string): void {
     if (uid.length === 0) {
@@ -1528,14 +1550,18 @@ export struct TreeCanvas {
             style: this.style,
             layoutVersion: this.dataVersion,
             pageIndex: this.pageNo,
-            highlightUid: this.effectiveHighlight(this.activeRootUid()),
+            highlightUid: this.selectionUid(),
             profileName: 'standard',
+            showTapHint: !this.tapOpensDetail,
             branchName: this.currentBranchName(),
             onPageChange: (n: number): void => {
               this.pageNo = n;
             },
             onTapPerson: (uid: string): void => {
-              this.onTapPerson(uid);
+              this.selectPagedPerson(uid);
+            },
+            onLongPressPerson: (uid: string): void => {
+              this.openPersonDetail(uid);
             }
           })
           .width('100%')
