@@ -570,7 +570,7 @@ export struct SettingsView {
         TS({
           title: T('文字与语言'),
           subtitle: '当前：' + (this.script === 'hant' ? '繁體中文' : '简体中文'),
-          icon: '🈶'
+          icon: '🌐'
         })
         Column() {
           Text(T('界面、预览与导出文字')).fontFamily(uiFontFamily())
