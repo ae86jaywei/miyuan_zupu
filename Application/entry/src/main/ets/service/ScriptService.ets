@@ -146,7 +146,9 @@ export class ScriptService {
       let maxKey: number = 1;
       const lines: string[] = s2tText.split('\n');
       for (let i: number = 0; i < lines.length; i = i + 1) {
-        const line: string = lines[i];
+        // Windows 检出 rawfile 时行尾可能是 CRLF；split('\n') 会留下 '\r'，
+        // 进入转换结果后会被字体渲染成方块，必须先剥掉
+        const line: string = lines[i].split('\r').join('');
         const tab: number = line.indexOf('\t');
         if (tab <= 0) {
           continue;
@@ -169,7 +171,7 @@ export class ScriptService {
       const t2s: Map<string, string> = new Map<string, string>();
       const t2sLines: string[] = t2sText.split('\n');
       for (let i: number = 0; i < t2sLines.length; i = i + 1) {
-        const line: string = t2sLines[i];
+        const line: string = t2sLines[i].split('\r').join('');
         const tab: number = line.indexOf('\t');
         if (tab <= 0) {
           continue;

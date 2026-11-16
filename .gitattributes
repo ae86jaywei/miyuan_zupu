@@ -1,0 +1,6 @@
+# OpenCC 词典必须是 LF。Windows 检出为 CRLF 时，行尾 \r 会进入转换结果，
+# 被字体渲染成方块（乱码）。解析层已兜底剥掉 \r，这里从源头避免。
+Application/entry/src/main/resources/rawfile/i18n/*.txt text eol=lf
+
+# 字体是二进制，禁止行尾/编码转换
+Application/entry/src/main/resources/rawfile/fonts/* -text
