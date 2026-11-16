@@ -65,8 +65,10 @@ struct ImportExport {
   @State includePrivate: boolean = true;
   /** PDF 谱式：die=牒记式（文字流），eu=欧式分页，su=苏式分页 */
   @State pdfStyle: string = 'die';
-  /** 装订方式：true=双面（奇页装订在右、偶页在左），false=单面（统一右侧装订） */
+  /** 装订方式：true=双面（按所选装订边镜像），false=单面（每页统一装订边） */
   @StorageLink('printDuplex') printDuplex: boolean = true;
+  /** 装订方向：left=左侧装订，right=右侧装订（传统右翻） */
+  @StorageLink('printBinding') printBinding: string = 'right';
   /** 导出范围：可选择总谱或某个分支谱，避免 5 万人整谱一次性导出 */
   @State exportBookId: number = 0;
   @State exportBookIds: number[] = [];
@@ -142,6 +144,9 @@ struct ImportExport {
   }
 
   aboutToAppear(): void {
+    // 导出与分页预览共用装订设置：进入页面先把当前选择同步到页面规格
+    PageSpec.defaultBinding = this.printBinding;
+    PageSpec.defaultDuplex = this.printDuplex;
     this.peopleCount = this.svc().getPeople().length;
     const books: Genealogy[] = this.svc().getBooks();
     const ids: number[] = [];
@@ -223,7 +228,8 @@ struct ImportExport {
     this.busy = true;
     this.previewText = '正在渲染，请稍候……';
     this.setProgress('正在排版 PDF…', 2);
-    // 导出与屏幕分页共用装订几何：单面/双面以当前设置快照为准
+    // 导出与屏幕分页共用装订几何：装订方向与单双面以当前设置快照为准
+    PageSpec.defaultBinding = this.printBinding;
     PageSpec.defaultDuplex = this.printDuplex;
     // 导出范围：需要时临时切到分支谱，导出结束再切回，避免把 5 万人总谱整本导出
     const originalBookId: number = this.svc().getBook().key;
@@ -576,6 +582,32 @@ struct ImportExport {
     })
   }
 
+  /** 装订方向选择按钮：左侧装订 / 右侧装订（传统右翻） */
+  @Builder
+  BindSideChip(label: string, value: string, hint: string) {
+    Column() {
+      Text(label)
+        .fontSize(12.5)
+        .fontColor(this.printBinding === value ? '#FFFFFF' : Theme.ink)
+        .fontWeight(FontWeight.Medium)
+      Text(hint)
+        .fontSize(9)
+        .fontColor(this.printBinding === value ? '#FFF4DE' : Theme.inkTertiary)
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .layoutWeight(1)
+    .padding({ top: 8, bottom: 8, left: 4, right: 4 })
+    .margin({ right: 6 })
+    .backgroundColor(this.printBinding === value ? Theme.primary : Theme.field)
+    .borderRadius(8)
+    .border({ width: 0.5, color: this.printBinding === value ? Theme.primary : Theme.line })
+    .onClick((): void => {
+      this.printBinding = value;
+      PageSpec.defaultBinding = value;
+    })
+  }
+
   /** 导入/导出进行中拦截返回键，避免页面被销毁导致流程中断 */
   onBackPress(): boolean {
     return this.busy;
@@ -749,6 +781,18 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
+              Text('装订边')
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .fontWeight(FontWeight.Medium)
+                .width('100%')
+                .margin({ top: 12 })
+              Row() {
+                this.BindSideChip('左侧装订', 'left', '装订线在左')
+                this.BindSideChip('右侧装订', 'right', '装订线在右')
+              }
+              .width('100%')
+              .margin({ top: 8 })
               Text('装订方式')
                 .fontSize(13)
                 .fontColor(Theme.ink)
@@ -756,8 +800,8 @@ struct ImportExport {
                 .width('100%')
                 .margin({ top: 12 })
               Row() {
-                this.BindChip('双面印刷', true, '奇页装订在右、偶页在左')
-                this.BindChip('单面', false, '每张纸统一右侧装订')
+                this.BindChip('双面印刷', true, '奇偶页自动镜像装订线')
+                this.BindChip('单面', false, '每张纸统一装订边')
               }
               .width('100%')
               .margin({ top: 8 })
@@ -765,7 +809,7 @@ struct ImportExport {
             .width('100%')
             .padding({ top: 12, bottom: 12 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式分卷文字流，或欧式/苏式 320×220mm 横版分页（文字可选中，300dpi；支持单面/双面装订）', '打印',
+            this.ExportRow('PDF 整本族谱', '按所选谱式导出：牒记式 A4 分卷文字流，或欧式/苏式 320×220mm 横版分页（文字可选中，300dpi；支持左右装订线与单面/双面装订）', '打印',
               (): void => {
                 this.doExportPdf();
               })

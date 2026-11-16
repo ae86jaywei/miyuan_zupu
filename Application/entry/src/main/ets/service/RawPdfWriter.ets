@@ -228,7 +228,8 @@ export class RawPdfWriter {
   }
 
   /** 追加一页纯文本（牒记式）：无图片，文字矢量写入，可搜索/复制 */
-  addTextLinePage(lines: PdfTextLine[], bookmarkTitle: string = ''): void {
+  addTextLinePage(lines: PdfTextLine[], bookmarkTitle: string = '',
+    gutterX: number = -1, gutterW: number = 0): void {
     const pageId: number = this.nextObj;
     const contentId: number = this.nextObj + 1;
     this.nextObj = this.nextObj + 2;
@@ -240,6 +241,14 @@ export class RawPdfWriter {
 
     let content: string = 'q\n0.98 0.97 0.94 rg\n0 0 ' + this.pageW.toString() + ' ' +
       this.pageH.toString() + ' re\nf\nQ\n';
+    // 装订口：浅米色色带 + 版心侧分隔线，位置由调用方按左右装订/奇偶页算好
+    if (gutterW > 0 && gutterX >= 0) {
+      content = content + 'q\n0.957 0.937 0.89 rg\n' + gutterX.toFixed(2) + ' 0 ' +
+        gutterW.toFixed(2) + ' ' + this.pageH.toString() + ' re\nf\nQ\n';
+      const lineX: number = gutterX <= 0.5 ? gutterX + gutterW : gutterX;
+      content = content + 'q\n0.85 0.79 0.68 RG\n0.6 w\n' + lineX.toFixed(2) + ' 0 m\n' +
+        lineX.toFixed(2) + ' ' + this.pageH.toString() + ' l\nS\nQ\n';
+    }
     for (let i: number = 0; i < lines.length; i = i + 1) {
       const ln: PdfTextLine = lines[i];
       if (ln.text.trim().length === 0) {

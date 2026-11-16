@@ -13,6 +13,7 @@ import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextLine, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
+import { PageSpec as PrintPageSpec } from './PrintLayout';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -24,17 +25,47 @@ import { PdfFontUtil } from './PdfFontUtil';
  * 产出 PDF 的文字可选中、可搜索、可编辑，且为矢量输出，印刷无锯齿、无 300dpi 位图限制。
  * 排版为两遍：第一遍分页确定每人页码，第二遍回填「亲属/子嗣」页码互引。
  *
- * 页面：A4 竖版 595.28 × 841.89 pt；正文区左右各 56pt 边距。
+ * 页面：A4 竖版 210×297mm；版心由 PrintLayout.PageSpec 计算，
+ * 装订侧可在左/右之间选择，双面印刷时随卷内奇偶页镜像。
  */
 
 // ─── 页面常量（pt） ────────────────────────────────────────
 const PAGE_W: number = 595.28;
 const PAGE_H: number = 841.89;
+/** 旧 PDFKit 导出路径（exportPdf）使用的固定版心，保留以兼容未调用代码 */
 const MARGIN_LR: number = 56;
 const MARGIN_TOP: number = 64;
 const MARGIN_BOTTOM: number = 52;
 const CONTENT_W: number = PAGE_W - MARGIN_LR * 2;
 const CONTENT_H: number = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM;
+
+/** 牒记式 A4 页面规格：每次导出时读取最新的装订方向与单双面设置 */
+function dieSpec(): PrintPageSpec {
+  return PrintPageSpec.portraitA4();
+}
+
+/** 版心宽（pt）：左右装订切换时宽度不变，只改版心起点 */
+function dieContentW(spec: PrintPageSpec): number {
+  return PrintPageSpec.mmToPt(spec.contentWidth());
+}
+
+/** 版心高（pt） */
+function dieContentH(spec: PrintPageSpec): number {
+  return PrintPageSpec.mmToPt(spec.contentHeight());
+}
+
+/**
+ * 牒记版心左边界（pt）。
+ * 装订侧固定留 gutter + safeInset，翻口侧为剩余宽度，正反面以纸张中心镜像：
+ * 双面印刷时同一张纸正反两面的文字区严格对齐，不会一面偏内、一面偏外。
+ */
+function dieInnerX(spec: PrintPageSpec, recto: boolean): number {
+  const bindInset: number = spec.gutter + spec.safeInset;
+  const innerMm: number = spec.bindOnRight(recto)
+    ? spec.trimW - spec.contentWidth() - bindInset
+    : bindInset;
+  return PrintPageSpec.mmToPt(innerMm);
+}
 
 // ─── 度量画布常量（px = pt × S） ──────────────────────────
 const S: number = 2;
@@ -123,9 +154,10 @@ function pushAllPages(dst: PageSpec[], src: PageSpec[]): void {
 }
 
 /** 中文按字符宽度断行（不逐字 measureText，避免数万人大谱卡死主线程） */
-function wrapLines(text: string, font: number, indent: number, color: string): TextLine[] {
+function wrapLines(text: string, font: number, indent: number, color: string,
+  maxW: number = CONTENT_W): TextLine[] {
   const out: TextLine[] = [];
-  const maxChars: number = Math.floor((CONTENT_W - indent) / font * 0.98);
+  const maxChars: number = Math.max(1, Math.floor((maxW - indent) / font * 0.98));
   const paras: string[] = text.split('\n');
   for (let pi: number = 0; pi < paras.length; pi++) {
     const para: string = paras[pi];
@@ -405,7 +437,8 @@ function padLine(): TextLine {
 
 /** 一个人物的条目：字段与「个人信息」详情页一致 */
 function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
-  kinIndex: KinshipIndex, refs: Map<string, number> | null): TextLine[] {
+  kinIndex: KinshipIndex, refs: Map<string, number> | null,
+  contentW: number = CONTENT_W): TextLine[] {
   const lines: TextLine[] = [];
   const uid: string = p.uid.trim().toUpperCase();
   let head: string = p.name + '（' + generationLabel(p.generation);
@@ -425,7 +458,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   });
   // 配偶：名分 + 姓名（UID·页码）
   if (p.spouses.length > 0) {
-    pushAll(lines, wrapLines('配偶：' + spouseText(kinIndex, p, refs), F_DETAIL, 10, C_FEMALE));
+    pushAll(lines, wrapLines('配偶：' + spouseText(kinIndex, p, refs), F_DETAIL, 10, C_FEMALE, contentW));
   }
   // 亲属：父/母 + 页码互引
   const kinParts: string[] = [];
@@ -442,7 +475,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
     }
   }
   if (kinParts.length > 0) {
-    pushAll(lines, wrapLines('亲属：' + kinParts.join('　'), F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines('亲属：' + kinParts.join('　'), F_DETAIL, 10, C_INK2, contentW));
   }
   // 子嗣：全部列出，一行放不下自动换行
   const kids: Person[] = kinIndex.childrenOf(p.uid);
@@ -452,7 +485,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
       parts.push(refText(kids[i].name, kids[i].uid, refs));
     }
     const txt: string = '子嗣：' + parts.join('、') + '（共' + kids.length.toString() + '人）';
-    pushAll(lines, wrapLines(txt, F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines(txt, F_DETAIL, 10, C_INK2, contentW));
   }
   if (p.alias.length > 0) {
     lines.push(detailLine('曾用名/小名：' + p.alias, C_INK2));
@@ -471,7 +504,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   if (p.lifeStatus.length > 0) {
     idParts.push(p.lifeStatus);
   }
-  pushAll(lines, wrapLines('身份：' + idParts.join('　'), F_DETAIL, 10, C_INK2));
+  pushAll(lines, wrapLines('身份：' + idParts.join('　'), F_DETAIL, 10, C_INK2, contentW));
   // 生卒：完整日期，保留公历/农历标注
   const life: string[] = [];
   const bd: string = displayDate(p.birthDate, p.birthCalendar);
@@ -483,7 +516,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
     life.push('卒于 ' + dd);
   }
   if (life.length > 0) {
-    pushAll(lines, wrapLines(life.join('　'), F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines(life.join('　'), F_DETAIL, 10, C_INK2, contentW));
   }
   // 出生地 / 现居地
   const places: string[] = [];
@@ -494,7 +527,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
     places.push('现居 ' + p.residence);
   }
   if (places.length > 0) {
-    pushAll(lines, wrapLines(places.join('　'), F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines(places.join('　'), F_DETAIL, 10, C_INK2, contentW));
   }
   // 学历 / 职业
   const career: string[] = [];
@@ -505,7 +538,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
     career.push('职业/职务 ' + p.occupation);
   }
   if (career.length > 0) {
-    pushAll(lines, wrapLines(career.join('　'), F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines(career.join('　'), F_DETAIL, 10, C_INK2, contentW));
   }
   // 墓葬（含 GPS 经纬度与海拔）
   const grave: string[] = [];
@@ -517,11 +550,11 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
       + '° 海拔 ' + p.graveAltitude.toFixed(1) + 'm');
   }
   if (grave.length > 0) {
-    pushAll(lines, wrapLines('墓葬：' + grave.join('　'), F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines('墓葬：' + grave.join('　'), F_DETAIL, 10, C_INK2, contentW));
   }
   // 生平简介
   if (p.biography.length > 0) {
-    pushAll(lines, wrapLines('生平：' + p.biography, F_DETAIL, 10, C_INK));
+    pushAll(lines, wrapLines('生平：' + p.biography, F_DETAIL, 10, C_INK, contentW));
   }
   // 联系方式（与 JSON/CSV 导出一致，默认包含）
   const contact: string[] = [];
@@ -532,7 +565,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
     contact.push('微信 ' + p.wechat);
   }
   if (contact.length > 0) {
-    pushAll(lines, wrapLines('联系：' + contact.join('　'), F_DETAIL, 10, C_INK2));
+    pushAll(lines, wrapLines('联系：' + contact.join('　'), F_DETAIL, 10, C_INK2, contentW));
   }
   lines.push({ text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false });
   return lines;
@@ -544,7 +577,8 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
  * 条目带上 unitId，分页时整单元一起换页，不会出现「夫在第2页、妻在第100页」。
  */
 async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
-  kinIndex: KinshipIndex, refs: Map<string, number> | null): Promise<EntryBlock[]> {
+  kinIndex: KinshipIndex, refs: Map<string, number> | null,
+  contentW: number = CONTENT_W): Promise<EntryBlock[]> {
   const units: FamilyUnit[] = buildFamilyUnits(people);
   // 每个展示世代的人数按锚点世代统计，配偶世代录错也归入同一节
   const genCount: Map<number, number> = new Map<number, number>();
@@ -576,7 +610,7 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
       entries.push({
         uid: p.uid.trim().toUpperCase(),
         unitId: unitId,
-        lines: personEntryLines(ctx, p, kinIndex, refs)
+        lines: personEntryLines(ctx, p, kinIndex, refs, contentW)
       });
     }
     // 每 100 人让出一次主线程：逐字断行 + measureText 是同步 Native 调用，
@@ -639,7 +673,8 @@ function buildCover(book: Genealogy, count: number, volumeTitle: string): TextLi
 }
 
 /** 谱序 + 凡例（无内容时返回空数组，不占页） */
-function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): TextLine[] {
+function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy,
+  contentW: number = CONTENT_W): TextLine[] {
   const lines: TextLine[] = [];
   let has: boolean = false;
   // 分支谱先写「上承」：即使没有谱序/凡例，也要留下跨谱来源
@@ -656,7 +691,7 @@ function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): 
   if (book.preface.trim().length > 0) {
     lines.push({ text: '谱 序', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());
-    pushAll(lines, wrapLines(book.preface, 12, 0, C_INK));
+    pushAll(lines, wrapLines(book.preface, 12, 0, C_INK, contentW));
     has = true;
   }
   if (book.editingNotes.trim().length > 0) {
@@ -665,18 +700,19 @@ function buildPreface(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): 
     }
     lines.push({ text: '凡 例', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());
-    pushAll(lines, wrapLines(book.editingNotes, 12, 0, C_INK));
+    pushAll(lines, wrapLines(book.editingNotes, 12, 0, C_INK, contentW));
   }
   return lines;
 }
 
 /** 家训 + 落款 */
-function buildBack(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy): TextLine[] {
+function buildBack(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy,
+  contentW: number = CONTENT_W): TextLine[] {
   const lines: TextLine[] = [];
   if (book.familyRules.trim().length > 0) {
     lines.push({ text: '家 训', font: 14, lineH: 28, color: C_GOLD, bold: true, indent: 0, center: false });
     lines.push(spacerLine());
-    pushAll(lines, wrapLines(book.familyRules, 12, 0, C_INK));
+    pushAll(lines, wrapLines(book.familyRules, 12, 0, C_INK, contentW));
   }
   lines.push(bigSpacerLine(), bigSpacerLine());
   lines.push({
@@ -697,7 +733,8 @@ interface PageSpec {
  * 流式分页：把「世代分隔头 + 条目」按自然断点切到 A4 页内。
  * 条目整体不拆页（一人一条不跨页），同时记录每人的最终页码。
  */
-async function paginateEntries(entries: EntryBlock[], pageOffset: number): Promise<PaginateResult> {
+async function paginateEntries(entries: EntryBlock[], pageOffset: number,
+  contentH: number = CONTENT_H): Promise<PaginateResult> {
   const pages: PageSpec[] = [];
   const uidPage: Map<string, number> = new Map<string, number>();
   let cur: TextLine[] = [];
@@ -733,7 +770,7 @@ async function paginateEntries(entries: EntryBlock[], pageOffset: number): Promi
       }
     }
     const need: number = (used === 0 ? keepHead : 8) + groupH;
-    if (used + need > CONTENT_H && cur.length > 0) {
+    if (used + need > contentH && cur.length > 0) {
       pages.push({ lines: cur, chapter: '世 系' });
       cur = [];
       used = 0;
@@ -763,7 +800,8 @@ async function paginateEntries(entries: EntryBlock[], pageOffset: number): Promi
  * 普通段落分页（封面/谱序/家训）。
  */
 function paginateLines(ctx: OffscreenCanvasRenderingContext2D,
-  lines: TextLine[], chapter: string, keepHead: number): PageSpec[] {
+  lines: TextLine[], chapter: string, keepHead: number,
+  contentH: number = CONTENT_H): PageSpec[] {
   if (lines.length === 0) {
     return [];
   }
@@ -772,7 +810,7 @@ function paginateLines(ctx: OffscreenCanvasRenderingContext2D,
   let used: number = 0;
   for (let i: number = 0; i < lines.length; i++) {
     const ln: TextLine = lines[i];
-    if (used + ln.lineH > CONTENT_H && cur.length > 0) {
+    if (used + ln.lineH > contentH && cur.length > 0) {
       pages.push({ lines: cur, chapter: chapter });
       cur = [];
       used = keepHead;
@@ -1147,15 +1185,20 @@ export class PdfExportService {
     }
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
     const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
+    const printSpec: PrintPageSpec = dieSpec();
+    const contentW: number = dieContentW(printSpec);
+    const contentH: number = dieContentH(printSpec);
     const kinIndex: KinshipIndex = kinshipFor(people);
     for (let i: number = 0; i < jobs.length; i++) {
       const vol: PdfVolume = jobs[i];
       const coverPages: PageSpec[] = includeCover
-        ? paginateLines(ctx, buildCover(book, vol.people.length, vol.title), '封 面', 0) : [];
-      const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
+        ? paginateLines(ctx, buildCover(book, vol.people.length, vol.title), '封 面', 0, contentH) : [];
+      const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36,
+        contentH);
       const offset: number = coverPages.length + prefacePages.length;
-      const entries: EntryBlock[] = await buildGenealogyEntries(ctx, vol.people, kinIndex, null);
-      const pg: PaginateResult = await paginateEntries(entries, offset);
+      const entries: EntryBlock[] =
+        await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW);
+      const pg: PaginateResult = await paginateEntries(entries, offset, contentH);
       const multi: boolean = jobs.length > 1;
       pg.uidPage.forEach((pageNo: number, uid: string): void => {
         out.set(uid, multi
@@ -1186,17 +1229,23 @@ export class PdfExportService {
     }
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
     const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
+    // 每次导出读取最新的左右装订与单双面设置
+    const printSpec: PrintPageSpec = dieSpec();
+    const contentW: number = dieContentW(printSpec);
+    const contentH: number = dieContentH(printSpec);
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = kinshipFor(kinPeople);
     const coverPages: PageSpec[] = options.includeCover
-      ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0) : [];
-    const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
+      ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0,
+        contentH) : [];
+    const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36,
+      contentH);
     const offset: number = coverPages.length + prefacePages.length;
 
     await yieldToUi();
-    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null);
-    const firstPass: PaginateResult = await paginateEntries(entries1, offset);
+    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW);
+    const firstPass: PaginateResult = await paginateEntries(entries1, offset, contentH);
     const uidPageMap: Map<string, number> = firstPass.uidPage;
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     const heights: Map<string, number> = new Map<string, number>();
@@ -1205,7 +1254,8 @@ export class PdfExportService {
     }
     entries1 = [];
     firstPass.pages = [];
-    let entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap);
+    let entries2: EntryBlock[] =
+      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW);
     for (let i: number = 0; i < entries2.length; i = i + 1) {
       const e: EntryBlock = entries2[i];
       const want: number | undefined = heights.get(e.uid);
@@ -1215,9 +1265,10 @@ export class PdfExportService {
         }
       }
     }
-    let genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset)).pages;
+    let genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset, contentH)).pages;
     gCrossRef = null;
-    const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
+    const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book, contentW), '家 训', 36,
+      contentH);
     const all: PageSpec[] = [];
     pushAllPages(all, coverPages);
     pushAllPages(all, prefacePages);
@@ -1245,11 +1296,17 @@ export class PdfExportService {
     const info: PdfInfo = new PdfInfo(book.title +
       (options.volumeTitle !== undefined && options.volumeTitle.length > 0
         ? ' ' + options.volumeTitle : ''));
-    const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W, PAGE_H, 0, 0, rawFont, info);
+    const writer: RawPdfWriter = new RawPdfWriter(outPath,
+      PrintPageSpec.mmToPt(printSpec.trimW), PrintPageSpec.mmToPt(printSpec.trimH),
+      0, 0, rawFont, info);
+    const gutterW: number = PrintPageSpec.mmToPt(printSpec.gutter);
     for (let i: number = 0; i < total; i = i + 1) {
-      const lines: PdfTextLine[] = PdfExportService.buildRawTextLines(ctx, all[i], i + 1, total,
-        i < coverPages.length);
-      writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length));
+      // 双面印刷按「卷内页序」交替装订侧：每卷单独装订，不按整谱页码判断
+      const recto: boolean = ((i + 1) % 2) === 1;
+      const lines: PdfTextLine[] = PdfExportService.buildRawTextLines(ctx, printSpec, all[i],
+        i + 1, total, i < coverPages.length, recto);
+      writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length),
+        PrintPageSpec.mmToPt(printSpec.gutterX(recto)), gutterW);
       if (onProgress && (i % 5 === 0 || i === total - 1)) {
         onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
       }
@@ -1274,15 +1331,21 @@ export class PdfExportService {
   }
 
   /** 把 PageSpec 的文本行转换为 RawPdfWriter 的绝对坐标（pt） */
-  private static buildRawTextLines(ctx: OffscreenCanvasRenderingContext2D, spec: PageSpec,
-    pageNo: number, total: number, isCover: boolean): PdfTextLine[] {
+  private static buildRawTextLines(ctx: OffscreenCanvasRenderingContext2D,
+    printSpec: PrintPageSpec, spec: PageSpec, pageNo: number, total: number, isCover: boolean,
+    recto: boolean): PdfTextLine[] {
     const out: PdfTextLine[] = [];
-    let y: number = isCover ? 0 : MARGIN_TOP;
+    // 版心起点随装订侧变化：装订侧留 gutter + safeInset，双面时奇偶页镜像
+    const contentW: number = dieContentW(printSpec);
+    const innerX: number = dieInnerX(printSpec, recto);
+    const innerY: number = PrintPageSpec.mmToPt(printSpec.innerY());
+    const centerX: number = innerX + contentW / 2;
+    let y: number = isCover ? 0 : innerY;
     if (!isCover && spec.chapter.length > 0) {
       const r: PdfTextLine = new PdfTextLine();
       r.text = spec.chapter;
-      r.xPt = PAGE_W - MARGIN_LR - measurePt(ctx, spec.chapter, 9);
-      r.yPt = baselineOf(MARGIN_TOP - 16, 9);
+      r.xPt = innerX + contentW - measurePt(ctx, spec.chapter, 9);
+      r.yPt = baselineOf(innerY - 16, 9);
       r.sizePt = 9;
       r.color = C_INK3;
       out.push(r);
@@ -1292,8 +1355,8 @@ export class PdfExportService {
       if (ln.text.trim().length > 0) {
         const r: PdfTextLine = new PdfTextLine();
         r.text = ln.text;
-        r.xPt = ln.center ? PAGE_W / 2 - measurePt(ctx, ln.text, ln.font) / 2
-          : MARGIN_LR + ln.indent;
+        r.xPt = ln.center ? centerX - measurePt(ctx, ln.text, ln.font) / 2
+          : innerX + ln.indent;
         r.yPt = baselineOf(y, ln.font);
         r.sizePt = ln.font;
         r.color = ln.color;
@@ -1305,8 +1368,8 @@ export class PdfExportService {
       const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
       const r: PdfTextLine = new PdfTextLine();
       r.text = footer;
-      r.xPt = PAGE_W / 2 - measurePt(ctx, footer, 9.5) / 2;
-      r.yPt = MARGIN_BOTTOM / 2;
+      r.xPt = centerX - measurePt(ctx, footer, 9.5) / 2;
+      r.yPt = PrintPageSpec.mmToPt(printSpec.foot) / 2;
       r.sizePt = 9.5;
       r.color = C_INK2;
       out.push(r);

@@ -3,12 +3,13 @@ import { LayoutMetrics } from './TreeLayout';
 /**
  * 纸质族谱的页面规格。
  *
- * 成品 320×220mm（横版，与 220×320 的纸同尺寸，只是横放）：
+ * 横版 320×220mm（欧式 / 苏式分页）或竖版 A4 210×297mm（牒记文字页）：
  *  - 装订口 gutter、翻口 fold、天头 head、地脚 foot 都在成品内，出血 bleed 在成品外；
- *  - 版心 = 成品减去上述四边；装订侧由 binding 决定，所有页共用同一版心起点；
+ *  - 版心 = 成品减去上述四边；装订侧由 binding 决定：
+ *    单面印刷所有页共用同一版心起点，双面印刷正反页左右镜像；
  *  - 1mm = 3.7795vp(96dpi) = 2.8346pt(72dpi) = 11.811px(300dpi)。
  *
- * 屏幕分页视图与将来的 PDF 导出共用这一份规格，避免两边各写一套尺寸。
+ * 屏幕分页视图与 PDF 导出共用这一份规格，避免两边各写一套尺寸。
  */
 export class PageSpec {
   /** 成品宽（横版，长边） */
@@ -35,11 +36,36 @@ export class PageSpec {
    * 双面装订后一半页的版心会贴到书脊上（只剩 1mm），文字被订进去。
    */
   duplex: boolean = true;
+  /** 全局默认装订方向：导出设置与分页预览共用，由 UI 写入 */
+  static defaultBinding: string = 'right';
   /** 全局默认装订方式：导出设置与分页预览共用，由 UI 写入 */
   static defaultDuplex: boolean = true;
 
+  /** 欧式 / 苏式横版分页规格：320×220mm */
   static landscape(): PageSpec {
     const spec: PageSpec = new PageSpec();
+    spec.binding = PageSpec.defaultBinding;
+    spec.duplex = PageSpec.defaultDuplex;
+    return spec;
+  }
+
+  /**
+   * 牒记式 A4 竖版规格：210×297mm。
+   * 沿用装订口 / 翻口 / 天头 / 地脚的四边模型，正文宽高与旧版
+   * 「左右各 56pt、上 64pt、下 52pt」基本一致，装订侧单独加宽，
+   * 双面印刷时随卷内页序左右镜像。
+   */
+  static portraitA4(): PageSpec {
+    const spec: PageSpec = new PageSpec();
+    spec.trimW = 210;
+    spec.trimH = 297;
+    spec.gutter = 20;
+    spec.fold = 15;
+    spec.head = 20;
+    spec.foot = 20;
+    spec.bleed = 3;
+    spec.safeInset = 6;
+    spec.binding = PageSpec.defaultBinding;
     spec.duplex = PageSpec.defaultDuplex;
     return spec;
   }
@@ -100,10 +126,15 @@ export class PageSpec {
     return mm * 11.811023622;
   }
 
+  /**
+   * 分页缓存键：只包含影响页分配的尺寸参数。
+   * 装订方向与单双面只改版心起点（innerX/gutterX），不影响每页放哪些人，
+   * 因此不参与键；切换时命中缓存后把最新 spec 挂回即可立即换几何。
+   */
   key(): string {
     return this.trimW.toString() + 'x' + this.trimH.toString() + '|' + this.gutter.toString() +
       '|' + this.fold.toString() + '|' + this.head.toString() + '|' + this.foot.toString() +
-      '|' + this.safeInset.toString() + '|' + this.binding;
+      '|' + this.safeInset.toString();
   }
 }
 

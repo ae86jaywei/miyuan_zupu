@@ -91,6 +91,8 @@ export struct PagedTree {
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
   /** 单面 / 双面装订：与导出设置共用同一个 AppStorage 键 */
   @StorageLink('printDuplex') @Watch('onDuplex') printDuplex: boolean = true;
+  /** 装订方向：left / right，与导出设置共用 */
+  @StorageLink('printBinding') @Watch('onBinding') printBinding: string = 'right';
 
   onPageChange: (n: number) => void = (n: number): void => {};
   onTapPerson: (uid: string) => void = (uid: string): void => {};
@@ -127,6 +129,7 @@ export struct PagedTree {
   @State panY: number = 0;
 
   aboutToAppear(): void {
+    PageSpec.defaultBinding = this.printBinding;
     PageSpec.defaultDuplex = this.printDuplex;
     this.refresh();
     this.updateScale();
@@ -139,6 +142,13 @@ export struct PagedTree {
   /** 切换单面/双面：装订侧变了，整本按新几何重建（页分配不变，只重算版心） */
   onDuplex(): void {
     PageSpec.defaultDuplex = this.printDuplex;
+    this.lastKey = '';
+    this.refresh();
+  }
+
+  /** 切换左右装订：镜像版心起点，页分配不变 */
+  onBinding(): void {
+    PageSpec.defaultBinding = this.printBinding;
     this.lastKey = '';
     this.refresh();
   }
@@ -486,7 +496,7 @@ export struct PagedTree {
         .backgroundColor('#FFFDF6')
         .border({ width: 0.5, color: '#D8CBB2' })
 
-      // 装订口：按 PageSpec.binding 贴在装订侧（欧式谱右起，装订口在右）
+      // 装订口：按 PageSpec.binding 贴装订侧，双面印刷时奇偶页镜像
       Column()
         .width(this.mm(this.spec.gutter))
         .height('100%')
