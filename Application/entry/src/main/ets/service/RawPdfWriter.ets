@@ -36,6 +36,8 @@ export class PdfTextLine {
   yPt: number = 0;
   sizePt: number = 10;
   color: string = '#2B2B2B';
+  /** 描边模拟粗体（内嵌字体只有 Regular，没有单独的 Bold 字形） */
+  bold: boolean = false;
 }
 
 /** PDF 文档元信息（/Info），字符串统一按 UTF-16BE 写入 */
@@ -257,8 +259,15 @@ export class RawPdfWriter {
       if (ln.text.trim().length === 0) {
         continue;
       }
-      content = content + 'BT /F1 ' + ln.sizePt.toFixed(2) + ' Tf ' +
-        RawPdfWriter.rgbOp(ln.color) + ' ' + ln.xPt.toFixed(2) + ' ' + ln.yPt.toFixed(2) +
+      let fill: string = RawPdfWriter.rgbOp(ln.color);
+      if (ln.bold) {
+        // 同色描边 + 2 Tr（fill+stroke）模拟粗体；线宽随字号缩放
+        const strokeW: number = Math.max(0.3, ln.sizePt * 0.035);
+        fill = fill.replace(' rg', ' RG') + ' ' + strokeW.toFixed(2) + ' w 2 Tr ' +
+          RawPdfWriter.rgbOp(ln.color);
+      }
+      content = content + 'BT /F1 ' + ln.sizePt.toFixed(2) + ' Tf ' + fill + ' ' +
+        ln.xPt.toFixed(2) + ' ' + ln.yPt.toFixed(2) +
         ' Td <' + this.textHex(ln.text) + '> Tj ET\n';
     }
     this.beginObj(contentId);

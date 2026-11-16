@@ -423,8 +423,8 @@ function spouseText(idx: KinshipIndex, p: Person, refs: Map<string, number> | nu
 
 // ─── 条目字号 ─────────────────────────────────────────────
 // PDF 默认 100% 缩放时原字号偏小；姓名加大一档，详情加大到原姓名的字号
-const F_NAME: number = 14;
-const H_NAME: number = 26;
+const F_NAME: number = 22;   // 中文字号「2 号」= 22pt
+const H_NAME: number = 34;
 const F_DETAIL: number = 12.5;
 const H_DETAIL: number = 22;
 
@@ -444,21 +444,24 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   contentW: number = CONTENT_W): TextLine[] {
   const lines: TextLine[] = [];
   const uid: string = p.uid.trim().toUpperCase();
-  let head: string = p.name + '（' + generationLabel(p.generation);
+  // 姓名单独一行：2 号字 + 加粗；世代/UID/字派另起小字行，避免 22pt 长行溢出
+  const nameColor: string = p.gender === '女' ? C_FEMALE : C_INK;
+  lines.push({
+    text: p.name, font: F_NAME, lineH: H_NAME,
+    color: nameColor, bold: true, indent: 0, center: false
+  });
+  let meta: string = '（' + generationLabel(p.generation);
   if (uid.length > 0) {
-    head += '，' + uid;
+    meta += '，' + uid;
   }
-  head += '）';
+  meta += '）';
   if (p.gender === '女') {
-    head += '，女';
+    meta += '，女';
   }
   if (p.generationChar.length > 0) {
-    head += '，字派“' + p.generationChar + '”';
+    meta += '，字派“' + p.generationChar + '”';
   }
-  lines.push({
-    text: head, font: F_NAME, lineH: H_NAME,
-    color: p.gender === '女' ? C_FEMALE : C_INK, bold: true, indent: 0, center: false
-  });
+  pushAll(lines, wrapLines(meta, F_DETAIL, 0, nameColor, contentW));
   // 配偶：名分 + 姓名（UID·页码）
   if (p.spouses.length > 0) {
     pushAll(lines, wrapLines('配偶：' + spouseText(kinIndex, p, refs), F_DETAIL, 10, C_FEMALE, contentW));
@@ -830,7 +833,7 @@ function paginateLines(ctx: OffscreenCanvasRenderingContext2D,
 // ─── 仿古竖排（右起左行、从上到下） ───────────────────────
 
 /** 竖排字号上限：标题不压过正文，避免单字占满一列 */
-const CLASSIC_MAX_FONT: number = 16;
+const CLASSIC_MAX_FONT: number = 22;
 /** 竖排列间距（pt） */
 const CLASSIC_COL_GAP: number = 6;
 
@@ -1523,6 +1526,7 @@ export class PdfExportService {
         r.yPt = baselineOf(y, ln.font);
         r.sizePt = ln.font;
         r.color = ln.color;
+        r.bold = ln.bold;
         out.push(r);
       }
       y = y + ln.lineH;
@@ -1576,6 +1580,7 @@ export class PdfExportService {
           r.yPt = baselineOf(innerY + k * step, font);
           r.sizePt = font;
           r.color = ln.color;
+          r.bold = ln.bold;
           out.push(r);
           ci = ci + (cp > 0xffff ? 2 : 1);
           k = k + 1;
