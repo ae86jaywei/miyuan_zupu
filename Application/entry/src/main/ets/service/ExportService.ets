@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
-import { Person, SpouseRelation, spouseRelationLevel, childStatusLabel } from '../model/Person';
+import { Person, SpouseRelation, spouseRelationLevel, normalizeSpouseRelation, childStatusLabel } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 
 import { csvEscape } from '../util/StringUtil';
@@ -570,8 +570,8 @@ export class ExportService {
       const key: string = r.uid.trim().toUpperCase();
       const found: string | undefined = nameMap.get(key);
       const name: string = found !== undefined ? found : r.uid;
-      const prefix: string = (r.relation === '元配' || r.relation === '未记' || r.relation === '配偶') ?
-        '配' : r.relation;
+      const rel: string = normalizeSpouseRelation(r.relation);
+      const prefix: string = (rel === '元配' || rel === '未记' || rel === '配偶') ? '配' : rel;
       parts.push(prefix + name);
     });
     return parts.join('、');

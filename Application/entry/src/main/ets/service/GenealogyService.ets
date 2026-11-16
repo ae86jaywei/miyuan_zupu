@@ -2,7 +2,7 @@ import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, spouseRelationLevel } from '../model/Person';
+import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, spouseRelationLevel, normalizeSpouseRelation } from '../model/Person';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { PersonNode } from '../model/PersonNode';
 import { GenerationStat, GenealogyStats } from '../model/Stats';
@@ -685,8 +685,9 @@ export class GenealogyService {
       if (sp === null) {
         return;
       }
-      const prefix: string = (r.relation === '元配' || r.relation === '未记' || r.relation === '配偶') ?
-        '配' : (r.relation.length > 0 ? r.relation : '配');
+      const rel: string = normalizeSpouseRelation(r.relation);
+      const prefix: string = (rel === '元配' || rel === '未记' || rel === '配偶') ?
+        '配' : rel;
       parts.push(prefix + ' ' + sp.name);
     });
     return parts.join('、');
@@ -2021,7 +2022,9 @@ export class GenealogyService {
       seen.add(id);
       const nr: SpouseRelation = new SpouseRelation();
       nr.uid = id;
-      nr.relation = r.relation.trim().length > 0 ? r.relation.trim() :
+      const rawRel: string = r.relation.trim();
+      // 历史数据可能把等级写进称谓（如“夫（侧室）”），保存时统一回“夫”
+      nr.relation = rawRel.length > 0 ? normalizeSpouseRelation(rawRel) :
         (p.gender === '女' ? '夫' : '未记');
       nr.level = spouseRelationLevel(nr.relation);
       nr.order = list.length + 1;

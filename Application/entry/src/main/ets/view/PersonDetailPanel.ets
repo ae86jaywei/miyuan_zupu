@@ -156,7 +156,7 @@ export struct PersonDetailPanel {
               if ((this.person() as Person).childStatus.length > 0
                 && (this.person() as Person).childStatus !== '未记') {
                 InfoRow({
-                  label: '子女身份',
+                  label: '身份',
                   value: childStatusLabel((this.person() as Person).childStatus, (this.person() as Person).gender)
                 })
                 Column() {

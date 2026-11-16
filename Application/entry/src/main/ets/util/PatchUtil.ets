@@ -147,7 +147,7 @@ export function fieldLabel(key: string): string {
     case 'generation': return '世代';
     case 'generationChar': return '字派';
     case 'lifeStatus': return '在世状态';
-    case 'childStatus': return '子女身份';
+    case 'childStatus': return '身份';
     case 'birthDate': return '出生日期';
     case 'birthCalendar': return '出生历法';
     case 'deathDate': return '逝世日期';

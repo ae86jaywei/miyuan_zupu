@@ -982,7 +982,7 @@ struct ImportExport {
 
           TS({ title: T('字段规范'), subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
           Column() {
-            Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）')).fontFamily(uiFontFamily())
+            Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、身份（嫡出/庶出/婢生/奸生/嗣子/养子；妻妾可记元配/继室/侧室/偏房等名分）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')

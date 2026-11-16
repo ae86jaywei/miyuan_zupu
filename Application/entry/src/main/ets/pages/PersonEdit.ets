@@ -9,7 +9,7 @@ import { picker } from '@kit.CoreFileKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { BackButton } from '../components/BackButton';
 import { Breakpoint } from '../common/Constants';
-import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
+import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilyService } from '../service/FamilyService';
@@ -630,7 +630,14 @@ struct PersonEdit {
     this.fResidence = p.residence;
     this.fFatherId = p.fatherId;
     this.fMotherId = p.motherId;
-    this.fSpouses = p.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
+    this.fSpouses = p.spouses.map((r: SpouseRelation): SpouseRelation => {
+      const c: SpouseRelation = cloneSpouseRelation(r);
+      // 历史数据可能把等级写进称谓（如“夫（侧室）”），统一回“夫”，
+      // 配偶栏只显示“夫 姓名”，本人身份在“身份”字段单独展示。
+      c.relation = normalizeSpouseRelation(c.relation);
+      c.level = spouseRelationLevel(c.relation);
+      return c;
+    });
     this.fRank = p.generation === 1 ? ANCESTOR_RANK :
       (p.rank === ANCESTOR_RANK ? '' : p.rank);
     this.fAdoption = p.adoption;
@@ -1984,8 +1991,8 @@ struct PersonEdit {
 
       Column() {
         SelectField({
-          label: '子女身份',
-          hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母（决定宗法地位与继承顺序）',
+          label: '身份',
+          hint: '本人身份或出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；妻妾可选元配 / 继室 / 侧室 / 偏房等名分',
           options: CHILD_STATUS_OPTIONS,
           value: this.fChildStatus,
           onValue: (v: string): void => {
@@ -2397,7 +2404,7 @@ struct PersonEdit {
         Divider().color(Theme.line).margin({ top: 10, bottom: 10 })
         Text(T(this.previewLine('性别', this.fGender))).fontFamily(uiFontFamily())
         Text(T(this.previewLine('在世状态', this.fLifeStatus))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('子女身份', this.fChildStatus === '未记' ? '' :
+        Text(T(this.previewLine('身份', this.fChildStatus === '未记' ? '' :
           childStatusLabel(this.fChildStatus, this.fGender)))).fontFamily(uiFontFamily())
         Text(T(this.previewLine('出生', this.fBirthDate))).fontFamily(uiFontFamily())
         Text(T(this.previewLine('逝世', this.fDeathDate))).fontFamily(uiFontFamily())

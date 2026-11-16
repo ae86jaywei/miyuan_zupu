@@ -289,8 +289,10 @@ function buildFamilyUnits(people: Person[]): FamilyUnit[] {
       if (p.fatherId.trim().length > 0 || p.motherId.trim().length > 0) {
         score += 2;
       }
+      // 男性 +3 高于「有父母」+2：夫妻同组时锚点优先落在男方，
+      // 避免妻子的父母记录让锚点变成妻子（夫妻顺序颠倒、世代跟着配偶走）
       if (p.gender === '男') {
-        score += 1;
+        score += 3;
       }
       if (score > bestScore) {
         bestScore = score;
@@ -298,17 +300,16 @@ function buildFamilyUnits(people: Person[]): FamilyUnit[] {
       }
     }
     const unit: FamilyUnit = new FamilyUnit();
-    unit.generation = people[anchor].generation;
-    if (unit.generation <= 0) {
-      let minGen: number = 0;
-      for (let i: number = 0; i < idxs.length; i++) {
-        const g: number = people[idxs[i]].generation;
-        if (g > 0 && (minGen === 0 || g < minGen)) {
-          minGen = g;
-        }
+    // 家庭单元的世代取组内最小有效世代：配偶/错挂关系的世代即使录成后代，
+    // 也不会把整条（尤其是第一世始迁祖）抬到后面的世代去，导致正文缺第一世。
+    let minGen: number = 0;
+    for (let i: number = 0; i < idxs.length; i++) {
+      const g: number = people[idxs[i]].generation;
+      if (g > 0 && (minGen === 0 || g < minGen)) {
+        minGen = g;
       }
-      unit.generation = minGen;
     }
+    unit.generation = minGen;
     unit.anchorUid = people[anchor].uid.trim().toUpperCase();
     unit.members.push(people[anchor]);
     // 其余成员：男在前、女在后，同性别按 UID，保证每次排版顺序稳定
@@ -343,7 +344,8 @@ function buildFamilyUnits(people: Person[]): FamilyUnit[] {
 /** 条目块：uid 用于页码互引（世代分隔头的 uid 为空串） */
 interface EntryBlock {
   uid: string;
-  /** 同一家庭单元（本人+配偶）共用一个 unitId：分页时整单元一起换页，夫妻不会被拆到两页 */
+  /** 同一家庭单元（本人+配偶）共用一个 unitId：用于识别夫妻关系；
+   *  分页按“剩余不足 3 行才换页”处理，必要时允许条目跨页续写 */
   unitId: string;
   lines: TextLine[];
 }
@@ -510,7 +512,7 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   if (p.alias.length > 0) {
     lines.push(detailLine('曾用名/小名：' + p.alias, C_INK2));
   }
-  // 身份：性别 / 排行 / 子女身份 / 过继 / 在世状态
+  // 身份：性别 / 排行 / 本人身份（子女出身或妻妾名分）/ 过继 / 在世状态
   const idParts: string[] = ['性别 ' + p.gender];
   if (p.rank.length > 0) {
     idParts.push('排行 ' + p.rank);
@@ -592,13 +594,39 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
 }
 
 /**
+ * 谱内是否缺第一世：最小有效世代大于 1，且谱中没有「第一世同名」的始迁祖。
+ * 用于整谱牒记正文补一条始迁祖条目，避免正文直接从第二世开始。
+ */
+function needsAncestorEntry(people: Person[], units: FamilyUnit[], ancestorName: string): boolean {
+  const name: string = ancestorName.trim();
+  if (name.length === 0) {
+    return false;
+  }
+  // 已录入且世代不大于 1 的始迁祖：正文会正常出现，不重复补条目
+  for (let i: number = 0; i < people.length; i++) {
+    if (people[i].name.trim() === name && people[i].generation <= 1) {
+      return false;
+    }
+  }
+  let minGen: number = 0;
+  for (let i: number = 0; i < units.length; i++) {
+    const g: number = units[i].generation;
+    if (g > 0 && (minGen === 0 || g < minGen)) {
+      minGen = g;
+    }
+  }
+  return minGen > 1;
+}
+
+/**
  * 世系条目：世代分隔头 + 逐人条目。
- * 排序以「家庭单元」为单位（见 buildFamilyUnits）：夫妻无论世代是否录得一致都紧挨着输出，
- * 条目带上 unitId，分页时整单元一起换页，不会出现「夫在第2页、妻在第100页」。
+ * 排序以「家庭单元」为单位（见 buildFamilyUnits）：夫妻无论世代是否录得一致都紧挨着输出。
+ * 分页时只要当前页剩余不少于 3 行就继续在本页写，写满后按行续到下一页。
+ * ancestorName 非空且谱内缺第一世时，正文最前面补「第一世 · 始迁祖」条目。
  */
 async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
   kinIndex: KinshipIndex, refs: Map<string, number> | null,
-  contentW: number = CONTENT_W): Promise<EntryBlock[]> {
+  contentW: number = CONTENT_W, ancestorName: string = ''): Promise<EntryBlock[]> {
   const units: FamilyUnit[] = buildFamilyUnits(people);
   // 每个展示世代的人数按锚点世代统计，配偶世代录错也归入同一节
   const genCount: Map<number, number> = new Map<number, number>();
@@ -609,6 +637,28 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
   const entries: EntryBlock[] = [];
   let lastGen: number = -1;
   let written: number = 0;
+  // 谱内没有任何第一世人物（始迁祖未录入，或世代录入从二世起）时，
+  // 用谱信息里的始迁祖姓名补出第一世条目，避免正文直接从第二世开始。
+  if (needsAncestorEntry(people, units, ancestorName)) {
+    entries.push({
+      uid: '',
+      unitId: '',
+      lines: [{
+        text: generationLabel(1) + '（1人）',
+        font: 16, lineH: 32, color: C_GOLD, bold: true, indent: 0, center: false
+      }]
+    });
+    entries.push({
+      uid: '',
+      unitId: 'ancestor#1',
+      lines: [
+        { text: ancestorName.trim(), font: F_NAME, lineH: H_NAME, color: C_INK, bold: true, indent: 0, center: false },
+        { text: '（' + generationLabel(1) + '）', font: F_DETAIL, lineH: H_DETAIL, color: C_INK, bold: false, indent: 0, center: false },
+        { text: '谱载始迁祖，本谱世系自此始。', font: F_DETAIL, lineH: H_DETAIL, color: C_INK2, bold: false, indent: 10, center: false },
+        { text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false }
+      ]
+    });
+  }
   for (let i: number = 0; i < units.length; i++) {
     const unit: FamilyUnit = units[i];
     if (unit.generation !== lastGen) {
@@ -868,8 +918,9 @@ async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset:
 }
 
 /**
- * 流式分页：把「世代分隔头 + 条目」按自然断点切到 A4 页内。
- * 条目整体不拆页（一人一条不跨页），同时记录每人的最终页码。
+ * 流式分页：把「世代分隔头 + 条目」按行切到 A4 页内。
+ * 一人内容超过一页时按行续到下一页，不再溢出页脚；
+ * 只有当当前页剩余不足 3 行时，下一个人（或世代头）才换页，避免页面大片空白。
  */
 async function paginateEntries(entries: EntryBlock[], pageOffset: number,
   contentH: number = CONTENT_H): Promise<PaginateResult> {
@@ -877,60 +928,56 @@ async function paginateEntries(entries: EntryBlock[], pageOffset: number,
   const uidPage: Map<string, number> = new Map<string, number>();
   let cur: TextLine[] = [];
   let used: number = 0;
-  const keepHead: number = 36; // 顶部保留页眉区
-  const blockHeight = (lines: TextLine[]): number => {
-    let h: number = 0;
-    for (let j: number = 0; j < lines.length; j++) {
-      h += lines[j].lineH;
-    }
-    return h;
-  };
-  let i: number = 0;
-  let processed: number = 0;
-  let nextYield: number = 200;
-  while (i < entries.length) {
-    // 同一家庭单元（本人+配偶）作为一个整体判断换页，夫妻不会被页尾拆散
-    const unitId: string = entries[i].unitId;
-    let groupEnd: number = i + 1;
-    let groupH: number = blockHeight(entries[i].lines);
-    if (unitId.length > 0) {
-      while (groupEnd < entries.length && entries[groupEnd].unitId === unitId) {
-        groupH += blockHeight(entries[groupEnd].lines);
-        groupEnd++;
-      }
-    } else if (entries[i].uid.length === 0 && groupEnd < entries.length
-      && entries[groupEnd].unitId.length > 0) {
-      // 世代分隔头跟随本节第一个家庭单元，避免只剩一个标题孤零零留在页尾
-      const nextUnit: string = entries[groupEnd].unitId;
-      while (groupEnd < entries.length && entries[groupEnd].unitId === nextUnit) {
-        groupH += blockHeight(entries[groupEnd].lines);
-        groupEnd++;
-      }
-    }
-    const need: number = (used === 0 ? keepHead : 8) + groupH;
-    if (used + need > contentH && cur.length > 0) {
+  // 至少还能放下 3 行正文才在本页起写下一人；否则换页，避免页尾只剩一两行
+  const minTail: number = H_DETAIL * 3;
+  const flush = (): void => {
+    if (cur.length > 0) {
       pages.push({ lines: cur, chapter: '世 系' });
       cur = [];
       used = 0;
     }
-    for (let k: number = i; k < groupEnd; k++) {
-      if (entries[k].uid.length > 0) {
-        uidPage.set(entries[k].uid, pageOffset + pages.length + 1);
+  };
+  let processed: number = 0;
+  let nextYield: number = 200;
+  for (let i: number = 0; i < entries.length; i = i + 1) {
+    const e: EntryBlock = entries[i];
+    if (e.uid.length === 0) {
+      // 世代分隔头跟随本节第一个人物：标题 + 至少 3 行正文放不下时一起换页，
+      // 避免标题孤零零留在页尾
+      const headH: number = e.lines.length > 0 ? e.lines[0].lineH : 0;
+      if (cur.length > 0 && contentH - used < minTail + headH) {
+        flush();
       }
-      pushAll(cur, entries[k].lines);
-      used += blockHeight(entries[k].lines);
+    } else if (cur.length > 0 && contentH - used < minTail) {
+      // 剩余不足 3 行：整条换页再开始写
+      flush();
     }
-    processed += groupEnd - i;
-    i = groupEnd;
+    const startPage: number = pageOffset + pages.length + 1;
+    for (let j: number = 0; j < e.lines.length; j = j + 1) {
+      const ln: TextLine = e.lines[j];
+      // 一人一条允许跨页：本页写满就续到下一页（不再让整条溢出页脚）
+      if (cur.length > 0 && used + ln.lineH > contentH) {
+        flush();
+        // 续页页首不写条目末尾的空白占位行
+        if (ln.text.trim().length === 0 && ln.color === C_BG) {
+          continue;
+        }
+      }
+      cur.push(ln);
+      used = used + ln.lineH;
+    }
+    if (e.uid.length > 0) {
+      // 页码记在人物开始的那一页（跨页续写时不是末页）
+      uidPage.set(e.uid, startPage);
+    }
+    processed = processed + 1;
     // 与条目构建同样分片让出，避免大谱一次分页长时间占住主线程
     if (processed >= nextYield) {
-      nextYield += 200;
+      nextYield = nextYield + 200;
       await yieldToUi();
     }
   }
-  if (cur.length > 0) {
-    pages.push({ lines: cur, chapter: '世 系' });
-  }
+  flush();
   return { pages: pages, uidPage: uidPage };
 }
 
@@ -1297,6 +1344,102 @@ export class PdfExportService {
     return infos;
   }
 
+  /** 谱内始迁祖：优先谱信息里的始迁祖姓名，其次最小世代、谱内无父母者 */
+  private static ancestorPerson(people: Person[], byUid: Map<string, Person>): Person | null {
+    const bookName: string = GenealogyService.getInstance().getBook().ancestorName.trim();
+    const named: Person[] = [];
+    let minGen: number = 0;
+    for (let i: number = 0; i < people.length; i = i + 1) {
+      const p: Person = people[i];
+      if (bookName.length > 0 && p.name.trim() === bookName) {
+        named.push(p);
+      }
+      if (p.generation > 0 && (minGen === 0 || p.generation < minGen)) {
+        minGen = p.generation;
+      }
+    }
+    if (named.length > 0) {
+      return PdfExportService.pickFounder(named, byUid);
+    }
+    if (minGen <= 0) {
+      return null;
+    }
+    const founders: Person[] = [];
+    for (let i: number = 0; i < people.length; i = i + 1) {
+      if (people[i].generation === minGen) {
+        founders.push(people[i]);
+      }
+    }
+    return PdfExportService.pickFounder(founders, byUid);
+  }
+
+  /** 同世代多人时：谱内无父母 > 男 > UID，保证选到真正的始祖而非同世旁支 */
+  private static pickFounder(list: Person[], byUid: Map<string, Person>): Person | null {
+    let best: Person | null = null;
+    let bestScore: number = -1;
+    for (let i: number = 0; i < list.length; i = i + 1) {
+      const p: Person = list[i];
+      const f: string = p.fatherId.trim().toUpperCase();
+      const m: string = p.motherId.trim().toUpperCase();
+      const noParent: boolean = (f.length === 0 || !byUid.has(f)) && (m.length === 0 || !byUid.has(m));
+      let score: number = 0;
+      if (noParent) {
+        score += 2;
+      }
+      if (p.gender === '男') {
+        score += 1;
+      }
+      if (score > bestScore || (score === bestScore && best !== null && p.uid < best.uid)) {
+        bestScore = score;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  /** 排行序：长房优先（长子 0、次子 1、其余 2），用于同世代房支定长幼 */
+  private static rankOrder(rank: string): number {
+    if (rank.indexOf('长') >= 0) {
+      return 0;
+    }
+    if (rank.indexOf('次') >= 0) {
+      return 1;
+    }
+    return 2;
+  }
+
+  /**
+   * 选长子房组：优先始迁祖的子女所在组，其次世代最早、排行最长。
+   * 返回空串表示找不到可并入的房支。
+   */
+  private static eldestBranchKey(order: string[], groups: Map<string, Person[]>,
+    byUid: Map<string, Person>, ancestorUid: string, skipKey: string): string {
+    let bestKey: string = '';
+    let bestScore: number = -1;
+    const au: string = ancestorUid.trim().toUpperCase();
+    for (let i: number = 0; i < order.length; i = i + 1) {
+      const key: string = order[i];
+      if (key === skipKey) {
+        continue;
+      }
+      const list: Person[] | undefined = groups.get(key);
+      if (list === undefined || list.length === 0) {
+        continue;
+      }
+      const rootP: Person | undefined = byUid.get(key.trim().toUpperCase());
+      const p: Person = rootP !== undefined ? rootP : list[0];
+      const isChild: boolean = p.fatherId.trim().toUpperCase() === au || p.motherId.trim().toUpperCase() === au;
+      const gen: number = p.generation > 0 ? p.generation : 99;
+      const score: number = (isChild ? 1000 : 0) + (100 - Math.min(gen, 99)) * 10 +
+        (10 - PdfExportService.rankOrder(p.rank));
+      if (score > bestScore) {
+        bestScore = score;
+        bestKey = key;
+      }
+    }
+    return bestKey;
+  }
+
   /** 按房支分卷；覆盖度不足（导出子集不属于当前树）时返回空数组由调用方回退 */
   private static planBranchVolumes(people: Person[], maxPerVolume: number,
     index: Map<string, BranchInfo>): PdfVolume[] {
@@ -1322,10 +1465,53 @@ export class PdfExportService {
     if (hit < Math.floor(people.length * 0.8)) {
       return [];
     }
-    const volumes: PdfVolume[] = [];
     // 小房不单独成卷：几十个「一房一卷」会让每卷都建文档/保存，导出时间成倍增加，
     // 也更容易在中途触发系统内存回收。这里只让大房独立成卷，小房合并为合卷。
     const minSingle: number = Math.max(200, Math.floor(maxPerVolume / 2));
+    // 始迁祖（谱内最早世代）不能沉到最后一卷的「合卷」里：
+    // 并到长子房组，并把该组排到最前，第一卷从第一世始迁祖开始，长子一房紧随其后。
+    const byUid: Map<string, Person> = new Map<string, Person>();
+    for (let i: number = 0; i < people.length; i = i + 1) {
+      const p: Person = people[i];
+      if (index.has(p.uid.trim().toUpperCase())) {
+        byUid.set(p.uid.trim().toUpperCase(), p);
+      }
+    }
+    const ancestor: Person | null = PdfExportService.ancestorPerson(people, byUid);
+    if (ancestor !== null) {
+      const aInfo: BranchInfo | undefined = index.get(ancestor.uid.trim().toUpperCase());
+      const ancestorKey: string = aInfo !== undefined ? aInfo.rootUid : '';
+      if (ancestorKey.length > 0 && groups.has(ancestorKey)) {
+        const ancList: Person[] | undefined = groups.get(ancestorKey);
+        // 始迁祖组本身就是大房时不并入别房，只把它所在的卷排到最前
+        const smallAncestor: boolean = ancList !== undefined && ancList.length < minSingle;
+        let mergedKey: string = '';
+        if (smallAncestor) {
+          const homeKey: string = PdfExportService.eldestBranchKey(order, groups, byUid,
+            ancestor.uid, ancestorKey);
+          if (homeKey.length > 0) {
+            const homeList: Person[] | undefined = groups.get(homeKey);
+            if (homeList !== undefined) {
+              groups.delete(ancestorKey);
+              const ai2: number = order.indexOf(ancestorKey);
+              if (ai2 >= 0) {
+                order.splice(ai2, 1);
+              }
+              // 始迁祖一家放在长子房组最前：分页后第一卷首条即第一世家
+              groups.set(homeKey, (ancList as Person[]).concat(homeList));
+              mergedKey = homeKey;
+            }
+          }
+        }
+        const firstKey: string = mergedKey.length > 0 ? mergedKey : ancestorKey;
+        const hi: number = order.indexOf(firstKey);
+        if (hi > 0) {
+          order.splice(hi, 1);
+          order.unshift(firstKey);
+        }
+      }
+    }
+    const volumes: PdfVolume[] = [];
     let mergePeople: Person[] = [];
     let mergeNameCount: number = 0;
     for (let g: number = 0; g < order.length; g = g + 1) {
@@ -1334,7 +1520,8 @@ export class PdfExportService {
       if (list === undefined || list.length === 0) {
         continue;
       }
-      const firstInfo: BranchInfo | undefined = index.get(list[0].uid.trim().toUpperCase());
+      const firstInfo: BranchInfo | undefined =
+        index.get(key.trim().toUpperCase()) ?? index.get(list[0].uid.trim().toUpperCase());
       const branchName: string = firstInfo !== undefined ? firstInfo.branchName : '本支';
       const rootName: string = firstInfo !== undefined ? firstInfo.rootName : '';
       const name: string = branchName + (rootName.length > 0 ? '·' + rootName : '');
@@ -1480,7 +1667,8 @@ export class PdfExportService {
         : paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36, contentH);
       const offset: number = coverPages.length + prefacePages.length;
       const entries: EntryBlock[] =
-        await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW);
+        await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW,
+          jobs.length === 1 ? book.ancestorName : '');
       const pg: PaginateResult = classicLayout
         ? await paginateEntriesVerticalColumns(entries, offset, contentW, contentH)
         : await paginateEntries(entries, offset, contentH);
@@ -1530,9 +1718,13 @@ export class PdfExportService {
       ? paginateLinesVertical(buildPreface(ctx, book, contentW), '谱 序', contentW, contentH)
       : paginateLines(ctx, buildPreface(ctx, book, contentW), '谱 序', 36, contentH);
     const offset: number = coverPages.length + prefacePages.length;
+    // 整谱单卷导出且谱内缺第一世时，正文补「第一世 · 始迁祖」；
+    // 分卷导出每卷有独立卷名，不能把总谱始迁祖写进各房支卷首。
+    const ancestorForBody: string = (options.volumeTitle ?? '').length === 0 ? book.ancestorName : '';
 
     await yieldToUi();
-    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW);
+    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW,
+      ancestorForBody);
     const firstPass: PaginateResult = classic
       ? await paginateEntriesVerticalColumns(entries1, offset, contentW, contentH)
       : await paginateEntries(entries1, offset, contentH);
@@ -1545,7 +1737,7 @@ export class PdfExportService {
     entries1 = [];
     firstPass.pages = [];
     let entries2: EntryBlock[] =
-      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW);
+      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW, ancestorForBody);
     if (!classic) {
       // 横排版靠补空行稳住两遍分页；竖排按字符数分页，补空行反而会多占列
       for (let i: number = 0; i < entries2.length; i = i + 1) {
@@ -1811,12 +2003,15 @@ export class PdfExportService {
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0) : [];
     const prefacePages: PageSpec[] = paginateLines(ctx, buildPreface(ctx, book), '谱 序', 36);
     const offset: number = coverPages.length + prefacePages.length;
+    // 整谱单卷导出且谱内缺第一世时，正文补「第一世 · 始迁祖」；分卷各房支卷首不写总谱始迁祖
+    const ancestorForBody: string = (options.volumeTitle ?? '').length === 0 ? book.ancestorName : '';
 
     // 第一遍：用等宽页码占位排版，确定「每人落在第几页」
     const tA: number = Date.now();
     // 先让进度条跑完一帧，再进入耗时的同步断行与分页
     await yieldToUi();
-    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null);
+    let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, CONTENT_W,
+      ancestorForBody);
     const firstPass: PaginateResult = await paginateEntries(entries1, offset);
     console.info('[PdfExport] pass1 ' + (Date.now() - tA) + 'ms, pages=' + firstPass.pages.length);
     // 第一遍整页排版仅用于页码映射与行数校验，取出 uidPage 后即可释放，
@@ -1833,7 +2028,8 @@ export class PdfExportService {
     // 第一遍的 entries1 与整页数据到此不再需要，主动置空让 GC 回收（约一整份渲染文本）
     entries1 = [];
     firstPass.pages = [];
-    let entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap);
+    let entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, CONTENT_W,
+      ancestorForBody);
     for (let i: number = 0; i < entries2.length; i++) {
       const e: EntryBlock = entries2[i];
       const want: number | undefined = heights.get(e.uid);

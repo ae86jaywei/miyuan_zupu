@@ -120,21 +120,38 @@ export function spouseRelationMeta(relation: string): SpouseRelationMeta {
   return fallback;
 }
 
+/** 规范化配偶称谓：历史数据里的“夫（侧室）”等旧值统一为“夫”，空值回落“未记” */
+export function normalizeSpouseRelation(relation: string): string {
+  const r: string = relation.trim();
+  if (r === '夫' || r.indexOf('夫（') === 0) {
+    return '夫';
+  }
+  return r.length > 0 ? r : '未记';
+}
+
 export function spouseRelationLevel(relation: string): string {
-  return spouseRelationMeta(relation).level;
+  const r: string = normalizeSpouseRelation(relation);
+  if (r === '夫') {
+    return '夫';
+  }
+  return spouseRelationMeta(r).level;
 }
 
 export function spouseRelationHint(relation: string): string {
-  return spouseRelationMeta(relation).hint;
+  return spouseRelationMeta(normalizeSpouseRelation(relation)).hint;
 }
 
-/** 下拉展示文案：称谓（等级） */
+/** 下拉展示文案：称谓（等级）；“夫”是女性对配偶的称谓，不带等级括号 */
 export function spouseRelationLabel(relation: string): string {
-  const level: string = spouseRelationLevel(relation);
-  if (level === '未记' || level === '夫' || level === relation) {
-    return relation;
+  const r: string = normalizeSpouseRelation(relation);
+  if (r === '夫') {
+    return '夫';
   }
-  return relation + '（' + level + '）';
+  const level: string = spouseRelationLevel(r);
+  if (level === '未记' || level === r) {
+    return r;
+  }
+  return r + '（' + level + '）';
 }
 
 /** 妻妾所生子女的宗法身份：正妻/平妻 → 嫡出，妾室 → 庶出，外室 → 奸生 */
@@ -158,7 +175,14 @@ export interface ChildStatusMeta {
   hint: string;
 }
 
-export const CHILD_STATUS_OPTIONS: string[] = ['未记', '嫡出', '庶出', '婢生', '奸生', '嗣子', '养子', '随母'];
+export const CHILD_STATUS_OPTIONS: string[] = ['未记', '嫡出', '庶出', '婢生', '奸生', '嗣子', '养子', '随母',
+  // 本人身份（妻妾名分）：可直接在个人信息里标注自己在家中的身份
+  '元配', '正室', '嫡妻', '发妻', '继室', '继妻', '继配', '后妻', '续弦', '填房', '正房',
+  '平妻', '并嫡', '对房', '两头大',
+  '媵', '侧室', '副室',
+  '偏房', '二房', '姨娘', '如夫人',
+  '陪房', '侍妾', '婢妾', '通房丫头',
+  '外室', '外妇'];
 
 export const CHILD_STATUS_METAS: ChildStatusMeta[] = [
   { status: '未记', hint: '未标注出身名分。' },
@@ -198,11 +222,18 @@ export function childStatusMeta(status: string): ChildStatusMeta {
       return CHILD_STATUS_METAS[i];
     }
   }
-  const fallback: ChildStatusMeta = { status: status, hint: '未标注出身名分。' };
+  // 身份下拉也包含妻妾名分（元配/继室/侧室/偏房…），沿用名分释义作为提示
+  for (let i: number = 0; i < SPOUSE_RELATION_METAS.length; i++) {
+    if (SPOUSE_RELATION_METAS[i].relation === status) {
+      const meta: ChildStatusMeta = { status: status, hint: SPOUSE_RELATION_METAS[i].hint };
+      return meta;
+    }
+  }
+  const fallback: ChildStatusMeta = { status: status, hint: '未标注身份或出身名分。' };
   return fallback;
 }
 
-/** 子女身份展示称谓（按性别生成嫡子/嫡女等） */
+/** 本人身份展示称谓（按性别生成嫡子/嫡女等；妻妾名分等身份原样展示） */
 export function childStatusLabel(status: string, gender: string): string {
   const female: boolean = gender === '女';
   switch (status) {
@@ -213,7 +244,14 @@ export function childStatusLabel(status: string, gender: string): string {
     case '嗣子': return female ? '嗣女' : '嗣子';
     case '养子': return female ? '养女' : '养子';
     case '随母': return female ? '随母女' : '随母子';
-    default: return '未记';
+    default:
+      // 侧室/偏房/继室等本人身份：直接显示选中的称谓，不改成“未记”
+      for (let i: number = 0; i < SPOUSE_RELATIONS.length; i++) {
+        if (SPOUSE_RELATIONS[i] === status) {
+          return status;
+        }
+      }
+      return '未记';
   }
 }
 
@@ -336,7 +374,7 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'gender', label: '性别', hint: '男 / 女', group: '身份标识', type: 'select', privacy: false },
   { key: 'generationChar', label: '辈分/字派', hint: '所属字辈，如：德', group: '身份标识', type: 'text', privacy: false },
   { key: 'lifeStatus', label: '在世状态', hint: '在世 / 已故 / 失联 / 不详（上下滑动选择）', group: '身份标识', type: 'select', privacy: false },
-  { key: 'childStatus', label: '子女身份', hint: '未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；决定宗法地位与继承顺序', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childStatus', label: '身份', hint: '本人身份或出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；妻妾可选元配 / 继室 / 侧室 / 偏房等名分', group: '身份标识', type: 'select', privacy: false },
   { key: 'birthDate', label: '出生日期', hint: '拉起日历选择（公历），或手填农历 1980年农历四月六', group: '时间信息', type: 'date', privacy: false },
   { key: 'deathDate', label: '逝世日期', hint: '格式同上，在世者留空', group: '时间信息', type: 'date', privacy: false },
   { key: 'birthPlace', label: '出生地', hint: '省-市-县-乡镇-村，如：广东-梅州-兴宁-罗岗镇', group: '时间信息', type: 'text', privacy: false },
