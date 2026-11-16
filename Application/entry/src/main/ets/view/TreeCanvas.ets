@@ -1,5 +1,5 @@
-import { PersonNode } from '../model/PersonNode';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { PersonNode } from '../model/PersonNode';
 import { Person } from '../model/Person';
 import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';

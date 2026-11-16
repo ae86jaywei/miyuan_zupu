@@ -1,4 +1,5 @@
-﻿import { pdfService } from '@kit.PDFKit';
+﻿import { T } from './ScriptService';
+import { pdfService } from '@kit.PDFKit';
 import { image } from '@kit.ImageKit';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
@@ -20,7 +21,6 @@ import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextRun, PdfInfo } from './RawPdfWriter';
-import { T } from './ScriptService';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 

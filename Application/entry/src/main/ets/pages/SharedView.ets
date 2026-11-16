@@ -1,5 +1,5 @@
-import { Theme, Spacing } from '../theme/Theme';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from '../theme/Theme';
 import { BackButton } from '../components/BackButton';
 import { Person } from '../model/Person';
 import { CloudSyncService } from '../service/CloudSyncService';

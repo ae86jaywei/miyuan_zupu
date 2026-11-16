@@ -1,5 +1,5 @@
-import { Theme } from '../theme/Theme';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme } from '../theme/Theme';
 
 /** 详情页“标签：值”行 */
 @Component

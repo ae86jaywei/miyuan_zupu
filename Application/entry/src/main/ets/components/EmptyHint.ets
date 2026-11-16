@@ -1,5 +1,5 @@
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing } from '../theme/Theme';
-import { uiFontFamily } from '../service/ScriptService';
 
 /** 空状态提示 */
 @Component

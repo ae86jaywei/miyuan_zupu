@@ -1,5 +1,5 @@
+import { T, uiFontFamily } from '../../service/ScriptService';
 import { Person } from '../../model/Person';
-import { uiFontFamily } from '../../service/ScriptService';
 import { Theme, Spacing } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { Tag } from '../Tag';

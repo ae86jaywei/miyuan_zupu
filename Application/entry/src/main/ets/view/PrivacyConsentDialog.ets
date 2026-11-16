@@ -1,5 +1,5 @@
-import { Theme, Spacing } from '../theme/Theme';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from '../theme/Theme';
 import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from '../model/AgreementDoc';
 
 /**

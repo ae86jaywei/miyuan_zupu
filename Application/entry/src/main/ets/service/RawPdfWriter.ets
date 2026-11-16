@@ -1,6 +1,6 @@
+import { ScriptService } from './ScriptService';
 import { fileIo } from '@kit.CoreFileKit';
 import { RawPdfFont } from './RawPdfFont';
-import { ScriptService } from './ScriptService';
 
 /**
  * 极简 PDF 写入器（方案 F）。

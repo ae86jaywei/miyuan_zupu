@@ -1,5 +1,5 @@
-import { common } from '@kit.AbilityKit';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';

@@ -1,5 +1,5 @@
-import { Theme, Spacing } from '../theme/Theme';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { AccountService } from '../service/AccountService';
 import { RouterUtil } from '../util/RouterUtil';

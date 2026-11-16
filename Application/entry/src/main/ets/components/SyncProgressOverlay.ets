@@ -1,5 +1,5 @@
-import { Theme } from '../theme/Theme';
 import { uiFontFamily } from '../service/ScriptService';
+import { Theme } from '../theme/Theme';
 
 /**
  * 云同步进度浮层。

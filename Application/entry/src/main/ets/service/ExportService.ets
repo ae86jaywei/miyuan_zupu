@@ -1,3 +1,4 @@
+import { ScriptService, T } from './ScriptService';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 
@@ -9,7 +10,6 @@ import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
-import { T, ScriptService } from './ScriptService';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
 export class JsonBundle {

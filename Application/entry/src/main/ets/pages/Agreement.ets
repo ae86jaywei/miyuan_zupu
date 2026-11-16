@@ -1,5 +1,5 @@
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing } from '../theme/Theme';
-import { uiFontFamily } from '../service/ScriptService';
 import { BackButton } from '../components/BackButton';
 import { AgreementDoc, AgreementParams, AgreementSection, agreementDocOf } from '../model/AgreementDoc';
 

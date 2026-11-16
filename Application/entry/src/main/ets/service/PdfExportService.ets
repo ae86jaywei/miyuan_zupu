@@ -1,5 +1,5 @@
-import { pdfService } from '@kit.PDFKit';
 import { T } from './ScriptService';
+import { pdfService } from '@kit.PDFKit';
 import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';

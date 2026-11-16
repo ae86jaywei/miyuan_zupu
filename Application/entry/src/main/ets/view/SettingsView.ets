@@ -1,5 +1,5 @@
+import { ScriptService, T, uiFontFamily } from '../service/ScriptService';
 import { GenealogyService } from '../service/GenealogyService';
-import { T, uiFontFamily } from '../service/ScriptService';
 import { Genealogy } from '../model/Genealogy';
 import { Theme, Spacing } from '../theme/Theme';
 import { TS } from '../components/TS';
@@ -9,7 +9,6 @@ import { AccountCard } from './AccountCard';
 
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
-import { ScriptService } from '../service/ScriptService';
 
 import { FamilySyncService } from '../service/FamilySyncService';
 import { SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';

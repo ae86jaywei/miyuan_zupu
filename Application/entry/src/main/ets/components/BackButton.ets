@@ -1,5 +1,5 @@
-import { Theme } from '../theme/Theme';
 import { uiFontFamily } from '../service/ScriptService';
+import { Theme } from '../theme/Theme';
 
 /**
  * 二级页面统一返回按钮（‹）。

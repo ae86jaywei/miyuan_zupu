@@ -1,3 +1,4 @@
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { Tag } from '../components/Tag';
@@ -7,7 +8,6 @@ import { generationLabel } from '../model/Enums';
 import { lifeSpan, ageOf, displayDate } from '../util/DateUtil';
 import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from '../components/EmptyHint';
-import { T, uiFontFamily } from '../service/ScriptService';
 
 /**
  * 人物详情面板：展示《关键信息字段》全部字段；

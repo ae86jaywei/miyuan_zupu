@@ -1,3 +1,4 @@
+import { uiFontFamily } from '../service/ScriptService';
 /** 标签胶囊 */
 @Component
 export struct Tag {
@@ -16,4 +17,3 @@ export struct Tag {
       .maxLines(1)
   }
 }
-import { uiFontFamily } from '../service/ScriptService';

@@ -1,5 +1,5 @@
-import { BusinessError } from '@kit.BasicServicesKit';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 
 import { PageNavBar } from '../components/PageNavBar';

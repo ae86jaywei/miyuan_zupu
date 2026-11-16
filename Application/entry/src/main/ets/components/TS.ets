@@ -1,5 +1,5 @@
-import { Theme, Spacing } from '../theme/Theme';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from '../theme/Theme';
 
 /**
  * 卡片标题容器（TS = Title Section）。

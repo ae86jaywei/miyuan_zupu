@@ -1,5 +1,5 @@
+import { T, uiFontFamily } from '../../service/ScriptService';
 import { PersonNode } from '../../model/PersonNode';
-import { uiFontFamily } from '../../service/ScriptService';
 import { Theme } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { generationLabel } from '../../model/Enums';

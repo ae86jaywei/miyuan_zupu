@@ -1,5 +1,5 @@
-﻿import { PersonNode } from '../../model/PersonNode';
-import { uiFontFamily } from '../../service/ScriptService';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { PersonNode } from '../../model/PersonNode';
 import { EuBox, EuCanvas, LineSeg } from '../../service/TreeLayout';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
 import { TreeCuller } from '../../service/TreeCuller';

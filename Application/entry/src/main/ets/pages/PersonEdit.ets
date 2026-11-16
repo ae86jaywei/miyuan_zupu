@@ -1,5 +1,5 @@
-import { common } from '@kit.AbilityKit';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { common } from '@kit.AbilityKit';
 import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';

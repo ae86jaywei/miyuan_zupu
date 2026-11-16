@@ -1,3 +1,4 @@
+import { ScriptService } from '../service/ScriptService';
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -8,7 +9,6 @@ import { AccountService } from '../service/AccountService';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { DisplayService } from '../service/DisplayService';
 import { PdfFontUtil } from '../service/PdfFontUtil';
-import { ScriptService } from '../service/ScriptService';
 import { Theme } from '../theme/Theme';
 import { resourceManager } from '@kit.LocalizationKit';
 

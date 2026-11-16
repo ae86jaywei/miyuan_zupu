@@ -1,5 +1,5 @@
-import { Person } from '../../model/Person';
 import { T, uiFontFamily } from '../../service/ScriptService';
+import { Person } from '../../model/Person';
 import { Theme } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 import { compactUid } from '../../util/StringUtil';

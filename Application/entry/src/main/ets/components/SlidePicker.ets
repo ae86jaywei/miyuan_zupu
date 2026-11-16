@@ -1,5 +1,5 @@
-import { Theme, Spacing } from '../theme/Theme';
 import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from '../theme/Theme';
 
 /**
  * 上下滑动选择弹层（自定义实现，替代 TextPicker）。
