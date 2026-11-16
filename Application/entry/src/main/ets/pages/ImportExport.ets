@@ -98,16 +98,16 @@ struct ImportExport {
   /** 从建议列表建立分支谱（移动式：原谱保留始祖占位，后代迁入分支谱） */
   private confirmCreateBranch(uid: string): void {
     this.getUIContext().showAlertDialog({
-      title: '建立分支谱',
+      title: T('建立分支谱'),
       message: T('将把该房支以下的族人移动到新分支谱，原谱保留该始祖作为分支占位。')
         + '建支后当前谱会切换到分支谱，确定继续？',
       primaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '建分支',
+        value: T('建分支'),
         fontColor: Theme.primary,
         action: async (): Promise<void> => {
           if (this.busy) {
@@ -278,7 +278,7 @@ struct ImportExport {
           ? ('已导出 ' + paths.length.toString() + ' 卷 PDF')
           : ('已导出 ' + names[0]);
         this.setProgress(msg, 100);
-        this.getUIContext().getPromptAction().showToast({ message: msg });
+        this.getUIContext().getPromptAction().showToast({ message: T(msg) });
         return;
       }
       // 牒记式：方案 F 自写 PDF（矢量文本页 + 嵌入字体），逐卷生成
@@ -320,7 +320,7 @@ struct ImportExport {
       }
       const msg: string = jobs.length > 1 ? '已导出 ' + saved + ' 卷 PDF' : '已导出 ' + doneNames[0];
       this.setProgress(msg, 100);
-      this.getUIContext().getPromptAction().showToast({ message: msg });
+      this.getUIContext().getPromptAction().showToast({ message: T(msg) });
     } catch (e) {
       const err = e as BusinessError;
       const reason: string = err.message ?? String(e);
@@ -446,15 +446,15 @@ struct ImportExport {
     this.busy = false;
     this.showProgress = false;
     this.getUIContext().showAlertDialog({
-      title: '导入合并预览',
-      message: text,
+      title: T('导入合并预览'),
+      message: T(text),
       primaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '开始导入',
+        value: T('开始导入'),
         fontColor: Theme.primary,
         action: async (): Promise<void> => {
           await this.executeImport(plan);
@@ -508,7 +508,7 @@ struct ImportExport {
       Column() {
         Row() {
           Text(T(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
-          Text(tag).fontFamily(uiFontFamily())
+          Text(T(tag)).fontFamily(uiFontFamily())
             .fontSize(10)
             .fontColor(Theme.gold)
             .backgroundColor('#FBF4E2')
@@ -622,7 +622,7 @@ struct ImportExport {
     Column() {
       Column() {
         LoadingProgress().width(34).height(34).color(Theme.primary)
-        Text(this.progressText).fontFamily(uiFontFamily())
+        Text(T(this.progressText)).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor(Theme.ink)
           .margin({ top: 12 })
@@ -636,7 +636,7 @@ struct ImportExport {
           .width('100%')
           .height(6)
           .margin({ top: 14 })
-        Text(this.progress.toString() + '%').fontFamily(uiFontFamily())
+        Text(T(this.progress.toString() + '%')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .margin({ top: 6 })
@@ -689,7 +689,7 @@ struct ImportExport {
 
       Scroll() {
         Column() {
-          TS({ title: '导出', subtitle: '当前共 ' + this.peopleCount.toString() + ' 位族人', icon: '📤' })
+          TS({ title: T('导出'), subtitle: '当前共 ' + this.peopleCount.toString() + ' 位族人', icon: '📤' })
           Column() {
             this.ExportRow('JSON 全量备份', '含全部字段与隐私信息，用于换机/归档，可再次导入', '推荐',
               (): void => {
@@ -713,7 +713,7 @@ struct ImportExport {
             Divider().color(Theme.line).strokeWidth(0.5)
             Column() {
               if (this.branchSuggestions.length > 0) {
-                Text('建议拆分（当前谱 ' + this.peopleCount.toString() + ' 人，整谱无法一次导出）').fontFamily(uiFontFamily())
+                Text(T('建议拆分（当前谱 ' + this.peopleCount.toString() + ' 人，整谱无法一次导出）')).fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(Theme.ink)
                   .fontWeight(FontWeight.Medium)
@@ -754,7 +754,7 @@ struct ImportExport {
                 Scroll() {
                   Row() {
                     ForEach(this.exportBookIds, (id: number, i: number) => {
-                      Text(this.exportBookTitles.length > i ? this.exportBookTitles[i] : id.toString()).fontFamily(uiFontFamily())
+                      Text(T(this.exportBookTitles.length > i ? this.exportBookTitles[i] : id.toString())).fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(this.exportBookId === id ? '#FFFFFF' : Theme.ink)
                         .backgroundColor(this.exportBookId === id ? Theme.primary : Theme.field)
@@ -825,7 +825,7 @@ struct ImportExport {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '导入', subtitle: '支持本应用导出的 JSON/CSV，或 Excel 另存的 CSV', icon: '📥' })
+          TS({ title: T('导入'), subtitle: '支持本应用导出的 JSON/CSV，或 Excel 另存的 CSV', icon: '📥' })
           Column() {
             Row() {
               Button(T('选择 JSON 文件')).fontFamily(uiFontFamily())
@@ -855,7 +855,7 @@ struct ImportExport {
             Row() {
               ForEach([['auto', '智能匹配'], ['skip', '跳过'], ['replace', '覆盖'], ['newId', '另编号']],
                 (item: string[]) => {
-                Text(item[1]).fontFamily(uiFontFamily())
+                Text(T(item[1])).fontFamily(uiFontFamily())
                   .fontSize(12)
                   .fontColor(this.mergeStrategy === item[0] ? '#FFFFFF' : Theme.inkSecondary)
                   .backgroundColor(this.mergeStrategy === item[0] ? Theme.primary : Theme.field)
@@ -871,7 +871,7 @@ struct ImportExport {
 
             if (this.parsedCount > 0) {
               Column() {
-                Text('已解析 ' + this.parsedCount.toString() + ' 条记录').fontFamily(uiFontFamily())
+                Text(T('已解析 ' + this.parsedCount.toString() + ' 条记录')).fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(Theme.alive)
                 if (this.pendingBook !== null) {
@@ -920,9 +920,9 @@ struct ImportExport {
           .clip(true)
 
           if (this.previewText.length > 0) {
-            TS({ title: '内容预览', icon: '👁' })
+            TS({ title: T('内容预览'), icon: '👁' })
             Column() {
-              Text(this.previewText).fontFamily(uiFontFamily())
+              Text(T(this.previewText)).fontFamily(uiFontFamily())
                 .fontSize(11)
                 .fontColor(Theme.inkSecondary)
                 .width('100%')
@@ -937,7 +937,7 @@ struct ImportExport {
             .clip(true)
           }
 
-          TS({ title: '字段规范', subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
+          TS({ title: T('字段规范'), subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
           Column() {
             Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）')).fontFamily(uiFontFamily())
               .fontSize(12)

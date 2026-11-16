@@ -53,7 +53,7 @@ struct FamilyMembers {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private isOwner(): boolean {
@@ -211,7 +211,7 @@ struct FamilyMembers {
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
-      Text(this.inviteCode.length > 0 ? this.inviteCode : '点击右侧生成').fontFamily(uiFontFamily())
+      Text(T(this.inviteCode.length > 0 ? this.inviteCode : '点击右侧生成')).fontFamily(uiFontFamily())
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.gold)
@@ -245,21 +245,21 @@ struct FamilyMembers {
   @Builder
   MemberRow(m: MemberInfo) {
     Column() {
-      Text(m.displayName).fontFamily(uiFontFamily())
+      Text(T(m.displayName)).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
-      Text(roleLabel(m.role) + ' · ' + membershipStatusLabel(m.status) + ' · ' + this.expireText(m.expireAt) +
-        (m.branchRootUid.length > 0 ? ' · 分支 ' + m.branchRootUid : ' · 全谱')).fontFamily(uiFontFamily())
+      Text(T(roleLabel(m.role) + ' · ' + membershipStatusLabel(m.status) + ' · ' + this.expireText(m.expireAt) +
+        (m.branchRootUid.length > 0 ? ' · 分支 ' + m.branchRootUid : ' · 全谱'))).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 2 })
         .width('100%')
       if (m.role !== Role.OWNER) {
         Row() {
-          Text(roleLabel(Role.VIEWER)).fontFamily(uiFontFamily())
+          Text(T(roleLabel(Role.VIEWER))).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(m.role === Role.VIEWER ? '#FFFFFF' : Theme.inkSecondary)
             .backgroundColor(m.role === Role.VIEWER ? Theme.primary : Theme.field)
@@ -269,7 +269,7 @@ struct FamilyMembers {
             .onClick((): void => {
               this.setMemberRole(m, Role.VIEWER);
             })
-          Text(roleLabel(Role.EDITOR)).fontFamily(uiFontFamily())
+          Text(T(roleLabel(Role.EDITOR))).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(m.role === Role.EDITOR ? '#FFFFFF' : Theme.inkSecondary)
             .backgroundColor(m.role === Role.EDITOR ? Theme.primary : Theme.field)
@@ -299,12 +299,12 @@ struct FamilyMembers {
   ApplyRow(a: AccessRequestInfo) {
     Column() {
       Row() {
-        Text(a.applicantName.length > 0 ? a.applicantName : a.applicantId).fontFamily(uiFontFamily())
+        Text(T(a.applicantName.length > 0 ? a.applicantName : a.applicantId)).fontFamily(uiFontFamily())
           .fontSize(14)
           .fontColor(Theme.ink)
           .layoutWeight(1)
           .maxLines(1)
-        Text(accessKindLabel(a.kind)).fontFamily(uiFontFamily())
+        Text(T(accessKindLabel(a.kind))).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.primary)
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
@@ -313,27 +313,27 @@ struct FamilyMembers {
       }
       .width('100%')
       if (a.relationClaim.length > 0) {
-        Text('关系说明：' + a.relationClaim).fontFamily(uiFontFamily())
+        Text(T('关系说明：' + a.relationClaim)).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 4 })
           .width('100%')
       }
       if (a.branchClaimUid.length > 0) {
-        Text('认领分支根人物：' + a.branchClaimUid).fontFamily(uiFontFamily())
+        Text(T('认领分支根人物：' + a.branchClaimUid)).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
           .width('100%')
       }
       if (a.evidence.length > 0) {
-        Text('依据：' + a.evidence).fontFamily(uiFontFamily())
+        Text(T('依据：' + a.evidence)).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
           .width('100%')
       }
-      Text('申请人ID：' + a.applicantId).fontFamily(uiFontFamily())
+      Text(T('申请人ID：' + a.applicantId)).fontFamily(uiFontFamily())
         .fontSize(10)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 2 })
@@ -447,7 +447,7 @@ struct FamilyMembers {
   build() {
     Column() {
       PageNavBar({
-        title: '成员与访问申请',
+        title: T('成员与访问申请'),
         subtitle: roleLabel(this.myRole),
         busy: this.busy,
         onBack: (): void => {
@@ -471,10 +471,10 @@ struct FamilyMembers {
               })
           } else if (this.isOwner()) {
             this.InviteBlock()
-            TS({ title: '待审访问申请', subtitle: '通过后立即写入一条成员授权', icon: '📨' })
+            TS({ title: T('待审访问申请'), subtitle: '通过后立即写入一条成员授权', icon: '📨' })
             Column() {
               if (this.applications.length === 0) {
-                Text(this.errorText.length > 0 ? this.errorText : '暂无待审申请').fontFamily(uiFontFamily())
+                Text(T(this.errorText.length > 0 ? this.errorText : '暂无待审申请')).fontFamily(uiFontFamily())
                   .fontSize(12.5)
                   .fontColor(Theme.inkTertiary)
                   .padding(Spacing.L)
@@ -494,7 +494,7 @@ struct FamilyMembers {
             .border({ width: 0.5, color: Theme.line })
             .margin({ bottom: Spacing.M })
 
-            TS({ title: '成员', subtitle: '共 ' + this.members.length.toString() + ' 人', icon: '👥' })
+            TS({ title: T('成员'), subtitle: '共 ' + this.members.length.toString() + ' 人', icon: '👥' })
             Column() {
               ForEach(this.members, (m: MemberInfo, idx: number) => {
                 this.MemberRow(m)
@@ -513,14 +513,14 @@ struct FamilyMembers {
               Text(T('你在这部谱中的角色')).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .fontColor(Theme.inkTertiary)
-              Text(roleLabel(this.myRole)).fontFamily(uiFontFamily())
+              Text(T(roleLabel(this.myRole))).fontFamily(uiFontFamily())
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Theme.primary)
                 .margin({ top: 4 })
-              Text(this.myRole === Role.EDITOR
+              Text(T(this.myRole === Role.EDITOR
                 ? '你可以提交补录，谱主审核后合入；也可修改认领分支内的族人。'
-                : '你可以浏览族谱，如需补录请向谱主申请成为族人。').fontFamily(uiFontFamily())
+                : '你可以浏览族谱，如需补录请向谱主申请成为族人。')).fontFamily(uiFontFamily())
                 .fontSize(11.5)
                 .fontColor(Theme.inkSecondary)
                 .margin({ top: 6 })

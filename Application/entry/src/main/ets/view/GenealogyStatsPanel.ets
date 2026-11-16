@@ -80,8 +80,8 @@ export struct GenealogyStatsPanel {
       }
       .layoutWeight(1)
       .height(12)
-      Text(value.toString()).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.ink).width(48).textAlign(TextAlign.End)
-      Text(total === 0 ? '0%' : Math.round(value / total * 100).toString() + '%').fontFamily(uiFontFamily())
+      Text(T(value.toString())).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.ink).width(48).textAlign(TextAlign.End)
+      Text(T(total === 0 ? '0%' : Math.round(value / total * 100).toString() + '%')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .width(40)
@@ -105,10 +105,10 @@ export struct GenealogyStatsPanel {
 
       ForEach(this.stats().generations, (g: GenerationStat) => {
         Row() {
-          Text(g.label).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.primary).width(64)
-          Text(g.total.toString()).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.ink).width(44)
-          Text(g.male.toString() + '/' + g.female.toString()).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).width(64)
-          Text(g.alive.toString() + '/' + g.deceased.toString()).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).layoutWeight(1)
+          Text(T(g.label)).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.primary).width(64)
+          Text(T(g.total.toString())).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.ink).width(44)
+          Text(T(g.male.toString() + '/' + g.female.toString())).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).width(64)
+          Text(T(g.alive.toString() + '/' + g.deceased.toString())).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).layoutWeight(1)
         }
         .width('100%')
         .padding({ top: 6, bottom: 6 })
@@ -123,11 +123,11 @@ export struct GenealogyStatsPanel {
     Flex({ wrap: FlexWrap.Wrap }) {
       ForEach(this.charDistribution(), (item: string[]) => {
         Row() {
-          Text('“' + item[0] + '”').fontFamily(uiFontFamily())
+          Text(T('“' + item[0] + '”')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.primary)
             .fontWeight(FontWeight.Medium)
-          Text(item[1] + '人').fontFamily(uiFontFamily())
+          Text(T(item[1] + '人')).fontFamily(uiFontFamily())
             .fontSize(10)
             .fontColor(Theme.inkTertiary)
             .margin({ left: 3 })
@@ -181,7 +181,7 @@ export struct GenealogyStatsPanel {
         if (this.windowWidth >= Breakpoint.MD) {
           Row() {
             Column() {
-              TS({ title: '性别构成', icon: '⚖️' })
+              TS({ title: T('性别构成'), icon: '⚖️' })
               Column() {
                 this.RatioRow('男', this.stats().male, this.stats().total, Theme.male)
                 this.RatioRow('女', this.stats().female, this.stats().total, Theme.female)
@@ -194,7 +194,7 @@ export struct GenealogyStatsPanel {
               .margin({ bottom: Spacing.M })
               .clip(true)
 
-              TS({ title: '在世状况', icon: '🌿' })
+              TS({ title: T('在世状况'), icon: '🌿' })
               Column() {
                 this.RatioRow('在世', this.stats().alive, this.stats().total, Theme.alive)
                 this.RatioRow('已故', this.stats().deceased, this.stats().total, Theme.deceased)
@@ -208,7 +208,7 @@ export struct GenealogyStatsPanel {
               .margin({ bottom: Spacing.M })
               .clip(true)
 
-              TS({ title: '资料完整度', subtitle: '推动族人补充缺失信息', icon: '📋' })
+              TS({ title: T('资料完整度'), subtitle: '推动族人补充缺失信息', icon: '📋' })
               Column() {
                 this.Completeness()
               }
@@ -224,7 +224,7 @@ export struct GenealogyStatsPanel {
             .margin({ right: Spacing.M })
 
             Column() {
-              TS({ title: '世代繁衍', subtitle: '各世代人口结构', icon: '🌱' })
+              TS({ title: T('世代繁衍'), subtitle: '各世代人口结构', icon: '🌱' })
               Column() {
                 this.GenTable()
               }
@@ -236,7 +236,7 @@ export struct GenealogyStatsPanel {
               .margin({ bottom: Spacing.M })
               .clip(true)
 
-              TS({ title: '字派分布', subtitle: '按辈分/字派统计', icon: '✒️' })
+              TS({ title: T('字派分布'), subtitle: '按辈分/字派统计', icon: '✒️' })
               Column() {
                 this.CharChips()
               }
@@ -254,7 +254,7 @@ export struct GenealogyStatsPanel {
           .alignItems(VerticalAlign.Top)
           .margin({ top: Spacing.M })
         } else {
-          TS({ title: '性别与在世状况', icon: '⚖️' })
+          TS({ title: T('性别与在世状况'), icon: '⚖️' })
           Column() {
             this.RatioRow('男', this.stats().male, this.stats().total, Theme.male)
             this.RatioRow('女', this.stats().female, this.stats().total, Theme.female)
@@ -270,7 +270,7 @@ export struct GenealogyStatsPanel {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '世代繁衍', subtitle: '各世代人口结构', icon: '🌱' })
+          TS({ title: T('世代繁衍'), subtitle: '各世代人口结构', icon: '🌱' })
           Column() {
             this.GenTable()
           }
@@ -282,7 +282,7 @@ export struct GenealogyStatsPanel {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '字派分布', subtitle: '按辈分/字派统计', icon: '✒️' })
+          TS({ title: T('字派分布'), subtitle: '按辈分/字派统计', icon: '✒️' })
           Column() {
             this.CharChips()
           }
@@ -294,7 +294,7 @@ export struct GenealogyStatsPanel {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '资料完整度', subtitle: '推动族人补充缺失信息', icon: '📋' })
+          TS({ title: T('资料完整度'), subtitle: '推动族人补充缺失信息', icon: '📋' })
           Column() {
             this.Completeness()
           }

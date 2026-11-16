@@ -86,7 +86,7 @@ struct Login {
 
   private toast(message: string): void {
     try {
-      this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+      this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
     } catch (err) {
       // 提示失败不影响登录流程
     }

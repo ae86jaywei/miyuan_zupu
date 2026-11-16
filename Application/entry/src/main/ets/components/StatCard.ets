@@ -15,9 +15,9 @@ export struct StatCard {
     Column() {
       Row() {
         if (this.icon.length > 0) {
-          Text(this.icon).fontFamily(uiFontFamily()).fontSize(14).margin({ right: 4 })
+          Text(T(this.icon)).fontFamily(uiFontFamily()).fontSize(14).margin({ right: 4 })
         }
-        Text(this.label).fontFamily(uiFontFamily())
+        Text(T(this.label)).fontFamily(uiFontFamily())
           .fontSize(this.compact ? 11 : 12)
           .fontColor(Theme.inkTertiary)
           .maxLines(1)
@@ -26,12 +26,12 @@ export struct StatCard {
       .width('100%')
 
       Row() {
-        Text(this.value).fontFamily(uiFontFamily())
+        Text(T(this.value)).fontFamily(uiFontFamily())
           .fontSize(this.compact ? 20 : 26)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.accent)
         if (this.unit.length > 0) {
-          Text(this.unit).fontFamily(uiFontFamily())
+          Text(T(this.unit)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ left: 2, bottom: 3 })

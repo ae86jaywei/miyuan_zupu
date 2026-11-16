@@ -45,7 +45,7 @@ struct ChangeReview {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private async load(): Promise<void> {
@@ -90,10 +90,10 @@ struct ChangeReview {
             text = text + '\n……另有 ' + (synced.integrityIssues.length - shown.length).toString() + ' 项';
           }
           this.getUIContext().showAlertDialog({
-            title: synced.integrityBlocked > 0 ? '部分变更未合入' : '数据一致性提示',
-            message: text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。',
+            title: T(synced.integrityBlocked > 0 ? '部分变更未合入' : '数据一致性提示'),
+            message: T(text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。'),
             confirm: {
-              value: '知道了',
+              value: T('知道了'),
               action: (): void => {
               }
             }
@@ -116,17 +116,17 @@ struct ChangeReview {
   @Builder
   DiffLine(key: string, c: FieldChange) {
     Row() {
-      Text(fieldLabel(key)).fontFamily(uiFontFamily())
+      Text(T(fieldLabel(key))).fontFamily(uiFontFamily())
         .fontSize(11.5)
         .fontColor(Theme.inkTertiary)
         .width(72)
       Column() {
-        Text(displayValue(c.b)).fontFamily(uiFontFamily())
+        Text(T(displayValue(c.b))).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .decoration({ type: TextDecorationType.LineThrough, color: Theme.inkTertiary })
           .width('100%')
-        Text('→ ' + displayValue(c.a)).fontFamily(uiFontFamily())
+        Text(T('→ ' + displayValue(c.a))).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.ink)
           .margin({ top: 2 })
@@ -144,32 +144,32 @@ struct ChangeReview {
   RequestCard(r: ChangeRequestInfo) {
     Column() {
       Row() {
-        Text(opLabel(r.op)).fontFamily(uiFontFamily())
+        Text(T(opLabel(r.op))).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor('#FFFFFF')
           .backgroundColor(Theme.primary)
           .borderRadius(6)
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
-        Text(this.targetName(r)).fontFamily(uiFontFamily())
+        Text(T(this.targetName(r))).fontFamily(uiFontFamily())
           .fontSize(14)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .margin({ left: 6 })
           .layoutWeight(1)
           .maxLines(1)
-        Text(new Date(r.createdAt).toLocaleDateString()).fontFamily(uiFontFamily())
+        Text(T(new Date(r.createdAt).toLocaleDateString())).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
       }
       .width('100%')
-      Text('提交者：' + (r.submitterName.length > 0 ? r.submitterName : r.submitterId) + ' · 基线 rev ' +
-        r.baseRev.toString()).fontFamily(uiFontFamily())
+      Text(T('提交者：' + (r.submitterName.length > 0 ? r.submitterName : r.submitterId) + ' · 基线 rev ' +
+        r.baseRev.toString())).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3 })
         .width('100%')
       if (r.evidence.length > 0) {
-        Text('依据：' + r.evidence).fontFamily(uiFontFamily())
+        Text(T('依据：' + r.evidence)).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 3 })
@@ -224,7 +224,7 @@ struct ChangeReview {
           .margin({ top: Spacing.S })
         }
       }
-      Text(this.expandedId === r.requestId ? '收起 ∧' : '查看字段变化 ∨').fontFamily(uiFontFamily())
+      Text(T(this.expandedId === r.requestId ? '收起 ∧' : '查看字段变化 ∨')).fontFamily(uiFontFamily())
         .fontSize(11.5)
         .fontColor(Theme.primary)
         .margin({ top: Spacing.S })
@@ -241,7 +241,7 @@ struct ChangeReview {
   build() {
     Column() {
       PageNavBar({
-        title: '待审变更',
+        title: T('待审变更'),
         subtitle: roleLabel(this.role) + ' · 只有谱主可以合入',
         actionText: '刷新',
         busy: this.busy,
@@ -260,10 +260,10 @@ struct ChangeReview {
               .fontColor(Theme.inkSecondary)
               .margin({ top: Spacing.XL })
           } else {
-            TS({ title: '待审核', subtitle: '共 ' + this.requests.length.toString() + ' 条', icon: '📝' })
+            TS({ title: T('待审核'), subtitle: '共 ' + this.requests.length.toString() + ' 条', icon: '📝' })
             Column() {
               if (this.requests.length === 0) {
-                Text(this.message.length > 0 ? this.message : '暂无待审变更').fontFamily(uiFontFamily())
+                Text(T(this.message.length > 0 ? this.message : '暂无待审变更')).fontFamily(uiFontFamily())
                   .fontSize(12.5)
                   .fontColor(Theme.inkTertiary)
                   .padding(Spacing.L)
@@ -282,8 +282,8 @@ struct ChangeReview {
             .borderRadius(Radius.L)
             .border({ width: 0.5, color: Theme.line })
 
-            Text('合入时云端会：校验基线 rev（过期则退回）→ 分配新的家族修订号 → 写入成员与审计流水。' +
-              '“一人删一人改”时会以墓碑提示，而不是凭空出现幽灵人物。').fontFamily(uiFontFamily())
+            Text(T('合入时云端会：校验基线 rev（过期则退回）→ 分配新的家族修订号 → 写入成员与审计流水。' +
+              '“一人删一人改”时会以墓碑提示，而不是凭空出现幽灵人物。')).fontFamily(uiFontFamily())
               .fontSize(10.5)
               .fontColor(Theme.inkTertiary)
               .margin({ top: Spacing.M })

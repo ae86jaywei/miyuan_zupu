@@ -83,7 +83,7 @@ struct FamilyHome {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private async loadMine(): Promise<void> {
@@ -143,15 +143,15 @@ struct FamilyHome {
     }
     if (!queryFailed && cloudCount === 0) {
       this.getUIContext().showAlertDialog({
-        title: '当前族谱尚未备份',
+        title: T('当前族谱尚未备份'),
         message: T('分享内容读取自云端，当前族谱还没有备份，接收方将看不到任何族人。是否先备份再分享？'),
         primaryButton: {
-          value: '取消',
+          value: T('取消'),
           action: (): void => {
           }
         },
         secondaryButton: {
-          value: '先备份并分享',
+          value: T('先备份并分享'),
           fontColor: Theme.primary,
           action: async (): Promise<void> => {
             await this.backupThenShare(ctx, bookKey);
@@ -289,17 +289,17 @@ struct FamilyHome {
     const ui = this.getUIContext();
     const title: string = GenealogyService.getInstance().getBook().title;
     ui.showAlertDialog({
-      title: '是否让族人通过搜索找到这部谱？',
+      title: T('是否让族人通过搜索找到这部谱？'),
       message: T('开启后，其他人可以在「族谱黄页」按谱名/姓氏/地域搜到《' + title +
         '》的索引信息（谱名、姓氏、地域、人数区间），但看不到任何人物数据；' +
         '想查看仍需你审核通过。默认关闭，之后可在「族谱黄页」随时开关。'),
       primaryButton: {
-        value: '暂不开放',
+        value: T('暂不开放'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '去开放',
+        value: T('去开放'),
         fontColor: Theme.primary,
         action: (): void => {
           RouterUtil.familyDirectory(ui);
@@ -317,16 +317,16 @@ struct FamilyHome {
       const report = GenealogyService.getInstance().checkIntegrity();
       if (report.hasError()) {
         this.getUIContext().showAlertDialog({
-          title: '发布前数据体检',
-          message: report.summary() + '\n\n' + report.detail(5) +
-            '\n\n建议先取消，核对相关人员编号与父母/配偶关系后再发布。',
+          title: T('发布前数据体检'),
+          message: T(report.summary() + '\n\n' + report.detail(5) +
+            '\n\n建议先取消，核对相关人员编号与父母/配偶关系后再发布。'),
           primaryButton: {
-            value: '取消',
+            value: T('取消'),
             action: (): void => {
             }
           },
           secondaryButton: {
-            value: '仍然发布',
+            value: T('仍然发布'),
             fontColor: Theme.primary,
             action: async (): Promise<void> => {
               await this.doPublish(true);
@@ -482,10 +482,10 @@ struct FamilyHome {
       ? '\n\n为避免旧的父母/配偶关系挂到新族人身上，相关变更未合入。请到「名录」核对编号与亲属关系，改号后重新发布或同步。'
       : '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。';
     this.getUIContext().showAlertDialog({
-      title: title,
-      message: text + tail,
+      title: T(title),
+      message: T(text + tail),
       confirm: {
-        value: '知道了',
+        value: T('知道了'),
         action: (): void => {
         }
       }
@@ -515,7 +515,7 @@ struct FamilyHome {
   @Builder
   CloudGate() {
     Column() {
-      Text('☁️').fontFamily(uiFontFamily()).fontSize(40)
+      Text(T('☁️')).fontFamily(uiFontFamily()).fontSize(40)
       Text(T('本谱只存在于本机')).fontFamily(uiFontFamily())
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
@@ -538,7 +538,7 @@ struct FamilyHome {
             RouterUtil.login(this.getUIContext());
           })
       } else if (!this.cloudReady) {
-        Text(this.cloudMsg.length > 0 ? this.cloudMsg : '云服务未就绪').fontFamily(uiFontFamily())
+        Text(T(this.cloudMsg.length > 0 ? this.cloudMsg : '云服务未就绪')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.danger)
           .margin({ top: Spacing.L })
@@ -554,7 +554,7 @@ struct FamilyHome {
   @Builder
   CreateBlock() {
     Column() {
-      Text('把《' + (this.bookTitle.length > 0 ? this.bookTitle : '当前族谱') + '》接入云家族').fontFamily(uiFontFamily())
+      Text(T('把《' + (this.bookTitle.length > 0 ? this.bookTitle : '当前族谱') + '》接入云家族')).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
@@ -571,7 +571,7 @@ struct FamilyHome {
         .onChange((v: string): void => {
           this.createTitle = v;
         })
-      Button(this.busy ? '处理中…' : '创建云家族').fontFamily(uiFontFamily())
+      Button(T(this.busy ? '处理中…' : '创建云家族')).fontFamily(uiFontFamily())
         .fontSize(14)
         .height(38)
         .width('100%')
@@ -651,7 +651,7 @@ struct FamilyHome {
           .fontSize(14)
           .fontColor(Theme.alive)
         Blank()
-        Text(roleLabel(this.role)).fontFamily(uiFontFamily())
+        Text(T(roleLabel(this.role))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.primary)
           .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -659,15 +659,15 @@ struct FamilyHome {
           .backgroundColor(Theme.highlightBg)
       }
       .width('100%')
-      Text('家族ID：' + this.familyId).fontFamily(uiFontFamily())
+      Text(T('家族ID：' + this.familyId)).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 6 })
         .width('100%')
         .copyOption(CopyOptions.LocalDevice)
-      Text('同步状态：' + (this.syncStatus.length > 0 ? this.syncStatus : '未同步') +
+      Text(T('同步状态：' + (this.syncStatus.length > 0 ? this.syncStatus : '未同步') +
         (this.pendingCount > 0 && this.syncStatus.indexOf('条') < 0
-          ? '（待上传 ' + this.pendingCount.toString() + ' 条）' : '')).fontFamily(uiFontFamily())
+          ? '（待上传 ' + this.pendingCount.toString() + ' 条）' : ''))).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(this.pendingCount > 0 ? Theme.lost : Theme.inkSecondary)
         .margin({ top: 4 })
@@ -679,7 +679,7 @@ struct FamilyHome {
           .fontColor(Theme.danger)
           .margin({ top: 8 })
           .width('100%')
-        Button(this.busy ? '发布中…' : '发布当前族谱到云端').fontFamily(uiFontFamily())
+        Button(T(this.busy ? '发布中…' : '发布当前族谱到云端')).fontFamily(uiFontFamily())
           .fontSize(14)
           .height(38)
           .width('100%')
@@ -728,7 +728,7 @@ struct FamilyHome {
   @Builder
   NavRow(icon: string, title: string, subtitle: string, action: () => void) {
     Row() {
-      Text(icon).fontFamily(uiFontFamily()).fontSize(18).width(28)
+      Text(T(icon)).fontFamily(uiFontFamily()).fontSize(18).width(28)
       Column() {
         Text(T(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
         Text(T(subtitle)).fontFamily(uiFontFamily())
@@ -739,7 +739,7 @@ struct FamilyHome {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
-      Text('›').fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
+      Text(T('›')).fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
     }
     .width('100%')
     .padding({ top: 10, bottom: 10 })
@@ -803,9 +803,9 @@ struct FamilyHome {
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text(this.familyId.length > 0
+      Text(T(this.familyId.length > 0
         ? '把加入码发给亲戚：对方加入后即可共同补录，提交经你审核后合入。'
-        : '当前族谱尚未接入云家族：分享的是只读查看链接，接入后改为分享加入码。').fontFamily(uiFontFamily())
+        : '当前族谱尚未接入云家族：分享的是只读查看链接，接入后改为分享加入码。')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3, bottom: Spacing.S })
@@ -840,8 +840,8 @@ struct FamilyHome {
               .fontSize(14)
               .fontColor(Theme.ink)
               .maxLines(1)
-            Text(roleLabel(f.role) + ' · rev ' + f.rev.toString() +
-              (f.localBookId > 0 ? ' · 本机已有' : ' · 本机未导入')).fontFamily(uiFontFamily())
+            Text(T(roleLabel(f.role) + ' · rev ' + f.rev.toString() +
+              (f.localBookId > 0 ? ' · 本机已有' : ' · 本机未导入'))).fontFamily(uiFontFamily())
               .fontSize(10.5)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 2 })
@@ -890,15 +890,15 @@ struct FamilyHome {
       '· 本机族谱数据不受影响' + (hasLocal ? '（这部谱在本机也有副本）' : '（本机没有这部谱）') + '；\n' +
       '· 家族ID：' + f.familyId;
     this.getUIContext().showAlertDialog({
-      title: '确认删除云家族？',
-      message: tip,
+      title: T('确认删除云家族？'),
+      message: T(tip),
       primaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '确认删除',
+        value: T('确认删除'),
         fontColor: Theme.lost,
         action: (): void => {
           this.doDeleteFamily(f);
@@ -951,7 +951,7 @@ struct FamilyHome {
     Stack() {
     Column() {
       PageNavBar({
-        title: '我的家族',
+        title: T('我的家族'),
         subtitle: this.bookTitle,
         actionText: this.busy ? '' : '同步',
         busy: this.busy,
@@ -985,12 +985,12 @@ struct FamilyHome {
           }
 
           if (this.myFamilies.length > 0) {
-            TS({ title: '我参与的家族', subtitle: '共 ' + this.myFamilies.length.toString() + ' 部', icon: '🏛️' })
+            TS({ title: T('我参与的家族'), subtitle: '共 ' + this.myFamilies.length.toString() + ' 部', icon: '🏛️' })
             this.MineBlock()
           }
 
           if (this.progressText.length > 0) {
-            Text(this.progressText).fontFamily(uiFontFamily())
+            Text(T(this.progressText)).fontFamily(uiFontFamily())
               .fontSize(11.5)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -1006,11 +1006,11 @@ struct FamilyHome {
               .fontSize(12)
               .fontWeight(FontWeight.Medium)
               .fontColor(Theme.ink)
-            Text('查看任一部族谱的人物数据，必须满足以下之一：' +
+            Text(T('查看任一部族谱的人物数据，必须满足以下之一：' +
               '① 申请认证通过（谱主审批，默认 180 天有效）；' +
               '② 持有分享链接/加入码；' +
               '③ 申请成为族人并获得通过（永久）。' +
-              '族谱黄页只公开索引信息（谱名/姓氏/地域/人数区间），不含任何人物数据。').fontFamily(uiFontFamily())
+              '族谱黄页只公开索引信息（谱名/姓氏/地域/人数区间），不含任何人物数据。')).fontFamily(uiFontFamily())
               .fontSize(11.5)
               .fontColor(Theme.inkSecondary)
               .lineHeight(18)

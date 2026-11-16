@@ -29,7 +29,7 @@ export struct PageNavBar {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         if (this.subtitle.length > 0) {
-          Text(this.subtitle).fontFamily(uiFontFamily())
+          Text(T(this.subtitle)).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 1 })
@@ -43,7 +43,7 @@ export struct PageNavBar {
       if (this.busy) {
         LoadingProgress().width(20).height(20).color(Theme.primary)
       } else if (this.actionText.length > 0) {
-        Text(this.actionText).fontFamily(uiFontFamily())
+        Text(T(this.actionText)).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.primary)
           .padding({ left: 8, right: 8, top: 4, bottom: 4 })

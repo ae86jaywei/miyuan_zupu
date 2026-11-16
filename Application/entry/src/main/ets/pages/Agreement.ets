@@ -52,7 +52,7 @@ struct Agreement {
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
             .width('100%')
-          Text(this.doc.intro).fontFamily(uiFontFamily())
+          Text(T(this.doc.intro)).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.inkSecondary)
             .lineHeight(21)
@@ -61,12 +61,12 @@ struct Agreement {
 
           ForEach(this.doc.sections, (section: AgreementSection) => {
             Column() {
-              Text(section.heading).fontFamily(uiFontFamily())
+              Text(T(section.heading)).fontFamily(uiFontFamily())
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(Theme.ink)
                 .width('100%')
-              Text(section.body).fontFamily(uiFontFamily())
+              Text(T(section.body)).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .fontColor(Theme.inkSecondary)
                 .lineHeight(21)

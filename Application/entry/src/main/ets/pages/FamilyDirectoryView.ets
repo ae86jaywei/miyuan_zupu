@@ -46,7 +46,7 @@ struct FamilyDirectoryView {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private async search(): Promise<void> {
@@ -86,17 +86,17 @@ struct FamilyDirectoryView {
       return;
     }
     this.getUIContext().showAlertDialog({
-      title: '确认上架到族谱黄页？',
+      title: T('确认上架到族谱黄页？'),
       message: T('上架后，任何登录用户都能按谱名/姓氏/地域搜索到本谱的索引信息（谱名、姓氏、地域、支系概述、人数区间、提示文案）。') +
         '这些内容从提交起就对所有人可见，且可能被他人记录或转存，事后下架也无法追回已被看到的信息。' +
         '任何人物数据都不会出现在黄页里。',
       primaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '确认上架',
+        value: T('确认上架'),
         fontColor: Theme.primary,
         action: (): void => {
           this.doPublish(true);
@@ -134,19 +134,19 @@ struct FamilyDirectoryView {
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(e.surname.length > 0 ? e.surname + '氏' : '').fontFamily(uiFontFamily())
+        Text(T(e.surname.length > 0 ? e.surname + '氏' : '')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
       .width('100%')
-      Text((e.region.length > 0 ? e.region : '地域未填') +
-        (e.memberCountBand.length > 0 ? ' · ' + e.memberCountBand + ' 人' : '')).fontFamily(uiFontFamily())
+      Text(T((e.region.length > 0 ? e.region : '地域未填') +
+        (e.memberCountBand.length > 0 ? ' · ' + e.memberCountBand + ' 人' : ''))).fontFamily(uiFontFamily())
         .fontSize(11.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 4 })
         .width('100%')
       if (e.branchSummary.length > 0) {
-        Text(e.branchSummary).fontFamily(uiFontFamily())
+        Text(T(e.branchSummary)).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 4 })
@@ -154,7 +154,7 @@ struct FamilyDirectoryView {
           .width('100%')
       }
       Row() {
-        Text(e.accessHint.length > 0 ? e.accessHint : '需谱主审核后可查看').fontFamily(uiFontFamily())
+        Text(T(e.accessHint.length > 0 ? e.accessHint : '需谱主审核后可查看')).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.primary)
           .layoutWeight(1)
@@ -253,7 +253,7 @@ struct FamilyDirectoryView {
         .width('100%')
       Row() {
         ForEach(MEMBER_COUNT_BANDS, (band: string) => {
-          Text(band).fontFamily(uiFontFamily())
+          Text(T(band)).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(this.form.memberCountBand === band ? '#FFFFFF' : Theme.inkSecondary)
             .backgroundColor(this.form.memberCountBand === band ? Theme.primary : Theme.field)
@@ -266,7 +266,7 @@ struct FamilyDirectoryView {
         }, (band: string) => 'band_' + band)
       }
       .width('100%')
-      Button(this.busy ? '保存中…' : '保存黄页信息').fontFamily(uiFontFamily())
+      Button(T(this.busy ? '保存中…' : '保存黄页信息')).fontFamily(uiFontFamily())
         .fontSize(13)
         .height(36)
         .width('100%')
@@ -294,7 +294,7 @@ struct FamilyDirectoryView {
   build() {
     Column() {
       PageNavBar({
-        title: '族谱黄页',
+        title: T('族谱黄页'),
         subtitle: '只含索引信息 · 不含任何人物数据',
         actionText: FamilyService.getInstance().canEditCurrent() ? '管理' : '',
         busy: this.busy,
@@ -323,7 +323,7 @@ struct FamilyDirectoryView {
               .onSubmit(() => {
                 this.search();
               })
-            Button(this.searching ? '搜索中' : '搜索').fontFamily(uiFontFamily())
+            Button(T(this.searching ? '搜索中' : '搜索')).fontFamily(uiFontFamily())
               .fontSize(13)
               .height(38)
               .margin({ left: Spacing.S })
@@ -338,7 +338,7 @@ struct FamilyDirectoryView {
           .margin({ bottom: Spacing.M })
 
           if (this.message.length > 0) {
-            Text(this.message).fontFamily(uiFontFamily())
+            Text(T(this.message)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')

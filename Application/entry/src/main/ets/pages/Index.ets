@@ -42,11 +42,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'home', title: '概览', icon: '🏠' },
-  { key: 'tree', title: '谱系', icon: '🌳' },
-  { key: 'catalog', title: '名录', icon: '📖' },
-  { key: 'stats', title: '统计', icon: '📊' },
-  { key: 'settings', title: '设置', icon: '⚙️' }
+  { key: 'home', title: T('概览'), icon: '🏠' },
+  { key: 'tree', title: T('谱系'), icon: '🌳' },
+  { key: 'catalog', title: T('名录'), icon: '📖' },
+  { key: 'stats', title: T('统计'), icon: '📊' },
+  { key: 'settings', title: T('设置'), icon: '⚙️' }
 ];
 
 /**
@@ -381,7 +381,7 @@ struct Index {
 
           ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
             Column() {
-              Text(item.icon).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 14 : (collapsed ? 16 : 17))
+              Text(T(item.icon)).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 14 : (collapsed ? 16 : 17))
               Text(T(item.title)).fontFamily(uiFontFamily())
                 .fontSize(this.navCompact() ? 8 : (collapsed ? 9 : 14))
                 .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
@@ -411,7 +411,7 @@ struct Index {
       .edgeEffect(EdgeEffect.None)
       .align(Alignment.Top)
 
-      Text('＋').fontFamily(uiFontFamily())
+      Text(T('＋')).fontFamily(uiFontFamily())
         .fontSize(this.navCompact() ? 16 : 20)
         .fontColor('#FFFFFF')
         .width(this.navCompact() ? 30 : (collapsed ? 36 : 44))
@@ -427,12 +427,12 @@ struct Index {
           RouterUtil.editPerson(this.getUIContext(), '', 'create', '');
         })
 
-      Text('人 ' + this.peopleCount().toString()).fontFamily(uiFontFamily())
+      Text(T('人 ' + this.peopleCount().toString())).fontFamily(uiFontFamily())
         .fontSize(this.navCompact() ? 9 : 11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: this.navCompact() ? 2 : Spacing.S })
 
-      Text('v1.0.0').fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
+      Text(T('v1.0.0')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
         .margin({ top: 1 })
       Column().height(this.navCompact() ? 4 : Spacing.M)
     }
@@ -452,7 +452,7 @@ struct Index {
   NavItems() {
     ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
       Column() {
-        Text(item.icon).fontFamily(uiFontFamily())
+        Text(T(item.icon)).fontFamily(uiFontFamily())
           .fontSize(this.currentTab === idx ? 20 : 19)
           .opacity(this.currentTab === idx ? 1 : 0.6)
         Text(T(item.title)).fontFamily(uiFontFamily())
@@ -524,7 +524,7 @@ struct Index {
           .textAlign(TextAlign.Center)
           .backgroundColor(Theme.primary)
           .borderRadius(4)
-        Text(this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱').fontFamily(uiFontFamily())
+        Text(T(this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -532,7 +532,7 @@ struct Index {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
-        Text(this.bookCount > 1 ? '共 ' + this.bookCount.toString() + ' 部' : '').fontFamily(uiFontFamily())
+        Text(T(this.bookCount > 1 ? '共 ' + this.bookCount.toString() + ' 部' : '')).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 6 })
@@ -772,16 +772,16 @@ struct Index {
       return;
     }
     this.getUIContext().showAlertDialog({
-      title: '创建分支',
+      title: T('创建分支'),
       message: T('将以「' + p.name + '（' + p.uid + '）」为第一世（始祖）另立分支族谱，'
         + '并复制其配偶与全部后代。分支数据独立，原族谱不受影响。确认创建？'),
       primaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '创建',
+        value: T('创建'),
         action: (): void => {
           GenealogyService.getInstance().createBranchFromPerson(uid)
             .then((book: Genealogy): void => {
@@ -830,7 +830,7 @@ struct Index {
   EmptyTreePane() {
     Column() {
       Column() {
-        Text('＋').fontFamily(uiFontFamily())
+        Text(T('＋')).fontFamily(uiFontFamily())
           .fontSize(40)
           .fontColor('#FFFFFF')
           .width(76)
@@ -871,13 +871,13 @@ struct Index {
   @Builder
   NoBookGuide() {
     Column() {
-      Text('📜').fontFamily(uiFontFamily()).fontSize(46).opacity(0.65)
+      Text(T('📜')).fontFamily(uiFontFamily()).fontSize(46).opacity(0.65)
       Text(T('尚未创建族谱')).fontFamily(uiFontFamily())
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.ink)
         .margin({ top: Spacing.L })
-      Text(this.noBookDesc()).fontFamily(uiFontFamily())
+      Text(T(this.noBookDesc())).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 8 })
@@ -1282,10 +1282,10 @@ struct Index {
               .maxLines(1)
           }
           Blank()
-          Text(!this.isPhone() && this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '').fontFamily(uiFontFamily())
+          Text(T(!this.isPhone() && this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
-          Text(this.familyBadge()).fontFamily(uiFontFamily())
+          Text(T(this.familyBadge())).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(this.syncMode !== 'LOCAL' ? Theme.alive : Theme.inkTertiary)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -1313,7 +1313,7 @@ struct Index {
                 RouterUtil.login(this.getUIContext());
               }
             })
-          Text('⚙').fontFamily(uiFontFamily())
+          Text(T('⚙')).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontColor(Theme.inkSecondary)
             .width(26)

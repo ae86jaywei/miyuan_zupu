@@ -13,7 +13,7 @@ export struct BackButton {
   onBack: () => void = (): void => {};
 
   build() {
-    Text('‹').fontFamily(uiFontFamily())
+    Text(T('‹')).fontFamily(uiFontFamily())
       .fontSize(22)
       .fontColor(Theme.ink)
       .width(32)

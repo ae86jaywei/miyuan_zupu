@@ -166,7 +166,7 @@ struct SharedView {
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.generationLabel(person)).fontFamily(uiFontFamily())
+        Text(T(this.generationLabel(person))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
@@ -200,7 +200,7 @@ struct SharedView {
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(this.people.length > 0 ? this.people.length.toString() + ' 人' : '').fontFamily(uiFontFamily())
+        Text(T(this.people.length > 0 ? this.people.length.toString() + ' 人' : '')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
       }
@@ -212,7 +212,7 @@ struct SharedView {
 
       if (this.needCode) {
         Column() {
-          Text('📩').fontFamily(uiFontFamily()).fontSize(30)
+          Text(T('📩')).fontFamily(uiFontFamily()).fontSize(30)
           Text(T('输入分享邀请码')).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
@@ -243,7 +243,7 @@ struct SharedView {
               this.joinByCode();
             })
           if (this.errorText.length > 0) {
-            Text(this.errorText).fontFamily(uiFontFamily())
+            Text(T(this.errorText)).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.gold)
               .textAlign(TextAlign.Center)
@@ -264,8 +264,8 @@ struct SharedView {
         .justifyContent(FlexAlign.Center)
       } else if (this.errorText.length > 0) {
         Column() {
-          Text('🔒').fontFamily(uiFontFamily()).fontSize(30)
-          Text(this.errorText).fontFamily(uiFontFamily())
+          Text(T('🔒')).fontFamily(uiFontFamily()).fontSize(30)
+          Text(T(this.errorText)).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.inkSecondary)
             .textAlign(TextAlign.Center)

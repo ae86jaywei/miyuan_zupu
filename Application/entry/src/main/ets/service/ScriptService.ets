@@ -193,7 +193,14 @@ export class ScriptService {
 }
 
 /** 界面/导出文本转换快捷函数：跟随设置页当前文字 */
-export function T(text: string): string {
+export function T(text: string | number | boolean | undefined | null): string {
+  if (text === undefined || text === null) {
+    return '';
+  }
+  // 数字/布尔直接转字符串，避免调用方为 Text(计数)、Text(是否) 单独包一层
+  if (typeof text === 'number' || typeof text === 'boolean') {
+    return String(text);
+  }
   return ScriptService.getInstance().toDisplay(text);
 }
 

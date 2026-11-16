@@ -229,7 +229,7 @@ export struct CatalogView {
       .margin({ left: Spacing.M })
 
       if (showArrow) {
-        Text(this.selectedUid === p.uid ? '●' : '›').fontFamily(uiFontFamily())
+        Text(T(this.selectedUid === p.uid ? '●' : '›')).fontFamily(uiFontFamily())
           .fontSize(this.selectedUid === p.uid ? 12 : 18)
           .fontColor(this.selectedUid === p.uid ? Theme.primary : Theme.inkTertiary)
       }
@@ -249,7 +249,7 @@ export struct CatalogView {
       this.FilterBar()
 
       Row() {
-        Text('共 ' + this.filteredCount.toString() + ' 人').fontFamily(uiFontFamily())
+        Text(T('共 ' + this.filteredCount.toString() + ' 人')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
         Blank()
@@ -267,7 +267,7 @@ export struct CatalogView {
       .padding({ top: Spacing.S, bottom: 4, left: 4, right: 4 })
 
       if (this.filteredCount === 0) {
-        EmptyHint({ icon: '🔍', title: '没有符合条件的族人', desc: '尝试调整搜索词或筛选条件' })
+        EmptyHint({ icon: '🔍', title: T('没有符合条件的族人'), desc: '尝试调整搜索词或筛选条件' })
       } else {
         List({ space: 2 }) {
           LazyForEach(this.listSource, (p: Person) => {

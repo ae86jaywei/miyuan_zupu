@@ -8,7 +8,7 @@ export struct Tag {
   @Prop dense: boolean = false;
 
   build() {
-    Text(this.text).fontFamily(uiFontFamily())
+    Text(T(this.text)).fontFamily(uiFontFamily())
       .fontSize(this.dense ? 10 : 11)
       .fontColor(this.color)
       .padding({ left: this.dense ? 5 : 7, right: this.dense ? 5 : 7, top: this.dense ? 1 : 2, bottom: this.dense ? 1 : 2 })

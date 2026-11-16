@@ -169,13 +169,13 @@ export struct EuTree {
         if (this.lodLevel === DETAIL_BUBBLE) {
           ForEach(this.bubbles, (b: Bubble) => {
             Column() {
-              Text(b.label).fontFamily(uiFontFamily())
+              Text(T(b.label)).fontFamily(uiFontFamily())
                 .fontSize(11 / this.safeZoom())
                 .fontColor('#FFFFFF')
                 .fontWeight(FontWeight.Medium)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Text(b.countLabel).fontFamily(uiFontFamily())
+              Text(T(b.countLabel)).fontFamily(uiFontFamily())
                 .fontSize(9 / this.safeZoom())
                 .fontColor('rgba(255,255,255,0.86)')
                 .maxLines(1)

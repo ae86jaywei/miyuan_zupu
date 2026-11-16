@@ -97,7 +97,7 @@ export struct SlidePicker {
           ForEach(this.buildRows(), (row: number) => {
             ListItem() {
               Row() {
-                Text(this.valueAt(row)).fontFamily(uiFontFamily())
+                Text(T(this.valueAt(row))).fontFamily(uiFontFamily())
                   .fontSize(this.valueAt(row).length > 0 &&
                     this.selected === row - this.padCount() ? 19 : 16)
                   .fontWeight(this.selected === row - this.padCount() ? FontWeight.Medium : FontWeight.Normal)
@@ -132,7 +132,7 @@ export struct SlidePicker {
       .clip(true)
 
       // 底部确认按钮
-      Button('确定选择「' + (this.options.length > 0 ? this.options[this.selected] : '') + '」').fontFamily(uiFontFamily())
+      Button(T('确定选择「' + (this.options.length > 0 ? this.options[this.selected] : '') + '」')).fontFamily(uiFontFamily())
         .width('90%')
         .height(46)
         .margin({ top: 10, bottom: 16 })

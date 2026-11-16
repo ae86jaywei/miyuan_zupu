@@ -100,7 +100,7 @@ export struct SettingsView {
           this.syncText = message;
           this.syncPercent = percent;
         });
-      this.getUIContext().getPromptAction().showToast({ message: result.message });
+      this.getUIContext().getPromptAction().showToast({ message: T(result.message) });
       if (result.integrityIssues.length > 0) {
         const shown: string[] = result.integrityIssues.slice(0, 5);
         let text: string = shown.join('\n');
@@ -108,10 +108,10 @@ export struct SettingsView {
           text = text + '\n……另有 ' + (result.integrityIssues.length - shown.length).toString() + ' 项';
         }
         this.getUIContext().showAlertDialog({
-          title: '数据一致性提示',
-          message: text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。',
+          title: T('数据一致性提示'),
+          message: T(text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。'),
           confirm: {
-            value: '知道了',
+            value: T('知道了'),
             action: (): void => {
             }
           }
@@ -245,7 +245,7 @@ export struct SettingsView {
           .fontSize(14)
           .fontColor(Theme.ink)
         if (tip.length > 0) {
-          Text(tip).fontFamily(uiFontFamily())
+          Text(T(tip)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 2 })
@@ -501,7 +501,7 @@ export struct SettingsView {
       Column() {
         AccountCard()
 
-        TS({ title: '家族协作', subtitle: this.familyModeText, icon: '👨‍👩‍👧' })
+        TS({ title: T('家族协作'), subtitle: this.familyModeText, icon: '👨‍👩‍👧' })
         Column() {
           this.NavRow('我的家族', '创建云家族 / 加入码加入 / 分享邀请 / 发布本谱 / 同步', (): void => {
             RouterUtil.familyHome(this.getUIContext());
@@ -523,7 +523,7 @@ export struct SettingsView {
             RouterUtil.graveMap(this.getUIContext());
           })
           if (this.syncMode !== SyncMode.LOCAL) {
-            Button(this.syncing ? '同步中…' : '立即同步').fontFamily(uiFontFamily())
+            Button(T(this.syncing ? '同步中…' : '立即同步')).fontFamily(uiFontFamily())
               .height(36)
               .width('100%')
               .fontSize(13)
@@ -535,7 +535,7 @@ export struct SettingsView {
                 this.doSyncNow();
               })
             if (this.syncStatus.length > 0) {
-              Text(this.syncStatus).fontFamily(uiFontFamily())
+              Text(T(this.syncStatus)).fontFamily(uiFontFamily())
                 .fontSize(10.5)
                 .fontColor(Theme.inkTertiary)
                 .margin({ top: 6 })
@@ -551,7 +551,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: '族谱信息', subtitle: '谱名 · 堂号 · 郡望 · 字派 · 谱序 · 家训', icon: '📕' })
+        TS({ title: T('族谱信息'), subtitle: '谱名 · 堂号 · 郡望 · 字派 · 谱序 · 家训', icon: '📕' })
         Column() {
           if (this.editingBook) {
             this.BookForm()
@@ -568,7 +568,7 @@ export struct SettingsView {
         .clip(true)
 
         TS({
-          title: '文字与语言',
+          title: T('文字与语言'),
           subtitle: '当前：' + (this.script === 'hant' ? '繁體中文' : '简体中文'),
           icon: '🈶'
         })
@@ -596,7 +596,7 @@ export struct SettingsView {
         .clip(true)
 
         TS({
-          title: '显示设置',
+          title: T('显示设置'),
           subtitle: '当前：' + DisplayService.labelOf(this.orientationMode),
           icon: '🖥️'
         })
@@ -607,9 +607,9 @@ export struct SettingsView {
             .width('100%')
             .margin({ bottom: 6 })
           if (this.orientationBySystem) {
-            Text(DisplayService.isPc() ?
+            Text(T(DisplayService.isPc() ?
               '当前设备为电脑，窗口方向由系统统一调度，应用侧配置不生效，故以下选项不可设置。' :
-              '当前设备为折叠屏，方向跟随桌面并在折叠态切换时由系统自动更新，故以下选项不可设置。').fontFamily(uiFontFamily())
+              '当前设备为折叠屏，方向跟随桌面并在折叠态切换时由系统自动更新，故以下选项不可设置。')).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .width('100%')
@@ -628,7 +628,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: '隐私与展示', icon: '🔒' })
+        TS({ title: T('隐私与展示'), icon: '🔒' })
         Column() {
           this.SwitchRow('显示隐私字段', '手机号、微信号默认加星号显示，关闭后完全隐藏', this.showPrivate, (v: boolean): void => {
             this.showPrivate = v;
@@ -637,8 +637,8 @@ export struct SettingsView {
           this.SwitchRow('公开模式', '公开模式下所有隐私字段不显示，适用于分享/展示', this.publicMode, (v: boolean): void => {
             this.publicMode = v;
           })
-          Text('协作说明：接入云家族后，手机号/微信/现居地只保存在云端「仅谱主可读」的隐私表中，' +
-            '编辑者与只读成员都拿不到明文；被记录的活人可请谱主删除或更正（操作会留审计流水）。').fontFamily(uiFontFamily())
+          Text(T('协作说明：接入云家族后，手机号/微信/现居地只保存在云端「仅谱主可读」的隐私表中，' +
+            '编辑者与只读成员都拿不到明文；被记录的活人可请谱主删除或更正（操作会留审计流水）。')).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .lineHeight(16)
@@ -653,7 +653,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: '数据管理', icon: '💾' })
+        TS({ title: T('数据管理'), icon: '💾' })
         Column() {
           this.NavRow('导入 / 导出', 'JSON 备份、CSV 表格、Markdown 谱文', (): void => {
             RouterUtil.importExport(this.getUIContext());
@@ -671,7 +671,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: '关于', icon: 'ℹ️' })
+        TS({ title: T('关于'), icon: 'ℹ️' })
         Column() {
           this.InfoLine('应用名称', '觅源 v1.0.0（com.zupu.ae86jay）')
           this.InfoLine('支持谱式', '欧式 · 苏式 · 宝塔式 · 牒记式 · 现代创新式')
@@ -723,7 +723,7 @@ export struct SettingsView {
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Text('›').fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
+          Text(T('›')).fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
         }
         .width('100%')
         .padding({ top: 8, bottom: 8 })
@@ -736,7 +736,7 @@ export struct SettingsView {
   InfoLine(label: string, value: string) {
         Row() {
           Text(T(label)).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkTertiary).width(72)
-          Text(value).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.inkSecondary).layoutWeight(1)
+          Text(T(value)).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.inkSecondary).layoutWeight(1)
         }
         .width('100%')
         .alignItems(VerticalAlign.Top)
@@ -766,13 +766,13 @@ struct DeleteGenealogyDialog {
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.danger)
         .width('100%')
-      Text('此操作将永久删除《' + this.bookTitle + '》的全部族人、配偶关系及族谱信息，删除后无法恢复。').fontFamily(uiFontFamily())
+      Text(T('此操作将永久删除《' + this.bookTitle + '》的全部族人、配偶关系及族谱信息，删除后无法恢复。')).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(Theme.inkSecondary)
         .lineHeight(19)
         .margin({ top: 10 })
         .width('100%')
-      Text('请输入族谱名称「' + this.bookTitle + '」以确认').fontFamily(uiFontFamily())
+      Text(T('请输入族谱名称「' + this.bookTitle + '」以确认')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 14 })

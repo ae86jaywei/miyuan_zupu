@@ -100,7 +100,7 @@ export struct HomeView {
             .fontSize(11)
             .fontColor(Theme.goldLight)
           Blank()
-          Text('已录 ' + this.statsView.total.toString() + ' 人').fontFamily(uiFontFamily())
+          Text(T('已录 ' + this.statsView.total.toString() + ' 人')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.goldLight)
         }
@@ -173,7 +173,7 @@ export struct HomeView {
     Column() {
       ForEach(this.statsView.generations, (g: GenerationStat) => {
         Row() {
-          Text(g.label).fontFamily(uiFontFamily())
+          Text(T(g.label)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkSecondary)
             .width(52)
@@ -189,7 +189,7 @@ export struct HomeView {
               .borderRadius(8)
               .linearGradient({ angle: 90, colors: [[Theme.gold, 0.0], [Theme.primary, 1.0]] })
             Row() {
-              Text(g.total.toString() + ' 人').fontFamily(uiFontFamily()).fontSize(10).fontColor('#FFFFFF').margin({ left: 6 })
+              Text(T(g.total.toString() + ' 人')).fontFamily(uiFontFamily()).fontSize(10).fontColor('#FFFFFF').margin({ left: 6 })
             }
             .width('100%')
             .height(16)
@@ -212,7 +212,7 @@ export struct HomeView {
       ForEach([['eu', '欧式', '横轴世系'], ['su', '苏式', '竖式吊线'], ['pagoda', '宝塔', '金字塔'],
         ['die', '牒记', '文字编年'], ['modern', '现代', '卡片时间轴']], (item: string[], idx: number) => {
         Row() {
-          Text(item[0].toUpperCase()).fontFamily(uiFontFamily())
+          Text(T(item[0].toUpperCase())).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.primary)
             .width(26)
@@ -221,10 +221,10 @@ export struct HomeView {
             .backgroundColor(Theme.highlightBg)
             .borderRadius(13)
           Column() {
-            Text(item[1] + '谱').fontFamily(uiFontFamily())
+            Text(T(item[1] + '谱')).fontFamily(uiFontFamily())
               .fontSize(13.5)
               .fontColor(Theme.ink)
-            Text(item[2]).fontFamily(uiFontFamily())
+            Text(T(item[2])).fontFamily(uiFontFamily())
               .fontSize(10)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 1 })
@@ -232,7 +232,7 @@ export struct HomeView {
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
           .margin({ left: 8 })
-          Text('›').fontFamily(uiFontFamily()).fontSize(16).fontColor(Theme.inkTertiary)
+          Text(T('›')).fontFamily(uiFontFamily()).fontSize(16).fontColor(Theme.inkTertiary)
         }
         .width('100%')
         .padding({ top: 8, bottom: 8 })
@@ -261,7 +261,7 @@ export struct HomeView {
             Text(T(p.name + (p.generationChar.length > 0 ? '（' + p.generationChar + '字）' : ''))).fontFamily(uiFontFamily())
               .fontSize(13.5)
               .fontColor(Theme.ink)
-            Text(generationLabel(p.generation) + ' · ' + compactUid(p.uid)).fontFamily(uiFontFamily())
+            Text(T(generationLabel(p.generation) + ' · ' + compactUid(p.uid))).fontFamily(uiFontFamily())
               .fontSize(10)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 1 })
@@ -301,7 +301,7 @@ export struct HomeView {
       Row() {
         Text(T('🎂 本月寿辰')).fontFamily(uiFontFamily()).fontSize(14).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
         Blank()
-        Text(this.birthdayView.length.toString() + ' 人').fontFamily(uiFontFamily())
+        Text(T(this.birthdayView.length.toString() + ' 人')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
       }
@@ -315,7 +315,7 @@ export struct HomeView {
       } else {
         ForEach(this.birthdayView.slice(0, 5), (b: BirthdayItem) => {
           Row() {
-            Text(b.day.toString() + '日').fontFamily(uiFontFamily())
+            Text(T(b.day.toString() + '日')).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.primary)
               .width(40)
@@ -323,7 +323,7 @@ export struct HomeView {
               .fontSize(13)
               .fontColor(Theme.ink)
               .layoutWeight(1)
-            Text(b.isToday ? '今日 · 满 ' + b.turningAge.toString() + ' 岁' : '满 ' + b.turningAge.toString() + ' 岁').fontFamily(uiFontFamily())
+            Text(T(b.isToday ? '今日 · 满 ' + b.turningAge.toString() + ' 岁' : '满 ' + b.turningAge.toString() + ' 岁')).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(b.isToday ? Theme.alive : Theme.inkTertiary)
           }
@@ -348,7 +348,7 @@ export struct HomeView {
     if (this.warnView.length > 0) {
       Column() {
         Row() {
-          Text('⚠ 世系与ID校验提示（' + this.warnView.length.toString() + ' 条）').fontFamily(uiFontFamily())
+          Text(T('⚠ 世系与ID校验提示（' + this.warnView.length.toString() + ' 条）')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.lost)
           Blank()
@@ -358,7 +358,7 @@ export struct HomeView {
         }
         .width('100%')
         ForEach(this.warnView.slice(0, 4), (w: string[], i: number) => {
-          Text(w[0] + '（' + w[1] + '）：' + w[2]).fontFamily(uiFontFamily())
+          Text(T(w[0] + '（' + w[1] + '）：' + w[2])).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(Theme.inkSecondary)
             .margin({ top: 4 })
@@ -391,7 +391,7 @@ export struct HomeView {
       Row() {
         Column() {
           Text(T('世系与ID校验提示')).fontFamily(uiFontFamily()).fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
-          Text('共 ' + this.warnView.length.toString() + ' 条 · 点击任一条可查看该族人').fontFamily(uiFontFamily())
+          Text(T('共 ' + this.warnView.length.toString() + ' 条 · 点击任一条可查看该族人')).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 3 })
@@ -413,16 +413,16 @@ export struct HomeView {
         ForEach(this.warnView.slice(0, this.warnLimit), (w: string[], i: number) => {
           ListItem() {
             Row() {
-              Text((i + 1).toString()).fontFamily(uiFontFamily())
+              Text(T((i + 1).toString())).fontFamily(uiFontFamily())
                 .fontSize(11)
                 .fontColor(Theme.inkTertiary)
                 .width(26)
               Column() {
-                Text(w[0] + '（' + w[1] + '）').fontFamily(uiFontFamily())
+                Text(T(w[0] + '（' + w[1] + '）')).fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(Theme.ink)
                   .width('100%')
-                Text(w[2]).fontFamily(uiFontFamily())
+                Text(T(w[2])).fontFamily(uiFontFamily())
                   .fontSize(11.5)
                   .fontColor(Theme.inkSecondary)
                   .margin({ top: 3 })
@@ -454,7 +454,7 @@ export struct HomeView {
       .divider({ strokeWidth: 0.5, color: Theme.line, startMargin: Spacing.L, endMargin: Spacing.L })
 
       if (this.warnView.length > this.warnLimit) {
-        Text('显示更多（' + this.warnLimit.toString() + ' / ' + this.warnView.length.toString() + ' 条）').fontFamily(uiFontFamily())
+        Text(T('显示更多（' + this.warnLimit.toString() + ' / ' + this.warnView.length.toString() + ' 条）')).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.primary)
           .width('100%')
@@ -464,7 +464,7 @@ export struct HomeView {
             this.warnLimit = this.warnLimit + WARN_BATCH;
           })
       } else if (this.warnView.length > WARN_BATCH) {
-        Text('已显示全部 ' + this.warnView.length.toString() + ' 条').fontFamily(uiFontFamily())
+        Text(T('已显示全部 ' + this.warnView.length.toString() + ' 条')).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -492,7 +492,7 @@ export struct HomeView {
         if (this.isWide()) {
           Row() {
             Column() {
-              TS({ title: '世代分布', subtitle: '各世人数与占比', icon: '📊' })
+              TS({ title: T('世代分布'), subtitle: '各世人数与占比', icon: '📊' })
               Column() {
                 this.GenerationChart()
               }
@@ -504,7 +504,7 @@ export struct HomeView {
               .margin({ bottom: Spacing.M })
               .clip(true)
 
-              TS({ title: '五种谱式', subtitle: '一键切换展示方式', icon: '📜' })
+              TS({ title: T('五种谱式'), subtitle: '一键切换展示方式', icon: '📜' })
               Column() {
                 this.StyleShortcuts()
               }
@@ -520,7 +520,7 @@ export struct HomeView {
             .margin({ right: Spacing.M })
 
             Column() {
-              TS({ title: '最近更新', subtitle: '按修改时间排序', icon: '🕘' })
+              TS({ title: T('最近更新'), subtitle: '按修改时间排序', icon: '🕘' })
               Column() {
                 this.RecentList()
               }
@@ -532,7 +532,7 @@ export struct HomeView {
               .margin({ bottom: Spacing.M })
               .clip(true)
 
-              TS({ title: '家训', subtitle: this.book().hallName, icon: '🏮' })
+              TS({ title: T('家训'), subtitle: this.book().hallName, icon: '🏮' })
               Column() {
                 Text(T(this.book().familyRules)).fontFamily(uiFontFamily())
                   .fontSize(13)
@@ -548,7 +548,7 @@ export struct HomeView {
               .margin({ bottom: Spacing.M })
               .clip(true)
 
-              TS({ title: '谱序', icon: '✍️' })
+              TS({ title: T('谱序'), icon: '✍️' })
               Column() {
                 Text(T(this.book().preface)).fontFamily(uiFontFamily())
                   .fontSize(13)
@@ -570,7 +570,7 @@ export struct HomeView {
           .margin({ top: Spacing.M })
           .alignItems(VerticalAlign.Top)
         } else {
-          TS({ title: '世代分布', subtitle: '各世人数与占比', icon: '📊' })
+          TS({ title: T('世代分布'), subtitle: '各世人数与占比', icon: '📊' })
           Column() {
             this.GenerationChart()
           }
@@ -582,7 +582,7 @@ export struct HomeView {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '五种谱式', subtitle: '一键切换展示方式', icon: '📜' })
+          TS({ title: T('五种谱式'), subtitle: '一键切换展示方式', icon: '📜' })
           Column() {
             this.StyleShortcuts()
           }
@@ -594,7 +594,7 @@ export struct HomeView {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '最近更新', subtitle: '按修改时间排序', icon: '🕘' })
+          TS({ title: T('最近更新'), subtitle: '按修改时间排序', icon: '🕘' })
           Column() {
             this.RecentList()
           }
@@ -606,7 +606,7 @@ export struct HomeView {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '家训', subtitle: this.book().hallName, icon: '🏮' })
+          TS({ title: T('家训'), subtitle: this.book().hallName, icon: '🏮' })
           Column() {
             Text(T(this.book().familyRules)).fontFamily(uiFontFamily())
               .fontSize(13)
@@ -622,7 +622,7 @@ export struct HomeView {
           .margin({ bottom: Spacing.M })
           .clip(true)
 
-          TS({ title: '谱序', icon: '✍️' })
+          TS({ title: T('谱序'), icon: '✍️' })
           Column() {
             Text(T(this.book().preface)).fontFamily(uiFontFamily())
               .fontSize(13)

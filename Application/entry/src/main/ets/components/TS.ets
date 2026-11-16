@@ -7,7 +7,7 @@ import { Theme, Spacing } from '../theme/Theme';
  * 说明：鸿蒙的“尾随闭包”语法要求被调用组件只有一个 @BuilderParam；
  * 若同时传自定义属性会被判定为非法语法。因此这里采用两段式写法：
  *
- *   TS({ title: '世代分布', subtitle: '各世人数与占比', icon: '📊' })
+ *   TS({ title: T('世代分布'), subtitle: '各世人数与占比', icon: '📊' })
  *   Column() {
  *     ...内容...
  *   }
@@ -27,7 +27,7 @@ export struct TS {
   build() {
     Row() {
       if (this.icon.length > 0) {
-        Text(this.icon).fontFamily(uiFontFamily()).fontSize(15).margin({ right: Spacing.S })
+        Text(T(this.icon)).fontFamily(uiFontFamily()).fontSize(15).margin({ right: Spacing.S })
       }
       if (this.title.length > 0) {
         Column() {

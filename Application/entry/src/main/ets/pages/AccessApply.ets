@@ -54,7 +54,7 @@ struct AccessApply {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private async loadMyApplications(): Promise<void> {
@@ -140,11 +140,11 @@ struct AccessApply {
   ApplicationRow(a: AccessRequestInfo) {
     Column() {
       Row() {
-        Text(accessKindLabel(a.kind)).fontFamily(uiFontFamily())
+        Text(T(accessKindLabel(a.kind))).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(accessStatusLabel(a.status)).fontFamily(uiFontFamily())
+        Text(T(accessStatusLabel(a.status))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(a.status === AccessStatus.APPROVED ? Theme.alive :
             (a.status === AccessStatus.REJECTED ? Theme.danger : Theme.gold))
@@ -153,13 +153,13 @@ struct AccessApply {
           .backgroundColor(Theme.field)
       }
       .width('100%')
-      Text((a.familyTitle.length > 0 ? a.familyTitle : a.familyId)).fontFamily(uiFontFamily())
+      Text(T((a.familyTitle.length > 0 ? a.familyTitle : a.familyId))).fontFamily(uiFontFamily())
         .fontSize(10)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3 })
         .width('100%')
       if (a.reviewNote.length > 0) {
-        Text('审批备注：' + a.reviewNote).fontFamily(uiFontFamily())
+        Text(T('审批备注：' + a.reviewNote)).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
@@ -173,7 +173,7 @@ struct AccessApply {
   build() {
     Column() {
       PageNavBar({
-        title: '申请认证',
+        title: T('申请认证'),
         subtitle: '申请查看 / 申请成为族人',
         busy: this.busy,
         onBack: (): void => {
@@ -182,9 +182,9 @@ struct AccessApply {
       })
       Scroll() {
         Column() {
-          TS({ title: '提交申请', subtitle: '申请单只会交给该谱谱主审核', icon: '✉️' })
+          TS({ title: T('提交申请'), subtitle: '申请单只会交给该谱谱主审核', icon: '✉️' })
           Column() {
-            Text('族谱ID：' + (this.familyId.length > 0 ? this.familyId : '（请从族谱黄页选择）')).fontFamily(uiFontFamily())
+            Text(T('族谱ID：' + (this.familyId.length > 0 ? this.familyId : '（请从族谱黄页选择）'))).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .width('100%')
@@ -243,7 +243,7 @@ struct AccessApply {
               .onChange((v: string): void => {
                 this.evidenceText = v;
               })
-            Button(this.busy ? '提交中…' : '提交申请').fontFamily(uiFontFamily())
+            Button(T(this.busy ? '提交中…' : '提交申请')).fontFamily(uiFontFamily())
               .fontSize(14)
               .height(40)
               .width('100%')
@@ -255,7 +255,7 @@ struct AccessApply {
                 this.submit();
               })
             if (this.message.length > 0) {
-              Text(this.message).fontFamily(uiFontFamily())
+              Text(T(this.message)).fontFamily(uiFontFamily())
                 .fontSize(11.5)
                 .fontColor(Theme.inkSecondary)
                 .margin({ top: Spacing.S })
@@ -270,7 +270,7 @@ struct AccessApply {
           .border({ width: 0.5, color: Theme.line })
           .margin({ bottom: Spacing.M })
 
-          TS({ title: '我的申请', subtitle: '共 ' + this.myApplications.length.toString() + ' 条', icon: '📨' })
+          TS({ title: T('我的申请'), subtitle: '共 ' + this.myApplications.length.toString() + ' 条', icon: '📨' })
           Column() {
             if (this.myApplications.length === 0) {
               Text(T('还没有提交过申请')).fontFamily(uiFontFamily())

@@ -21,7 +21,7 @@ export struct PrivacyConsentDialog {
 
   build() {
     Column() {
-      Text('欢迎使用' + APP_NAME).fontFamily(uiFontFamily())
+      Text(T('欢迎使用' + APP_NAME)).fontFamily(uiFontFamily())
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.ink)
@@ -34,30 +34,30 @@ export struct PrivacyConsentDialog {
 
       Scroll() {
         Column() {
-          Text('我们深知个人信息对你的重要性。为向你提供族谱记录、谱系展示与家族协作服务，' +
-            '我们会在你主动使用时处理以下信息：').fontFamily(uiFontFamily())
+          Text(T('我们深知个人信息对你的重要性。为向你提供族谱记录、谱系展示与家族协作服务，' +
+            '我们会在你主动使用时处理以下信息：')).fontFamily(uiFontFamily())
             .fontSize(12.5)
             .fontColor(Theme.inkSecondary)
             .lineHeight(19)
             .width('100%')
-          Text('· 华为账号标识（UnionID），用于登录与账号隔离；\n' +
+          Text(T('· 华为账号标识（UnionID），用于登录与账号隔离；\n' +
             '· 你录入或导入的族人信息（姓名、生卒、亲属关系、联系方式等）；\n' +
             '· 你主动上传的头像、家族相片与视频；\n' +
             '· 你主动标注祖墓位置时读取的经纬度与海拔；\n' +
-            '· 必要的运行日志，用于排查故障。').fontFamily(uiFontFamily())
+            '· 必要的运行日志，用于排查故障。')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkSecondary)
             .lineHeight(19)
             .width('100%')
             .margin({ top: 8 })
-          Text('族谱数据优先保存在本机；仅当你接入云家族并主动同步时，数据才会加密上传至华为云服务。' +
-            '未经你同意，我们不会初始化或上传任何数据，也不会将你的信息用于广告推送或出售。').fontFamily(uiFontFamily())
+          Text(T('族谱数据优先保存在本机；仅当你接入云家族并主动同步时，数据才会加密上传至华为云服务。' +
+            '未经你同意，我们不会初始化或上传任何数据，也不会将你的信息用于广告推送或出售。')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkSecondary)
             .lineHeight(19)
             .width('100%')
             .margin({ top: 8 })
-          Text('运营者：' + OPERATOR_NAME + '　联系邮箱：' + CONTACT_EMAIL).fontFamily(uiFontFamily())
+          Text(T('运营者：' + OPERATOR_NAME + '　联系邮箱：' + CONTACT_EMAIL)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .lineHeight(17)

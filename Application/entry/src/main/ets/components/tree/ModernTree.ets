@@ -164,7 +164,7 @@ export struct ModernTree {
       .margin({ top: 6 })
 
       if (this.spouseText(p).length > 0) {
-        Text(this.spouseText(p)).fontFamily(uiFontFamily())
+        Text(T(this.spouseText(p))).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkSecondary)
           .maxLines(2)
@@ -227,11 +227,11 @@ export struct ModernTree {
               Column() {
                 if (row.first) {
                   Row() {
-                    Text(row.label).fontFamily(uiFontFamily())
+                    Text(T(row.label)).fontFamily(uiFontFamily())
                       .fontSize(13)
                       .fontWeight(FontWeight.Bold)
                       .fontColor(Theme.primary)
-                    Text(row.people.length.toString() + ' 人').fontFamily(uiFontFamily())
+                    Text(T(row.people.length.toString() + ' 人')).fontFamily(uiFontFamily())
                       .fontSize(11)
                       .fontColor(Theme.inkTertiary)
                       .margin({ left: 6 })

@@ -63,7 +63,7 @@ struct GraveMap {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private async load(): Promise<void> {
@@ -109,16 +109,16 @@ struct GraveMap {
     this.editVisibility = 'PUBLIC';
     this.editPrecision = 'EXACT';
     this.getUIContext().showAlertDialog({
-      title: '录入前请确认',
+      title: T('录入前请确认'),
       message: T('祖墓坐标将作为公开数据，任何登录用户都能查到，且一旦公开无法撤回。') +
         '若家族不希望对外公开，请把可见性设为「仅族人可见」——此时该记录会从公开表中真正删除，而不是隐藏。',
       primaryButton: {
-        value: '我已知悉，继续',
+        value: T('我已知悉，继续'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: (): void => {
           this.editingUid = '';
         }
@@ -162,47 +162,47 @@ struct GraveMap {
   GraveCard(g: GraveEntry) {
     Column() {
       Row() {
-        Text(g.personName.length > 0 ? g.personName : g.uid).fontFamily(uiFontFamily())
+        Text(T(g.personName.length > 0 ? g.personName : g.uid)).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(g.generation > 0 ? '第 ' + g.generation.toString() + ' 世' : '').fontFamily(uiFontFamily())
+        Text(T(g.generation > 0 ? '第 ' + g.generation.toString() + ' 世' : '')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
       .width('100%')
       if (g.bookTitle.length > 0) {
-        Text('《' + g.bookTitle + '》').fontFamily(uiFontFamily())
+        Text(T('《' + g.bookTitle + '》')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
           .width('100%')
       }
       if (g.graveName.length > 0) {
-        Text('墓地：' + g.graveName).fontFamily(uiFontFamily())
+        Text(T('墓地：' + g.graveName)).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 4 })
           .width('100%')
       }
-      Text('坐标：' + g.locationText() +
+      Text(T('坐标：' + g.locationText() +
         (g.altitude !== 0 ? ' · 海拔 ' + Math.round(g.altitude).toString() + ' 米' : '') +
-        (g.precision === 'BLURRED' ? '（已模糊至约30米）' : '')).fontFamily(uiFontFamily())
+        (g.precision === 'BLURRED' ? '（已模糊至约30米）' : ''))).fontFamily(uiFontFamily())
         .fontSize(11.5)
         .fontColor(Theme.inkSecondary)
         .margin({ top: 3 })
         .width('100%')
         .copyOption(CopyOptions.LocalDevice)
       if (g.facing.length > 0) {
-        Text('朝向：' + g.facing).fontFamily(uiFontFamily())
+        Text(T('朝向：' + g.facing)).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
           .width('100%')
       }
       if (g.routeNote.length > 0) {
-        Text('寻墓路线：' + g.routeNote).fontFamily(uiFontFamily())
+        Text(T('寻墓路线：' + g.routeNote)).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
@@ -220,7 +220,7 @@ struct GraveMap {
             })
         }
         Blank()
-        Text('公开墓葬表 · 更新于 ' + new Date(g.updatedAt).toLocaleDateString()).fontFamily(uiFontFamily())
+        Text(T('公开墓葬表 · 更新于 ' + new Date(g.updatedAt).toLocaleDateString())).fontFamily(uiFontFamily())
           .fontSize(9.5)
           .fontColor(Theme.inkTertiary)
       }
@@ -238,7 +238,7 @@ struct GraveMap {
   @Builder
   EditPanel() {
     Column() {
-      Text('录入墓葬位置：' + this.editingUid).fontFamily(uiFontFamily())
+      Text(T('录入墓葬位置：' + this.editingUid)).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
@@ -365,7 +365,7 @@ struct GraveMap {
           .onClick((): void => {
             this.editingUid = '';
           })
-        Button(this.busy ? '保存中…' : '保存').fontFamily(uiFontFamily())
+        Button(T(this.busy ? '保存中…' : '保存')).fontFamily(uiFontFamily())
           .fontSize(13)
           .height(36)
           .layoutWeight(1)
@@ -391,7 +391,7 @@ struct GraveMap {
   build() {
     Column() {
       PageNavBar({
-        title: '祭祖寻墓',
+        title: T('祭祖寻墓'),
         subtitle: '祖墓坐标公开 · 任意登录用户可查',
         busy: this.loading,
         onBack: (): void => {
@@ -442,7 +442,7 @@ struct GraveMap {
             .margin({ top: Spacing.S, bottom: Spacing.M })
 
             if (this.canEdit()) {
-              TS({ title: '录入墓葬位置', subtitle: '仅谱主/编辑者 · 需先在本机族人资料里录入过坐标', icon: '📍' })
+              TS({ title: T('录入墓葬位置'), subtitle: '仅谱主/编辑者 · 需先在本机族人资料里录入过坐标', icon: '📍' })
               Column() {
                 if (this.editingUid.length === 0) {
                   Text(T('从本机族人中选择一位，把已有的坐标与墓葬说明发布到公开墓葬表（或改为仅族人可见）。')).fontFamily(uiFontFamily())
@@ -450,11 +450,11 @@ struct GraveMap {
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
                   Row() {
-                    Text(this.pickerOpen ? '收起族人列表' : '展开族人列表选择').fontFamily(uiFontFamily())
+                    Text(T(this.pickerOpen ? '收起族人列表' : '展开族人列表选择')).fontFamily(uiFontFamily())
                       .fontSize(12)
                       .fontColor(Theme.primary)
                     Blank()
-                    Text(this.peopleSource.totalCount().toString() + ' 人').fontFamily(uiFontFamily())
+                    Text(T(this.peopleSource.totalCount().toString() + ' 人')).fontFamily(uiFontFamily())
                       .fontSize(10.5)
                       .fontColor(Theme.inkTertiary)
                   }
@@ -472,7 +472,7 @@ struct GraveMap {
                               .fontSize(12.5)
                               .fontColor(Theme.ink)
                               .layoutWeight(1)
-                            Text(p.graveLng !== 0 ? '已有坐标' : '未录坐标').fontFamily(uiFontFamily())
+                            Text(T(p.graveLng !== 0 ? '已有坐标' : '未录坐标')).fontFamily(uiFontFamily())
                               .fontSize(10)
                               .fontColor(p.graveLng !== 0 ? Theme.alive : Theme.inkTertiary)
                               .margin({ right: Spacing.S })
@@ -507,7 +507,7 @@ struct GraveMap {
             }
 
             if (this.message.length > 0) {
-              Text(this.message).fontFamily(uiFontFamily())
+              Text(T(this.message)).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .fontColor(Theme.inkSecondary)
                 .width('100%')

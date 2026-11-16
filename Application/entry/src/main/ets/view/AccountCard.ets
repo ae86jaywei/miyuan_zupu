@@ -27,20 +27,20 @@ export struct AccountCard {
   }
 
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: message, duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
   private async doLogout(): Promise<void> {
     this.getUIContext().showAlertDialog({
-      title: '退出登录',
+      title: T('退出登录'),
       message: T('退出后本地族谱仍保留，云端数据不会删除，可随时重新登录。'),
       primaryButton: {
-        value: '取消',
+        value: T('取消'),
         action: () => {
         }
       },
       secondaryButton: {
-        value: '退出',
+        value: T('退出'),
         fontColor: Theme.primary,
         action: async () => {
           await AccountService.getInstance().logout();
@@ -52,7 +52,7 @@ export struct AccountCard {
 
   build() {
     Column() {
-      TS({ title: '账号与云同步', subtitle: '华为账号登录 · 云服务状态', icon: '☁️' })
+      TS({ title: T('账号与云同步'), subtitle: '华为账号登录 · 云服务状态', icon: '☁️' })
       Column() {
         Row() {
           Text(T(this.loggedIn ? '已登录' : '未登录')).fontFamily(uiFontFamily())
@@ -71,7 +71,7 @@ export struct AccountCard {
         }
         .width('100%')
 
-        Text('UnionID 映射账号：' + (this.userId.length > 0 ? this.userId : '未登录')).fontFamily(uiFontFamily())
+        Text(T('UnionID 映射账号：' + (this.userId.length > 0 ? this.userId : '未登录'))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -107,7 +107,7 @@ export struct AccountCard {
         .width('100%')
         .margin({ top: Spacing.M })
 
-        Text('云服务：' + (this.cloudMsg.length > 0 ? this.cloudMsg : '未初始化')).fontFamily(uiFontFamily())
+        Text(T('云服务：' + (this.cloudMsg.length > 0 ? this.cloudMsg : '未初始化'))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(this.cloudReady ? Theme.gold : Theme.inkTertiary)
           .width('100%')
@@ -115,7 +115,7 @@ export struct AccountCard {
           .maxLines(2)
 
         if (this.progressText.length > 0) {
-          Text(this.progressText).fontFamily(uiFontFamily())
+          Text(T(this.progressText)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkSecondary)
             .width('100%')

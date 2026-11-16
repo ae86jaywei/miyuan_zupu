@@ -146,7 +146,7 @@ export struct PagodaTree {
           Column() {
             if (row.first) {
               Row() {
-                Text(generationLabel(row.generation) + ' · ' + row.nodes.length.toString() + '人').fontFamily(uiFontFamily())
+                Text(T(generationLabel(row.generation) + ' · ' + row.nodes.length.toString() + '人')).fontFamily(uiFontFamily())
                   .fontSize(10)
                   .fontColor(Theme.primary)
                   .backgroundColor(Theme.highlightBg)
@@ -181,7 +181,7 @@ export struct PagodaTree {
                     .width(this.compact ? 56 : 68)
                     .textAlign(TextAlign.Center)
 
-                  Text(generationLabel(node.person.generation)).fontFamily(uiFontFamily())
+                  Text(T(generationLabel(node.person.generation))).fontFamily(uiFontFamily())
                     .fontSize(8)
                     .fontColor('#FFFFFF')
                     .backgroundColor(node.person.gender === '女' ? Theme.female : Theme.primaryLight)
@@ -190,7 +190,7 @@ export struct PagodaTree {
                     .margin({ top: 1 })
 
                   if (node.spouseText().length > 0) {
-                    Text(node.spouseText()).fontFamily(uiFontFamily())
+                    Text(T(node.spouseText())).fontFamily(uiFontFamily())
                       .fontSize(8)
                       .fontColor(Theme.female)
                       .maxLines(2)

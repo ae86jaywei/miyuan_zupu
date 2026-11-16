@@ -73,7 +73,7 @@ export struct PersonDetailPanel {
   build() {
     Column() {
       if (this.person() === null) {
-        EmptyHint({ icon: '🔍', title: '请选择一位族人', desc: '在谱系图中点击任意人物卡片查看详情' })
+        EmptyHint({ icon: '🔍', title: T('请选择一位族人'), desc: '在谱系图中点击任意人物卡片查看详情' })
       } else {
         Column() {
           // 头部
@@ -101,7 +101,7 @@ export struct PersonDetailPanel {
                 .fontSize(11.5)
                 .fontColor(Theme.inkTertiary)
                 .margin({ top: 4 })
-              Text(this.lifeText()).fontFamily(uiFontFamily())
+              Text(T(this.lifeText())).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .fontColor(Theme.inkSecondary)
                 .margin({ top: 2 })
@@ -111,7 +111,7 @@ export struct PersonDetailPanel {
             .margin({ left: Spacing.M })
 
             if (this.narrow) {
-              Text('✕').fontFamily(uiFontFamily())
+              Text(T('✕')).fontFamily(uiFontFamily())
                 .fontSize(16)
                 .fontColor(Theme.inkTertiary)
                 .padding(6)
@@ -166,7 +166,7 @@ export struct PersonDetailPanel {
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
                   if (this.isConcubineChild()) {
-                    Text(CONCUBINE_CHILD_TITLE_HINT).fontFamily(uiFontFamily())
+                    Text(T(CONCUBINE_CHILD_TITLE_HINT)).fontFamily(uiFontFamily())
                       .fontSize(11)
                       .lineHeight(17)
                       .fontColor(Theme.gold)
@@ -271,13 +271,13 @@ export struct PersonDetailPanel {
                   }
                   if ((this.person() as Person).graveLat !== 0) {
                     Row() {
-                      Text('📍 GPS').fontFamily(uiFontFamily())
+                      Text(T('📍 GPS')).fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(Theme.alive)
                         .flexShrink(0)
-                      Text('东经 ' + (this.person() as Person).graveLng.toFixed(6) + '° · 北纬 '
+                      Text(T('东经 ' + (this.person() as Person).graveLng.toFixed(6) + '° · 北纬 '
                         + (this.person() as Person).graveLat.toFixed(6) + '° · 海拔 '
-                        + (this.person() as Person).graveAltitude.toFixed(1) + 'm').fontFamily(uiFontFamily())
+                        + (this.person() as Person).graveAltitude.toFixed(1) + 'm')).fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(Theme.inkSecondary)
                         .margin({ left: 6 })
@@ -307,7 +307,7 @@ export struct PersonDetailPanel {
                   InfoRow({ label: '微信号', value: (this.person() as Person).wechat, privacy: true })
                 }
                 if ((this.person() as Person).phone.length === 0 && (this.person() as Person).wechat.length === 0) {
-                  InfoRow({ label: '联系方式', value: '未填写', valueColor: Theme.inkTertiary })
+                  InfoRow({ label: '联系方式', value: T('未填写'), valueColor: Theme.inkTertiary })
                 }
               }
 
@@ -315,7 +315,7 @@ export struct PersonDetailPanel {
               this.GroupHeader('图像信息')
               Column() {
                 PersonAvatar({ person: this.person() as Person, avatarSize: 96 })
-                Text((this.person() as Person).avatar.length > 0 ? '已设置头像' : '使用姓氏字为默认头像').fontFamily(uiFontFamily())
+                Text(T((this.person() as Person).avatar.length > 0 ? '已设置头像' : '使用姓氏字为默认头像')).fontFamily(uiFontFamily())
                   .fontSize(11)
                   .fontColor(Theme.inkTertiary)
                   .margin({ top: 6 })

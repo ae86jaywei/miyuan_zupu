@@ -38,7 +38,7 @@ export struct DieRecord {
           .fontSize(17)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.person.gender === '女' ? Theme.female : Theme.primary)
-        Text('（' + this.person.uid + '）').fontFamily(uiFontFamily())
+        Text(T('（' + this.person.uid + '）')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 4, top: 4 })
@@ -51,7 +51,7 @@ export struct DieRecord {
       .width('100%')
 
       if (this.spouseText().length > 0) {
-        Text('配偶：' + this.spouseText()).fontFamily(uiFontFamily())
+        Text(T('配偶：' + this.spouseText())).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.female)
           .margin({ top: 2 })
@@ -66,7 +66,7 @@ export struct DieRecord {
           .width('100%')
       }
 
-      Text(this.buildParagraph()).fontFamily(uiFontFamily())
+      Text(T(this.buildParagraph())).fontFamily(uiFontFamily())
         .fontSize(13.5)
         .lineHeight(23)
         .fontColor(Theme.ink)
