@@ -1,4 +1,5 @@
 import { PersonNode } from '../../model/PersonNode';
+import { T } from '../../service/ScriptService';
 import { TreeStyle, generationLabel } from '../../model/Enums';
 import { Theme } from '../../theme/Theme';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
@@ -13,6 +14,8 @@ import { compactUid } from '../../util/StringUtil';
  */
 @Component
 struct PrintCard {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop name: string = '';
   @Prop detail: string = '';
   @Prop badge: string = '';
@@ -442,7 +445,7 @@ export struct PagedTree {
       Row({ space: this.mm(2) }) {
         ForEach(this.ancestorUids, (uid: string, i: number) => {
           Column() {
-            Text('承')
+            Text(T('承'))
               .fontSize(this.pt(5.5))
               .fontColor('#9A8A74')
             Text(this.ancestorNames.length > i ? this.ancestorNames[i] : uid)
@@ -636,7 +639,7 @@ export struct PagedTree {
     Column() {
       // 页导航
       Row() {
-        Button('上一页')
+        Button(T('上一页'))
           .fontSize(11)
           .height(30)
           .fontColor(Theme.primary)
@@ -651,7 +654,7 @@ export struct PagedTree {
           .fontSize(12)
           .fontColor(Theme.ink)
           .margin({ left: 10, right: 10 })
-        Button('下一页')
+        Button(T('下一页'))
           .fontSize(11)
           .height(30)
           .fontColor(Theme.primary)

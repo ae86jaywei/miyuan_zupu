@@ -7,6 +7,7 @@ import { generationLabel } from '../model/Enums';
 import { lifeSpan, ageOf, displayDate } from '../util/DateUtil';
 import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from '../components/EmptyHint';
+import { T } from '../service/ScriptService';
 
 /**
  * 人物详情面板：展示《关键信息字段》全部字段；
@@ -14,6 +15,8 @@ import { EmptyHint } from '../components/EmptyHint';
  */
 @Component
 export struct PersonDetailPanel {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop uid: string;
   @Prop showPrivate: boolean = true;
   @Prop narrow: boolean = false;
@@ -35,12 +38,12 @@ export struct PersonDetailPanel {
   RelationChip(p: Person, relation: string) {
     Column() {
       PersonAvatar({ person: p, avatarSize: 34, showRing: false })
-      Text(p.name)
+      Text(T(p.name))
         .fontSize(11)
         .fontColor(Theme.ink)
         .maxLines(1)
         .margin({ top: 3 })
-      Text(relation)
+      Text(T(relation))
         .fontSize(9)
         .fontColor(Theme.gold)
     }
@@ -57,7 +60,7 @@ export struct PersonDetailPanel {
   GroupHeader(title: string) {
     Row() {
       Row().width(3).height(13).backgroundColor(Theme.gold).borderRadius(2)
-      Text(title)
+      Text(T(title))
         .fontSize(13)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.primary)
@@ -78,7 +81,7 @@ export struct PersonDetailPanel {
             PersonAvatar({ person: this.person() as Person, avatarSize: this.avatarSize() })
             Column() {
               Row() {
-                Text((this.person() as Person).name)
+                Text(T((this.person() as Person).name))
                   .fontSize(this.narrow ? 20 : 22)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(Theme.ink)
@@ -237,11 +240,11 @@ export struct PersonDetailPanel {
               }
               if ((this.person() as Person).biography.length > 0) {
                 Column() {
-                  Text('生平简介')
+                  Text(T('生平简介'))
                     .fontSize(12.5)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
-                  Text((this.person() as Person).biography)
+                  Text(T((this.person() as Person).biography))
                     .fontSize(13.5)
                     .lineHeight(22)
                     .fontColor(Theme.ink)
@@ -254,12 +257,12 @@ export struct PersonDetailPanel {
               }
               if ((this.person() as Person).graveInfo.length > 0 || (this.person() as Person).graveLat !== 0) {
                 Column() {
-                  Text('墓葬信息')
+                  Text(T('墓葬信息'))
                     .fontSize(12.5)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
                   if ((this.person() as Person).graveInfo.length > 0) {
-                    Text((this.person() as Person).graveInfo)
+                    Text(T((this.person() as Person).graveInfo))
                       .fontSize(13.5)
                       .lineHeight(22)
                       .fontColor(Theme.ink)
@@ -340,7 +343,7 @@ export struct PersonDetailPanel {
 
   @Builder
   ActionButton(label: string, color: string, action: () => void) {
-    Text(label)
+    Text(T(label))
       .fontSize(12)
       .fontColor(color)
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })

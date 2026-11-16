@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 
 /**
  * 卡片标题容器（TS = Title Section）。
@@ -17,6 +18,8 @@ import { Theme, Spacing } from '../theme/Theme';
  */
 @Component
 export struct TS {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop title: string = '';
   @Prop subtitle: string = '';
   @Prop icon: string = '';
@@ -28,12 +31,12 @@ export struct TS {
       }
       if (this.title.length > 0) {
         Column() {
-          Text(this.title)
+          Text(T(this.title))
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(Theme.ink)
           if (this.subtitle.length > 0) {
-            Text(this.subtitle)
+            Text(T(this.subtitle))
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 2 })

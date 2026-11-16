@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 import { SettingsView } from '../view/SettingsView';
 import { BackButton } from '../components/BackButton';
 
@@ -8,6 +9,8 @@ import { BackButton } from '../components/BackButton';
 @Entry
 @Component
 struct Settings {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('windowWidth') windowWidth: number = 360;
   @StorageProp('gpVersion') version: number = 0;
 
@@ -19,7 +22,7 @@ struct Settings {
             this.getUIContext().getRouter().back();
           }
         })
-        Text('设置')
+        Text(T('设置'))
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)

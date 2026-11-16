@@ -20,6 +20,7 @@ import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextRun, PdfInfo } from './RawPdfWriter';
+import { T } from './ScriptService';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 
@@ -281,7 +282,7 @@ export class PagedPdfExportService {
       const b: PrintBook = await svc.book(roots[i].uid, style, version, profileName,
         (pct: number): void => {
           if (onProgress) {
-            onProgress({ current: 0, total: 0, message: '正在排版 ' + pct.toString() + '%' });
+            onProgress({ current: 0, total: 0, message: T('正在排版 ') + pct.toString() + '%' });
           }
         });
       books.push(b);
@@ -374,7 +375,7 @@ export class PagedPdfExportService {
           const volTag: string = volumeCount > 1
             ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
           onProgress({ current: globalPage, total: total,
-            message: '渲染分页 ' + globalPage.toString() + '/' + total.toString() + volTag });
+            message: T('渲染分页 ') + globalPage.toString() + '/' + total.toString() + volTag });
         }
         await PagedPdfExportService.yieldToUi();
       }
@@ -436,7 +437,7 @@ export class PagedPdfExportService {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#5B4B3B';
     let headerSize: number = 28;
-    const header: string = PagedPdfExportService.rawHeader(genealogy, rootName, plan);
+    const header: string = T(PagedPdfExportService.rawHeader(genealogy, rootName, plan));
     ctx.font = headerSize.toString() + 'px sans-serif';
     while (headerSize > 14 && ctx.measureText(header).width > maxTextW) {
       headerSize = headerSize - 2;
@@ -464,8 +465,8 @@ export class PagedPdfExportService {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#6B5B4B';
     ctx.font = '22px sans-serif';
-    const foot: string = '第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
-      ' 页 / 共 ' + totalPages.toString() + ' 页';
+    const foot: string = T('第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
+      ' 页 / 共 ' + totalPages.toString() + ' 页');
     ctx.fillText(foot, RENDER_W / 2, RENDER_H - 24);
     const footW: number = ctx.measureText(foot).width;
     runs.push(PagedPdfExportService.textRun(foot, RENDER_W / 2 - footW / 2, RENDER_H - 24, 22));
@@ -485,21 +486,21 @@ export class PagedPdfExportService {
     // 第 1 行：姓名 + 字（曾用名/小名）
     const name: string = p.name.length > 0 ? p.name : node.uid;
     const alias: string = p.alias.trim();
-    const line1: string = alias.length > 0 ? name + ' 字：' + alias : name;
+    const line1: string = T(alias.length > 0 ? name + ' 字：' + alias : name);
     // 第 2 行：ID + 排行（只显示「长子」这类值，不加「排行」前缀）
     const rank: string = p.rank.trim();
     const idText: string = compactUid(node.uid);
-    const line2: string = rank.length > 0 ? idText + ' ' + rank : idText;
+    const line2: string = T(rank.length > 0 ? idText + ' ' + rank : idText);
     // 第 3 行：生卒年份（只有生/只有卒时改用「生于/卒于」）
     const by: number = parseYear(p.birthDate);
     const dy: number = parseYear(p.deathDate);
     let line3: string = '';
     if (by > 0 && dy > 0) {
-      line3 = '生卒：' + by.toString() + '年-' + dy.toString() + '年';
+      line3 = T('生卒：' + by.toString() + '年-' + dy.toString() + '年');
     } else if (by > 0) {
-      line3 = '生于：' + by.toString() + '年';
+      line3 = T('生于：' + by.toString() + '年');
     } else if (dy > 0) {
-      line3 = '卒于：' + dy.toString() + '年';
+      line3 = T('卒于：' + dy.toString() + '年');
     }
     const all: string[] = line3.length > 0 ? [line1, line2, line3] : [line1, line2];
 
@@ -615,7 +616,7 @@ export class PagedPdfExportService {
       if (bk === null) {
         bk = await svc.book(roots[i].uid, style, version, profileName, (pct: number): void => {
           if (onProgress) {
-            onProgress({ current: 0, total: 0, message: '正在排版 ' + pct.toString() + '%' });
+            onProgress({ current: 0, total: 0, message: T('正在排版 ') + pct.toString() + '%' });
           }
         });
         if (singleRoot) {
@@ -756,7 +757,7 @@ export class PagedPdfExportService {
             const volTag: string = volumeCount > 1
               ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
             onProgress({ current: globalPage, total: total,
-              message: '渲染分页 ' + globalPage.toString() + '/' + total.toString() + volTag });
+              message: T('渲染分页 ') + globalPage.toString() + '/' + total.toString() + volTag });
           }
           await PagedPdfExportService.yieldToUi();
         }

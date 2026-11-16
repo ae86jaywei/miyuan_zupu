@@ -1,4 +1,5 @@
 import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
+import { T } from '../service/ScriptService';
 import { Theme } from '../theme/Theme';
 import { Breakpoint } from '../common/Constants';
 import { TreeScrollMemory } from '../util/TreeScrollMemory';
@@ -21,7 +22,7 @@ export struct StyleSwitcher {
       Row() {
         ForEach(TREE_STYLES, (meta: TreeStyleMeta) => {
           Column() {
-            Text(meta.name)
+            Text(T(meta.name))
               .fontSize(this.windowWidth < Breakpoint.SM ? 11.5 : 14)
               .fontWeight(this.current === meta.key ? FontWeight.Bold : FontWeight.Normal)
               .fontColor(this.current === meta.key ? '#FFFFFF' : Theme.inkSecondary)

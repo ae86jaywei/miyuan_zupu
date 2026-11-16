@@ -51,6 +51,8 @@ export class RawPdfFont {
   unitsPerEm: number = 1000;
 
   private dv: DataView;
+  /** sfnt 表目录起点：单字体为 0，TTC 合集为所选 face 的偏移 */
+  private dirOffset: number = 0;
   private segments: CmapSegment[] = [];
   private groups: CmapGroup[] = [];
   private useFormat12: boolean = false;
@@ -65,13 +67,14 @@ export class RawPdfFont {
   private numberOfHMetrics: number = 0;
   private hmtxOffset: number = 0;
 
-  private constructor(bytes: Uint8Array) {
+  private constructor(bytes: Uint8Array, faceIndex: number = 0) {
     this.bytes = bytes;
     this.dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    this.parse();
+    this.parse(faceIndex);
   }
 
-  static load(path: string): RawPdfFont | null {
+  /** 从文件加载；支持单字体 TTF 与 TTC 合集（faceIndex 选 face） */
+  static load(path: string, faceIndex: number = 0): RawPdfFont | null {
     try {
       const size: number = fileIo.statSync(path).size;
       if (size <= 0) {
@@ -96,7 +99,16 @@ export class RawPdfFont {
       } finally {
         fileIo.closeSync(fh);
       }
-      return new RawPdfFont(bytes);
+      return new RawPdfFont(bytes, faceIndex);
+    } catch (_e) {
+      return null;
+    }
+  }
+
+  /** 从已读入内存的字节解析（rawfile 内置字体用，避免重复落盘） */
+  static loadBytes(bytes: Uint8Array, faceIndex: number = 0): RawPdfFont | null {
+    try {
+      return new RawPdfFont(bytes, faceIndex);
     } catch (_e) {
       return null;
     }
@@ -120,9 +132,9 @@ export class RawPdfFont {
   }
 
   private findTable(name: string): number {
-    const num: number = this.u16(4);
+    const num: number = this.u16(this.dirOffset + 4);
     for (let i: number = 0; i < num; i = i + 1) {
-      const rec: number = 12 + i * 16;
+      const rec: number = this.dirOffset + 12 + i * 16;
       if (this.tag(rec) === name) {
         return this.u32(rec + 8);
       }
@@ -130,7 +142,19 @@ export class RawPdfFont {
     return 0;
   }
 
-  private parse(): void {
+  private parse(faceIndex: number): void {
+    // TTC 合集：face 偏移指向各自的 sfnt 表目录；表数据偏移仍是整文件绝对偏移
+    if (this.u32(0) === 0x74746366) {
+      const faceCount: number = this.u32(8);
+      const idx: number = Math.max(0, Math.min(faceIndex, faceCount - 1));
+      this.dirOffset = this.u32(12 + idx * 4);
+    } else {
+      this.dirOffset = 0;
+    }
+    // OTTO = CFF 轮廓，当前嵌入路径只支持 glyf/TrueType
+    if (this.u32(this.dirOffset) === 0x4F54544F) {
+      throw new Error('cff outline unsupported');
+    }
     const cmapOff: number = this.findTable('cmap');
     const headOff: number = this.findTable('head');
     const hheaOff: number = this.findTable('hhea');
@@ -179,6 +203,19 @@ export class RawPdfFont {
         sub12 = off;
       }
     }
+    // 同时加载 format 12 与 format 4：format 12 覆盖非 BMP，format 4 作为 BMP 兜底
+    if (sub12 !== 0) {
+      const n: number = this.u32(sub12 + 12);
+      const base: number = sub12 + 16;
+      for (let i: number = 0; i < n; i = i + 1) {
+        const g: CmapGroup = new CmapGroup();
+        g.start = this.u32(base + i * 12);
+        g.end = this.u32(base + i * 12 + 4);
+        g.gid = this.u32(base + i * 12 + 8);
+        this.groups.push(g);
+      }
+      this.useFormat12 = true;
+    }
     if (sub4 !== 0) {
       const segCount: number = this.u16(sub4 + 6) / 2;
       const endBase: number = sub4 + 14;
@@ -194,18 +231,8 @@ export class RawPdfFont {
         seg.rangeOffset = this.u16(seg.rangeOffsetPos);
         this.segments.push(seg);
       }
-    } else if (sub12 !== 0) {
-      const n: number = this.u32(sub12 + 12);
-      const base: number = sub12 + 16;
-      for (let i: number = 0; i < n; i = i + 1) {
-        const g: CmapGroup = new CmapGroup();
-        g.start = this.u32(base + i * 12);
-        g.end = this.u32(base + i * 12 + 4);
-        g.gid = this.u32(base + i * 12 + 8);
-        this.groups.push(g);
-      }
-      this.useFormat12 = true;
-    } else {
+    }
+    if (sub12 === 0 && sub4 === 0) {
       throw new Error('no cmap format4/12');
     }
   }
@@ -226,7 +253,10 @@ export class RawPdfFont {
           return g.gid + (code - g.start);
         }
       }
-      return 0;
+      // format 12 缺该码点时再用 format 4 兜底（部分字体两张表覆盖范围不一致）
+      if (this.segments.length === 0) {
+        return 0;
+      }
     }
     for (let i: number = 0; i < this.segments.length; i = i + 1) {
       const seg: CmapSegment = this.segments[i];
@@ -252,6 +282,17 @@ export class RawPdfFont {
     return 0;
   }
 
+  /** 字体是否覆盖某个 Unicode 码点（含非 BMP） */
+  hasGlyph(code: number): boolean {
+    return this.gidOf(code) > 0;
+  }
+
+  /** 常用汉字 + 非 BMP 生僻字抽样，确认不是拉丁小字体 */
+  hasCjkCoverage(): boolean {
+    return this.hasGlyph(0x4e2d) && this.hasGlyph(0x570b) &&
+      (this.hasGlyph(0x9f8e) || this.hasGlyph(0x9f99));
+  }
+
   /** GID 的 advance（当前未用于排版，保留给后续字距优化） */
   advance(gid: number): number {
     if (this.hmtxOffset === 0 || this.numberOfHMetrics <= 0) {
@@ -270,9 +311,9 @@ export class RawPdfFont {
   }
 
   private findTableLen(name: string): number {
-    const num: number = this.u16(4);
+    const num: number = this.u16(this.dirOffset + 4);
     for (let i: number = 0; i < num; i = i + 1) {
-      const rec: number = 12 + i * 16;
+      const rec: number = this.dirOffset + 12 + i * 16;
       if (this.tag(rec) === name) {
         return this.u32(rec + 12);
       }
@@ -355,7 +396,7 @@ export class RawPdfFont {
     usedGids.forEach((code: number, gid: number): void => {
       if (gid >= 0 && gid < this.numGlyphs) {
         keep.add(gid);
-        if (gid > 0 && code > 0 && code < 0xffff) {
+        if (gid > 0 && code > 0 && code !== 0xffff) {
           charGid.set(code, gid);
         }
       }
@@ -535,26 +576,45 @@ export class RawPdfFont {
 
   /** 为子集生成 cmap format 4：Unicode → GID（每字符一段，idDelta 方式） */
   private buildCmap(charGid: Map<number, number>): Uint8Array {
-    const codes: number[] = [];
+    const bmp: number[] = [];
+    const nonBmp: number[] = [];
     charGid.forEach((_gid: number, code: number): void => {
-      if (code > 0 && code < 0xffff) {
-        codes.push(code);
+      if (code > 0 && code !== 0xffff) {
+        if (code <= 0xffff) {
+          bmp.push(code);
+        } else {
+          nonBmp.push(code);
+        }
       }
     });
-    codes.sort((a: number, b: number): number => a - b);
+    bmp.sort((a: number, b: number): number => a - b);
+    nonBmp.sort((a: number, b: number): number => a - b);
+    const hasNonBmp: boolean = nonBmp.length > 0;
+    const tableCount: number = hasNonBmp ? 2 : 1;
+    const headerLen: number = 4 + tableCount * 8;
 
-    const segCount: number = codes.length + 1;
-    const subLen: number = 16 + segCount * 8;
-    const out: Uint8Array = new Uint8Array(12 + subLen);
+    // format 4：BMP 字符，每字符一段
+    const segCount: number = bmp.length + 1;
+    const sub4Len: number = 16 + segCount * 8;
+    // format 12：非 BMP 字符，每字符一组（start=end）
+    const sub12Len: number = hasNonBmp ? 16 + nonBmp.length * 12 : 0;
+    const out: Uint8Array = new Uint8Array(headerLen + sub4Len + sub12Len);
     const dv: DataView = new DataView(out.buffer);
     dv.setUint16(0, 0);
-    dv.setUint16(2, 1);
-    dv.setUint16(4, 3);   // Windows
-    dv.setUint16(6, 1);   // Unicode BMP
-    dv.setUint32(8, 12);
-    dv.setUint16(12, 4);
-    dv.setUint16(14, subLen);
-    dv.setUint16(16, 0);
+    dv.setUint16(2, tableCount);
+    dv.setUint16(4, 3);              // Windows
+    dv.setUint16(6, 1);              // Unicode BMP
+    dv.setUint32(8, headerLen);      // format 4 offset
+    if (hasNonBmp) {
+      dv.setUint16(12, 3);           // Windows
+      dv.setUint16(14, 10);          // Unicode full repertoire
+      dv.setUint32(16, headerLen + sub4Len);
+    }
+
+    let b4: number = headerLen;
+    dv.setUint16(b4, 4);
+    dv.setUint16(b4 + 2, sub4Len);
+    dv.setUint16(b4 + 4, 0);
 
     const segCountX2: number = segCount * 2;
     let exp: number = 1;
@@ -564,17 +624,17 @@ export class RawPdfFont {
       expLog = expLog + 1;
     }
     const searchRange: number = exp * 2;
-    dv.setUint16(18, segCountX2);
-    dv.setUint16(20, searchRange);
-    dv.setUint16(22, expLog);
-    dv.setUint16(24, segCountX2 - searchRange);
+    dv.setUint16(b4 + 6, segCountX2);
+    dv.setUint16(b4 + 8, searchRange);
+    dv.setUint16(b4 + 10, expLog);
+    dv.setUint16(b4 + 12, segCountX2 - searchRange);
 
-    const endBase: number = 26;
+    const endBase: number = b4 + 14;
     const startBase: number = endBase + segCount * 2 + 2;
     const deltaBase: number = startBase + segCount * 2;
     const rangeBase: number = deltaBase + segCount * 2;
-    for (let i: number = 0; i < codes.length; i = i + 1) {
-      const code: number = codes[i];
+    for (let i: number = 0; i < bmp.length; i = i + 1) {
+      const code: number = bmp[i];
       const gid: number = charGid.get(code) ?? 0;
       let delta: number = (gid - code) & 0xffff;
       if (delta >= 0x8000) {
@@ -585,12 +645,26 @@ export class RawPdfFont {
       dv.setInt16(deltaBase + i * 2, delta);
       dv.setUint16(rangeBase + i * 2, 0);
     }
-    // 终止段
-    const last: number = codes.length;
+    const last: number = bmp.length;
     dv.setUint16(endBase + last * 2, 0xffff);
     dv.setUint16(startBase + last * 2, 0xffff);
     dv.setInt16(deltaBase + last * 2, 1);
     dv.setUint16(rangeBase + last * 2, 0);
+
+    if (hasNonBmp) {
+      let b12: number = headerLen + sub4Len;
+      dv.setUint16(b12, 12);
+      dv.setUint16(b12 + 2, 0);
+      dv.setUint32(b12 + 4, sub12Len);
+      dv.setUint32(b12 + 8, 0);
+      dv.setUint32(b12 + 12, nonBmp.length);
+      for (let i: number = 0; i < nonBmp.length; i = i + 1) {
+        const code: number = nonBmp[i];
+        dv.setUint32(b12 + 16 + i * 12, code);
+        dv.setUint32(b12 + 20 + i * 12, code);
+        dv.setUint32(b12 + 24 + i * 12, charGid.get(code) ?? 0);
+      }
+    }
     return out;
   }
 

@@ -1,4 +1,5 @@
 import { Person } from '../../model/Person';
+import { T } from '../../service/ScriptService';
 import { Theme } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 import { compactUid } from '../../util/StringUtil';
@@ -11,6 +12,8 @@ import { compactUid } from '../../util/StringUtil';
  */
 @Component
 export struct TreeMiniCard {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop person: Person = new Person();
   /** 预先格式化的配偶文案，如：“配 林氏、继室 陈氏” */
   @Prop spouseText: string = '';
@@ -175,7 +178,7 @@ export struct TreeMiniCard {
       this.tipVisible = isHover;
     })
     .bindPopup(this.tipVisible, {
-      message: '长按显示族人详情',
+      message: T('长按显示族人详情'),
       placement: Placement.Top,
       enableArrow: true,
       autoCancel: false

@@ -1,4 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
+import { T } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
@@ -20,6 +21,8 @@ import { FlatListSource } from '../util/FlatListSource';
 @Entry
 @Component
 struct GraveMap {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   @StorageProp('gpFamilyRole') role: string = '';
 
@@ -107,7 +110,7 @@ struct GraveMap {
     this.editPrecision = 'EXACT';
     this.getUIContext().showAlertDialog({
       title: '录入前请确认',
-      message: '祖墓坐标将作为公开数据，任何登录用户都能查到，且一旦公开无法撤回。' +
+      message: T('祖墓坐标将作为公开数据，任何登录用户都能查到，且一旦公开无法撤回。') +
         '若家族不希望对外公开，请把可见性设为「仅族人可见」——此时该记录会从公开表中真正删除，而不是隐藏。',
       primaryButton: {
         value: '我已知悉，继续',
@@ -207,7 +210,7 @@ struct GraveMap {
       }
       Row() {
         if (g.hasLocation()) {
-          Button('导航前往')
+          Button(T('导航前往'))
             .fontSize(12.5)
             .height(32)
             .backgroundColor(Theme.primary)
@@ -240,7 +243,7 @@ struct GraveMap {
         .fontColor(Theme.ink)
         .width('100%')
       Row() {
-        TextInput({ text: this.editLng, placeholder: '经度 lng' })
+        TextInput({ text: this.editLng, placeholder: T('经度 lng') })
           .height(34)
           .fontSize(12.5)
           .layoutWeight(1)
@@ -249,7 +252,7 @@ struct GraveMap {
           .onChange((v: string): void => {
             this.editLng = v;
           })
-        TextInput({ text: this.editLat, placeholder: '纬度 lat' })
+        TextInput({ text: this.editLat, placeholder: T('纬度 lat') })
           .height(34)
           .fontSize(12.5)
           .layoutWeight(1)
@@ -262,7 +265,7 @@ struct GraveMap {
       }
       .width('100%')
       .margin({ top: Spacing.S })
-      TextInput({ text: this.editName, placeholder: '墓地名（如：XX村后山祖坟）' })
+      TextInput({ text: this.editName, placeholder: T('墓地名（如：XX村后山祖坟）') })
         .height(34)
         .fontSize(12.5)
         .backgroundColor(Theme.field)
@@ -271,7 +274,7 @@ struct GraveMap {
         .onChange((v: string): void => {
           this.editName = v;
         })
-      TextInput({ text: this.editFacing, placeholder: '朝向（如：坐北朝南）' })
+      TextInput({ text: this.editFacing, placeholder: T('朝向（如：坐北朝南）') })
         .height(34)
         .fontSize(12.5)
         .backgroundColor(Theme.field)
@@ -280,7 +283,7 @@ struct GraveMap {
         .onChange((v: string): void => {
           this.editFacing = v;
         })
-      TextInput({ text: this.editRoute, placeholder: '寻墓路线（如：过石桥左转第三座）' })
+      TextInput({ text: this.editRoute, placeholder: T('寻墓路线（如：过石桥左转第三座）') })
         .height(34)
         .fontSize(12.5)
         .backgroundColor(Theme.field)
@@ -290,11 +293,11 @@ struct GraveMap {
           this.editRoute = v;
         })
       Row() {
-        Text('可见性')
+        Text(T('可见性'))
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .width(64)
-        Text('公开')
+        Text(T('公开'))
           .fontSize(12)
           .fontColor(this.editVisibility === 'PUBLIC' ? '#FFFFFF' : Theme.inkSecondary)
           .backgroundColor(this.editVisibility === 'PUBLIC' ? Theme.primary : Theme.field)
@@ -303,7 +306,7 @@ struct GraveMap {
           .onClick((): void => {
             this.editVisibility = 'PUBLIC';
           })
-        Text('仅族人可见')
+        Text(T('仅族人可见'))
           .fontSize(12)
           .fontColor(this.editVisibility === 'FAMILY_ONLY' ? '#FFFFFF' : Theme.inkSecondary)
           .backgroundColor(this.editVisibility === 'FAMILY_ONLY' ? Theme.primary : Theme.field)
@@ -317,11 +320,11 @@ struct GraveMap {
       .width('100%')
       .margin({ top: Spacing.S })
       Row() {
-        Text('精度')
+        Text(T('精度'))
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .width(64)
-        Text('精确')
+        Text(T('精确'))
           .fontSize(12)
           .fontColor(this.editPrecision === 'EXACT' ? '#FFFFFF' : Theme.inkSecondary)
           .backgroundColor(this.editPrecision === 'EXACT' ? Theme.primary : Theme.field)
@@ -330,7 +333,7 @@ struct GraveMap {
           .onClick((): void => {
             this.editPrecision = 'EXACT';
           })
-        Text('模糊约30米')
+        Text(T('模糊约30米'))
           .fontSize(12)
           .fontColor(this.editPrecision === 'BLURRED' ? '#FFFFFF' : Theme.inkSecondary)
           .backgroundColor(this.editPrecision === 'BLURRED' ? Theme.primary : Theme.field)
@@ -343,7 +346,7 @@ struct GraveMap {
       }
       .width('100%')
       .margin({ top: Spacing.S })
-      TextInput({ text: this.editEvidence, placeholder: '位置变更依据（与旧记录相差>50米时必填）' })
+      TextInput({ text: this.editEvidence, placeholder: T('位置变更依据（与旧记录相差>50米时必填）') })
         .height(34)
         .fontSize(12.5)
         .backgroundColor(Theme.field)
@@ -353,7 +356,7 @@ struct GraveMap {
           this.editEvidence = v;
         })
       Row() {
-        Button('取消')
+        Button(T('取消'))
           .fontSize(13)
           .height(36)
           .layoutWeight(1)
@@ -399,7 +402,7 @@ struct GraveMap {
         ListItem() {
           Column() {
             Row() {
-              TextInput({ text: this.keyword, placeholder: '人物名 / 谱名 / 墓地名' })
+              TextInput({ text: this.keyword, placeholder: T('人物名 / 谱名 / 墓地名') })
                 .height(38)
                 .fontSize(13.5)
                 .layoutWeight(1)
@@ -408,7 +411,7 @@ struct GraveMap {
                 .onChange((v: string): void => {
                   this.keyword = v;
                 })
-              Button('查询')
+              Button(T('查询'))
                 .fontSize(13)
                 .height(38)
                 .margin({ left: Spacing.S })
@@ -420,7 +423,7 @@ struct GraveMap {
             }
             .width('100%')
             Row() {
-              Text('只看本谱')
+              Text(T('只看本谱'))
                 .fontSize(12)
                 .fontColor(Theme.inkSecondary)
               Toggle({ type: ToggleType.Switch, isOn: this.onlyMine })
@@ -431,7 +434,7 @@ struct GraveMap {
                   this.load();
                 })
               Blank()
-              Text('离线可用：已读取的记录会缓存在本机')
+              Text(T('离线可用：已读取的记录会缓存在本机'))
                 .fontSize(10)
                 .fontColor(Theme.inkTertiary)
             }
@@ -442,7 +445,7 @@ struct GraveMap {
               TS({ title: '录入墓葬位置', subtitle: '仅谱主/编辑者 · 需先在本机族人资料里录入过坐标', icon: '📍' })
               Column() {
                 if (this.editingUid.length === 0) {
-                  Text('从本机族人中选择一位，把已有的坐标与墓葬说明发布到公开墓葬表（或改为仅族人可见）。')
+                  Text(T('从本机族人中选择一位，把已有的坐标与墓葬说明发布到公开墓葬表（或改为仅族人可见）。'))
                     .fontSize(11.5)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
@@ -465,7 +468,7 @@ struct GraveMap {
                       LazyForEach(this.peopleSource, (p: Person) => {
                         ListItem() {
                           Row() {
-                            Text(p.uid + '  ' + p.name)
+                            Text(T(p.uid + '  ' + p.name))
                               .fontSize(12.5)
                               .fontColor(Theme.ink)
                               .layoutWeight(1)
@@ -473,7 +476,7 @@ struct GraveMap {
                               .fontSize(10)
                               .fontColor(p.graveLng !== 0 ? Theme.alive : Theme.inkTertiary)
                               .margin({ right: Spacing.S })
-                            Text('录入 ›')
+                            Text(T('录入 ›'))
                               .fontSize(11.5)
                               .fontColor(Theme.primary)
                               .onClick((): void => {
@@ -525,7 +528,7 @@ struct GraveMap {
 
         ListItem() {
           Column() {
-            Text('说明：墓葬位置属于公开数据（便于族人祭祖寻墓，不需要先加入家族）。谱主可对个别墓穴关闭公开或做约30米模糊处理；关闭后该记录会从公开表中真正移除。')
+            Text(T('说明：墓葬位置属于公开数据（便于族人祭祖寻墓，不需要先加入家族）。谱主可对个别墓穴关闭公开或做约30米模糊处理；关闭后该记录会从公开表中真正移除。'))
               .fontSize(10.5)
               .fontColor(Theme.inkTertiary)
               .width('100%')

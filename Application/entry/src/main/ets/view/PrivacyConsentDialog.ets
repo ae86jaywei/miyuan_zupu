@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from '../model/AgreementDoc';
 
 /**
@@ -11,6 +12,8 @@ import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from '../model/AgreementDoc';
  */
 @CustomDialog
 export struct PrivacyConsentDialog {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   controller?: CustomDialogController;
   onAgree: () => void = (): void => {};
   onReject: () => void = (): void => {};
@@ -23,7 +26,7 @@ export struct PrivacyConsentDialog {
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.ink)
         .width('100%')
-      Text('个人信息保护提示')
+      Text(T('个人信息保护提示'))
         .fontSize(12.5)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -69,19 +72,19 @@ export struct PrivacyConsentDialog {
       .margin({ top: Spacing.M })
 
       Row() {
-        Text('我已阅读并同意')
+        Text(T('我已阅读并同意'))
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
-        Text('《用户协议》')
+        Text(T('《用户协议》'))
           .fontSize(12)
           .fontColor(Theme.primary)
           .onClick((): void => {
             this.onOpenDoc('user');
           })
-        Text('和')
+        Text(T('和'))
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
-        Text('《隐私政策》')
+        Text(T('《隐私政策》'))
           .fontSize(12)
           .fontColor(Theme.primary)
           .onClick((): void => {
@@ -91,7 +94,7 @@ export struct PrivacyConsentDialog {
       .width('100%')
       .margin({ top: Spacing.M })
 
-      Button('同意并继续')
+      Button(T('同意并继续'))
         .width('100%')
         .height(42)
         .fontSize(15)
@@ -104,7 +107,7 @@ export struct PrivacyConsentDialog {
           this.onAgree();
         })
 
-      Button('不同意并退出')
+      Button(T('不同意并退出'))
         .width('100%')
         .height(42)
         .fontSize(14)

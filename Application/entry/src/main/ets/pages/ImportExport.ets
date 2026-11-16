@@ -1,4 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
+import { T } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { BackButton } from '../components/BackButton';
@@ -55,6 +56,8 @@ function volumeMaxFor(total: number): number {
 @Entry
 @Component
 struct ImportExport {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('windowWidth') windowWidth: number = 360;
   @State busy: boolean = false;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
@@ -96,7 +99,7 @@ struct ImportExport {
   private confirmCreateBranch(uid: string): void {
     this.getUIContext().showAlertDialog({
       title: '建立分支谱',
-      message: '将把该房支以下的族人移动到新分支谱，原谱保留该始祖作为分支占位。'
+      message: T('将把该房支以下的族人移动到新分支谱，原谱保留该始祖作为分支占位。')
         + '建支后当前谱会切换到分支谱，确定继续？',
       primaryButton: {
         value: '取消',
@@ -130,10 +133,10 @@ struct ImportExport {
             this.exportBookTitles = titles;
             this.exportBookId = b.key;
             this.branchSuggestions = this.svc().suggestBranches();
-            this.getUIContext().getPromptAction().showToast({ message: '已建立分支：' + b.title });
+            this.getUIContext().getPromptAction().showToast({ message: T('已建立分支：') + b.title });
           } catch (e) {
             const err = e as BusinessError;
-            this.getUIContext().getPromptAction().showToast({ message: '建分支失败：' + (err.message ?? String(e)) });
+            this.getUIContext().getPromptAction().showToast({ message: T('建分支失败：') + (err.message ?? String(e)) });
           } finally {
             this.busy = false;
             this.showProgress = false;
@@ -209,12 +212,12 @@ struct ImportExport {
       this.setProgress('正在保存 ' + fileName + '…', 80);
       await ExportService.saveAsFile(GenealogyScope.context(), fileName, content);
       this.setProgress('已导出 ' + fileName, 100);
-      this.getUIContext().getPromptAction().showToast({ message: '已导出 ' + fileName });
+      this.getUIContext().getPromptAction().showToast({ message: T('已导出 ') + fileName });
     } catch (e) {
       const err = e as BusinessError;
       this.setProgress('导出失败：' + err.message, 100);
       if (err.code !== 13900042) {
-        this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + err.message });
+        this.getUIContext().getPromptAction().showToast({ message: T('导出失败：') + err.message });
       }
     } finally {
       this.busy = false;
@@ -329,7 +332,7 @@ struct ImportExport {
           if (savedPart > 0) {
             this.setProgress('导出中断（' + reason + '）：已完成 ' + savedPart.toString() + ' 卷，已保存', 100);
             this.getUIContext().getPromptAction().showToast({
-              message: '已完成 ' + savedPart.toString() + ' 卷并保存，剩余卷可重试'
+              message: T('已完成 ') + savedPart.toString() + ' 卷并保存，剩余卷可重试'
             });
             return;
           }
@@ -337,7 +340,7 @@ struct ImportExport {
         }
       }
       this.setProgress('导出失败：' + reason, 100);
-      this.getUIContext().getPromptAction().showToast({ message: '导出失败：' + reason });
+      this.getUIContext().getPromptAction().showToast({ message: T('导出失败：') + reason });
     } finally {
       if (switched) {
         try {
@@ -382,12 +385,12 @@ struct ImportExport {
       this.setProgress('解析完成，共 ' + list.length.toString() + ' 条记录', 100);
       const tip: string = this.pendingBook !== null ? '，含族谱信息「' + this.pendingBook.title + '」' : '';
       this.getUIContext().getPromptAction().showToast({
-        message: '解析到 ' + list.length.toString() + ' 条记录' + tip + '，请确认导入'
+        message: T('解析到 ') + list.length.toString() + ' 条记录' + tip + '，请确认导入'
       });
     } catch (e) {
       const err = e as BusinessError;
       this.setProgress('导入失败：' + err.message, 100);
-      this.getUIContext().getPromptAction().showToast({ message: '导入失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('导入失败：') + err.message });
     } finally {
       this.busy = false;
     }
@@ -426,7 +429,7 @@ struct ImportExport {
         + '继续导入会因内存不足被系统强制退出。\n\n'
         + '建议：改用「覆盖」或「跳过重复」策略；如需保留两套编号，请先在「谱系」中新建族谱再导入。';
       this.setProgress(tip, 100);
-      this.getUIContext().getPromptAction().showToast({ message: '人数超出内存安全上限，已取消导入' });
+      this.getUIContext().getPromptAction().showToast({ message: T('人数超出内存安全上限，已取消导入') });
       return;
     }
     let text: string = '';
@@ -489,11 +492,11 @@ struct ImportExport {
       this.parsedCount = 0;
       this.peopleCount = this.svc().getPeople().length;
       this.setProgress('导入完成：' + result.summary(), 100);
-      this.getUIContext().getPromptAction().showToast({ message: '导入完成：' + result.summary() });
+      this.getUIContext().getPromptAction().showToast({ message: T('导入完成：') + result.summary() });
     } catch (e) {
       const err = e as BusinessError;
       this.setProgress('导入失败，已回滚：' + err.message, 100);
-      this.getUIContext().getPromptAction().showToast({ message: '导入失败，已回滚：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('导入失败，已回滚：') + err.message });
     } finally {
       this.busy = false;
     }
@@ -504,7 +507,7 @@ struct ImportExport {
     Row() {
       Column() {
         Row() {
-          Text(title).fontSize(14).fontColor(Theme.ink)
+          Text(T(title)).fontSize(14).fontColor(Theme.ink)
           Text(tag)
             .fontSize(10)
             .fontColor(Theme.gold)
@@ -513,14 +516,14 @@ struct ImportExport {
             .padding({ left: 4, right: 4, top: 1, bottom: 1 })
             .margin({ left: 6 })
         }
-        Text(desc)
+        Text(T(desc))
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 3 })
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
-      Text('导出 ›')
+      Text(T('导出 ›'))
         .fontSize(12.5)
         .fontColor(Theme.primary)
     }
@@ -535,11 +538,11 @@ struct ImportExport {
   @Builder
   PdfStyleChip(label: string, value: string, hint: string) {
     Column() {
-      Text(label)
+      Text(T(label))
         .fontSize(12.5)
         .fontColor(this.pdfStyle === value ? '#FFFFFF' : Theme.ink)
         .fontWeight(FontWeight.Medium)
-      Text(hint)
+      Text(T(hint))
         .fontSize(9)
         .fontColor(this.pdfStyle === value ? '#FFF4DE' : Theme.inkTertiary)
         .margin({ top: 2 })
@@ -560,11 +563,11 @@ struct ImportExport {
   @Builder
   BindChip(label: string, duplex: boolean, hint: string) {
     Column() {
-      Text(label)
+      Text(T(label))
         .fontSize(12.5)
         .fontColor(this.printDuplex === duplex ? '#FFFFFF' : Theme.ink)
         .fontWeight(FontWeight.Medium)
-      Text(hint)
+      Text(T(hint))
         .fontSize(9)
         .fontColor(this.printDuplex === duplex ? '#FFF4DE' : Theme.inkTertiary)
         .margin({ top: 2 })
@@ -586,11 +589,11 @@ struct ImportExport {
   @Builder
   BindSideChip(label: string, value: string, hint: string) {
     Column() {
-      Text(label)
+      Text(T(label))
         .fontSize(12.5)
         .fontColor(this.printBinding === value ? '#FFFFFF' : Theme.ink)
         .fontWeight(FontWeight.Medium)
-      Text(hint)
+      Text(T(hint))
         .fontSize(9)
         .fontColor(this.printBinding === value ? '#FFF4DE' : Theme.inkTertiary)
         .margin({ top: 2 })
@@ -637,7 +640,7 @@ struct ImportExport {
           .fontSize(12)
           .fontColor(Theme.primary)
           .margin({ top: 6 })
-        Text('请停在此页，完成前不要退出或切换')
+        Text(T('请停在此页，完成前不要退出或切换'))
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 10 })
@@ -669,7 +672,7 @@ struct ImportExport {
             this.getUIContext().getRouter().back();
           }
         })
-        Text('导入 / 导出')
+        Text(T('导入 / 导出'))
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -725,7 +728,7 @@ struct ImportExport {
                         .layoutWeight(1)
                         .maxLines(1)
                         .textOverflow({ overflow: TextOverflow.Ellipsis })
-                      Text('建分支')
+                      Text(T('建分支'))
                         .fontSize(11)
                         .fontColor('#FFFFFF')
                         .backgroundColor(Theme.primary)
@@ -743,7 +746,7 @@ struct ImportExport {
                 .margin({ top: 8, bottom: 6 })
               }
               if (this.exportBookIds.length > 1) {
-                Text('导出范围')
+                Text(T('导出范围'))
                   .fontSize(13)
                   .fontColor(Theme.ink)
                   .fontWeight(FontWeight.Medium)
@@ -769,7 +772,7 @@ struct ImportExport {
                 .scrollable(ScrollDirection.Horizontal)
                 .margin({ top: 8, bottom: 10 })
               }
-              Text('PDF 导出谱式')
+              Text(T('PDF 导出谱式'))
                 .fontSize(13)
                 .fontColor(Theme.ink)
                 .fontWeight(FontWeight.Medium)
@@ -781,7 +784,7 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
-              Text('装订边')
+              Text(T('装订边'))
                 .fontSize(13)
                 .fontColor(Theme.ink)
                 .fontWeight(FontWeight.Medium)
@@ -793,7 +796,7 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
-              Text('装订方式')
+              Text(T('装订方式'))
                 .fontSize(13)
                 .fontColor(Theme.ink)
                 .fontWeight(FontWeight.Medium)
@@ -825,14 +828,14 @@ struct ImportExport {
           TS({ title: '导入', subtitle: '支持本应用导出的 JSON/CSV，或 Excel 另存的 CSV', icon: '📥' })
           Column() {
             Row() {
-              Button('选择 JSON 文件')
+              Button(T('选择 JSON 文件'))
                 .fontSize(13)
                 .height(36)
                 .backgroundColor(Theme.primary)
                 .onClick((): void => {
                   this.doImport('json');
                 })
-              Button('选择 CSV 文件')
+              Button(T('选择 CSV 文件'))
                 .fontSize(13)
                 .height(36)
                 .backgroundColor(Theme.field)
@@ -844,7 +847,7 @@ struct ImportExport {
             }
             .width('100%')
 
-            Text('人员匹配策略：')
+            Text(T('人员匹配策略：'))
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -879,7 +882,7 @@ struct ImportExport {
                     .margin({ top: 4 })
                 }
                 if (!this.svc().hasBook()) {
-                  Text('当前没有族谱，确认导入时会自动新建')
+                  Text(T('当前没有族谱，确认导入时会自动新建'))
                     .fontSize(11)
                     .fontColor(Theme.gold)
                     .margin({ top: 4 })
@@ -890,7 +893,7 @@ struct ImportExport {
                     .fontColor(Theme.inkTertiary)
                     .margin({ top: 4 })
                 }
-                Button('确认导入')
+                Button(T('确认导入'))
                   .fontSize(13)
                   .height(34)
                   .backgroundColor(Theme.alive)
@@ -936,31 +939,31 @@ struct ImportExport {
 
           TS({ title: '字段规范', subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
           Column() {
-            Text('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）')
+            Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）'))
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
-            Text('时间信息：出生日期、逝世日期（支持公历/农历双标）、出生地（省-市-县-乡镇-村）、现居地')
-              .fontSize(12)
-              .fontColor(Theme.inkSecondary)
-              .width('100%')
-              .margin({ top: 4 })
-            Text('亲属关系：父亲ID、母亲ID、配偶关系（正妻/平妻/贵妾/良妾/贱妾/外室，格式 UID:名分;UID:名分）、排行、过继/出嗣')
+            Text(T('时间信息：出生日期、逝世日期（支持公历/农历双标）、出生地（省-市-县-乡镇-村）、现居地'))
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text('生平履历：学历/学位、职业/职务、生平简介、墓葬信息（含GPS经纬度海拔）')
+            Text(T('亲属关系：父亲ID、母亲ID、配偶关系（正妻/平妻/贵妾/良妾/贱妾/外室，格式 UID:名分;UID:名分）、排行、过继/出嗣'))
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text('联系方式：手机号、微信号（隐私字段）')
+            Text(T('生平履历：学历/学位、职业/职务、生平简介、墓葬信息（含GPS经纬度海拔）'))
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text('图像信息：头像（含相片、视频资料）')
+            Text(T('联系方式：手机号、微信号（隐私字段）'))
+              .fontSize(12)
+              .fontColor(Theme.inkSecondary)
+              .width('100%')
+              .margin({ top: 4 })
+            Text(T('图像信息：头像（含相片、视频资料）'))
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')

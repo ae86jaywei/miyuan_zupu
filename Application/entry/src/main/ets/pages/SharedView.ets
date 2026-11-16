@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 import { BackButton } from '../components/BackButton';
 import { Person } from '../model/Person';
 import { CloudSyncService } from '../service/CloudSyncService';
@@ -25,6 +26,8 @@ import { BusinessError } from '@kit.BasicServicesKit';
 @Entry
 @Component
 struct SharedView {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   @StorageProp('gpLogin') @Watch('onLoginChange') loggedIn: boolean = false;
   @StorageProp('gpCloudReady') cloudReady: boolean = false;
@@ -85,7 +88,7 @@ struct SharedView {
       const summary: FamilySummary = await FamilyService.getInstance().joinFamily(code,
         AccountService.getInstance().getDisplayId());
       this.getUIContext().getPromptAction().showToast({
-        message: '已加入《' + summary.title + '》，正在打开…'
+        message: T('已加入《' + summary.title + '》，正在打开…')
       });
       RouterUtil.familyHome(this.getUIContext());
     } catch (err) {
@@ -192,7 +195,7 @@ struct SharedView {
             this.getUIContext().getRouter().back();
           }
         })
-        Text('分享的族谱')
+        Text(T('分享的族谱'))
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -210,17 +213,17 @@ struct SharedView {
       if (this.needCode) {
         Column() {
           Text('📩').fontSize(30)
-          Text('输入分享邀请码')
+          Text(T('输入分享邀请码'))
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(Theme.ink)
             .margin({ top: Spacing.M })
-          Text('请向谱主索取「加入码」（8 位字母数字），加入后可在「我的家族」查看')
+          Text(T('请向谱主索取「加入码」（8 位字母数字），加入后可在「我的家族」查看'))
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .textAlign(TextAlign.Center)
             .margin({ top: 6 })
-          TextInput({ placeholder: '粘贴邀请码', text: this.inviteCode })
+          TextInput({ placeholder: T('粘贴邀请码'), text: this.inviteCode })
             .height(42)
             .fontSize(13)
             .backgroundColor(Theme.field)
@@ -229,7 +232,7 @@ struct SharedView {
             .onChange((value: string): void => {
               this.inviteCode = value;
             })
-          Button('用加入码加入')
+          Button(T('用加入码加入'))
             .height(40)
             .width('100%')
             .fontSize(14)
@@ -254,7 +257,7 @@ struct SharedView {
       } else if (this.loading) {
         Column() {
           LoadingProgress().width(36).height(36).color(Theme.primary)
-          Text('正在读取分享内容…').fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
+          Text(T('正在读取分享内容…')).fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
         }
         .width('100%')
         .layoutWeight(1)
@@ -269,7 +272,7 @@ struct SharedView {
             .margin({ top: Spacing.M })
             .maxLines(3)
           if (!this.loggedIn) {
-            Button('登录华为账号')
+            Button(T('登录华为账号'))
               .height(40)
               .fontSize(14)
               .fontColor('#FFFFFF')
@@ -279,7 +282,7 @@ struct SharedView {
                 RouterUtil.login(this.getUIContext());
               })
           } else {
-            Button('重新加载')
+            Button(T('重新加载'))
               .height(40)
               .fontSize(14)
               .fontColor(Theme.primary)
@@ -307,7 +310,7 @@ struct SharedView {
         .scrollBar(BarState.Off)
         .divider({ strokeWidth: 0, color: Color.Transparent })
 
-        Text('只读查看（旧通道）· 将在协作只读路径上线后下线')
+        Text(T('只读查看（旧通道）· 将在协作只读路径上线后下线'))
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .width('100%')

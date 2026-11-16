@@ -9,6 +9,7 @@ import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
+import { T, ScriptService } from './ScriptService';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
 export class JsonBundle {
@@ -73,7 +74,7 @@ export class ExportService {
       });
       lines.push(row.join(','));
     });
-    return lines.join('\r\n');
+    return T(lines.join('\r\n'));
   }
 
   /** 生成 JSON 备份 */
@@ -112,6 +113,15 @@ export class ExportService {
         '视频': p.videos,
         '相片': p.photos
       };
+      // JSON 键保持简体（导入契约），只转换字符串值
+      const rKeys: string[] = Object.keys(r);
+      for (let ki: number = 0; ki < rKeys.length; ki = ki + 1) {
+        const key: string = rKeys[ki];
+        const val: string | number = r[key];
+        if (typeof val === 'string') {
+          r[key] = T(val);
+        }
+      }
       rows.push(r);
     });
     const bookObj: Record<string, string> = {
@@ -125,6 +135,12 @@ export class ExportService {
       '家训': book.familyRules,
       '凡例': book.editingNotes
     };
+    // 书籍信息同样键简体、值按当前简繁转换
+    const bKeys: string[] = Object.keys(bookObj);
+    for (let bi: number = 0; bi < bKeys.length; bi = bi + 1) {
+      const key: string = bKeys[bi];
+      bookObj[key] = T(bookObj[key]);
+    }
     const payload: Record<string, Object> = {
       'format': 'hongmeng-genealogy',
       'version': 1,
@@ -212,7 +228,7 @@ export class ExportService {
     lines.push('## 家训');
     lines.push('');
     lines.push(book.familyRules);
-    return lines.join('\n');
+    return T(lines.join('\n'));
   }
 
   /**
@@ -430,7 +446,8 @@ export class ExportService {
     if (rows.length < 2) {
       return result;
     }
-    const header: string[] = rows[0].map((h: string): string => h.trim());
+    const header: string[] = rows[0].map((h: string): string =>
+      ScriptService.getInstance().toSimplified(h.trim()));
     for (let i: number = 1; i < rows.length; i++) {
       const cells: string[] = rows[i];
       if (cells.length === 0 || cells.every((c: string): boolean => c.trim().length === 0)) {
@@ -439,22 +456,24 @@ export class ExportService {
       const p: Person = new Person();
       for (let c: number = 0; c < header.length && c < cells.length; c++) {
         const value: string = cells[c].trim();
+        // 枚举值兼容繁体导出文件；人名/地名仍按原文保存
+        const norm: string = ScriptService.getInstance().toSimplified(value);
         switch (header[c]) {
           case '世代': p.generation = parseInt(value, 10) || 1; break;
           case '唯一ID': p.uid = value; break;
           case '谱名': p.name = value; break;
           case '曾用名/小名': p.alias = value; break;
-          case '性别': p.gender = value.length > 0 ? value : '男'; break;
+          case '性别': p.gender = norm.length > 0 ? norm : '男'; break;
           case '辈分/字派': p.generationChar = value; break;
-          case '在世状态': p.lifeStatus = value.length > 0 ? value : '在世'; break;
-          case '子女身份': p.childStatus = value.length > 0 ? value : '未记'; break;
+          case '在世状态': p.lifeStatus = norm.length > 0 ? norm : '在世'; break;
+          case '子女身份': p.childStatus = norm.length > 0 ? norm : '未记'; break;
           case '出生日期':
-            p.birthCalendar = value.indexOf('农历') >= 0 ? '农历' : '公历';
-            p.birthDate = value.replace('农历', '').trim();
+            p.birthCalendar = norm.indexOf('农历') >= 0 ? '农历' : '公历';
+            p.birthDate = norm.replace('农历', '').trim();
             break;
           case '逝世日期':
-            p.deathCalendar = value.indexOf('农历') >= 0 ? '农历' : '公历';
-            p.deathDate = value.replace('农历', '').trim();
+            p.deathCalendar = norm.indexOf('农历') >= 0 ? '农历' : '公历';
+            p.deathDate = norm.replace('农历', '').trim();
             break;
           case '出生地': p.birthPlace = value; break;
           case '现居地': p.residence = value; break;

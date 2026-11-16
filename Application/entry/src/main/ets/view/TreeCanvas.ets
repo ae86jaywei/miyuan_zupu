@@ -1,4 +1,5 @@
 import { PersonNode } from '../model/PersonNode';
+import { T } from '../service/ScriptService';
 import { Person } from '../model/Person';
 import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';
@@ -41,6 +42,8 @@ const MINI_H: number = 58;
  */
 @Component
 export struct TreeCanvas {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
   @StorageProp('gpVersion') @Watch('onDataVersionChanged') dataVersion: number = 0;
   /**
@@ -1043,7 +1046,7 @@ export struct TreeCanvas {
           return;
         }
       }
-      this.getUIContext().getPromptAction().showToast({ message: '未找到该族人' });
+      this.getUIContext().getPromptAction().showToast({ message: T('未找到该族人') });
       return;
     }
     // 宝塔式/现代谱式：组件内部按行/列表滚动定位
@@ -1054,7 +1057,7 @@ export struct TreeCanvas {
     }
     const roots: PersonNode[] = svc.getRoots();
     if (roots.length === 0) {
-      this.getUIContext().getPromptAction().showToast({ message: '未在谱系中找到该族人' });
+      this.getUIContext().getPromptAction().showToast({ message: T('未在谱系中找到该族人') });
       return;
     }
     // 目标不在当前宗支时自动切换
@@ -1072,7 +1075,7 @@ export struct TreeCanvas {
         .book(roots[idxP].uid, this.style, this.dataVersion, 'standard');
       const p: number = book.pageOf(uid);
       if (p <= 0) {
-        this.getUIContext().getPromptAction().showToast({ message: '该族人不在当前分页范围内' });
+        this.getUIContext().getPromptAction().showToast({ message: T('该族人不在当前分页范围内') });
         return;
       }
       this.pageNo = p;
@@ -1114,7 +1117,7 @@ export struct TreeCanvas {
       }
     }
     if (!hit) {
-      this.getUIContext().getPromptAction().showToast({ message: '未在谱系中找到该族人（可能不在当前谱式覆盖范围）' });
+      this.getUIContext().getPromptAction().showToast({ message: T('未在谱系中找到该族人（可能不在当前谱式覆盖范围）') });
       return;
     }
     this.scaleValue = Math.max(this.scaleValue, BUBBLE_ZOOM);
@@ -1173,7 +1176,7 @@ export struct TreeCanvas {
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           .margin({ bottom: 6 })
       }
-      Button('查找')
+      Button(T('查找'))
         .fontSize(12)
         .fontColor(Theme.primary)
         .backgroundColor(Theme.glass)
@@ -1203,7 +1206,7 @@ export struct TreeCanvas {
           })
       }
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
-        Button('全览')
+        Button(T('全览'))
           .fontSize(12)
           .fontColor(Theme.primary)
           .backgroundColor(Theme.glass)
@@ -1230,12 +1233,12 @@ export struct TreeCanvas {
   SearchPanel() {
     Column() {
       Row() {
-        Text('查找族人')
+        Text(T('查找族人'))
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text('关闭')
+        Text(T('关闭'))
           .fontSize(13)
           .fontColor(Theme.primary)
           .padding({ left: 8, top: 4, bottom: 4 })
@@ -1244,7 +1247,7 @@ export struct TreeCanvas {
           })
       }
       .width('100%')
-      TextInput({ text: this.searchQuery, placeholder: '姓名 / 曾用名 / 唯一ID / 字派' })
+      TextInput({ text: this.searchQuery, placeholder: T('姓名 / 曾用名 / 唯一ID / 字派') })
         .height(38)
         .fontSize(14)
         .margin({ top: 8 })
@@ -1252,13 +1255,13 @@ export struct TreeCanvas {
           this.runSearch(v);
         })
       if (this.searchQuery.trim().length === 0) {
-        Text('输入关键词自动匹配，点击结果即跳到该族人在谱系中的位置')
+        Text(T('输入关键词自动匹配，点击结果即跳到该族人在谱系中的位置'))
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 8 })
           .width('100%')
       } else if (this.searchResults.length === 0) {
-        Text('未找到匹配的族人')
+        Text(T('未找到匹配的族人'))
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 10 })
@@ -1561,7 +1564,7 @@ export struct TreeCanvas {
   TreeLoading() {
     Column() {
       LoadingProgress().width(36).height(36).color(Theme.primary)
-      Text('正在切换谱式…')
+      Text(T('正在切换谱式…'))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .margin({ top: Spacing.M })
@@ -1803,7 +1806,7 @@ export struct TreeCanvas {
         }
         if (this.hintVisible && !this.pagedMode) {
           Column() {
-            Text('已选中 · 长按卡片查看族人详情')
+            Text(T('已选中 · 长按卡片查看族人详情'))
               .fontSize(12)
               .fontColor('#FFFFFF')
               .backgroundColor('rgba(0,0,0,0.72)')

@@ -1,4 +1,5 @@
 import { GenealogyService } from '../service/GenealogyService';
+import { T } from '../service/ScriptService';
 import { Genealogy } from '../model/Genealogy';
 import { Theme, Spacing } from '../theme/Theme';
 import { TS } from '../components/TS';
@@ -8,6 +9,7 @@ import { AccountCard } from './AccountCard';
 
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
+import { ScriptService } from '../service/ScriptService';
 
 import { FamilySyncService } from '../service/FamilySyncService';
 import { SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
@@ -32,6 +34,8 @@ export struct SettingsView {
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
   @StorageProp('gpOrientation') orientationMode: string = 'follow_system';
+  /** 简繁文字：hans=简体，hant=繁体（只影响展示/导出，不改数据库） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('gpHasBook') hasBook: boolean = true;
   @StorageProp('gpSyncMode') @Watch('onSyncModeChange') syncMode: string = SyncMode.LOCAL;
   @StorageProp('gpFamilyRole') familyRole: string = '';
@@ -183,7 +187,7 @@ export struct SettingsView {
   private async confirmDelete(input: string): Promise<void> {
     const title: string = GenealogyService.getInstance().getBook().title;
     if (input.trim() !== title) {
-      this.getUIContext().getPromptAction().showToast({ message: '族谱名称输入不一致，已取消删除' });
+      this.getUIContext().getPromptAction().showToast({ message: T('族谱名称输入不一致，已取消删除') });
       return;
     }
     try {
@@ -191,10 +195,10 @@ export struct SettingsView {
       GenealogyStore.notifyChanged();
       AppStorage.setOrCreate<string>('gpSelection', '');
       AppStorage.setOrCreate<number>('gpTab', 1);
-      this.getUIContext().getPromptAction().showToast({ message: '族谱已删除' });
+      this.getUIContext().getPromptAction().showToast({ message: T('族谱已删除') });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '删除失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('删除失败：') + err.message });
     }
   }
 
@@ -206,17 +210,17 @@ export struct SettingsView {
       this.loadBook();
       // 创建后立即进入编辑态，填写谱名、堂号等信息
       this.editingBook = true;
-      this.getUIContext().getPromptAction().showToast({ message: '已创建族谱，请填写族谱信息' });
+      this.getUIContext().getPromptAction().showToast({ message: T('已创建族谱，请填写族谱信息') });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '创建失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('创建失败：') + err.message });
     }
   }
 
   @Builder
   FieldRow(label: string, value: string, onChange: (v: string) => void) {
     Column() {
-      Text(label)
+      Text(T(label))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -238,7 +242,7 @@ export struct SettingsView {
   SwitchRow(label: string, tip: string, value: boolean, onChange: (v: boolean) => void) {
     Row() {
       Column() {
-        Text(label)
+        Text(T(label))
           .fontSize(14)
           .fontColor(Theme.ink)
         if (tip.length > 0) {
@@ -283,7 +287,7 @@ export struct SettingsView {
       this.FieldRow('字派谱（字辈诗）', this.bookPoem, (v: string): void => {
         this.bookPoem = v;
       })
-      Text('谱序')
+      Text(T('谱序'))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -296,7 +300,7 @@ export struct SettingsView {
         .onChange((v: string): void => {
           this.bookPreface = v;
         })
-      Text('家训')
+      Text(T('家训'))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -309,7 +313,7 @@ export struct SettingsView {
         .onChange((v: string): void => {
           this.bookRules = v;
         })
-      Text('凡例 / 修谱说明')
+      Text(T('凡例 / 修谱说明'))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -324,7 +328,7 @@ export struct SettingsView {
         })
 
       Row() {
-        Button('取消')
+        Button(T('取消'))
           .fontColor(Theme.inkSecondary)
           .backgroundColor(Theme.field)
           .layoutWeight(1)
@@ -333,7 +337,7 @@ export struct SettingsView {
             this.loadBook();
             this.editingBook = false;
           })
-        Button('保存')
+        Button(T('保存'))
           .backgroundColor(Theme.primary)
           .layoutWeight(1)
           .height(38)
@@ -353,15 +357,15 @@ export struct SettingsView {
     Column() {
       if (!this.hasBook) {
         Column() {
-          Text('尚未创建族谱')
+          Text(T('尚未创建族谱'))
             .fontSize(15)
             .fontColor(Theme.ink)
-          Text('可在此创建新族谱，或到「谱系」页通过 + 号新增族谱')
+          Text(T('可在此创建新族谱，或到「谱系」页通过 + 号新增族谱'))
             .fontSize(11.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 4 })
             .maxLines(2)
-          Button('创建族谱')
+          Button(T('创建族谱'))
             .fontSize(13)
             .height(34)
             .backgroundColor(Theme.primary)
@@ -393,7 +397,7 @@ export struct SettingsView {
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Button('编辑')
+          Button(T('编辑'))
             .fontSize(13)
             .height(32)
             .backgroundColor(Theme.field)
@@ -401,7 +405,7 @@ export struct SettingsView {
             .onClick((): void => {
               this.editingBook = true;
             })
-          Button('删除')
+          Button(T('删除'))
             .fontSize(13)
             .height(32)
             .backgroundColor(Theme.field)
@@ -422,10 +426,10 @@ export struct SettingsView {
     Column() {
       Row() {
         Column() {
-          Text(meta.name)
+          Text(T(meta.name))
             .fontSize(14)
             .fontColor(enabled ? Theme.ink : Theme.inkTertiary)
-          Text(meta.desc)
+          Text(T(meta.desc))
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 2 })
@@ -445,6 +449,43 @@ export struct SettingsView {
       .onClick((): void => {
         if (enabled && this.orientationMode !== meta.key) {
           this.onOrientationChange(meta.key);
+        }
+      })
+
+      if (showDivider) {
+        Divider().color(Theme.line).strokeWidth(0.5)
+      }
+    }
+    .width('100%')
+  }
+
+  /** 简繁文字二选一 */
+  @Builder
+  ScriptRow(label: string, desc: string, value: string, showDivider: boolean) {
+    Column() {
+      Row() {
+        Column() {
+          Text(T(label))
+            .fontSize(14)
+            .fontColor(Theme.ink)
+          Text(T(desc))
+            .fontSize(11)
+            .fontColor(Theme.inkTertiary)
+            .margin({ top: 2 })
+            .maxLines(2)
+        }
+        .alignItems(HorizontalAlign.Start)
+        .layoutWeight(1)
+
+        Radio({ value: value, group: 'scriptGroup' })
+          .checked(this.script === value)
+          .hitTestBehavior(HitTestMode.None)
+      }
+      .width('100%')
+      .padding({ top: 6, bottom: 6 })
+      .onClick((): void => {
+        if (this.script !== value) {
+          ScriptService.getInstance().setScript(value);
         }
       })
 
@@ -528,12 +569,40 @@ export struct SettingsView {
         .clip(true)
 
         TS({
+          title: '文字与语言',
+          subtitle: '当前：' + (this.script === 'hant' ? '繁體中文' : '简体中文'),
+          icon: '🈶'
+        })
+        Column() {
+          Text(T('界面、预览与导出文字'))
+            .fontSize(12)
+            .fontColor(Theme.inkTertiary)
+            .width('100%')
+            .margin({ bottom: 6 })
+          this.ScriptRow('简体中文', '常用简体字，适配大陆阅读习惯', 'hans', true)
+          this.ScriptRow('繁體中文', 'OpenCC 繁體轉換，不改動已保存的資料', 'hant', false)
+          Text(T('切换只影响界面、预览与导出，数据库中的原文保持不变。'))
+            .fontSize(10.5)
+            .fontColor(Theme.inkTertiary)
+            .lineHeight(16)
+            .width('100%')
+            .margin({ top: Spacing.S })
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
+        TS({
           title: '显示设置',
           subtitle: '当前：' + DisplayService.labelOf(this.orientationMode),
           icon: '🖥️'
         })
         Column() {
-          Text('屏幕方向')
+          Text(T('屏幕方向'))
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .width('100%')
@@ -607,6 +676,8 @@ export struct SettingsView {
         Column() {
           this.InfoLine('应用名称', '觅源 v1.0.0（com.zupu.ae86jay）')
           this.InfoLine('支持谱式', '欧式 · 苏式 · 宝塔式 · 牒记式 · 现代创新式')
+          this.InfoLine('内置字库', 'BabelStone Han · Arphic Public License（简繁 + 生僻字）')
+          this.InfoLine('简繁词典', 'OpenCC（s2t / t2s 离线词典）')
           this.InfoLine('适配设备', '手机 · 平板 · 电脑(2in1) · 双折叠 · 三折叠 · 阔屏 · 阔折叠')
           Divider().color(Theme.line).strokeWidth(0.5).margin({ top: 6 })
           this.NavRow('用户协议', '服务内容、用户行为规范与责任说明', (): void => {
@@ -648,8 +719,8 @@ export struct SettingsView {
   NavRow(title: string, subtitle: string, action: () => void) {
         Row() {
           Column() {
-            Text(title).fontSize(14).fontColor(Theme.ink)
-            Text(subtitle).fontSize(11).fontColor(Theme.inkTertiary).margin({ top: 2 })
+            Text(T(title)).fontSize(14).fontColor(Theme.ink)
+            Text(T(subtitle)).fontSize(11).fontColor(Theme.inkTertiary).margin({ top: 2 })
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
@@ -665,7 +736,7 @@ export struct SettingsView {
   @Builder
   InfoLine(label: string, value: string) {
         Row() {
-          Text(label).fontSize(12).fontColor(Theme.inkTertiary).width(72)
+          Text(T(label)).fontSize(12).fontColor(Theme.inkTertiary).width(72)
           Text(value).fontSize(12.5).fontColor(Theme.inkSecondary).layoutWeight(1)
         }
         .width('100%')
@@ -691,7 +762,7 @@ struct DeleteGenealogyDialog {
 
   build() {
     Column() {
-      Text('删除族谱')
+      Text(T('删除族谱'))
         .fontSize(17)
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.danger)
@@ -707,7 +778,7 @@ struct DeleteGenealogyDialog {
         .fontColor(Theme.inkTertiary)
         .margin({ top: 14 })
         .width('100%')
-      TextInput({ text: this.input, placeholder: '请输入谱名' })
+      TextInput({ text: this.input, placeholder: T('请输入谱名') })
         .height(40)
         .fontSize(14)
         .backgroundColor(Theme.field)
@@ -717,7 +788,7 @@ struct DeleteGenealogyDialog {
           this.input = v;
         })
       Row() {
-        Button('取消')
+        Button(T('取消'))
           .fontColor(Theme.inkSecondary)
           .backgroundColor(Theme.field)
           .layoutWeight(1)
@@ -725,7 +796,7 @@ struct DeleteGenealogyDialog {
           .onClick((): void => {
             this.controller?.close();
           })
-        Button('确认删除')
+        Button(T('确认删除'))
           .backgroundColor(Theme.danger)
           .fontColor('#FFFFFF')
           .layoutWeight(1)

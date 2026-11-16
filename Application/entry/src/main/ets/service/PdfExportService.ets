@@ -1,4 +1,5 @@
 import { pdfService } from '@kit.PDFKit';
+import { T } from './ScriptService';
 import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
@@ -1308,7 +1309,7 @@ export class PdfExportService {
       writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length),
         PrintPageSpec.mmToPt(printSpec.gutterX(recto)), gutterW);
       if (onProgress && (i % 5 === 0 || i === total - 1)) {
-        onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
+        onProgress({ current: i + 1, total: total, message: T('排版第 ') + (i + 1) + '/' + total + ' 页' });
       }
       await yieldToUi();
     }
@@ -1485,7 +1486,7 @@ export class PdfExportService {
       for (let i: number = 0; i < total; i++) {
         drawPageToPdf(ctx, doc, all[i], i + 1, total, i < coverPages.length);
         if (onProgress && (i % 5 === 0 || i === total - 1)) {
-          onProgress({ current: i + 1, total: total, message: '排版第 ' + (i + 1) + '/' + total + ' 页' });
+          onProgress({ current: i + 1, total: total, message: T('排版第 ') + (i + 1) + '/' + total + ' 页' });
         }
         if (i % 50 === 0) {
           console.info('[PdfExport] page ' + i + '/' + total + ' pss=' + Math.round(currentPssKb() / 1024)
@@ -1530,7 +1531,7 @@ export class PdfExportService {
     }
 
     if (onProgress) {
-      onProgress({ current: total + 1, total: total + 1, message: '完成' });
+      onProgress({ current: total + 1, total: total + 1, message: T('完成') });
     }
     return outPath;
   }

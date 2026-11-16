@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { T } from '../service/ScriptService';
 import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
@@ -35,6 +36,8 @@ const ANCESTOR_RANK: string = '第一世（始祖）';
  */
 @Component
 struct SelectField {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop label: string = '';
   @Prop hint: string = '';
   @Prop required: boolean = false;
@@ -125,7 +128,7 @@ struct SelectField {
             }
           })
         if (this.clearable && this.value.length > 0) {
-          Text('清除')
+          Text(T('清除'))
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .padding({ left: Spacing.M, top: 10, bottom: 10 })
@@ -222,7 +225,7 @@ struct PersonPickerField {
   @Builder
   pickerSheet() {
     Column() {
-      TextInput({ text: this.keyword, placeholder: '输入谱名 / 曾用名 / 唯一ID 搜索' })
+      TextInput({ text: this.keyword, placeholder: T('输入谱名 / 曾用名 / 唯一ID 搜索') })
         .height(40)
         .fontSize(14)
         .fontColor(Theme.ink)
@@ -241,7 +244,7 @@ struct PersonPickerField {
           .width('100%')
           .margin({ top: Spacing.L })
       } else if (this.results.length === 0) {
-        Text('没有匹配的族人')
+        Text(T('没有匹配的族人'))
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -266,7 +269,7 @@ struct PersonPickerField {
                 .layoutWeight(1)
 
                 if (p.uid.trim().toUpperCase() === this.value.trim().toUpperCase()) {
-                  Text('当前')
+                  Text(T('当前'))
                     .fontSize(11)
                     .fontColor(Theme.primary)
                 }
@@ -319,7 +322,7 @@ struct PersonPickerField {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
-          Text('搜索')
+          Text(T('搜索'))
             .fontSize(12)
             .fontColor(Theme.primary)
         }
@@ -334,7 +337,7 @@ struct PersonPickerField {
         })
 
         if (this.clearable && this.value.length > 0) {
-          Text('清除')
+          Text(T('清除'))
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .padding({ left: Spacing.M, top: 10, bottom: 10 })
@@ -394,7 +397,7 @@ struct DateFieldInput {
       .margin({ bottom: 4 })
 
       Row() {
-        TextInput({ text: this.value, placeholder: '点击右侧“选择”，或直接输入' })
+        TextInput({ text: this.value, placeholder: T('点击右侧“选择”，或直接输入') })
           .layoutWeight(1)
           .height(40)
           .fontSize(14)
@@ -405,7 +408,7 @@ struct DateFieldInput {
           .onChange((v: string): void => {
             this.onChange(v);
           })
-        Text('📅 选择')
+        Text(T('📅 选择'))
           .fontSize(12)
           .fontColor('#FFFFFF')
           .backgroundColor(Theme.primary)
@@ -819,7 +822,7 @@ struct PersonEdit {
       // 编号曾被已删除族人使用：继续沿用会让云端遗留关系指向当前族人
       this.getUIContext().showAlertDialog({
         title: '该编号曾用于已删除族人',
-        message: '编号“' + uid + '”曾属于已删除的“' + retiredName + '”。\n\n' +
+        message: T('编号“') + uid + '”曾属于已删除的“' + retiredName + '”。\n\n' +
           '继续使用该编号时，云端仍保留的旧父母/配偶关系可能被挂到当前族人身上，' +
           '合并后世系图会出现重复、重叠或多出宗支。\n\n建议取消后更换编号（留空可由系统自动分配）。',
         primaryButton: {
@@ -905,11 +908,11 @@ struct PersonEdit {
           this.svc().deletePerson(this.originalUid)
             .then((): void => {
               GenealogyStore.notifyChanged();
-              this.getUIContext().getPromptAction().showToast({ message: '已删除' });
+              this.getUIContext().getPromptAction().showToast({ message: T('已删除') });
               this.getUIContext().getRouter().back();
             })
             .catch((err: BusinessError): void => {
-              this.getUIContext().getPromptAction().showToast({ message: '删除失败：' + err.message });
+              this.getUIContext().getPromptAction().showToast({ message: T('删除失败：') + err.message });
             });
         }
       }
@@ -930,7 +933,7 @@ struct PersonEdit {
       }
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '选择头像失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('选择头像失败：') + err.message });
     }
   }
 
@@ -969,7 +972,7 @@ struct PersonEdit {
   private showMediaSourceDialog(): void {
     this.getUIContext().showAlertDialog({
       title: '添加照片/视频',
-      message: '请选择添加来源',
+      message: T('请选择添加来源'),
       autoCancel: true,
       alignment: DialogAlignment.Center,
       primaryButton: {
@@ -997,7 +1000,7 @@ struct PersonEdit {
       this.appendPhotos(result.photoUris);
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '选择相片失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('选择相片失败：') + err.message });
     }
   }
 
@@ -1019,7 +1022,7 @@ struct PersonEdit {
       this.appendPhotos(uris);
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '选择文件失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('选择文件失败：') + err.message });
     }
   }
 
@@ -1038,7 +1041,7 @@ struct PersonEdit {
     this.locating = true;
     try {
       if (!geoLocationManager.isLocationEnabled()) {
-        this.getUIContext().getPromptAction().showToast({ message: '系统定位未开启，请先打开“位置信息”开关' });
+        this.getUIContext().getPromptAction().showToast({ message: T('系统定位未开启，请先打开“位置信息”开关') });
         return;
       }
       let alt: number = NaN;
@@ -1080,12 +1083,12 @@ struct PersonEdit {
 
       if (!isNaN(alt) && alt !== 0) {
         this.fGraveAltitude = alt;
-        this.getUIContext().getPromptAction().showToast({ message: '已拾取当前位置（含海拔）' });
+        this.getUIContext().getPromptAction().showToast({ message: T('已拾取当前位置（含海拔）') });
         return;
       }
       if (this.fGraveLat === 0 && this.fGraveLng === 0) {
         this.getUIContext().getPromptAction()
-          .showToast({ message: '定位失败（' + lastMsg + '），可手工填写经纬度' });
+          .showToast({ message: T('定位失败（') + lastMsg + '），可手工填写经纬度' });
         return;
       }
       // 重试后仍无海拔：若设备带气压计则用气压换算海拔
@@ -1093,10 +1096,10 @@ struct PersonEdit {
       if (!isNaN(baroAlt)) {
         this.fGraveAltitude = baroAlt;
         this.getUIContext().getPromptAction()
-          .showToast({ message: '已拾取经纬度，海拔由气压计估算（' + baroAlt.toFixed(1) + ' 米）' });
+          .showToast({ message: T('已拾取经纬度，海拔由气压计估算（') + baroAlt.toFixed(1) + ' 米）' });
       } else {
         this.getUIContext().getPromptAction()
-          .showToast({ message: '已拾取经纬度，海拔暂不可用，请到空旷处重试或手工填写' });
+          .showToast({ message: T('已拾取经纬度，海拔暂不可用，请到空旷处重试或手工填写') });
       }
     } finally {
       this.locating = false;
@@ -1245,7 +1248,7 @@ struct PersonEdit {
     }
     if (this.fGraveLat === 0 && this.fGraveLng === 0) {
       this.getUIContext().getPromptAction()
-        .showToast({ message: '请先拾取当前位置，或粘贴地图分享链接解析出坐标' });
+        .showToast({ message: T('请先拾取当前位置，或粘贴地图分享链接解析出坐标') });
       return;
     }
     const param: Record<string, Object> = {
@@ -1258,13 +1261,13 @@ struct PersonEdit {
     const startCallback: common.AbilityStartCallback = {
       onError: (code: number, name: string, message: string): void => {
         console.error('startAbilityByType 失败：' + code.toString() + ' ' + name + ' ' + message);
-        this.getUIContext().getPromptAction().showToast({ message: '打开地图失败：' + message });
+        this.getUIContext().getPromptAction().showToast({ message: T('打开地图失败：') + message });
       }
     };
     const ctx: common.UIAbilityContext = host as common.UIAbilityContext;
     ctx.startAbilityByType('navigation', param, startCallback, (err: BusinessError): void => {
       if (err) {
-        this.getUIContext().getPromptAction().showToast({ message: '打开地图失败：' + err.message });
+        this.getUIContext().getPromptAction().showToast({ message: T('打开地图失败：') + err.message });
       }
     });
   }
@@ -1387,7 +1390,7 @@ struct PersonEdit {
       }
       .width('100%')
       if (hint.length > 0) {
-        Text(hint)
+        Text(T(hint))
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -1577,7 +1580,7 @@ struct PersonEdit {
   DatePickerPanel() {
     Column() {
       Row() {
-        Text('取消')
+        Text(T('取消'))
           .fontSize(15)
           .fontColor(Theme.inkTertiary)
           .layoutWeight(1)
@@ -1591,7 +1594,7 @@ struct PersonEdit {
           .fontColor(Theme.ink)
           .layoutWeight(2)
           .textAlign(TextAlign.Center)
-        Text('确定')
+        Text(T('确定'))
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.primary)
@@ -1627,7 +1630,7 @@ struct PersonEdit {
 
       // 古历法记年：先选年号，再选第几年；选择后自动换算公历年
       Row() {
-        Text('纪年')
+        Text(T('纪年'))
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ right: Spacing.S })
@@ -1703,7 +1706,7 @@ struct PersonEdit {
       .width('100%')
       .padding({ left: Spacing.M, right: Spacing.M })
 
-      Button('确定日期')
+      Button(T('确定日期'))
         .width('88%')
         .height(44)
         .margin({ top: 8, bottom: 16 })
@@ -1739,7 +1742,7 @@ struct PersonEdit {
   GroupHeader(title: string, icon: string) {
     Row() {
       Text(icon).fontSize(15)
-      Text(title).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Theme.primary).margin({ left: 6 })
+      Text(T(title)).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Theme.primary).margin({ left: 6 })
     }
     .width('100%')
     .padding({ top: Spacing.L, bottom: Spacing.S })
@@ -1751,8 +1754,8 @@ struct PersonEdit {
     Column() {
       Row() {
         Column() {
-          Text('配偶关系').fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
-          Text('一夫一妻多妾制：正妻 / 平妻 / 贵妾 / 良妾 / 贱妾 / 外室，按先后顺序记录')
+          Text(T('配偶关系')).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(T('一夫一妻多妾制：正妻 / 平妻 / 贵妾 / 良妾 / 贱妾 / 外室，按先后顺序记录'))
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 1 })
@@ -1760,7 +1763,7 @@ struct PersonEdit {
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
 
-        Text('+ 添加配偶')
+        Text(T('+ 添加配偶'))
           .fontSize(12)
           .fontColor(Theme.primary)
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -1774,7 +1777,7 @@ struct PersonEdit {
       .margin({ bottom: Spacing.S })
 
       if (this.fSpouses.length === 0) {
-        Text('尚未录入配偶')
+        Text(T('尚未录入配偶'))
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -1808,7 +1811,7 @@ struct PersonEdit {
             }
             .layoutWeight(1)
 
-            Text('删除')
+            Text(T('删除'))
               .fontSize(12)
               .fontColor(Theme.danger)
               .padding({ left: Spacing.M, right: Spacing.S, top: 30, bottom: Spacing.M })
@@ -1866,7 +1869,7 @@ struct PersonEdit {
         .border({ width: 2, color: Theme.gold, radius: 42 })
 
         Row() {
-          Text('点击更换头像')
+          Text(T('点击更换头像'))
             .fontSize(12)
             .fontColor('#FFFFFF')
             .backgroundColor(Theme.primary)
@@ -1876,7 +1879,7 @@ struct PersonEdit {
               this.pickAvatar();
             })
           if (this.fAvatar.length > 0) {
-            Text('清除')
+            Text(T('清除'))
               .fontSize(12)
               .fontColor(Theme.inkTertiary)
               .margin({ left: Spacing.M })
@@ -2160,7 +2163,7 @@ struct PersonEdit {
 
         Column() {
           Row() {
-            Text('经度（东经）').fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('经度（东经）')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           TextInput({ text: this.fGraveLng !== 0 ? this.fGraveLng.toFixed(10) : '' })
@@ -2177,7 +2180,7 @@ struct PersonEdit {
               }
             })
           Row() {
-            Text('纬度（北纬）').fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('纬度（北纬）')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           .margin({ top: 6 })
@@ -2195,7 +2198,7 @@ struct PersonEdit {
               }
             })
           Row() {
-            Text('海拔（米）').fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('海拔（米）')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           .margin({ top: 6 })
@@ -2213,11 +2216,11 @@ struct PersonEdit {
               }
             })
           Row() {
-            Text('地图定位信息 / 分享链接').fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('地图定位信息 / 分享链接')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           .margin({ top: 6 })
-          TextInput({ text: this.fGraveMapInfo, placeholder: '粘贴地图分享链接或“经度,纬度”' })
+          TextInput({ text: this.fGraveMapInfo, placeholder: T('粘贴地图分享链接或“经度,纬度”') })
             .height(36)
             .fontSize(12)
             .fontColor(Theme.ink)
@@ -2244,7 +2247,7 @@ struct PersonEdit {
               .onClick((): void => {
                 this.pickGraveLocation();
               })
-            Text('🗺 地图应用拾取')
+            Text(T('🗺 地图应用拾取'))
               .fontSize(12)
               .fontColor(Theme.primary)
               .backgroundColor(this.isDark ? '#3A3325' : '#F6E7C8')
@@ -2274,7 +2277,7 @@ struct PersonEdit {
       // 联系方式
       this.GroupHeader('联系方式', '📞')
       Row() {
-        Text('🔒 以下为隐私字段，仅管理员可见')
+        Text(T('🔒 以下为隐私字段，仅管理员可见'))
           .fontSize(11)
           .fontColor(Theme.danger)
           .width('100%')
@@ -2290,14 +2293,14 @@ struct PersonEdit {
       // 照片视频：预览框 + “+” 添加（系统图库 / 文件管理器）
       Column() {
         Row() {
-          Text('照片视频').fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(T('照片视频')).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
           Text(this.photoList().length > 0 ? '已添加 ' + this.photoList().length.toString() + ' 项' : '')
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ left: Spacing.S })
           Blank()
           if (this.photoList().length > 0) {
-            Text('清空')
+            Text(T('清空'))
               .fontSize(12)
               .fontColor(Theme.inkTertiary)
               .onClick((): void => {
@@ -2307,7 +2310,7 @@ struct PersonEdit {
         }
         .width('100%')
 
-        Text('点击“+”从系统图库或文件管理器添加照片、视频')
+        Text(T('点击“+”从系统图库或文件管理器添加照片、视频'))
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -2319,7 +2322,7 @@ struct PersonEdit {
               if (this.isVideoUri(uri)) {
                 Column() {
                   Text('🎬').fontSize(22)
-                  Text('视频').fontSize(9).fontColor(Theme.inkTertiary)
+                  Text(T('视频')).fontSize(9).fontColor(Theme.inkTertiary)
                 }
                 .width('100%')
                 .height('100%')
@@ -2380,7 +2383,7 @@ struct PersonEdit {
   @Builder
   SidePreview() {
     Column() {
-      Text('族谱预览').fontSize(13).fontColor(Theme.inkTertiary).width('100%')
+      Text(T('族谱预览')).fontSize(13).fontColor(Theme.inkTertiary).width('100%')
       Column() {
         Text(this.fName.length > 0 ? this.fName : '未命名')
           .fontSize(18)
@@ -2445,7 +2448,7 @@ struct PersonEdit {
           .fontColor(Theme.ink)
           .layoutWeight(1)
         if (this.originalUid.length > 0) {
-          Text('删除')
+          Text(T('删除'))
             .fontSize(13)
             .fontColor(Theme.danger)
             .margin({ right: Spacing.M })

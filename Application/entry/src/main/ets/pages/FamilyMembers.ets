@@ -1,4 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
+import { T } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
@@ -22,6 +23,8 @@ import { RouterUtil } from '../util/RouterUtil';
 @Entry
 @Component
 struct FamilyMembers {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   @StorageProp('gpFamilyRole') myRole: string = '';
 
@@ -204,7 +207,7 @@ struct FamilyMembers {
   @Builder
   InviteBlock() {
     Column() {
-      Text('加入码')
+      Text(T('加入码'))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -215,7 +218,7 @@ struct FamilyMembers {
         .width('100%')
         .margin({ top: 4 })
         .copyOption(CopyOptions.LocalDevice)
-      Button('重新生成')
+      Button(T('重新生成'))
         .fontSize(12.5)
         .height(32)
         .width('100%')
@@ -225,7 +228,7 @@ struct FamilyMembers {
         .onClick((): void => {
           this.doRotateInvite();
         })
-      Text('把加入码发给亲戚，他们在「我的家族」输入即可加入。加入后默认只读，可在此提升为编辑者；重新生成后旧码立即失效。')
+      Text(T('把加入码发给亲戚，他们在「我的家族」输入即可加入。加入后默认只读，可在此提升为编辑者；重新生成后旧码立即失效。'))
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 6 })
@@ -276,7 +279,7 @@ struct FamilyMembers {
               this.setMemberRole(m, Role.EDITOR);
             })
           Blank()
-          Text('撤销')
+          Text(T('撤销'))
             .fontSize(11.5)
             .fontColor(Theme.danger)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -337,7 +340,7 @@ struct FamilyMembers {
         .width('100%')
       Row() {
         if (a.kind === AccessKind.VIEW_APPLY) {
-          Text('期限')
+          Text(T('期限'))
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
           TextInput({ text: this.expireDaysText })
@@ -350,12 +353,12 @@ struct FamilyMembers {
             .onChange((v: string): void => {
               this.expireDaysText = v;
             })
-          Text('天')
+          Text(T('天'))
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
         }
         Blank()
-        Button('拒绝')
+        Button(T('拒绝'))
           .fontSize(12.5)
           .height(32)
           .backgroundColor(Theme.field)
@@ -363,7 +366,7 @@ struct FamilyMembers {
           .onClick((): void => {
             this.reject(a);
           })
-        Button('通过')
+        Button(T('通过'))
           .fontSize(12.5)
           .height(32)
           .margin({ left: Spacing.S })
@@ -383,16 +386,16 @@ struct FamilyMembers {
   @Builder
   SelfApplyBlock() {
     Column() {
-      Text('向谱主申请')
+      Text(T('向谱主申请'))
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text('申请查看获批后默认 180 天有效；申请成为族人获批后永久有效，并可认领一个分支。')
+      Text(T('申请查看获批后默认 180 天有效；申请成为族人获批后永久有效，并可认领一个分支。'))
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3 })
         .width('100%')
-      TextInput({ text: this.relationText, placeholder: '关系说明，如：我是三房李泽民之子' })
+      TextInput({ text: this.relationText, placeholder: T('关系说明，如：我是三房李泽民之子') })
         .height(36)
         .fontSize(13)
         .backgroundColor(Theme.field)
@@ -401,7 +404,7 @@ struct FamilyMembers {
         .onChange((v: string): void => {
           this.relationText = v;
         })
-      TextInput({ text: this.evidenceText, placeholder: '依据，如：家有旧谱照片 / 介绍人：李某' })
+      TextInput({ text: this.evidenceText, placeholder: T('依据，如：家有旧谱照片 / 介绍人：李某') })
         .height(36)
         .fontSize(13)
         .backgroundColor(Theme.field)
@@ -411,7 +414,7 @@ struct FamilyMembers {
           this.evidenceText = v;
         })
       Row() {
-        Button('申请查看')
+        Button(T('申请查看'))
           .fontSize(13)
           .height(36)
           .layoutWeight(1)
@@ -420,7 +423,7 @@ struct FamilyMembers {
           .onClick((): void => {
             this.submitApply(AccessKind.VIEW_APPLY);
           })
-        Button('申请成为族人')
+        Button(T('申请成为族人'))
           .fontSize(13)
           .height(36)
           .layoutWeight(1)
@@ -454,11 +457,11 @@ struct FamilyMembers {
       Scroll() {
         Column() {
           if (this.familyId.length === 0) {
-            Text('本谱尚未接入云家族')
+            Text(T('本谱尚未接入云家族'))
               .fontSize(14)
               .fontColor(Theme.inkSecondary)
               .margin({ top: Spacing.XL })
-            Button('去「我的家族」接入')
+            Button(T('去「我的家族」接入'))
               .fontSize(13)
               .height(36)
               .margin({ top: Spacing.M })
@@ -507,7 +510,7 @@ struct FamilyMembers {
             .border({ width: 0.5, color: Theme.line })
           } else {
             Column() {
-              Text('你在这部谱中的角色')
+              Text(T('你在这部谱中的角色'))
                 .fontSize(12)
                 .fontColor(Theme.inkTertiary)
               Text(roleLabel(this.myRole))

@@ -1,5 +1,6 @@
 import { fileIo } from '@kit.CoreFileKit';
 import { RawPdfFont } from './RawPdfFont';
+import { ScriptService } from './ScriptService';
 
 /**
  * 极简 PDF 写入器（方案 F）。
@@ -63,7 +64,7 @@ class PdfBookmark {
 
 /** 子集字体名前缀（PDF 规范要求子集字体带 6 个大写字母 + 加号） */
 const SUBSET_TAG: string = 'ABCDEF+';
-const BASE_FONT: string = SUBSET_TAG + 'HarmonyOS-Sans';
+const BASE_FONT: string = SUBSET_TAG + 'MiyuanHan';
 
 /** Deflate 固定 Huffman 的长度码基值与额外位数（RFC 1951 3.2.5） */
 const LEN_BASE: number[] = [3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
@@ -106,6 +107,8 @@ export class RawPdfWriter {
   private usedChars: Set<number> = new Set<number>();
   /** GID → Unicode（F3 嵌入 TTF 时生成 ToUnicode） */
   private usedGids: Map<number, number> = new Map<number, number>();
+  /** 字体未覆盖的字符（码点），导出结束用于告警 */
+  private missingChars: Set<number> = new Set<number>();
   /** 嵌入字体；为 null 时退回 STSong-Light（不嵌入） */
   private font: RawPdfFont | null = null;
   /** 文档元信息；为 null 时不写 /Info */
@@ -223,7 +226,7 @@ export class RawPdfWriter {
 
     this.pageIds.push(pageId);
     if (bookmarkTitle.length > 0) {
-      this.bookmarks.push(new PdfBookmark(bookmarkTitle, pageId));
+      this.bookmarks.push(new PdfBookmark(ScriptService.getInstance().toDisplay(bookmarkTitle), pageId));
     }
   }
 
@@ -263,7 +266,7 @@ export class RawPdfWriter {
       'endstream\nendobj\n');
     this.pageIds.push(pageId);
     if (bookmarkTitle.length > 0) {
-      this.bookmarks.push(new PdfBookmark(bookmarkTitle, pageId));
+      this.bookmarks.push(new PdfBookmark(ScriptService.getInstance().toDisplay(bookmarkTitle), pageId));
     }
   }
 
@@ -335,7 +338,8 @@ export class RawPdfWriter {
         for (let k: number = i; k < end; k = k + 1) {
           const gid: number = gids[k];
           const code: number = this.usedGids.get(gid) ?? 0;
-          cmap = cmap + '<' + RawPdfWriter.hex4(gid) + '> <' + RawPdfWriter.hex4(code) + '>\n';
+          cmap = cmap + '<' + RawPdfWriter.hex4(gid) + '> <' +
+            RawPdfWriter.utf16HexCodePoint(code) + '>\n';
         }
         cmap = cmap + 'endbfchar\n';
       }
@@ -397,7 +401,7 @@ export class RawPdfWriter {
         cmap = cmap + (end - i).toString() + ' beginbfchar\n';
         for (let k: number = i; k < end; k = k + 1) {
           const hex: string = RawPdfWriter.hex4(codes[k]);
-          cmap = cmap + '<' + hex + '> <' + hex + '>\n';
+          cmap = cmap + '<' + hex + '> <' + RawPdfWriter.utf16HexCodePoint(codes[k]) + '>\n';
         }
         cmap = cmap + 'endbfchar\n';
       }
@@ -454,19 +458,19 @@ export class RawPdfWriter {
       const info: PdfInfo = this.info;
       let s: string = '<<';
       if (info.title.length > 0) {
-        s = s + ' /Title <FEFF' + RawPdfWriter.utf16Hex(info.title) + '>';
+        s = s + ' /Title <FEFF' + RawPdfWriter.utf16Hex(ScriptService.getInstance().toDisplay(info.title)) + '>';
       }
       if (info.author.length > 0) {
-        s = s + ' /Author <FEFF' + RawPdfWriter.utf16Hex(info.author) + '>';
+        s = s + ' /Author <FEFF' + RawPdfWriter.utf16Hex(ScriptService.getInstance().toDisplay(info.author)) + '>';
       }
       if (info.subject.length > 0) {
-        s = s + ' /Subject <FEFF' + RawPdfWriter.utf16Hex(info.subject) + '>';
+        s = s + ' /Subject <FEFF' + RawPdfWriter.utf16Hex(ScriptService.getInstance().toDisplay(info.subject)) + '>';
       }
       if (info.creator.length > 0) {
-        s = s + ' /Creator <FEFF' + RawPdfWriter.utf16Hex(info.creator) + '>';
+        s = s + ' /Creator <FEFF' + RawPdfWriter.utf16Hex(ScriptService.getInstance().toDisplay(info.creator)) + '>';
       }
       if (info.producer.length > 0) {
-        s = s + ' /Producer <FEFF' + RawPdfWriter.utf16Hex(info.producer) + '>';
+        s = s + ' /Producer <FEFF' + RawPdfWriter.utf16Hex(ScriptService.getInstance().toDisplay(info.producer)) + '>';
       }
       const when: string = pdfDate();
       s = s + ' /CreationDate (' + when + ') /ModDate (' + when + ') >>\nendobj\n';
@@ -498,6 +502,10 @@ export class RawPdfWriter {
     }
     trailer = trailer + ' >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n';
     this.writeAscii(trailer);
+    if (this.missingChars.size > 0) {
+      console.warn('[Pdf] font missing glyphs=' + this.missingChars.size.toString() +
+        ', sample=' + this.missingSample());
+    }
     if (this.fd !== null) {
       fileIo.closeSync(this.fd);
       this.fd = null;
@@ -506,28 +514,72 @@ export class RawPdfWriter {
 
   /** 文本编码：嵌入字体时用 GID，回退时用 UTF-16BE */
   private textHex(s: string): string {
+    // 展示/导出按设置页简繁转换；缺字统计针对转换后的最终字形
+    const text: string = ScriptService.getInstance().toDisplay(s);
     if (this.font === null) {
-      return RawPdfWriter.utf16Hex(s);
+      return RawPdfWriter.utf16Hex(text);
     }
     let out: string = '';
-    for (let i: number = 0; i < s.length; i = i + 1) {
-      const code: number = s.charCodeAt(i);
+    let i: number = 0;
+    while (i < s.length) {
+      // 按 Unicode 码点遍历：CJK Ext-B 等非 BMP 字符是代理对，不能拆成两个码元查表
+      const code: number = s.codePointAt(i) ?? 0;
       const gid: number = this.font.gidOf(code);
       if (gid > 0) {
         this.usedGids.set(gid, code);
+      } else if (!RawPdfWriter.isBlankCode(code)) {
+        this.missingChars.add(code);
       }
       out = out + RawPdfWriter.hex4(gid);
+      i = i + (code > 0xffff ? 2 : 1);
     }
     return out;
   }
 
-  /** 文本转 UTF-16BE 十六进制（UniGB-UCS2-H 编码） */
-  private static utf16Hex(s: string): string {
+  /** 字体未覆盖的字符数 */
+  missingCount(): number {
+    return this.missingChars.size;
+  }
+
+  /** 缺字样例，形如 U+20BB7 U+9FEA，便于日志定位 */
+  missingSample(limit: number = 12): string {
+    const arr: number[] = [];
+    this.missingChars.forEach((c: number): void => {
+      if (arr.length < limit) {
+        arr.push(c);
+      }
+    });
     let out: string = '';
-    for (let i: number = 0; i < s.length; i = i + 1) {
-      out = out + RawPdfWriter.hex4(s.charCodeAt(i));
+    for (let i: number = 0; i < arr.length; i = i + 1) {
+      out = out + (i > 0 ? ' ' : '') + 'U+' + arr[i].toString(16).toUpperCase();
     }
     return out;
+  }
+
+  private static isBlankCode(code: number): boolean {
+    return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d ||
+      code === 0x00a0 || code === 0x3000;
+  }
+
+  /** 文本转 UTF-16BE 十六进制（UniGB-UCS2-H 编码，非 BMP 用代理对） */
+  private static utf16Hex(s: string): string {
+    let out: string = '';
+    let i: number = 0;
+    while (i < s.length) {
+      const code: number = s.codePointAt(i) ?? 0;
+      out = out + RawPdfWriter.utf16HexCodePoint(code);
+      i = i + (code > 0xffff ? 2 : 1);
+    }
+    return out;
+  }
+
+  /** 单个码点 → UTF-16BE 十六进制（ToUnicode 目标值） */
+  private static utf16HexCodePoint(code: number): string {
+    if (code <= 0xffff) {
+      return RawPdfWriter.hex4(code);
+    }
+    const v: number = code - 0x10000;
+    return RawPdfWriter.hex4(0xd800 + (v >> 10)) + RawPdfWriter.hex4(0xdc00 + (v & 0x3ff));
   }
 
   private static hex4(code: number): string {

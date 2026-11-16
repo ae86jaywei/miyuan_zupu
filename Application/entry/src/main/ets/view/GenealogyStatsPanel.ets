@@ -1,4 +1,5 @@
 import { Person } from '../model/Person';
+import { T } from '../service/ScriptService';
 import { GenealogyStats, GenerationStat } from '../model/Stats';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing } from '../theme/Theme';
@@ -11,6 +12,8 @@ import { Breakpoint } from '../common/Constants';
  */
 @Component
 export struct GenealogyStatsPanel {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop version: number = 0;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
 
@@ -66,7 +69,7 @@ export struct GenealogyStatsPanel {
   @Builder
   RatioRow(label: string, value: number, total: number, color: string) {
     Row() {
-      Text(label).fontSize(12).fontColor(Theme.inkSecondary).width(56)
+      Text(T(label)).fontSize(12).fontColor(Theme.inkSecondary).width(56)
       Stack({ alignContent: Alignment.Start }) {
         Row().width('100%').height(12).backgroundColor(Theme.field).borderRadius(6)
         Row()
@@ -92,10 +95,10 @@ export struct GenealogyStatsPanel {
   GenTable() {
     Column() {
       Row() {
-        Text('世代').fontSize(11).fontColor(Theme.inkTertiary).width(64)
-        Text('人数').fontSize(11).fontColor(Theme.inkTertiary).width(44)
-        Text('男/女').fontSize(11).fontColor(Theme.inkTertiary).width(64)
-        Text('在世/已故').fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+        Text(T('世代')).fontSize(11).fontColor(Theme.inkTertiary).width(64)
+        Text(T('人数')).fontSize(11).fontColor(Theme.inkTertiary).width(44)
+        Text(T('男/女')).fontSize(11).fontColor(Theme.inkTertiary).width(64)
+        Text(T('在世/已故')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
       }
       .width('100%')
       .padding({ bottom: 6 })

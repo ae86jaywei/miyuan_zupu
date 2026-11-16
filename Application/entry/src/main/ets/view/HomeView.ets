@@ -1,4 +1,5 @@
 import { Person } from '../model/Person';
+import { T } from '../service/ScriptService';
 import { Genealogy } from '../model/Genealogy';
 import { GenealogyStats, GenerationStat } from '../model/Stats';
 import { GenealogyService } from '../service/GenealogyService';
@@ -22,6 +23,8 @@ const WARN_BATCH: number = 200;
  */
 @Component
 export struct HomeView {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop @Watch('onVersionChange') version: number = 0;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
 
@@ -246,7 +249,7 @@ export struct HomeView {
     Column() {
       ForEach(this.recentView, (p: Person) => {
         Row() {
-          Text(p.name.substring(0, 1))
+          Text(T(p.name.substring(0, 1)))
             .fontSize(13)
             .fontColor(p.gender === '女' ? Theme.female : Theme.primary)
             .width(30)
@@ -255,7 +258,7 @@ export struct HomeView {
             .backgroundColor(Theme.field)
             .borderRadius(15)
           Column() {
-            Text(p.name + (p.generationChar.length > 0 ? '（' + p.generationChar + '字）' : ''))
+            Text(T(p.name + (p.generationChar.length > 0 ? '（' + p.generationChar + '字）' : '')))
               .fontSize(13.5)
               .fontColor(Theme.ink)
             Text(generationLabel(p.generation) + ' · ' + compactUid(p.uid))
@@ -296,7 +299,7 @@ export struct HomeView {
   BirthdayStrip() {
     Column() {
       Row() {
-        Text('🎂 本月寿辰').fontSize(14).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
+        Text(T('🎂 本月寿辰')).fontSize(14).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
         Blank()
         Text(this.birthdayView.length.toString() + ' 人')
           .fontSize(11)
@@ -305,7 +308,7 @@ export struct HomeView {
       .width('100%')
 
       if (this.birthdayView.length === 0) {
-        Text('本月暂无在世族人寿辰记录')
+        Text(T('本月暂无在世族人寿辰记录'))
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 8 })
@@ -316,7 +319,7 @@ export struct HomeView {
               .fontSize(11)
               .fontColor(Theme.primary)
               .width(40)
-            Text(b.name)
+            Text(T(b.name))
               .fontSize(13)
               .fontColor(Theme.ink)
               .layoutWeight(1)
@@ -349,7 +352,7 @@ export struct HomeView {
             .fontSize(13)
             .fontColor(Theme.lost)
           Blank()
-          Text('查看全部 ›')
+          Text(T('查看全部 ›'))
             .fontSize(11.5)
             .fontColor(Theme.primary)
         }
@@ -387,7 +390,7 @@ export struct HomeView {
     Column() {
       Row() {
         Column() {
-          Text('世系与ID校验提示').fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
+          Text(T('世系与ID校验提示')).fontSize(16).fontWeight(FontWeight.Medium).fontColor(Theme.ink)
           Text('共 ' + this.warnView.length.toString() + ' 条 · 点击任一条可查看该族人')
             .fontSize(11.5)
             .fontColor(Theme.inkTertiary)
@@ -395,7 +398,7 @@ export struct HomeView {
         }
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
-        Text('关闭')
+        Text(T('关闭'))
           .fontSize(13)
           .fontColor(Theme.primary)
           .padding({ left: 10, top: 4, bottom: 4 })
@@ -428,7 +431,7 @@ export struct HomeView {
               .alignItems(HorizontalAlign.Start)
               .layoutWeight(1)
               if (w[1].length > 0) {
-                Text('详情 ›')
+                Text(T('详情 ›'))
                   .fontSize(11.5)
                   .fontColor(Theme.primary)
                   .margin({ left: 8 })

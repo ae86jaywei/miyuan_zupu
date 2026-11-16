@@ -7,6 +7,8 @@ import { GenealogyScope } from '../model/Scope';
 import { AccountService } from '../service/AccountService';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { DisplayService } from '../service/DisplayService';
+import { PdfFontUtil } from '../service/PdfFontUtil';
+import { ScriptService } from '../service/ScriptService';
 import { Theme } from '../theme/Theme';
 import { resourceManager } from '@kit.LocalizationKit';
 
@@ -23,6 +25,10 @@ export default class EntryAbility extends UIAbility {
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 屏幕方向偏好：读取用户设置并广播到 AppStorage（电脑/折叠屏固定跟随系统）
     DisplayService.getInstance().init(this.context);
+    // 注入 context：PDF 导出首次排版时读取 rawfile 内置大字库（简繁 + 生僻字）
+    PdfFontUtil.init(this.context);
+    // 简繁文字：加载 OpenCC 词典并恢复用户偏好（AppStorage.gpScript）
+    ScriptService.getInstance().init(this.context);
     // 跟随系统深浅色（应用已适配深色主题，见 theme/Theme.ets）
     try {
       this.context.getApplicationContext().setColorMode(ConfigurationConstant.ColorMode.COLOR_MODE_NOT_SET);

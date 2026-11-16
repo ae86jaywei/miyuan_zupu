@@ -1,4 +1,5 @@
 import { common } from '@kit.AbilityKit';
+import { T } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
@@ -32,6 +33,8 @@ const ALLOW_JOIN: boolean = true;
 @Entry
 @Component
 struct FamilyHome {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   @StorageProp('windowWidth') windowWidth: number = 360;
   @StorageProp('gpLogin') loggedIn: boolean = false;
@@ -141,7 +144,7 @@ struct FamilyHome {
     if (!queryFailed && cloudCount === 0) {
       this.getUIContext().showAlertDialog({
         title: '当前族谱尚未备份',
-        message: '分享内容读取自云端，当前族谱还没有备份，接收方将看不到任何族人。是否先备份再分享？',
+        message: T('分享内容读取自云端，当前族谱还没有备份，接收方将看不到任何族人。是否先备份再分享？'),
         primaryButton: {
           value: '取消',
           action: (): void => {
@@ -287,9 +290,9 @@ struct FamilyHome {
     const title: string = GenealogyService.getInstance().getBook().title;
     ui.showAlertDialog({
       title: '是否让族人通过搜索找到这部谱？',
-      message: '开启后，其他人可以在「族谱黄页」按谱名/姓氏/地域搜到《' + title +
+      message: T('开启后，其他人可以在「族谱黄页」按谱名/姓氏/地域搜到《' + title +
         '》的索引信息（谱名、姓氏、地域、人数区间），但看不到任何人物数据；' +
-        '想查看仍需你审核通过。默认关闭，之后可在「族谱黄页」随时开关。',
+        '想查看仍需你审核通过。默认关闭，之后可在「族谱黄页」随时开关。'),
       primaryButton: {
         value: '暂不开放',
         action: (): void => {
@@ -513,19 +516,19 @@ struct FamilyHome {
   CloudGate() {
     Column() {
       Text('☁️').fontSize(40)
-      Text('本谱只存在于本机')
+      Text(T('本谱只存在于本机'))
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.ink)
         .margin({ top: Spacing.M })
-      Text('接入云家族后，可邀请亲戚共同补录：谱主审核后合入，所有变更都有审计流水。')
+      Text(T('接入云家族后，可邀请亲戚共同补录：谱主审核后合入，所有变更都有审计流水。'))
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .textAlign(TextAlign.Center)
         .margin({ top: 6 })
         .lineHeight(18)
       if (!this.loggedIn) {
-        Button('登录华为账号')
+        Button(T('登录华为账号'))
           .fontSize(14)
           .height(38)
           .backgroundColor(Theme.primary)
@@ -555,12 +558,12 @@ struct FamilyHome {
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text('接入后本谱会归属于你（谱主），由你决定谁能看、谁能改。')
+      Text(T('接入后本谱会归属于你（谱主），由你决定谁能看、谁能改。'))
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3, bottom: Spacing.S })
         .width('100%')
-      TextInput({ text: this.createTitle, placeholder: '云家族名称（一般就用谱名）' })
+      TextInput({ text: this.createTitle, placeholder: T('云家族名称（一般就用谱名）') })
         .height(40)
         .fontSize(14)
         .backgroundColor(Theme.field)
@@ -590,17 +593,17 @@ struct FamilyHome {
   @Builder
   JoinBlock() {
     Column() {
-      Text('用加入码加入别人的族谱')
+      Text(T('用加入码加入别人的族谱'))
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text('加入码由谱主生成（例如 A1B2C3D4），加入后你只能看到被授权的这一部谱。')
+      Text(T('加入码由谱主生成（例如 A1B2C3D4），加入后你只能看到被授权的这一部谱。'))
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3, bottom: Spacing.S })
         .width('100%')
       Row() {
-        TextInput({ text: this.inviteInput, placeholder: '输入加入码' })
+        TextInput({ text: this.inviteInput, placeholder: T('输入加入码') })
           .height(40)
           .fontSize(14)
           .layoutWeight(1)
@@ -609,7 +612,7 @@ struct FamilyHome {
           .onChange((v: string): void => {
             this.inviteInput = v;
           })
-        Button('加入')
+        Button(T('加入'))
           .fontSize(14)
           .height(40)
           .margin({ left: Spacing.S })
@@ -621,7 +624,7 @@ struct FamilyHome {
           })
       }
       .width('100%')
-      Button('在族谱黄页里找谱 →')
+      Button(T('在族谱黄页里找谱 →'))
         .fontSize(12.5)
         .height(34)
         .width('100%')
@@ -644,7 +647,7 @@ struct FamilyHome {
   CloudBlock() {
     Column() {
       Row() {
-        Text('已接入云家族')
+        Text(T('已接入云家族'))
           .fontSize(14)
           .fontColor(Theme.alive)
         Blank()
@@ -671,7 +674,7 @@ struct FamilyHome {
         .width('100%')
 
       if (this.syncMode === SyncMode.CLOUD_PENDING) {
-        Text('本谱尚未发布到云端：先把当前本地全量族人上传，之后才能增量同步。')
+        Text(T('本谱尚未发布到云端：先把当前本地全量族人上传，之后才能增量同步。'))
           .fontSize(11)
           .fontColor(Theme.danger)
           .margin({ top: 8 })
@@ -689,7 +692,7 @@ struct FamilyHome {
           })
       } else {
         Row() {
-          Button('立即同步')
+          Button(T('立即同步'))
             .fontSize(13)
             .height(36)
             .layoutWeight(1)
@@ -699,7 +702,7 @@ struct FamilyHome {
             .onClick((): void => {
               this.doSync();
             })
-          Button('重新全量拉取')
+          Button(T('重新全量拉取'))
             .fontSize(13)
             .height(36)
             .layoutWeight(1)
@@ -727,8 +730,8 @@ struct FamilyHome {
     Row() {
       Text(icon).fontSize(18).width(28)
       Column() {
-        Text(title).fontSize(14).fontColor(Theme.ink)
-        Text(subtitle)
+        Text(T(title)).fontSize(14).fontColor(Theme.ink)
+        Text(T(subtitle))
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
@@ -796,7 +799,7 @@ struct FamilyHome {
   @Builder
   ShareBlock() {
     Column() {
-      Text('分享 / 邀请加入')
+      Text(T('分享 / 邀请加入'))
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
@@ -808,7 +811,7 @@ struct FamilyHome {
         .margin({ top: 3, bottom: Spacing.S })
         .width('100%')
         .maxLines(3)
-      Button('分享 / 邀请加入')
+      Button(T('分享 / 邀请加入'))
         .fontSize(14)
         .height(38)
         .width('100%')
@@ -845,7 +848,7 @@ struct FamilyHome {
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Text('删除')
+          Text(T('删除'))
             .fontSize(11.5)
             .fontColor(Theme.lost)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -856,7 +859,7 @@ struct FamilyHome {
               this.confirmDeleteFamily(f);
             })
           if (f.localBookId === 0 && ALLOW_JOIN) {
-            Text('导入本机')
+            Text(T('导入本机'))
               .fontSize(11.5)
               .fontColor(Theme.primary)
               .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -999,7 +1002,7 @@ struct FamilyHome {
           }
 
           Column() {
-            Text('可见性规则')
+            Text(T('可见性规则'))
               .fontSize(12)
               .fontWeight(FontWeight.Medium)
               .fontColor(Theme.ink)

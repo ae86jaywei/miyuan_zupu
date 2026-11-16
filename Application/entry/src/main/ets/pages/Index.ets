@@ -1,4 +1,5 @@
 import { uiMaterial } from '@kit.ArkUI';
+import { T } from '../service/ScriptService';
 import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -64,6 +65,8 @@ struct Index {
   @StorageProp('pagedMode') pagedMode: boolean = false;
   @StorageProp('windowHeight') windowHeight: number = 780;
   @StorageProp('gpVersion') version: number = 0;
+  /** 订阅简繁设置：切换后整页重绘（T() 是普通函数，需状态依赖触发刷新） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('gpReady') ready: boolean = false;
   @StorageProp('gpHasBook') hasBook: boolean = true;
   @StorageProp('gpBookId') bookId: number = 0;
@@ -291,7 +294,7 @@ struct Index {
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'bootstrap failed %{public}s', err.message);
-      this.getUIContext().getPromptAction().showToast({ message: '数据初始化失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('数据初始化失败：') + err.message });
     }
   }
 
@@ -361,7 +364,7 @@ struct Index {
       Scroll() {
         Column() {
           Row() {
-            Text('谱').fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
+            Text(T('谱')).fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
           }
           .width(this.navCompact() ? 32 : (collapsed ? 36 : '100%'))
           .height(this.navCompact() ? 32 : 40)
@@ -507,7 +510,7 @@ struct Index {
     Column() {
       // 多族谱切换入口：显示当前族谱，点击可切换或新建
       Row() {
-        Text('谱')
+        Text(T('谱'))
           .fontSize(9)
           .fontColor('#FFFFFF')
           .width(16)
@@ -527,7 +530,7 @@ struct Index {
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 6 })
-        Text('切换 ⌄')
+        Text(T('切换 ⌄'))
           .fontSize(11)
           .fontColor(Theme.primary)
           .padding({ left: 7, right: 7, top: 3, bottom: 3 })
@@ -570,7 +573,7 @@ struct Index {
         Row() {
           // 横屏手机可用高度小：这一行提示让位给树画布，只保留操作按钮
           if (this.styleName !== TreeStyle.DIE && this.windowHeight >= 560) {
-            Text('📐 双指缩放 · 拖动平移 · 点击人物查看详情')
+            Text(T('📐 双指缩放 · 拖动平移 · 点击人物查看详情'))
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .maxLines(1)
@@ -579,7 +582,7 @@ struct Index {
           }
           // 详情收起后给出恢复入口，避免用户找不到右侧卡片
           if (this.isTriplePane() && this.treeDetailCollapsed) {
-            Text('详情 ›')
+            Text(T('详情 ›'))
               .fontSize(12)
               .fontColor(Theme.primary)
               .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -590,7 +593,7 @@ struct Index {
                 this.treeDetailCollapsed = false;
               })
           }
-          Text('新增族人')
+          Text(T('新增族人'))
             .fontSize(12)
             .fontColor(Theme.primary)
             .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -672,7 +675,7 @@ struct Index {
       })
       // 三栏时允许收起详情，树区可占满整行宽度
       if (this.isTriplePane() && !this.treeDetailCollapsed) {
-        Text('收起 ›')
+        Text(T('收起 ›'))
           .fontSize(11)
           .fontColor(Theme.primary)
           .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -720,10 +723,10 @@ struct Index {
       // 创建后直接进入族谱信息编辑态
       AppStorage.setOrCreate<boolean>(GenealogyStore.KEY_EDITING_BOOK, true);
       AppStorage.setOrCreate<number>('gpTab', 4);
-      this.getUIContext().getPromptAction().showToast({ message: '已创建族谱，请填写族谱信息' });
+      this.getUIContext().getPromptAction().showToast({ message: T('已创建族谱，请填写族谱信息') });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '创建族谱失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('创建族谱失败：') + err.message });
     }
   }
 
@@ -748,11 +751,11 @@ struct Index {
       AppStorage.setOrCreate<string>('gpSelection', '');
       this.showDetailSheet = false;
       this.getUIContext().getPromptAction().showToast({
-        message: '已切换到《' + GenealogyService.getInstance().getBook().title + '》'
+        message: T('已切换到《') + GenealogyService.getInstance().getBook().title + '》'
       });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: '切换族谱失败：' + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: T('切换族谱失败：') + err.message });
     }
   }
 
@@ -764,8 +767,8 @@ struct Index {
     }
     this.getUIContext().showAlertDialog({
       title: '创建分支',
-      message: '将以「' + p.name + '（' + p.uid + '）」为第一世（始祖）另立分支族谱，'
-        + '并复制其配偶与全部后代。分支数据独立，原族谱不受影响。确认创建？',
+      message: T('将以「' + p.name + '（' + p.uid + '）」为第一世（始祖）另立分支族谱，'
+        + '并复制其配偶与全部后代。分支数据独立，原族谱不受影响。确认创建？'),
       primaryButton: {
         value: '取消',
         action: (): void => {
@@ -781,11 +784,11 @@ struct Index {
               this.showDetailSheet = false;
               this.showBookPicker = false;
               this.getUIContext().getPromptAction().showToast({
-                message: '已创建分支《' + book.title + '》，可继续录入族人'
+                message: T('已创建分支《') + book.title + '》，可继续录入族人'
               });
             })
             .catch((err: BusinessError): void => {
-              this.getUIContext().getPromptAction().showToast({ message: '创建分支失败：' + err.message });
+              this.getUIContext().getPromptAction().showToast({ message: T('创建分支失败：') + err.message });
             });
         }
       }
@@ -833,7 +836,7 @@ struct Index {
           .onClick((): void => {
             this.createGenealogy();
           })
-        Text('新增族谱')
+        Text(T('新增族谱'))
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -841,7 +844,7 @@ struct Index {
           .onClick((): void => {
             this.createGenealogy();
           })
-        Text('当前没有族谱，点击上方 + 号新建一部族谱')
+        Text(T('当前没有族谱，点击上方 + 号新建一部族谱'))
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 6 })
@@ -863,7 +866,7 @@ struct Index {
   NoBookGuide() {
     Column() {
       Text('📜').fontSize(46).opacity(0.65)
-      Text('尚未创建族谱')
+      Text(T('尚未创建族谱'))
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.ink)
@@ -874,7 +877,7 @@ struct Index {
         .margin({ top: 8 })
         .textAlign(TextAlign.Center)
         .padding({ left: Spacing.XL, right: Spacing.XL })
-      Button('前往「谱系」新增族谱')
+      Button(T('前往「谱系」新增族谱'))
         .fontSize(14)
         .height(38)
         .backgroundColor(Theme.primary)
@@ -904,12 +907,12 @@ struct Index {
 
       Column() {
         Row() {
-          Text('切换族谱')
+          Text(T('切换族谱'))
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
           Blank()
-          Text('＋ 新建族谱')
+          Text(T('＋ 新建族谱'))
             .fontSize(12)
             .fontColor(Theme.primary)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -946,7 +949,7 @@ struct Index {
                 .layoutWeight(1)
 
                 if (book.key === this.bookId) {
-                  Text('当前')
+                  Text(T('当前'))
                     .fontSize(11)
                     .fontColor(Theme.primary)
                     .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -967,7 +970,7 @@ struct Index {
         .constraintSize({ maxHeight: 380 })
         .scrollBar(BarState.Off)
 
-        Button('关闭')
+        Button(T('关闭'))
           .fontSize(14)
           .height(38)
           .width('100%')
@@ -993,7 +996,7 @@ struct Index {
     if (!this.localReady && !this.ready) {
       Column() {
         LoadingProgress().width(40).height(40).color(Theme.primary)
-        Text('正在展开族谱…').fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
+        Text(T('正在展开族谱…')).fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
       }
       .width('100%')
       .height('100%')
@@ -1261,12 +1264,12 @@ struct Index {
       Column() {
         // 顶部品牌栏（大屏显示完整标题，小屏显示精简标题）
         Row() {
-          Text(this.hasBook ? (this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱') : '尚未创建族谱')
+          Text(this.hasBook ? (this.bookTitle.length > 0 ? T(this.bookTitle) : T('未命名族谱')) : T('尚未创建族谱'))
             .fontSize(15)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
           if (this.hasBook && GenealogyService.getInstance().getBook().hallName.length > 0) {
-            Text('· ' + GenealogyService.getInstance().getBook().hallName)
+            Text(T('· ' + GenealogyService.getInstance().getBook().hallName))
               .fontSize(12)
               .fontColor(Theme.gold)
               .margin({ left: 6 })
@@ -1458,6 +1461,7 @@ struct Index {
       .clip(true)
       .shadow({ radius: 16, color: Theme.shadow, offsetY: 2 })
     }
+    .id('gp_script_' + this.script)
     .width('100%')
     .height('100%')
   }

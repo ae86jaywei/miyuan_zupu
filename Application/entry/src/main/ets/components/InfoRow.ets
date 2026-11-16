@@ -1,8 +1,11 @@
 import { Theme } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 
 /** 详情页“标签：值”行 */
 @Component
 export struct InfoRow {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop label: string;
   @Prop value: string;
   @Prop valueColor: string = Theme.ink;
@@ -11,13 +14,13 @@ export struct InfoRow {
 
   build() {
     Row() {
-      Text(this.label)
+      Text(T(this.label))
         .fontSize(12.5)
         .fontColor(Theme.inkTertiary)
         .width(this.labelWidth)
         .flexShrink(0)
       if (this.privacy) {
-        Text('私')
+        Text(T('私'))
           .fontSize(9)
           .fontColor(Theme.danger)
           .backgroundColor('#FCEDEA')
@@ -25,7 +28,7 @@ export struct InfoRow {
           .padding({ left: 3, right: 3, top: 1, bottom: 1 })
           .margin({ right: 4 })
       }
-      Text(this.value)
+      Text(T(this.value))
         .fontSize(13.5)
         .fontColor(this.valueColor)
         .layoutWeight(1)

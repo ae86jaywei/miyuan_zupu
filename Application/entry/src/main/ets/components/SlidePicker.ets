@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 
 /**
  * 上下滑动选择弹层（自定义实现，替代 TextPicker）。
@@ -11,6 +12,8 @@ import { Theme, Spacing } from '../theme/Theme';
  */
 @Component
 export struct SlidePicker {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop title: string = '';
   @Prop options: string[] = [];
   /** 当前选中下标 */
@@ -50,7 +53,7 @@ export struct SlidePicker {
     Column() {
       // 顶部操作栏
       Row() {
-        Text('取消')
+        Text(T('取消'))
           .fontSize(15)
           .fontColor(Theme.inkTertiary)
           .layoutWeight(1)
@@ -65,7 +68,7 @@ export struct SlidePicker {
           .fontColor(Theme.ink)
           .layoutWeight(2)
           .textAlign(TextAlign.Center)
-        Text('确定')
+        Text(T('确定'))
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.primary)

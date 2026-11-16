@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { T } from '../service/ScriptService';
 import { TS } from '../components/TS';
 import { AccountService } from '../service/AccountService';
 import { RouterUtil } from '../util/RouterUtil';
@@ -10,6 +11,8 @@ import { RouterUtil } from '../util/RouterUtil';
  */
 @Component
 export struct AccountCard {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') darkMode: boolean = false;
   @StorageProp('gpLogin') loggedIn: boolean = false;
   @StorageProp('gpUserId') userId: string = '';
@@ -30,7 +33,7 @@ export struct AccountCard {
   private async doLogout(): Promise<void> {
     this.getUIContext().showAlertDialog({
       title: '退出登录',
-      message: '退出后本地族谱仍保留，云端数据不会删除，可随时重新登录。',
+      message: T('退出后本地族谱仍保留，云端数据不会删除，可随时重新登录。'),
       primaryButton: {
         value: '取消',
         action: () => {
@@ -78,7 +81,7 @@ export struct AccountCard {
 
         Row() {
           if (!this.loggedIn) {
-            Button('华为账号登录')
+            Button(T('华为账号登录'))
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.primary)
@@ -89,7 +92,7 @@ export struct AccountCard {
                 RouterUtil.login(this.getUIContext());
               })
           } else {
-            Button('退出登录')
+            Button(T('退出登录'))
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.field)

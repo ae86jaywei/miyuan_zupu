@@ -1,4 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
+import { T } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
@@ -20,6 +21,8 @@ import { Genealogy } from '../model/Genealogy';
 @Entry
 @Component
 struct ChangeReview {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
   @StorageProp('gpFamilyRole') role: string = '';
 
@@ -179,13 +182,13 @@ struct ChangeReview {
           this.DiffLine(entry[0], entry[1])
         }, (entry: [string, FieldChange]) => 'diff_' + r.requestId + '_' + entry[0])
         if (r.op === 'DELETE_REQ') {
-          Text('该申请会删除此人（云端保留墓碑，可追溯是谁在何时删除）。')
+          Text(T('该申请会删除此人（云端保留墓碑，可追溯是谁在何时删除）。'))
             .fontSize(11.5)
             .fontColor(Theme.danger)
             .width('100%')
         }
         if (this.role === Role.OWNER) {
-          TextInput({ text: this.noteText, placeholder: '审批备注（退回时建议说明原因）' })
+          TextInput({ text: this.noteText, placeholder: T('审批备注（退回时建议说明原因）') })
             .height(34)
             .fontSize(12.5)
             .backgroundColor(Theme.field)
@@ -195,7 +198,7 @@ struct ChangeReview {
               this.noteText = v;
             })
           Row() {
-            Button('退回')
+            Button(T('退回'))
               .fontSize(13)
               .height(34)
               .layoutWeight(1)
@@ -205,7 +208,7 @@ struct ChangeReview {
               .onClick((): void => {
                 this.review(r, false);
               })
-            Button('通过并合入')
+            Button(T('通过并合入'))
               .fontSize(13)
               .height(34)
               .layoutWeight(1)
@@ -252,7 +255,7 @@ struct ChangeReview {
       Scroll() {
         Column() {
           if (this.familyId.length === 0) {
-            Text('本谱尚未接入云家族，没有云端变更')
+            Text(T('本谱尚未接入云家族，没有云端变更'))
               .fontSize(13)
               .fontColor(Theme.inkSecondary)
               .margin({ top: Spacing.XL })

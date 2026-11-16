@@ -1,4 +1,5 @@
 import { Person } from '../model/Person';
+import { T } from '../service/ScriptService';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { PersonAvatar } from '../components/PersonAvatar';
@@ -15,6 +16,8 @@ import { TreePerf } from '../util/TreePerf';
  */
 @Component
 export struct CatalogView {
+  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  @StorageProp('gpScript') script: string = 'hans';
   @Prop @Watch('onFiltersChanged') version: number = 0;
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
 
@@ -114,14 +117,14 @@ export struct CatalogView {
   FilterBar() {
     Column() {
       Row() {
-        Search({ value: $$this.keyword, placeholder: '搜索谱名 / 曾用名 / 唯一ID / 职业' })
+        Search({ value: $$this.keyword, placeholder: T('搜索谱名 / 曾用名 / 唯一ID / 职业') })
           .layoutWeight(1)
           .height(36)
           .backgroundColor(Theme.field)
           .placeholderColor(Theme.inkTertiary)
           .textFont({ size: 13 })
 
-        Text('＋ 新增')
+        Text(T('＋ 新增'))
           .fontSize(13)
           .fontColor('#FFFFFF')
           .backgroundColor(Theme.primary)
@@ -172,7 +175,7 @@ export struct CatalogView {
 
   @Builder
   FilterChip(label: string, active: boolean, action: () => void) {
-    Text(label)
+    Text(T(label))
       .fontSize(12)
       .fontColor(active ? '#FFFFFF' : Theme.inkSecondary)
       .backgroundColor(active ? Theme.primary : Theme.field)
@@ -190,7 +193,7 @@ export struct CatalogView {
       PersonAvatar({ person: p, avatarSize: this.isWide() ? 40 : 38, showRing: false })
       Column() {
         Row() {
-          Text(p.name)
+          Text(T(p.name))
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(p.gender === '女' ? Theme.female : Theme.ink)
@@ -201,7 +204,7 @@ export struct CatalogView {
               .margin({ left: 4 })
           }
           if (p.lifeStatus === '已故') {
-            Text('已故').fontSize(9).fontColor(Theme.deceased).margin({ left: 4 })
+            Text(T('已故')).fontSize(9).fontColor(Theme.deceased).margin({ left: 4 })
           }
         }
         Row() {
@@ -252,7 +255,7 @@ export struct CatalogView {
         Blank()
         if (this.keyword.length > 0 || this.filterGen > 0 || this.filterGender.length > 0
           || this.filterStatus.length > 0) {
-          Text('清除筛选')
+          Text(T('清除筛选'))
             .fontSize(12)
             .fontColor(Theme.primary)
             .onClick((): void => {
