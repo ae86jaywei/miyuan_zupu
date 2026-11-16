@@ -418,7 +418,31 @@ export class RawPdfFont {
     const hmtxLen: number = this.findTableLen('hmtx');
     const hhea: Uint8Array = this.bytes.subarray(this.hheaOffset, this.hheaOffset + hheaLen);
     const maxp: Uint8Array = this.bytes.subarray(this.maxpOffset, this.maxpOffset + maxpLen);
-    const hmtx: Uint8Array = this.bytes.subarray(this.hmtxOffset, this.hmtxOffset + hmtxLen);
+    // 未使用 GID 的 hmtx 条目清零：PDF 排版只按 /W 计算字宽，字体内部宽度对未引用字形无意义；
+    // 连续 0 便于 FlateDecode 把 100KB+ 的 hmtx 空槽位压到几 KB。
+    // hmtx 布局：numberOfHMetrics 条 (advanceWidth, lsb)，其余为纯 lsb 数组。
+    const hmtx: Uint8Array = new Uint8Array(hmtxLen);
+    hmtx.set(this.bytes.subarray(this.hmtxOffset, this.hmtxOffset + hmtxLen));
+    const fullHmtx: boolean = this.numberOfHMetrics > 0 &&
+      hmtxLen >= this.numberOfHMetrics * 4 + (this.numGlyphs - this.numberOfHMetrics) * 2;
+    if (fullHmtx) {
+      for (let g: number = 0; g < this.numGlyphs; g = g + 1) {
+        if (keep.has(g)) {
+          continue;
+        }
+        if (g < this.numberOfHMetrics) {
+          const off: number = g * 4;
+          hmtx[off] = 0;
+          hmtx[off + 1] = 0;
+          hmtx[off + 2] = 0;
+          hmtx[off + 3] = 0;
+        } else {
+          const off: number = this.numberOfHMetrics * 4 + (g - this.numberOfHMetrics) * 2;
+          hmtx[off] = 0;
+          hmtx[off + 1] = 0;
+        }
+      }
+    }
 
     // 表按 tag 升序排列（OpenType 规范推荐，严格校验器按序检查表目录）
     const tables: SubsetTable[] = [
