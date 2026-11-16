@@ -136,9 +136,10 @@ function lineHOf(font: number): number {
   return Math.round(font * 1.75 * 10) / 10;
 }
 
-/** 牒记版括号：中文圆括号（ ）→ 竖排方括号 ﹇﹈（U+FE47 / U+FE48） */
+/** 牒记版标点：圆括号（ ）→ ﹇﹈；书名号《》→ 『』 */
 function replaceParens(text: string): string {
-  return text.split('（').join('﹇').split('）').join('﹈');
+  return text.split('（').join('﹇').split('）').join('﹈')
+    .split('《').join('『').split('》').join('』');
 }
 
 function spacerLine(): TextLine {
@@ -738,6 +739,137 @@ function buildBack(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy,
 interface PageSpec {
   lines: TextLine[];
   chapter: string;
+  /** 页内分栏：0/1/2；缺省 0（整页一栏） */
+  column?: number;
+  /** 单栏宽度（pt）；缺省用整页版心宽 */
+  columnW?: number;
+  /** 页号（1 起，含前置页偏移）；exportRawTextPdf 统一分配 */
+  pageNo?: number;
+}
+
+/** 正文每页栏数（三段）与栏间距 */
+const COLUMNS: number = 3;
+const COLUMN_GAP: number = 14;
+
+/**
+ * 现代版三栏分页：每页三栏，每栏独立排满版心高后换下一栏，三栏满再换页。
+ * 条目仍按家庭单元整体换栏，夫妻不会被拆开。
+ */
+async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
+  contentW: number, contentH: number): Promise<PaginateResult> {
+  const columnW: number = (contentW - COLUMN_GAP * (COLUMNS - 1)) / COLUMNS;
+  const pages: PageSpec[] = [];
+  const uidPage: Map<string, number> = new Map<string, number>();
+  let cur: TextLine[] = [];
+  let used: number = 0;
+  let column: number = 0;
+  const keepHead: number = 36;
+  const blockHeight = (lines: TextLine[]): number => {
+    let h: number = 0;
+    for (let j: number = 0; j < lines.length; j++) {
+      h += lines[j].lineH;
+    }
+    return h;
+  };
+  let i: number = 0;
+  let processed: number = 0;
+  let nextYield: number = 200;
+  while (i < entries.length) {
+    const unitId: string = entries[i].unitId;
+    let groupEnd: number = i + 1;
+    let groupH: number = blockHeight(entries[i].lines);
+    if (unitId.length > 0) {
+      while (groupEnd < entries.length && entries[groupEnd].unitId === unitId) {
+        groupH += blockHeight(entries[groupEnd].lines);
+        groupEnd++;
+      }
+    } else if (entries[i].uid.length === 0 && groupEnd < entries.length
+      && entries[groupEnd].unitId.length > 0) {
+      const nextUnit: string = entries[groupEnd].unitId;
+      while (groupEnd < entries.length && entries[groupEnd].unitId === nextUnit) {
+        groupH += blockHeight(entries[groupEnd].lines);
+        groupEnd++;
+      }
+    }
+    const need: number = (used === 0 ? keepHead : 8) + groupH;
+    if (used + need > contentH && cur.length > 0) {
+      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+      cur = [];
+      used = 0;
+      column = (column + 1) % COLUMNS;
+    }
+    for (let k: number = i; k < groupEnd; k++) {
+      if (entries[k].uid.length > 0) {
+        uidPage.set(entries[k].uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
+      }
+      pushAll(cur, entries[k].lines);
+      used += blockHeight(entries[k].lines);
+    }
+    processed += groupEnd - i;
+    i = groupEnd;
+    if (processed >= nextYield) {
+      nextYield += 200;
+      await yieldToUi();
+    }
+  }
+  if (cur.length > 0) {
+    pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+  }
+  return { pages: pages, uidPage: uidPage };
+}
+
+/** 仿古版三栏分页：每栏从右往左排满后换下一栏，三栏满再换页 */
+async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset: number,
+  contentW: number, contentH: number): Promise<PaginateResult> {
+  const columnW: number = (contentW - COLUMN_GAP * (COLUMNS - 1)) / COLUMNS;
+  const pages: PageSpec[] = [];
+  const uidPage: Map<string, number> = new Map<string, number>();
+  let cur: TextLine[] = [];
+  let usedW: number = 0;
+  let column: number = 0;
+  let processed: number = 0;
+  let nextYield: number = 200;
+  for (let i: number = 0; i < entries.length; i = i + 1) {
+    const e: EntryBlock = entries[i];
+    if (e.uid.length > 0) {
+      let firstNeed: number = 0;
+      for (let f: number = 0; f < e.lines.length; f = f + 1) {
+        if (e.lines[f].text.trim().length > 0) {
+          firstNeed = classicCols(e.lines[f].text, contentH, e.lines[f].font) *
+            classicColW(e.lines[f].font);
+          break;
+        }
+      }
+      if (usedW + firstNeed > columnW && cur.length > 0) {
+        pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+        cur = [];
+        usedW = 0;
+        column = (column + 1) % COLUMNS;
+      }
+      uidPage.set(e.uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
+    }
+    for (let j: number = 0; j < e.lines.length; j = j + 1) {
+      const ln: TextLine = e.lines[j];
+      const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
+      if (usedW + needW > columnW && cur.length > 0) {
+        pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+        cur = [];
+        usedW = 0;
+        column = (column + 1) % COLUMNS;
+      }
+      cur.push(ln);
+      usedW = usedW + needW;
+    }
+    processed = processed + 1;
+    if (processed >= nextYield) {
+      nextYield = nextYield + 200;
+      await yieldToUi();
+    }
+  }
+  if (cur.length > 0) {
+    pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+  }
+  return { pages: pages, uidPage: uidPage };
 }
 
 /**
@@ -1355,8 +1487,8 @@ export class PdfExportService {
       const entries: EntryBlock[] =
         await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW);
       const pg: PaginateResult = classicLayout
-        ? await paginateEntriesVertical(entries, offset, contentW, contentH)
-        : await paginateEntries(entries, offset, contentH);
+        ? await paginateEntriesVerticalColumns(entries, offset, contentW, contentH)
+        : await paginateEntriesColumns(entries, offset, contentW, contentH);
       const multi: boolean = jobs.length > 1;
       pg.uidPage.forEach((pageNo: number, uid: string): void => {
         out.set(uid, multi
@@ -1407,8 +1539,8 @@ export class PdfExportService {
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW);
     const firstPass: PaginateResult = classic
-      ? await paginateEntriesVertical(entries1, offset, contentW, contentH)
-      : await paginateEntries(entries1, offset, contentH);
+      ? await paginateEntriesVerticalColumns(entries1, offset, contentW, contentH)
+      : await paginateEntriesColumns(entries1, offset, contentW, contentH);
     const uidPageMap: Map<string, number> = firstPass.uidPage;
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     const heights: Map<string, number> = new Map<string, number>();
@@ -1432,8 +1564,8 @@ export class PdfExportService {
       }
     }
     let genealogyPages: PageSpec[] = classic
-      ? (await paginateEntriesVertical(entries2, offset, contentW, contentH)).pages
-      : (await paginateEntries(entries2, offset, contentH)).pages;
+      ? (await paginateEntriesVerticalColumns(entries2, offset, contentW, contentH)).pages
+      : (await paginateEntriesColumns(entries2, offset, contentW, contentH)).pages;
     gCrossRef = null;
     const backPages: PageSpec[] = classic
       ? paginateLinesVertical(buildBack(ctx, book, contentW), '家 训', contentW, contentH)
@@ -1445,8 +1577,16 @@ export class PdfExportService {
     pushAllPages(all, backPages);
     entries2 = [];
     genealogyPages = [];
-    const total: number = all.length;
-    if (total === 0) {
+    // 正文按栏存放：column=0 表示新页；封面/谱序/家训一栏一页
+    let pageNo: number = 0;
+    for (let i: number = 0; i < all.length; i = i + 1) {
+      if ((all[i].column ?? 0) === 0) {
+        pageNo = pageNo + 1;
+      }
+      all[i].pageNo = pageNo;
+    }
+    const total: number = pageNo;
+    if (all.length === 0 || total === 0) {
       throw new Error('排版结果为空');
     }
 
@@ -1469,18 +1609,20 @@ export class PdfExportService {
       PrintPageSpec.mmToPt(printSpec.trimW), PrintPageSpec.mmToPt(printSpec.trimH),
       0, 0, rawFont, info);
     const gutterW: number = PrintPageSpec.mmToPt(printSpec.gutter);
-    for (let i: number = 0; i < total; i = i + 1) {
-      // 双面印刷按「卷内页序」交替装订侧：每卷单独装订，不按整谱页码判断
-      const recto: boolean = ((i + 1) % 2) === 1;
+    for (let i: number = 0; i < all.length; i = i + 1) {
+      const spec: PageSpec = all[i];
+      // 双面印刷按「卷内页序」交替装订侧：每页的栏目共用同一装订侧
+      const recto: boolean = ((spec.pageNo ?? (i + 1)) % 2) === 1;
       const isCoverPage: boolean = i < coverPages.length;
       const lines: PdfTextLine[] = classic
-        ? PdfExportService.buildVerticalTextLines(ctx, printSpec, all[i], i + 1, total, recto,
-          isCoverPage)
-        : PdfExportService.buildRawTextLines(ctx, printSpec, all[i], i + 1, total, isCoverPage, recto);
-      writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length),
+        ? PdfExportService.buildVerticalTextLines(ctx, printSpec, spec, total, recto, isCoverPage)
+        : PdfExportService.buildRawTextLines(ctx, printSpec, spec, total, isCoverPage, recto);
+      const title: string = (spec.column ?? 0) === 0
+        ? PdfExportService.rawBookmark(spec, i, coverPages.length) : '';
+      writer.addTextLinePage(lines, title,
         PrintPageSpec.mmToPt(printSpec.gutterX(recto)), gutterW);
-      if (onProgress && (i % 5 === 0 || i === total - 1)) {
-        onProgress({ current: i + 1, total: total, message: T('排版第 ') + (i + 1) + '/' + total + ' 页' });
+      if (onProgress && (i % 5 === 0 || i === all.length - 1)) {
+        onProgress({ current: i + 1, total: all.length, message: T('排版第 ') + (i + 1) + '/' + all.length + ' 页' });
       }
       await yieldToUi();
     }
@@ -1504,19 +1646,25 @@ export class PdfExportService {
 
   /** 把 PageSpec 的文本行转换为 RawPdfWriter 的绝对坐标（pt） */
   private static buildRawTextLines(ctx: OffscreenCanvasRenderingContext2D,
-    printSpec: PrintPageSpec, spec: PageSpec, pageNo: number, total: number, isCover: boolean,
+    printSpec: PrintPageSpec, spec: PageSpec, total: number, isCover: boolean,
     recto: boolean): PdfTextLine[] {
     const out: PdfTextLine[] = [];
     // 版心起点随装订侧变化：装订侧留 gutter + safeInset，双面时奇偶页镜像
     const contentW: number = dieContentW(printSpec);
     const innerX: number = dieInnerX(printSpec, recto);
     const innerY: number = PrintPageSpec.mmToPt(printSpec.innerY());
-    const centerX: number = innerX + contentW / 2;
+    const pageNo: number = spec.pageNo ?? 1;
+    // 正文一页三栏；封面/谱序/家训/凡例仍是整页一栏
+    const col: number = spec.column ?? 0;
+    const baseW: number = (spec.columnW !== undefined && spec.columnW > 0)
+      ? spec.columnW : contentW;
+    const x0: number = innerX + col * (baseW + COLUMN_GAP);
+    const centerX: number = x0 + baseW / 2;
     let y: number = isCover ? 0 : innerY;
-    if (!isCover && spec.chapter.length > 0) {
+    if (!isCover && spec.chapter.length > 0 && col === 0) {
       const r: PdfTextLine = new PdfTextLine();
       r.text = spec.chapter;
-      r.xPt = innerX + contentW - measurePt(ctx, spec.chapter, 9);
+      r.xPt = x0 + baseW - measurePt(ctx, spec.chapter, 9);
       r.yPt = baselineOf(innerY - 16, 9);
       r.sizePt = 9;
       r.color = C_INK3;
@@ -1528,7 +1676,7 @@ export class PdfExportService {
         const r: PdfTextLine = new PdfTextLine();
         r.text = replaceParens(ln.text);
         r.xPt = ln.center ? centerX - measurePt(ctx, ln.text, ln.font) / 2
-          : innerX + ln.indent;
+          : x0 + ln.indent;
         r.yPt = baselineOf(y, ln.font);
         r.sizePt = ln.font;
         r.color = ln.color;
@@ -1537,11 +1685,12 @@ export class PdfExportService {
       }
       y = y + ln.lineH;
     }
-    if (!isCover) {
+    if (!isCover && col === 0) {
+      // 页码整页居中，只写在每页第一栏，避免三栏重复
       const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
       const r: PdfTextLine = new PdfTextLine();
       r.text = footer;
-      r.xPt = centerX - measurePt(ctx, footer, 9.5) / 2;
+      r.xPt = innerX + contentW / 2 - measurePt(ctx, footer, 9.5) / 2;
       r.yPt = PrintPageSpec.mmToPt(printSpec.foot) / 2;
       r.sizePt = 9.5;
       r.color = C_INK2;
@@ -1552,14 +1701,19 @@ export class PdfExportService {
 
   /** 仿古竖排：逐字定位，列从右往左、字从上往下；封面/谱序/家训/凡例全部竖排 */
   private static buildVerticalTextLines(ctx: OffscreenCanvasRenderingContext2D,
-    printSpec: PrintPageSpec, spec: PageSpec, pageNo: number, total: number,
+    printSpec: PrintPageSpec, spec: PageSpec, total: number,
     recto: boolean, isCover: boolean): PdfTextLine[] {
     const out: PdfTextLine[] = [];
     const contentW: number = dieContentW(printSpec);
     const contentH: number = dieContentH(printSpec);
     const innerX: number = dieInnerX(printSpec, recto);
     const innerY: number = PrintPageSpec.mmToPt(printSpec.innerY());
-    let cursorRight: number = innerX + contentW;
+    const pageNo: number = spec.pageNo ?? 1;
+    const col: number = spec.column ?? 0;
+    const baseW: number = (spec.columnW !== undefined && spec.columnW > 0)
+      ? spec.columnW : contentW;
+    // 三栏从右往左：column 0 在最右，column 2 在最左
+    let cursorRight: number = innerX + contentW - col * (baseW + COLUMN_GAP);
     for (let i: number = 0; i < spec.lines.length; i = i + 1) {
       const ln: TextLine = spec.lines[i];
       const font: number = classicFont(ln.font);
@@ -1598,7 +1752,7 @@ export class PdfExportService {
         cursorRight = cursorRight - colW;
       }
     }
-    if (!isCover) {
+    if (!isCover && col === 0) {
       // 页码仍横排居中（古籍页码在版心外，这里保留现代可读性）
       const centerX: number = innerX + contentW / 2;
       const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
