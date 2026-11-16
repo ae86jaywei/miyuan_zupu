@@ -107,6 +107,12 @@ export class ScriptService {
     return text.length === 0 ? text : this.convert(text, this.t2s);
   }
 
+  private static isCjk(cp: number): boolean {
+    // 只对汉字做词典匹配；ASCII/数字/标点在 CSV/JSON 中占比很高，直接复制能省掉大量 Map 查询
+    return (cp >= 0x3400 && cp <= 0x4dbf) || (cp >= 0x4e00 && cp <= 0x9fff) ||
+      (cp >= 0xf900 && cp <= 0xfaff) || (cp >= 0x20000 && cp <= 0x3134f);
+  }
+
   private convert(text: string, dict: Map<string, string>): string {
     if (dict.size === 0) {
       return text;
@@ -114,6 +120,12 @@ export class ScriptService {
     let out: string = '';
     let i: number = 0;
     while (i < text.length) {
+      const cp: number = text.codePointAt(i) ?? 0;
+      if (!ScriptService.isCjk(cp)) {
+        out = out + String.fromCodePoint(cp);
+        i = i + (cp > 0xffff ? 2 : 1);
+        continue;
+      }
       let matched: boolean = false;
       const remain: number = text.length - i;
       const maxLen: number = Math.min(this.maxKey, remain);
@@ -128,13 +140,13 @@ export class ScriptService {
         }
       }
       if (!matched) {
-        const cp: number = text.codePointAt(i) ?? 0;
         out = out + String.fromCodePoint(cp);
         i = i + (cp > 0xffff ? 2 : 1);
       }
     }
     return out;
   }
+
 
   private loadDicts(context: common.Context): void {
     try {

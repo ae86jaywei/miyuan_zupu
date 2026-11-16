@@ -1,4 +1,3 @@
-import { ScriptService, T } from './ScriptService';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 
@@ -10,6 +9,7 @@ import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
+import { T, ScriptService } from './ScriptService';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
 export class JsonBundle {
@@ -62,19 +62,19 @@ export class ExportService {
   /** 生成 CSV 文本 */
   static toCsv(people: Person[], includePrivate: boolean): string {
     const lines: string[] = [];
-    lines.push(ExportService.HEADERS.map((h: string): string => csvEscape(h)).join(','));
+    lines.push(ExportService.HEADERS.map((h: string): string => csvEscape(T(h))).join(','));
     people.forEach((p: Person): void => {
       const row: string[] = [];
       ExportService.HEADERS.forEach((h: string): void => {
         if (!includePrivate && (h === '手机号' || h === '微信号')) {
           row.push(csvEscape(''));
         } else {
-          row.push(csvEscape(ExportService.fieldOf(p, h)));
+          row.push(csvEscape(T(ExportService.fieldOf(p, h))));
         }
       });
       lines.push(row.join(','));
     });
-    return T(lines.join('\r\n'));
+    return lines.join('\r\n');
   }
 
   /** 生成 JSON 备份 */
@@ -154,17 +154,17 @@ export class ExportService {
   /** 生成牒记式 Markdown 谱文 */
   static toMarkdown(people: Person[], book: Genealogy): string {
     const lines: string[] = [];
-    lines.push('# ' + book.title);
+    lines.push(T('# ' + book.title));
     if (book.hallName.length > 0) {
       lines.push('');
-      lines.push('> ' + book.hallName + ' · ' + book.junwang);
+      lines.push(T('> ' + book.hallName + ' · ' + book.junwang));
     }
     lines.push('');
-    lines.push('## 谱序');
+    lines.push(T('## 谱序'));
     lines.push('');
-    lines.push(book.preface);
+    lines.push(T(book.preface));
     lines.push('');
-    lines.push('## 世系');
+    lines.push(T('## 世系'));
     lines.push('');
     const sorted: Person[] = people.slice().sort((a: Person, b: Person): number => {
       if (a.generation !== b.generation) {
@@ -181,7 +181,7 @@ export class ExportService {
       if (p.generation !== lastGen) {
         lastGen = p.generation;
         lines.push('');
-        lines.push('### ' + generationLabel(p.generation));
+        lines.push(T('### ' + generationLabel(p.generation)));
         lines.push('');
       }
       const by: number = parseYear(p.birthDate);
@@ -222,13 +222,13 @@ export class ExportService {
       if (p.biography.length > 0) {
         text = text + p.biography;
       }
-      lines.push('- ' + text);
+      lines.push(T('- ' + text));
     });
     lines.push('');
-    lines.push('## 家训');
+    lines.push(T('## 家训'));
     lines.push('');
-    lines.push(book.familyRules);
-    return T(lines.join('\n'));
+    lines.push(T(book.familyRules));
+    return lines.join('\n');
   }
 
   /**
@@ -389,10 +389,10 @@ export class ExportService {
       p.uid = r['唯一ID'] ?? '';
       p.name = r['谱名'] ?? '';
       p.alias = r['曾用名/小名'] ?? '';
-      p.gender = r['性别'] ?? '男';
+      p.gender = ScriptService.getInstance().toSimplified(r['性别'] ?? '男');
       p.generationChar = r['辈分/字派'] ?? '';
-      p.lifeStatus = r['在世状态'] ?? '在世';
-      p.childStatus = r['子女身份'] ?? '未记';
+      p.lifeStatus = ScriptService.getInstance().toSimplified(r['在世状态'] ?? '在世');
+      p.childStatus = ScriptService.getInstance().toSimplified(r['子女身份'] ?? '未记');
       p.birthDate = r['出生日期'] ?? '';
       p.deathDate = r['逝世日期'] ?? '';
       p.birthPlace = r['出生地'] ?? '';
