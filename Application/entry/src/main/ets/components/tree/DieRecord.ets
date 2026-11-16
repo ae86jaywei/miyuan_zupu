@@ -1,4 +1,5 @@
 import { Person } from '../../model/Person';
+import { uiFontFamily } from '../../service/ScriptService';
 import { Theme, Spacing } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 import { parseYear } from '../../util/DateUtil';
@@ -33,24 +34,24 @@ export struct DieRecord {
   build() {
     Column() {
       Row() {
-        Text(this.person.name)
+        Text(T(this.person.name)).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.person.gender === '女' ? Theme.female : Theme.primary)
-        Text('（' + this.person.uid + '）')
+        Text('（' + this.person.uid + '）').fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 4, top: 4 })
         Blank()
-        Text(generationLabel(this.person.generation) + (this.person.generationChar.length > 0 ?
-          ' · “' + this.person.generationChar + '”字' : ''))
+        Text(T(generationLabel(this.person.generation) + (this.person.generationChar.length > 0 ?
+          ' · “' + this.person.generationChar + '”字' : ''))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
       .width('100%')
 
       if (this.spouseText().length > 0) {
-        Text('配偶：' + this.spouseText())
+        Text('配偶：' + this.spouseText()).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.female)
           .margin({ top: 2 })
@@ -58,14 +59,14 @@ export struct DieRecord {
       }
 
       if (this.person.alias.length > 0) {
-        Text('曾用名/小名：' + this.person.alias)
+        Text(T('曾用名/小名：' + this.person.alias)).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
           .width('100%')
       }
 
-      Text(this.buildParagraph())
+      Text(this.buildParagraph()).fontFamily(uiFontFamily())
         .fontSize(13.5)
         .lineHeight(23)
         .fontColor(Theme.ink)

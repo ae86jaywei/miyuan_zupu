@@ -1,4 +1,5 @@
 import { PersonNode } from '../../model/PersonNode';
+import { uiFontFamily } from '../../service/ScriptService';
 import { Theme } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { generationLabel } from '../../model/Enums';
@@ -145,7 +146,7 @@ export struct PagodaTree {
           Column() {
             if (row.first) {
               Row() {
-                Text(generationLabel(row.generation) + ' · ' + row.nodes.length.toString() + '人')
+                Text(generationLabel(row.generation) + ' · ' + row.nodes.length.toString() + '人').fontFamily(uiFontFamily())
                   .fontSize(10)
                   .fontColor(Theme.primary)
                   .backgroundColor(Theme.highlightBg)
@@ -170,7 +171,7 @@ export struct PagodaTree {
                   .width(this.compact ? 24 : 28)
                   .height(this.compact ? 24 : 28)
 
-                  Text(node.person.name)
+                  Text(T(node.person.name)).fontFamily(uiFontFamily())
                     .fontSize(this.compact ? 11 : 12)
                     .fontWeight(FontWeight.Medium)
                     .fontColor(node.person.gender === '女' ? Theme.female : Theme.ink)
@@ -180,7 +181,7 @@ export struct PagodaTree {
                     .width(this.compact ? 56 : 68)
                     .textAlign(TextAlign.Center)
 
-                  Text(generationLabel(node.person.generation))
+                  Text(generationLabel(node.person.generation)).fontFamily(uiFontFamily())
                     .fontSize(8)
                     .fontColor('#FFFFFF')
                     .backgroundColor(node.person.gender === '女' ? Theme.female : Theme.primaryLight)
@@ -189,7 +190,7 @@ export struct PagodaTree {
                     .margin({ top: 1 })
 
                   if (node.spouseText().length > 0) {
-                    Text(node.spouseText())
+                    Text(node.spouseText()).fontFamily(uiFontFamily())
                       .fontSize(8)
                       .fontColor(Theme.female)
                       .maxLines(2)

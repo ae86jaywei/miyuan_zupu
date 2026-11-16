@@ -1,4 +1,5 @@
 import { Person } from '../../model/Person';
+import { uiFontFamily } from '../../service/ScriptService';
 import { Theme, Spacing } from '../../theme/Theme';
 import { PersonAvatar } from '../PersonAvatar';
 import { Tag } from '../Tag';
@@ -133,13 +134,13 @@ export struct ModernTree {
       Row() {
         PersonAvatar({ person: p, avatarSize: 36, showRing: p.uid === this.highlightUid })
         Column() {
-          Text(p.name)
+          Text(T(p.name)).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(p.gender === '女' ? Theme.female : Theme.ink)
             .maxLines(1)
-          Text(lifeSpan(p.birthDate, p.deathDate, p.lifeStatus).length > 0 ?
-            lifeSpan(p.birthDate, p.deathDate, p.lifeStatus) : p.uid)
+          Text(T(lifeSpan(p.birthDate, p.deathDate, p.lifeStatus).length > 0 ?
+            lifeSpan(p.birthDate, p.deathDate, p.lifeStatus) : p.uid)).fontFamily(uiFontFamily())
             .fontSize(10)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 1 })
@@ -163,7 +164,7 @@ export struct ModernTree {
       .margin({ top: 6 })
 
       if (this.spouseText(p).length > 0) {
-        Text(this.spouseText(p))
+        Text(this.spouseText(p)).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkSecondary)
           .maxLines(2)
@@ -173,7 +174,7 @@ export struct ModernTree {
       }
 
       if (p.biography.length > 0) {
-        Text(p.biography)
+        Text(T(p.biography)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .maxLines(2)
@@ -226,11 +227,11 @@ export struct ModernTree {
               Column() {
                 if (row.first) {
                   Row() {
-                    Text(row.label)
+                    Text(row.label).fontFamily(uiFontFamily())
                       .fontSize(13)
                       .fontWeight(FontWeight.Bold)
                       .fontColor(Theme.primary)
-                    Text(row.people.length.toString() + ' 人')
+                    Text(row.people.length.toString() + ' 人').fontFamily(uiFontFamily())
                       .fontSize(11)
                       .fontColor(Theme.inkTertiary)
                       .margin({ left: 6 })

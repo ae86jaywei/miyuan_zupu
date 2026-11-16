@@ -1,5 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
@@ -207,18 +207,18 @@ struct FamilyMembers {
   @Builder
   InviteBlock() {
     Column() {
-      Text(T('加入码'))
+      Text(T('加入码')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
-      Text(this.inviteCode.length > 0 ? this.inviteCode : '点击右侧生成')
+      Text(this.inviteCode.length > 0 ? this.inviteCode : '点击右侧生成').fontFamily(uiFontFamily())
         .fontSize(20)
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.gold)
         .width('100%')
         .margin({ top: 4 })
         .copyOption(CopyOptions.LocalDevice)
-      Button(T('重新生成'))
+      Button(T('重新生成')).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .height(32)
         .width('100%')
@@ -228,7 +228,7 @@ struct FamilyMembers {
         .onClick((): void => {
           this.doRotateInvite();
         })
-      Text(T('把加入码发给亲戚，他们在「我的家族」输入即可加入。加入后默认只读，可在此提升为编辑者；重新生成后旧码立即失效。'))
+      Text(T('把加入码发给亲戚，他们在「我的家族」输入即可加入。加入后默认只读，可在此提升为编辑者；重新生成后旧码立即失效。')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 6 })
@@ -245,21 +245,21 @@ struct FamilyMembers {
   @Builder
   MemberRow(m: MemberInfo) {
     Column() {
-      Text(m.displayName)
+      Text(m.displayName).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
         .width('100%')
       Text(roleLabel(m.role) + ' · ' + membershipStatusLabel(m.status) + ' · ' + this.expireText(m.expireAt) +
-        (m.branchRootUid.length > 0 ? ' · 分支 ' + m.branchRootUid : ' · 全谱'))
+        (m.branchRootUid.length > 0 ? ' · 分支 ' + m.branchRootUid : ' · 全谱')).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 2 })
         .width('100%')
       if (m.role !== Role.OWNER) {
         Row() {
-          Text(roleLabel(Role.VIEWER))
+          Text(roleLabel(Role.VIEWER)).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(m.role === Role.VIEWER ? '#FFFFFF' : Theme.inkSecondary)
             .backgroundColor(m.role === Role.VIEWER ? Theme.primary : Theme.field)
@@ -269,7 +269,7 @@ struct FamilyMembers {
             .onClick((): void => {
               this.setMemberRole(m, Role.VIEWER);
             })
-          Text(roleLabel(Role.EDITOR))
+          Text(roleLabel(Role.EDITOR)).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(m.role === Role.EDITOR ? '#FFFFFF' : Theme.inkSecondary)
             .backgroundColor(m.role === Role.EDITOR ? Theme.primary : Theme.field)
@@ -279,7 +279,7 @@ struct FamilyMembers {
               this.setMemberRole(m, Role.EDITOR);
             })
           Blank()
-          Text(T('撤销'))
+          Text(T('撤销')).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(Theme.danger)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -299,12 +299,12 @@ struct FamilyMembers {
   ApplyRow(a: AccessRequestInfo) {
     Column() {
       Row() {
-        Text(a.applicantName.length > 0 ? a.applicantName : a.applicantId)
+        Text(a.applicantName.length > 0 ? a.applicantName : a.applicantId).fontFamily(uiFontFamily())
           .fontSize(14)
           .fontColor(Theme.ink)
           .layoutWeight(1)
           .maxLines(1)
-        Text(accessKindLabel(a.kind))
+        Text(accessKindLabel(a.kind)).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.primary)
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
@@ -313,37 +313,37 @@ struct FamilyMembers {
       }
       .width('100%')
       if (a.relationClaim.length > 0) {
-        Text('关系说明：' + a.relationClaim)
+        Text('关系说明：' + a.relationClaim).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 4 })
           .width('100%')
       }
       if (a.branchClaimUid.length > 0) {
-        Text('认领分支根人物：' + a.branchClaimUid)
+        Text('认领分支根人物：' + a.branchClaimUid).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
           .width('100%')
       }
       if (a.evidence.length > 0) {
-        Text('依据：' + a.evidence)
+        Text('依据：' + a.evidence).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
           .width('100%')
       }
-      Text('申请人ID：' + a.applicantId)
+      Text('申请人ID：' + a.applicantId).fontFamily(uiFontFamily())
         .fontSize(10)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 2 })
         .width('100%')
       Row() {
         if (a.kind === AccessKind.VIEW_APPLY) {
-          Text(T('期限'))
+          Text(T('期限')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
-          TextInput({ text: this.expireDaysText })
+          TextInput({ text: this.expireDaysText }).fontFamily(uiFontFamily())
             .height(30)
             .width(56)
             .fontSize(12)
@@ -353,12 +353,12 @@ struct FamilyMembers {
             .onChange((v: string): void => {
               this.expireDaysText = v;
             })
-          Text(T('天'))
+          Text(T('天')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
         }
         Blank()
-        Button(T('拒绝'))
+        Button(T('拒绝')).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .height(32)
           .backgroundColor(Theme.field)
@@ -366,7 +366,7 @@ struct FamilyMembers {
           .onClick((): void => {
             this.reject(a);
           })
-        Button(T('通过'))
+        Button(T('通过')).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .height(32)
           .margin({ left: Spacing.S })
@@ -386,16 +386,16 @@ struct FamilyMembers {
   @Builder
   SelfApplyBlock() {
     Column() {
-      Text(T('向谱主申请'))
+      Text(T('向谱主申请')).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text(T('申请查看获批后默认 180 天有效；申请成为族人获批后永久有效，并可认领一个分支。'))
+      Text(T('申请查看获批后默认 180 天有效；申请成为族人获批后永久有效，并可认领一个分支。')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3 })
         .width('100%')
-      TextInput({ text: this.relationText, placeholder: T('关系说明，如：我是三房李泽民之子') })
+      TextInput({ text: this.relationText, placeholder: T('关系说明，如：我是三房李泽民之子') }).fontFamily(uiFontFamily())
         .height(36)
         .fontSize(13)
         .backgroundColor(Theme.field)
@@ -404,7 +404,7 @@ struct FamilyMembers {
         .onChange((v: string): void => {
           this.relationText = v;
         })
-      TextInput({ text: this.evidenceText, placeholder: T('依据，如：家有旧谱照片 / 介绍人：李某') })
+      TextInput({ text: this.evidenceText, placeholder: T('依据，如：家有旧谱照片 / 介绍人：李某') }).fontFamily(uiFontFamily())
         .height(36)
         .fontSize(13)
         .backgroundColor(Theme.field)
@@ -414,7 +414,7 @@ struct FamilyMembers {
           this.evidenceText = v;
         })
       Row() {
-        Button(T('申请查看'))
+        Button(T('申请查看')).fontFamily(uiFontFamily())
           .fontSize(13)
           .height(36)
           .layoutWeight(1)
@@ -423,7 +423,7 @@ struct FamilyMembers {
           .onClick((): void => {
             this.submitApply(AccessKind.VIEW_APPLY);
           })
-        Button(T('申请成为族人'))
+        Button(T('申请成为族人')).fontFamily(uiFontFamily())
           .fontSize(13)
           .height(36)
           .layoutWeight(1)
@@ -457,11 +457,11 @@ struct FamilyMembers {
       Scroll() {
         Column() {
           if (this.familyId.length === 0) {
-            Text(T('本谱尚未接入云家族'))
+            Text(T('本谱尚未接入云家族')).fontFamily(uiFontFamily())
               .fontSize(14)
               .fontColor(Theme.inkSecondary)
               .margin({ top: Spacing.XL })
-            Button(T('去「我的家族」接入'))
+            Button(T('去「我的家族」接入')).fontFamily(uiFontFamily())
               .fontSize(13)
               .height(36)
               .margin({ top: Spacing.M })
@@ -474,7 +474,7 @@ struct FamilyMembers {
             TS({ title: '待审访问申请', subtitle: '通过后立即写入一条成员授权', icon: '📨' })
             Column() {
               if (this.applications.length === 0) {
-                Text(this.errorText.length > 0 ? this.errorText : '暂无待审申请')
+                Text(this.errorText.length > 0 ? this.errorText : '暂无待审申请').fontFamily(uiFontFamily())
                   .fontSize(12.5)
                   .fontColor(Theme.inkTertiary)
                   .padding(Spacing.L)
@@ -510,17 +510,17 @@ struct FamilyMembers {
             .border({ width: 0.5, color: Theme.line })
           } else {
             Column() {
-              Text(T('你在这部谱中的角色'))
+              Text(T('你在这部谱中的角色')).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .fontColor(Theme.inkTertiary)
-              Text(roleLabel(this.myRole))
+              Text(roleLabel(this.myRole)).fontFamily(uiFontFamily())
                 .fontSize(22)
                 .fontWeight(FontWeight.Bold)
                 .fontColor(Theme.primary)
                 .margin({ top: 4 })
               Text(this.myRole === Role.EDITOR
                 ? '你可以提交补录，谱主审核后合入；也可修改认领分支内的族人。'
-                : '你可以浏览族谱，如需补录请向谱主申请成为族人。')
+                : '你可以浏览族谱，如需补录请向谱主申请成为族人。').fontFamily(uiFontFamily())
                 .fontSize(11.5)
                 .fontColor(Theme.inkSecondary)
                 .margin({ top: 6 })

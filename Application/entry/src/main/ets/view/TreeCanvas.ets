@@ -1,5 +1,5 @@
 import { PersonNode } from '../model/PersonNode';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Person } from '../model/Person';
 import { TreeStyle, generationLabel } from '../model/Enums';
 import { EuTree } from '../components/tree/EuTree';
@@ -1147,7 +1147,7 @@ export struct TreeCanvas {
     Scroll() {
       Row() {
         ForEach(this.genLabels, (label: string, idx: number) => {
-          Text(label + ' · ' + this.genCounts[idx].toString() + '人')
+          Text(label + ' · ' + this.genCounts[idx].toString() + '人').fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.primary)
             .backgroundColor(Theme.highlightBg)
@@ -1168,7 +1168,7 @@ export struct TreeCanvas {
   ViewTools() {
     Column() {
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
-        Text(Math.round(this.scaleValue * 100).toString() + '%')
+        Text(Math.round(this.scaleValue * 100).toString() + '%').fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .backgroundColor(Theme.glass)
@@ -1176,7 +1176,7 @@ export struct TreeCanvas {
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           .margin({ bottom: 6 })
       }
-      Button(T('查找'))
+      Button(T('查找')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.primary)
         .backgroundColor(Theme.glass)
@@ -1190,7 +1190,7 @@ export struct TreeCanvas {
           this.searchOpen = !this.searchOpen;
         })
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
-        Button(this.pagedMode ? '连续' : '分页')
+        Button(this.pagedMode ? '连续' : '分页').fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(this.pagedMode ? '#FFFFFF' : Theme.primary)
           .backgroundColor(this.pagedMode ? Theme.primary : Theme.glass)
@@ -1206,7 +1206,7 @@ export struct TreeCanvas {
           })
       }
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
-        Button(T('全览'))
+        Button(T('全览')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .backgroundColor(Theme.glass)
@@ -1233,12 +1233,12 @@ export struct TreeCanvas {
   SearchPanel() {
     Column() {
       Row() {
-        Text(T('查找族人'))
+        Text(T('查找族人')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(T('关闭'))
+        Text(T('关闭')).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor(Theme.primary)
           .padding({ left: 8, top: 4, bottom: 4 })
@@ -1247,7 +1247,7 @@ export struct TreeCanvas {
           })
       }
       .width('100%')
-      TextInput({ text: this.searchQuery, placeholder: T('姓名 / 曾用名 / 唯一ID / 字派') })
+      TextInput({ text: this.searchQuery, placeholder: T('姓名 / 曾用名 / 唯一ID / 字派') }).fontFamily(uiFontFamily())
         .height(38)
         .fontSize(14)
         .margin({ top: 8 })
@@ -1255,13 +1255,13 @@ export struct TreeCanvas {
           this.runSearch(v);
         })
       if (this.searchQuery.trim().length === 0) {
-        Text(T('输入关键词自动匹配，点击结果即跳到该族人在谱系中的位置'))
+        Text(T('输入关键词自动匹配，点击结果即跳到该族人在谱系中的位置')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 8 })
           .width('100%')
       } else if (this.searchResults.length === 0) {
-        Text(T('未找到匹配的族人'))
+        Text(T('未找到匹配的族人')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 10 })
@@ -1271,10 +1271,10 @@ export struct TreeCanvas {
           ForEach(this.searchResults, (p: Person) => {
             ListItem() {
               Row() {
-                Text(p.name)
+                Text(T(p.name)).fontFamily(uiFontFamily())
                   .fontSize(14)
                   .fontColor(Theme.ink)
-                Text(generationLabel(p.generation) + ' · ' + compactUid(p.uid))
+                Text(generationLabel(p.generation) + ' · ' + compactUid(p.uid)).fontFamily(uiFontFamily())
                   .fontSize(11)
                   .fontColor(Theme.inkTertiary)
                   .margin({ left: 8 })
@@ -1309,13 +1309,13 @@ export struct TreeCanvas {
         Row() {
           ForEach(this.trailUids, (uid: string, i: number) => {
             Row() {
-              Text(this.trailNames.length > i ? this.trailNames[i] : uid)
+              Text(this.trailNames.length > i ? this.trailNames[i] : uid).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .fontColor(i === this.trailUids.length - 1 ? Theme.primary : Theme.inkSecondary)
                 .fontWeight(i === this.trailUids.length - 1 ? FontWeight.Medium : FontWeight.Normal)
                 .maxLines(1)
               if (i < this.trailUids.length - 1) {
-                Text('›')
+                Text('›').fontFamily(uiFontFamily())
                   .fontSize(12)
                   .fontColor(Theme.inkTertiary)
                   .margin({ left: 4, right: 4 })
@@ -1397,7 +1397,7 @@ export struct TreeCanvas {
           Column() {
             if (index === 0 || this.dieSource.getData(index - 1).generation !== person.generation) {
               Row() {
-                Text(generationLabel(person.generation))
+                Text(generationLabel(person.generation)).fontFamily(uiFontFamily())
                   .fontSize(18)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(Theme.primary)
@@ -1451,7 +1451,7 @@ export struct TreeCanvas {
           LazyForEach(this.branchSource, (uid: string, i: number) => {
             ListItem() {
               Row() {
-                Text((i === this.clampBranchIndex() ? '✓ ' : '') + this.branchLabel(i))
+                Text((i === this.clampBranchIndex() ? '✓ ' : '') + this.branchLabel(i)).fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(i === this.clampBranchIndex() ? Theme.primary : Theme.ink)
                   .fontWeight(i === this.clampBranchIndex() ? FontWeight.Medium : FontWeight.Normal)
@@ -1564,7 +1564,7 @@ export struct TreeCanvas {
   TreeLoading() {
     Column() {
       LoadingProgress().width(36).height(36).color(Theme.primary)
-      Text(T('正在切换谱式…'))
+      Text(T('正在切换谱式…')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .margin({ top: Spacing.M })
@@ -1586,11 +1586,11 @@ export struct TreeCanvas {
                   Column() {
                     if (this.rootUids.length > 1) {
                       Row() {
-                        Text(this.currentBranchTitle())
+                        Text(this.currentBranchTitle()).fontFamily(uiFontFamily())
                           .fontSize(13)
                           .fontWeight(FontWeight.Medium)
                           .fontColor(Theme.primary)
-                        Text('后代 ' + this.currentBranchCount().toString() + ' 人')
+                        Text('后代 ' + this.currentBranchCount().toString() + ' 人').fontFamily(uiFontFamily())
                           .fontSize(11)
                           .fontColor(Theme.inkTertiary)
                           .margin({ left: 6 })
@@ -1806,7 +1806,7 @@ export struct TreeCanvas {
         }
         if (this.hintVisible && !this.pagedMode) {
           Column() {
-            Text(T('已选中 · 长按卡片查看族人详情'))
+            Text(T('已选中 · 长按卡片查看族人详情')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor('#FFFFFF')
               .backgroundColor('rgba(0,0,0,0.72)')

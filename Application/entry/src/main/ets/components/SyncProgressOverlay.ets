@@ -1,4 +1,5 @@
 import { Theme } from '../theme/Theme';
+import { uiFontFamily } from '../service/ScriptService';
 
 /**
  * 云同步进度浮层。
@@ -15,7 +16,7 @@ export struct SyncProgressOverlay {
     Column() {
       Column() {
         LoadingProgress().width(34).height(34).color(Theme.primary)
-        Text(this.text)
+        Text(this.text).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor(Theme.ink)
           .margin({ top: 12 })
@@ -29,11 +30,11 @@ export struct SyncProgressOverlay {
           .width('100%')
           .height(6)
           .margin({ top: 14 })
-        Text(this.percent.toString() + '%')
+        Text(this.percent.toString() + '%').fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .margin({ top: 6 })
-        Text(this.hint)
+        Text(this.hint).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 10 })

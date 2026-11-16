@@ -1,5 +1,5 @@
 import { Person } from '../model/Person';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { PersonAvatar } from '../components/PersonAvatar';
@@ -124,7 +124,7 @@ export struct CatalogView {
           .placeholderColor(Theme.inkTertiary)
           .textFont({ size: 13 })
 
-        Text(T('＋ 新增'))
+        Text(T('＋ 新增')).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor('#FFFFFF')
           .backgroundColor(Theme.primary)
@@ -175,7 +175,7 @@ export struct CatalogView {
 
   @Builder
   FilterChip(label: string, active: boolean, action: () => void) {
-    Text(T(label))
+    Text(T(label)).fontFamily(uiFontFamily())
       .fontSize(12)
       .fontColor(active ? '#FFFFFF' : Theme.inkSecondary)
       .backgroundColor(active ? Theme.primary : Theme.field)
@@ -193,30 +193,30 @@ export struct CatalogView {
       PersonAvatar({ person: p, avatarSize: this.isWide() ? 40 : 38, showRing: false })
       Column() {
         Row() {
-          Text(T(p.name))
+          Text(T(p.name)).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(p.gender === '女' ? Theme.female : Theme.ink)
           if (p.rank.length > 0) {
-            Text(p.rank)
+            Text(T(p.rank)).fontFamily(uiFontFamily())
               .fontSize(10)
               .fontColor(Theme.gold)
               .margin({ left: 4 })
           }
           if (p.lifeStatus === '已故') {
-            Text(T('已故')).fontSize(9).fontColor(Theme.deceased).margin({ left: 4 })
+            Text(T('已故')).fontFamily(uiFontFamily()).fontSize(9).fontColor(Theme.deceased).margin({ left: 4 })
           }
         }
         Row() {
-          Text(p.uid + ' · ' + generationLabel(p.generation)
-            + (p.generationChar.length > 0 ? ' · ' + p.generationChar + '字' : ''))
+          Text(T(p.uid + ' · ' + generationLabel(p.generation)
+            + (p.generationChar.length > 0 ? ' · ' + p.generationChar + '字' : ''))).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
         }
         .margin({ top: 2 })
         if (this.isWide() && (p.occupation.length > 0 || p.birthPlace.length > 0)) {
-          Text(lifeSpan(p.birthDate, p.deathDate, p.lifeStatus)
-            + (p.occupation.length > 0 ? ' · ' + p.occupation : ''))
+          Text(T(lifeSpan(p.birthDate, p.deathDate, p.lifeStatus)
+            + (p.occupation.length > 0 ? ' · ' + p.occupation : ''))).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkSecondary)
             .maxLines(1)
@@ -229,7 +229,7 @@ export struct CatalogView {
       .margin({ left: Spacing.M })
 
       if (showArrow) {
-        Text(this.selectedUid === p.uid ? '●' : '›')
+        Text(this.selectedUid === p.uid ? '●' : '›').fontFamily(uiFontFamily())
           .fontSize(this.selectedUid === p.uid ? 12 : 18)
           .fontColor(this.selectedUid === p.uid ? Theme.primary : Theme.inkTertiary)
       }
@@ -249,13 +249,13 @@ export struct CatalogView {
       this.FilterBar()
 
       Row() {
-        Text('共 ' + this.filteredCount.toString() + ' 人')
+        Text('共 ' + this.filteredCount.toString() + ' 人').fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
         Blank()
         if (this.keyword.length > 0 || this.filterGen > 0 || this.filterGender.length > 0
           || this.filterStatus.length > 0) {
-          Text(T('清除筛选'))
+          Text(T('清除筛选')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.primary)
             .onClick((): void => {

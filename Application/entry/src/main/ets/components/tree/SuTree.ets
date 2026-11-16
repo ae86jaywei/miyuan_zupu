@@ -1,4 +1,5 @@
 import { PersonNode } from '../../model/PersonNode';
+import { uiFontFamily } from '../../service/ScriptService';
 import { LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
 import { TreeCuller } from '../../service/TreeCuller';
@@ -165,13 +166,13 @@ export struct SuTree {
         if (this.lodLevel === DETAIL_BUBBLE) {
           ForEach(this.bubbles, (b: Bubble) => {
             Column() {
-              Text(b.label)
+              Text(b.label).fontFamily(uiFontFamily())
                 .fontSize(11 / this.safeZoom())
                 .fontColor('#FFFFFF')
                 .fontWeight(FontWeight.Medium)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
-              Text(b.countLabel)
+              Text(b.countLabel).fontFamily(uiFontFamily())
                 .fontSize(9 / this.safeZoom())
                 .fontColor('rgba(255,255,255,0.86)')
                 .maxLines(1)
@@ -216,7 +217,7 @@ export struct SuTree {
                 .position({ x: box.x, y: box.y })
             } else {
               Stack({ alignContent: Alignment.Center }) {
-                Text(this.shortName(box.node.person.name))
+                Text(T(this.shortName(box.node.person.name))).fontFamily(uiFontFamily())
                   .fontSize(11 / this.safeZoom())
                   .fontWeight(FontWeight.Medium)
                   .fontColor(box.node.person.gender === '女' ? Theme.female : Theme.ink)

@@ -1,5 +1,5 @@
 import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme } from '../theme/Theme';
 import { Breakpoint } from '../common/Constants';
 import { TreeScrollMemory } from '../util/TreeScrollMemory';
@@ -22,13 +22,13 @@ export struct StyleSwitcher {
       Row() {
         ForEach(TREE_STYLES, (meta: TreeStyleMeta) => {
           Column() {
-            Text(T(meta.name))
+            Text(T(meta.name)).fontFamily(uiFontFamily())
               .fontSize(this.windowWidth < Breakpoint.SM ? 11.5 : 14)
               .fontWeight(this.current === meta.key ? FontWeight.Bold : FontWeight.Normal)
               .fontColor(this.current === meta.key ? '#FFFFFF' : Theme.inkSecondary)
               .maxLines(1)
             if (this.showDesc()) {
-              Text(meta.subtitle)
+              Text(T(meta.subtitle)).fontFamily(uiFontFamily())
                 .fontSize(9.5)
                 .fontColor(this.current === meta.key ? '#F3DDB0' : Theme.inkTertiary)
                 .margin({ top: 1 })
@@ -57,7 +57,7 @@ export struct StyleSwitcher {
       .border({ width: 0.5, color: Theme.line })
 
       if (this.showDesc()) {
-        Text(this.currentDesc())
+        Text(T(this.currentDesc())).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 6 })

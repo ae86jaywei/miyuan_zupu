@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
@@ -515,20 +515,20 @@ struct FamilyHome {
   @Builder
   CloudGate() {
     Column() {
-      Text('☁️').fontSize(40)
-      Text(T('本谱只存在于本机'))
+      Text('☁️').fontFamily(uiFontFamily()).fontSize(40)
+      Text(T('本谱只存在于本机')).fontFamily(uiFontFamily())
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.ink)
         .margin({ top: Spacing.M })
-      Text(T('接入云家族后，可邀请亲戚共同补录：谱主审核后合入，所有变更都有审计流水。'))
+      Text(T('接入云家族后，可邀请亲戚共同补录：谱主审核后合入，所有变更都有审计流水。')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .textAlign(TextAlign.Center)
         .margin({ top: 6 })
         .lineHeight(18)
       if (!this.loggedIn) {
-        Button(T('登录华为账号'))
+        Button(T('登录华为账号')).fontFamily(uiFontFamily())
           .fontSize(14)
           .height(38)
           .backgroundColor(Theme.primary)
@@ -538,7 +538,7 @@ struct FamilyHome {
             RouterUtil.login(this.getUIContext());
           })
       } else if (!this.cloudReady) {
-        Text(this.cloudMsg.length > 0 ? this.cloudMsg : '云服务未就绪')
+        Text(this.cloudMsg.length > 0 ? this.cloudMsg : '云服务未就绪').fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.danger)
           .margin({ top: Spacing.L })
@@ -554,16 +554,16 @@ struct FamilyHome {
   @Builder
   CreateBlock() {
     Column() {
-      Text('把《' + (this.bookTitle.length > 0 ? this.bookTitle : '当前族谱') + '》接入云家族')
+      Text('把《' + (this.bookTitle.length > 0 ? this.bookTitle : '当前族谱') + '》接入云家族').fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text(T('接入后本谱会归属于你（谱主），由你决定谁能看、谁能改。'))
+      Text(T('接入后本谱会归属于你（谱主），由你决定谁能看、谁能改。')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3, bottom: Spacing.S })
         .width('100%')
-      TextInput({ text: this.createTitle, placeholder: T('云家族名称（一般就用谱名）') })
+      TextInput({ text: this.createTitle, placeholder: T('云家族名称（一般就用谱名）') }).fontFamily(uiFontFamily())
         .height(40)
         .fontSize(14)
         .backgroundColor(Theme.field)
@@ -571,7 +571,7 @@ struct FamilyHome {
         .onChange((v: string): void => {
           this.createTitle = v;
         })
-      Button(this.busy ? '处理中…' : '创建云家族')
+      Button(this.busy ? '处理中…' : '创建云家族').fontFamily(uiFontFamily())
         .fontSize(14)
         .height(38)
         .width('100%')
@@ -593,17 +593,17 @@ struct FamilyHome {
   @Builder
   JoinBlock() {
     Column() {
-      Text(T('用加入码加入别人的族谱'))
+      Text(T('用加入码加入别人的族谱')).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
-      Text(T('加入码由谱主生成（例如 A1B2C3D4），加入后你只能看到被授权的这一部谱。'))
+      Text(T('加入码由谱主生成（例如 A1B2C3D4），加入后你只能看到被授权的这一部谱。')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3, bottom: Spacing.S })
         .width('100%')
       Row() {
-        TextInput({ text: this.inviteInput, placeholder: T('输入加入码') })
+        TextInput({ text: this.inviteInput, placeholder: T('输入加入码') }).fontFamily(uiFontFamily())
           .height(40)
           .fontSize(14)
           .layoutWeight(1)
@@ -612,7 +612,7 @@ struct FamilyHome {
           .onChange((v: string): void => {
             this.inviteInput = v;
           })
-        Button(T('加入'))
+        Button(T('加入')).fontFamily(uiFontFamily())
           .fontSize(14)
           .height(40)
           .margin({ left: Spacing.S })
@@ -624,7 +624,7 @@ struct FamilyHome {
           })
       }
       .width('100%')
-      Button(T('在族谱黄页里找谱 →'))
+      Button(T('在族谱黄页里找谱 →')).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .height(34)
         .width('100%')
@@ -647,11 +647,11 @@ struct FamilyHome {
   CloudBlock() {
     Column() {
       Row() {
-        Text(T('已接入云家族'))
+        Text(T('已接入云家族')).fontFamily(uiFontFamily())
           .fontSize(14)
           .fontColor(Theme.alive)
         Blank()
-        Text(roleLabel(this.role))
+        Text(roleLabel(this.role)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.primary)
           .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -659,7 +659,7 @@ struct FamilyHome {
           .backgroundColor(Theme.highlightBg)
       }
       .width('100%')
-      Text('家族ID：' + this.familyId)
+      Text('家族ID：' + this.familyId).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 6 })
@@ -667,19 +667,19 @@ struct FamilyHome {
         .copyOption(CopyOptions.LocalDevice)
       Text('同步状态：' + (this.syncStatus.length > 0 ? this.syncStatus : '未同步') +
         (this.pendingCount > 0 && this.syncStatus.indexOf('条') < 0
-          ? '（待上传 ' + this.pendingCount.toString() + ' 条）' : ''))
+          ? '（待上传 ' + this.pendingCount.toString() + ' 条）' : '')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(this.pendingCount > 0 ? Theme.lost : Theme.inkSecondary)
         .margin({ top: 4 })
         .width('100%')
 
       if (this.syncMode === SyncMode.CLOUD_PENDING) {
-        Text(T('本谱尚未发布到云端：先把当前本地全量族人上传，之后才能增量同步。'))
+        Text(T('本谱尚未发布到云端：先把当前本地全量族人上传，之后才能增量同步。')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.danger)
           .margin({ top: 8 })
           .width('100%')
-        Button(this.busy ? '发布中…' : '发布当前族谱到云端')
+        Button(this.busy ? '发布中…' : '发布当前族谱到云端').fontFamily(uiFontFamily())
           .fontSize(14)
           .height(38)
           .width('100%')
@@ -692,7 +692,7 @@ struct FamilyHome {
           })
       } else {
         Row() {
-          Button(T('立即同步'))
+          Button(T('立即同步')).fontFamily(uiFontFamily())
             .fontSize(13)
             .height(36)
             .layoutWeight(1)
@@ -702,7 +702,7 @@ struct FamilyHome {
             .onClick((): void => {
               this.doSync();
             })
-          Button(T('重新全量拉取'))
+          Button(T('重新全量拉取')).fontFamily(uiFontFamily())
             .fontSize(13)
             .height(36)
             .layoutWeight(1)
@@ -728,10 +728,10 @@ struct FamilyHome {
   @Builder
   NavRow(icon: string, title: string, subtitle: string, action: () => void) {
     Row() {
-      Text(icon).fontSize(18).width(28)
+      Text(icon).fontFamily(uiFontFamily()).fontSize(18).width(28)
       Column() {
-        Text(T(title)).fontSize(14).fontColor(Theme.ink)
-        Text(T(subtitle))
+        Text(T(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
+        Text(T(subtitle)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
@@ -739,7 +739,7 @@ struct FamilyHome {
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
-      Text('›').fontSize(18).fontColor(Theme.inkTertiary)
+      Text('›').fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
     }
     .width('100%')
     .padding({ top: 10, bottom: 10 })
@@ -799,19 +799,19 @@ struct FamilyHome {
   @Builder
   ShareBlock() {
     Column() {
-      Text(T('分享 / 邀请加入'))
+      Text(T('分享 / 邀请加入')).fontFamily(uiFontFamily())
         .fontSize(14)
         .fontColor(Theme.ink)
         .width('100%')
       Text(this.familyId.length > 0
         ? '把加入码发给亲戚：对方加入后即可共同补录，提交经你审核后合入。'
-        : '当前族谱尚未接入云家族：分享的是只读查看链接，接入后改为分享加入码。')
+        : '当前族谱尚未接入云家族：分享的是只读查看链接，接入后改为分享加入码。').fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3, bottom: Spacing.S })
         .width('100%')
         .maxLines(3)
-      Button(T('分享 / 邀请加入'))
+      Button(T('分享 / 邀请加入')).fontFamily(uiFontFamily())
         .fontSize(14)
         .height(38)
         .width('100%')
@@ -836,19 +836,19 @@ struct FamilyHome {
       ForEach(this.myFamilies, (f: FamilySummary) => {
         Row() {
           Column() {
-            Text(f.title)
+            Text(T(f.title)).fontFamily(uiFontFamily())
               .fontSize(14)
               .fontColor(Theme.ink)
               .maxLines(1)
             Text(roleLabel(f.role) + ' · rev ' + f.rev.toString() +
-              (f.localBookId > 0 ? ' · 本机已有' : ' · 本机未导入'))
+              (f.localBookId > 0 ? ' · 本机已有' : ' · 本机未导入')).fontFamily(uiFontFamily())
               .fontSize(10.5)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 2 })
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Text(T('删除'))
+          Text(T('删除')).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(Theme.lost)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -859,7 +859,7 @@ struct FamilyHome {
               this.confirmDeleteFamily(f);
             })
           if (f.localBookId === 0 && ALLOW_JOIN) {
-            Text(T('导入本机'))
+            Text(T('导入本机')).fontFamily(uiFontFamily())
               .fontSize(11.5)
               .fontColor(Theme.primary)
               .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -990,7 +990,7 @@ struct FamilyHome {
           }
 
           if (this.progressText.length > 0) {
-            Text(this.progressText)
+            Text(this.progressText).fontFamily(uiFontFamily())
               .fontSize(11.5)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -1002,7 +1002,7 @@ struct FamilyHome {
           }
 
           Column() {
-            Text(T('可见性规则'))
+            Text(T('可见性规则')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontWeight(FontWeight.Medium)
               .fontColor(Theme.ink)
@@ -1010,7 +1010,7 @@ struct FamilyHome {
               '① 申请认证通过（谱主审批，默认 180 天有效）；' +
               '② 持有分享链接/加入码；' +
               '③ 申请成为族人并获得通过（永久）。' +
-              '族谱黄页只公开索引信息（谱名/姓氏/地域/人数区间），不含任何人物数据。')
+              '族谱黄页只公开索引信息（谱名/姓氏/地域/人数区间），不含任何人物数据。').fontFamily(uiFontFamily())
               .fontSize(11.5)
               .fontColor(Theme.inkSecondary)
               .lineHeight(18)

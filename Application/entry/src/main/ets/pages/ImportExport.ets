@@ -1,5 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { BackButton } from '../components/BackButton';
@@ -507,8 +507,8 @@ struct ImportExport {
     Row() {
       Column() {
         Row() {
-          Text(T(title)).fontSize(14).fontColor(Theme.ink)
-          Text(tag)
+          Text(T(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
+          Text(tag).fontFamily(uiFontFamily())
             .fontSize(10)
             .fontColor(Theme.gold)
             .backgroundColor('#FBF4E2')
@@ -516,14 +516,14 @@ struct ImportExport {
             .padding({ left: 4, right: 4, top: 1, bottom: 1 })
             .margin({ left: 6 })
         }
-        Text(T(desc))
+        Text(T(desc)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 3 })
       }
       .alignItems(HorizontalAlign.Start)
       .layoutWeight(1)
-      Text(T('导出 ›'))
+      Text(T('导出 ›')).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(Theme.primary)
     }
@@ -538,11 +538,11 @@ struct ImportExport {
   @Builder
   PdfStyleChip(label: string, value: string, hint: string) {
     Column() {
-      Text(T(label))
+      Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(this.pdfStyle === value ? '#FFFFFF' : Theme.ink)
         .fontWeight(FontWeight.Medium)
-      Text(T(hint))
+      Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
         .fontColor(this.pdfStyle === value ? '#FFF4DE' : Theme.inkTertiary)
         .margin({ top: 2 })
@@ -563,11 +563,11 @@ struct ImportExport {
   @Builder
   BindChip(label: string, duplex: boolean, hint: string) {
     Column() {
-      Text(T(label))
+      Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(this.printDuplex === duplex ? '#FFFFFF' : Theme.ink)
         .fontWeight(FontWeight.Medium)
-      Text(T(hint))
+      Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
         .fontColor(this.printDuplex === duplex ? '#FFF4DE' : Theme.inkTertiary)
         .margin({ top: 2 })
@@ -589,11 +589,11 @@ struct ImportExport {
   @Builder
   BindSideChip(label: string, value: string, hint: string) {
     Column() {
-      Text(T(label))
+      Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(this.printBinding === value ? '#FFFFFF' : Theme.ink)
         .fontWeight(FontWeight.Medium)
-      Text(T(hint))
+      Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
         .fontColor(this.printBinding === value ? '#FFF4DE' : Theme.inkTertiary)
         .margin({ top: 2 })
@@ -622,7 +622,7 @@ struct ImportExport {
     Column() {
       Column() {
         LoadingProgress().width(34).height(34).color(Theme.primary)
-        Text(this.progressText)
+        Text(this.progressText).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor(Theme.ink)
           .margin({ top: 12 })
@@ -636,11 +636,11 @@ struct ImportExport {
           .width('100%')
           .height(6)
           .margin({ top: 14 })
-        Text(this.progress.toString() + '%')
+        Text(this.progress.toString() + '%').fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .margin({ top: 6 })
-        Text(T('请停在此页，完成前不要退出或切换'))
+        Text(T('请停在此页，完成前不要退出或切换')).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 10 })
@@ -672,7 +672,7 @@ struct ImportExport {
             this.getUIContext().getRouter().back();
           }
         })
-        Text(T('导入 / 导出'))
+        Text(T('导入 / 导出')).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -713,7 +713,7 @@ struct ImportExport {
             Divider().color(Theme.line).strokeWidth(0.5)
             Column() {
               if (this.branchSuggestions.length > 0) {
-                Text('建议拆分（当前谱 ' + this.peopleCount.toString() + ' 人，整谱无法一次导出）')
+                Text('建议拆分（当前谱 ' + this.peopleCount.toString() + ' 人，整谱无法一次导出）').fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(Theme.ink)
                   .fontWeight(FontWeight.Medium)
@@ -721,14 +721,14 @@ struct ImportExport {
                 Column() {
                   ForEach(this.branchSuggestions, (s: BranchSuggestion) => {
                     Row() {
-                      Text('第' + s.generation.toString() + '世 ' + s.name + ' · ' +
-                        s.descendants.toString() + '人')
+                      Text(T('第' + s.generation.toString() + '世 ' + s.name + ' · ' +
+                        s.descendants.toString() + '人')).fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(Theme.inkSecondary)
                         .layoutWeight(1)
                         .maxLines(1)
                         .textOverflow({ overflow: TextOverflow.Ellipsis })
-                      Text(T('建分支'))
+                      Text(T('建分支')).fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor('#FFFFFF')
                         .backgroundColor(Theme.primary)
@@ -746,7 +746,7 @@ struct ImportExport {
                 .margin({ top: 8, bottom: 6 })
               }
               if (this.exportBookIds.length > 1) {
-                Text(T('导出范围'))
+                Text(T('导出范围')).fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(Theme.ink)
                   .fontWeight(FontWeight.Medium)
@@ -754,7 +754,7 @@ struct ImportExport {
                 Scroll() {
                   Row() {
                     ForEach(this.exportBookIds, (id: number, i: number) => {
-                      Text(this.exportBookTitles.length > i ? this.exportBookTitles[i] : id.toString())
+                      Text(this.exportBookTitles.length > i ? this.exportBookTitles[i] : id.toString()).fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(this.exportBookId === id ? '#FFFFFF' : Theme.ink)
                         .backgroundColor(this.exportBookId === id ? Theme.primary : Theme.field)
@@ -772,7 +772,7 @@ struct ImportExport {
                 .scrollable(ScrollDirection.Horizontal)
                 .margin({ top: 8, bottom: 10 })
               }
-              Text(T('PDF 导出谱式'))
+              Text(T('PDF 导出谱式')).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .fontColor(Theme.ink)
                 .fontWeight(FontWeight.Medium)
@@ -784,7 +784,7 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
-              Text(T('装订边'))
+              Text(T('装订边')).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .fontColor(Theme.ink)
                 .fontWeight(FontWeight.Medium)
@@ -796,7 +796,7 @@ struct ImportExport {
               }
               .width('100%')
               .margin({ top: 8 })
-              Text(T('装订方式'))
+              Text(T('装订方式')).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .fontColor(Theme.ink)
                 .fontWeight(FontWeight.Medium)
@@ -828,14 +828,14 @@ struct ImportExport {
           TS({ title: '导入', subtitle: '支持本应用导出的 JSON/CSV，或 Excel 另存的 CSV', icon: '📥' })
           Column() {
             Row() {
-              Button(T('选择 JSON 文件'))
+              Button(T('选择 JSON 文件')).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .height(36)
                 .backgroundColor(Theme.primary)
                 .onClick((): void => {
                   this.doImport('json');
                 })
-              Button(T('选择 CSV 文件'))
+              Button(T('选择 CSV 文件')).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .height(36)
                 .backgroundColor(Theme.field)
@@ -847,7 +847,7 @@ struct ImportExport {
             }
             .width('100%')
 
-            Text(T('人员匹配策略：'))
+            Text(T('人员匹配策略：')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -855,7 +855,7 @@ struct ImportExport {
             Row() {
               ForEach([['auto', '智能匹配'], ['skip', '跳过'], ['replace', '覆盖'], ['newId', '另编号']],
                 (item: string[]) => {
-                Text(item[1])
+                Text(item[1]).fontFamily(uiFontFamily())
                   .fontSize(12)
                   .fontColor(this.mergeStrategy === item[0] ? '#FFFFFF' : Theme.inkSecondary)
                   .backgroundColor(this.mergeStrategy === item[0] ? Theme.primary : Theme.field)
@@ -871,29 +871,29 @@ struct ImportExport {
 
             if (this.parsedCount > 0) {
               Column() {
-                Text('已解析 ' + this.parsedCount.toString() + ' 条记录')
+                Text('已解析 ' + this.parsedCount.toString() + ' 条记录').fontFamily(uiFontFamily())
                   .fontSize(13)
                   .fontColor(Theme.alive)
                 if (this.pendingBook !== null) {
-                  Text('族谱信息：' + this.pendingBook.title +
-                    (this.pendingBook.hallName.length > 0 ? ' · ' + this.pendingBook.hallName : ''))
+                  Text(T('族谱信息：' + this.pendingBook.title +
+                    (this.pendingBook.hallName.length > 0 ? ' · ' + this.pendingBook.hallName : ''))).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .fontColor(Theme.inkSecondary)
                     .margin({ top: 4 })
                 }
                 if (!this.svc().hasBook()) {
-                  Text(T('当前没有族谱，确认导入时会自动新建'))
+                  Text(T('当前没有族谱，确认导入时会自动新建')).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .fontColor(Theme.gold)
                     .margin({ top: 4 })
                 }
                 if (this.pendingPeople.length > 0) {
-                  Text('示例：' + this.pendingPeople[0].name + '（' + this.pendingPeople[0].uid + '）')
+                  Text(T('示例：' + this.pendingPeople[0].name + '（' + this.pendingPeople[0].uid + '）')).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .fontColor(Theme.inkTertiary)
                     .margin({ top: 4 })
                 }
-                Button(T('确认导入'))
+                Button(T('确认导入')).fontFamily(uiFontFamily())
                   .fontSize(13)
                   .height(34)
                   .backgroundColor(Theme.alive)
@@ -922,7 +922,7 @@ struct ImportExport {
           if (this.previewText.length > 0) {
             TS({ title: '内容预览', icon: '👁' })
             Column() {
-              Text(this.previewText)
+              Text(this.previewText).fontFamily(uiFontFamily())
                 .fontSize(11)
                 .fontColor(Theme.inkSecondary)
                 .width('100%')
@@ -939,31 +939,31 @@ struct ImportExport {
 
           TS({ title: '字段规范', subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
           Column() {
-            Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）'))
+            Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、子女身份（嫡出/庶出/婢生/奸生/嗣子/养子）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
-            Text(T('时间信息：出生日期、逝世日期（支持公历/农历双标）、出生地（省-市-县-乡镇-村）、现居地'))
-              .fontSize(12)
-              .fontColor(Theme.inkSecondary)
-              .width('100%')
-              .margin({ top: 4 })
-            Text(T('亲属关系：父亲ID、母亲ID、配偶关系（正妻/平妻/贵妾/良妾/贱妾/外室，格式 UID:名分;UID:名分）、排行、过继/出嗣'))
+            Text(T('时间信息：出生日期、逝世日期（支持公历/农历双标）、出生地（省-市-县-乡镇-村）、现居地')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text(T('生平履历：学历/学位、职业/职务、生平简介、墓葬信息（含GPS经纬度海拔）'))
+            Text(T('亲属关系：父亲ID、母亲ID、配偶关系（正妻/平妻/贵妾/良妾/贱妾/外室，格式 UID:名分;UID:名分）、排行、过继/出嗣')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text(T('联系方式：手机号、微信号（隐私字段）'))
+            Text(T('生平履历：学历/学位、职业/职务、生平简介、墓葬信息（含GPS经纬度海拔）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text(T('图像信息：头像（含相片、视频资料）'))
+            Text(T('联系方式：手机号、微信号（隐私字段）')).fontFamily(uiFontFamily())
+              .fontSize(12)
+              .fontColor(Theme.inkSecondary)
+              .width('100%')
+              .margin({ top: 4 })
+            Text(T('图像信息：头像（含相片、视频资料）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')

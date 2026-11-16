@@ -1,4 +1,5 @@
 import { Theme } from '../theme/Theme';
+import { uiFontFamily } from '../service/ScriptService';
 
 /**
  * 二级页面统一返回按钮（‹）。
@@ -12,7 +13,7 @@ export struct BackButton {
   onBack: () => void = (): void => {};
 
   build() {
-    Text('‹')
+    Text('‹').fontFamily(uiFontFamily())
       .fontSize(22)
       .fontColor(Theme.ink)
       .width(32)

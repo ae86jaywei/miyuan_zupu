@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { uiFontFamily } from '../service/ScriptService';
 import { BackButton } from '../components/BackButton';
 import { AgreementDoc, AgreementParams, AgreementSection, agreementDocOf } from '../model/AgreementDoc';
 
@@ -32,7 +33,7 @@ struct Agreement {
             this.getUIContext().getRouter().back();
           }
         })
-        Text(this.doc.title)
+        Text(T(this.doc.title)).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -46,12 +47,12 @@ struct Agreement {
 
       Scroll() {
         Column() {
-          Text(this.doc.title)
+          Text(T(this.doc.title)).fontFamily(uiFontFamily())
             .fontSize(20)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
             .width('100%')
-          Text(this.doc.intro)
+          Text(this.doc.intro).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.inkSecondary)
             .lineHeight(21)
@@ -60,12 +61,12 @@ struct Agreement {
 
           ForEach(this.doc.sections, (section: AgreementSection) => {
             Column() {
-              Text(section.heading)
+              Text(section.heading).fontFamily(uiFontFamily())
                 .fontSize(15)
                 .fontWeight(FontWeight.Medium)
                 .fontColor(Theme.ink)
                 .width('100%')
-              Text(section.body)
+              Text(section.body).fontFamily(uiFontFamily())
                 .fontSize(13)
                 .fontColor(Theme.inkSecondary)
                 .lineHeight(21)

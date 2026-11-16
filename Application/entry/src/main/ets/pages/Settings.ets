@@ -1,5 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { SettingsView } from '../view/SettingsView';
 import { BackButton } from '../components/BackButton';
 
@@ -22,7 +22,7 @@ struct Settings {
             this.getUIContext().getRouter().back();
           }
         })
-        Text(T('设置'))
+        Text(T('设置')).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)

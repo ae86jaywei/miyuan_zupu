@@ -1,5 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { BackButton } from '../components/BackButton';
 import { Person } from '../model/Person';
 import { CloudSyncService } from '../service/CloudSyncService';
@@ -159,21 +159,21 @@ struct SharedView {
   PersonRow(person: Person) {
     Column() {
       Row() {
-        Text(person.name.length > 0 ? person.name : '（未命名）')
+        Text(T(person.name.length > 0 ? person.name : '（未命名）')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(this.generationLabel(person))
+        Text(this.generationLabel(person)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
       .width('100%')
       if (person.alias.length > 0 || person.birthDate.length > 0) {
-        Text((person.alias.length > 0 ? '字/号 ' + person.alias + '　' : '') +
-          (person.birthDate.length > 0 ? '生 ' + person.birthDate : ''))
+        Text(T((person.alias.length > 0 ? '字/号 ' + person.alias + '　' : '') +
+          (person.birthDate.length > 0 ? '生 ' + person.birthDate : ''))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -195,12 +195,12 @@ struct SharedView {
             this.getUIContext().getRouter().back();
           }
         })
-        Text(T('分享的族谱'))
+        Text(T('分享的族谱')).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(this.people.length > 0 ? this.people.length.toString() + ' 人' : '')
+        Text(this.people.length > 0 ? this.people.length.toString() + ' 人' : '').fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
       }
@@ -212,18 +212,18 @@ struct SharedView {
 
       if (this.needCode) {
         Column() {
-          Text('📩').fontSize(30)
-          Text(T('输入分享邀请码'))
+          Text('📩').fontFamily(uiFontFamily()).fontSize(30)
+          Text(T('输入分享邀请码')).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
             .fontColor(Theme.ink)
             .margin({ top: Spacing.M })
-          Text(T('请向谱主索取「加入码」（8 位字母数字），加入后可在「我的家族」查看'))
+          Text(T('请向谱主索取「加入码」（8 位字母数字），加入后可在「我的家族」查看')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .textAlign(TextAlign.Center)
             .margin({ top: 6 })
-          TextInput({ placeholder: T('粘贴邀请码'), text: this.inviteCode })
+          TextInput({ placeholder: T('粘贴邀请码'), text: this.inviteCode }).fontFamily(uiFontFamily())
             .height(42)
             .fontSize(13)
             .backgroundColor(Theme.field)
@@ -232,7 +232,7 @@ struct SharedView {
             .onChange((value: string): void => {
               this.inviteCode = value;
             })
-          Button(T('用加入码加入'))
+          Button(T('用加入码加入')).fontFamily(uiFontFamily())
             .height(40)
             .width('100%')
             .fontSize(14)
@@ -243,7 +243,7 @@ struct SharedView {
               this.joinByCode();
             })
           if (this.errorText.length > 0) {
-            Text(this.errorText)
+            Text(this.errorText).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.gold)
               .textAlign(TextAlign.Center)
@@ -257,22 +257,22 @@ struct SharedView {
       } else if (this.loading) {
         Column() {
           LoadingProgress().width(36).height(36).color(Theme.primary)
-          Text(T('正在读取分享内容…')).fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
+          Text(T('正在读取分享内容…')).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
         }
         .width('100%')
         .layoutWeight(1)
         .justifyContent(FlexAlign.Center)
       } else if (this.errorText.length > 0) {
         Column() {
-          Text('🔒').fontSize(30)
-          Text(this.errorText)
+          Text('🔒').fontFamily(uiFontFamily()).fontSize(30)
+          Text(this.errorText).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.inkSecondary)
             .textAlign(TextAlign.Center)
             .margin({ top: Spacing.M })
             .maxLines(3)
           if (!this.loggedIn) {
-            Button(T('登录华为账号'))
+            Button(T('登录华为账号')).fontFamily(uiFontFamily())
               .height(40)
               .fontSize(14)
               .fontColor('#FFFFFF')
@@ -282,7 +282,7 @@ struct SharedView {
                 RouterUtil.login(this.getUIContext());
               })
           } else {
-            Button(T('重新加载'))
+            Button(T('重新加载')).fontFamily(uiFontFamily())
               .height(40)
               .fontSize(14)
               .fontColor(Theme.primary)
@@ -310,7 +310,7 @@ struct SharedView {
         .scrollBar(BarState.Off)
         .divider({ strokeWidth: 0, color: Color.Transparent })
 
-        Text(T('只读查看（旧通道）· 将在协作只读路径上线后下线'))
+        Text(T('只读查看（旧通道）· 将在协作只读路径上线后下线')).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .width('100%')

@@ -7,7 +7,7 @@ import { generationLabel } from '../model/Enums';
 import { lifeSpan, ageOf, displayDate } from '../util/DateUtil';
 import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from '../components/EmptyHint';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 
 /**
  * 人物详情面板：展示《关键信息字段》全部字段；
@@ -38,12 +38,12 @@ export struct PersonDetailPanel {
   RelationChip(p: Person, relation: string) {
     Column() {
       PersonAvatar({ person: p, avatarSize: 34, showRing: false })
-      Text(T(p.name))
+      Text(T(p.name)).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.ink)
         .maxLines(1)
         .margin({ top: 3 })
-      Text(T(relation))
+      Text(T(relation)).fontFamily(uiFontFamily())
         .fontSize(9)
         .fontColor(Theme.gold)
     }
@@ -60,7 +60,7 @@ export struct PersonDetailPanel {
   GroupHeader(title: string) {
     Row() {
       Row().width(3).height(13).backgroundColor(Theme.gold).borderRadius(2)
-      Text(T(title))
+      Text(T(title)).fontFamily(uiFontFamily())
         .fontSize(13)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.primary)
@@ -81,7 +81,7 @@ export struct PersonDetailPanel {
             PersonAvatar({ person: this.person() as Person, avatarSize: this.avatarSize() })
             Column() {
               Row() {
-                Text(T((this.person() as Person).name))
+                Text(T((this.person() as Person).name)).fontFamily(uiFontFamily())
                   .fontSize(this.narrow ? 20 : 22)
                   .fontWeight(FontWeight.Bold)
                   .fontColor(Theme.ink)
@@ -94,14 +94,14 @@ export struct PersonDetailPanel {
                   bg: (this.person() as Person).lifeStatus === '已故' ? Theme.field : '#E6F3EC'
                 }).margin({ left: 6 })
               }
-              Text(generationLabel((this.person() as Person).generation)
+              Text(T(generationLabel((this.person() as Person).generation)
                 + ((this.person() as Person).generationChar.length > 0 ?
                   ' · “' + (this.person() as Person).generationChar + '”字' : '')
-                + ' · ' + (this.person() as Person).uid)
+                + ' · ' + (this.person() as Person).uid)).fontFamily(uiFontFamily())
                 .fontSize(11.5)
                 .fontColor(Theme.inkTertiary)
                 .margin({ top: 4 })
-              Text(this.lifeText())
+              Text(this.lifeText()).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .fontColor(Theme.inkSecondary)
                 .margin({ top: 2 })
@@ -111,7 +111,7 @@ export struct PersonDetailPanel {
             .margin({ left: Spacing.M })
 
             if (this.narrow) {
-              Text('✕')
+              Text('✕').fontFamily(uiFontFamily())
                 .fontSize(16)
                 .fontColor(Theme.inkTertiary)
                 .padding(6)
@@ -160,13 +160,13 @@ export struct PersonDetailPanel {
                   value: childStatusLabel((this.person() as Person).childStatus, (this.person() as Person).gender)
                 })
                 Column() {
-                  Text(childStatusHint((this.person() as Person).childStatus))
+                  Text(T(childStatusHint((this.person() as Person).childStatus))).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .lineHeight(17)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
                   if (this.isConcubineChild()) {
-                    Text(CONCUBINE_CHILD_TITLE_HINT)
+                    Text(CONCUBINE_CHILD_TITLE_HINT).fontFamily(uiFontFamily())
                       .fontSize(11)
                       .lineHeight(17)
                       .fontColor(Theme.gold)
@@ -240,11 +240,11 @@ export struct PersonDetailPanel {
               }
               if ((this.person() as Person).biography.length > 0) {
                 Column() {
-                  Text(T('生平简介'))
+                  Text(T('生平简介')).fontFamily(uiFontFamily())
                     .fontSize(12.5)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
-                  Text(T((this.person() as Person).biography))
+                  Text(T((this.person() as Person).biography)).fontFamily(uiFontFamily())
                     .fontSize(13.5)
                     .lineHeight(22)
                     .fontColor(Theme.ink)
@@ -257,12 +257,12 @@ export struct PersonDetailPanel {
               }
               if ((this.person() as Person).graveInfo.length > 0 || (this.person() as Person).graveLat !== 0) {
                 Column() {
-                  Text(T('墓葬信息'))
+                  Text(T('墓葬信息')).fontFamily(uiFontFamily())
                     .fontSize(12.5)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
                   if ((this.person() as Person).graveInfo.length > 0) {
-                    Text(T((this.person() as Person).graveInfo))
+                    Text(T((this.person() as Person).graveInfo)).fontFamily(uiFontFamily())
                       .fontSize(13.5)
                       .lineHeight(22)
                       .fontColor(Theme.ink)
@@ -271,13 +271,13 @@ export struct PersonDetailPanel {
                   }
                   if ((this.person() as Person).graveLat !== 0) {
                     Row() {
-                      Text('📍 GPS')
+                      Text('📍 GPS').fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(Theme.alive)
                         .flexShrink(0)
                       Text('东经 ' + (this.person() as Person).graveLng.toFixed(6) + '° · 北纬 '
                         + (this.person() as Person).graveLat.toFixed(6) + '° · 海拔 '
-                        + (this.person() as Person).graveAltitude.toFixed(1) + 'm')
+                        + (this.person() as Person).graveAltitude.toFixed(1) + 'm').fontFamily(uiFontFamily())
                         .fontSize(11)
                         .fontColor(Theme.inkSecondary)
                         .margin({ left: 6 })
@@ -315,7 +315,7 @@ export struct PersonDetailPanel {
               this.GroupHeader('图像信息')
               Column() {
                 PersonAvatar({ person: this.person() as Person, avatarSize: 96 })
-                Text((this.person() as Person).avatar.length > 0 ? '已设置头像' : '使用姓氏字为默认头像')
+                Text((this.person() as Person).avatar.length > 0 ? '已设置头像' : '使用姓氏字为默认头像').fontFamily(uiFontFamily())
                   .fontSize(11)
                   .fontColor(Theme.inkTertiary)
                   .margin({ top: 6 })
@@ -343,7 +343,7 @@ export struct PersonDetailPanel {
 
   @Builder
   ActionButton(label: string, color: string, action: () => void) {
-    Text(T(label))
+    Text(T(label)).fontFamily(uiFontFamily())
       .fontSize(12)
       .fontColor(color)
       .padding({ left: 12, right: 12, top: 6, bottom: 6 })

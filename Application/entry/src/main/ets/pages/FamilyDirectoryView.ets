@@ -1,5 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 
 import { PageNavBar } from '../components/PageNavBar';
@@ -127,26 +127,26 @@ struct FamilyDirectoryView {
   Card(e: DirectoryEntry) {
     Column() {
       Row() {
-        Text(e.title.length > 0 ? e.title : '未命名族谱')
+        Text(T(e.title.length > 0 ? e.title : '未命名族谱')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(e.surname.length > 0 ? e.surname + '氏' : '')
+        Text(e.surname.length > 0 ? e.surname + '氏' : '').fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
       .width('100%')
       Text((e.region.length > 0 ? e.region : '地域未填') +
-        (e.memberCountBand.length > 0 ? ' · ' + e.memberCountBand + ' 人' : ''))
+        (e.memberCountBand.length > 0 ? ' · ' + e.memberCountBand + ' 人' : '')).fontFamily(uiFontFamily())
         .fontSize(11.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 4 })
         .width('100%')
       if (e.branchSummary.length > 0) {
-        Text(e.branchSummary)
+        Text(e.branchSummary).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 4 })
@@ -154,11 +154,11 @@ struct FamilyDirectoryView {
           .width('100%')
       }
       Row() {
-        Text(e.accessHint.length > 0 ? e.accessHint : '需谱主审核后可查看')
+        Text(e.accessHint.length > 0 ? e.accessHint : '需谱主审核后可查看').fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.primary)
           .layoutWeight(1)
-        Button(T('申请查看'))
+        Button(T('申请查看')).fontFamily(uiFontFamily())
           .fontSize(12)
           .height(30)
           .backgroundColor(Theme.primary)
@@ -166,7 +166,7 @@ struct FamilyDirectoryView {
           .onClick((): void => {
             RouterUtil.accessApply(this.getUIContext(), e.familyId);
           })
-        Button(T('我要加入'))
+        Button(T('我要加入')).fontFamily(uiFontFamily())
           .fontSize(12)
           .height(30)
           .margin({ left: Spacing.S })
@@ -190,11 +190,11 @@ struct FamilyDirectoryView {
   @Builder
   FieldRow(label: string, value: string, placeholder: string, onChange: (v: string) => void) {
     Column() {
-      Text(T(label))
+      Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .width('100%')
-      TextInput({ text: value, placeholder: placeholder })
+      TextInput({ text: value, placeholder: placeholder }).fontFamily(uiFontFamily())
         .height(36)
         .fontSize(13)
         .backgroundColor(Theme.field)
@@ -213,10 +213,10 @@ struct FamilyDirectoryView {
     Column() {
       Row() {
         Column() {
-          Text(T('黄页上架'))
+          Text(T('黄页上架')).fontFamily(uiFontFamily())
             .fontSize(14)
             .fontColor(Theme.ink)
-          Text(T('默认关闭。关闭 = 从黄页物理移除，别人搜不到。'))
+          Text(T('默认关闭。关闭 = 从黄页物理移除，别人搜不到。')).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 2 })
@@ -247,13 +247,13 @@ struct FamilyDirectoryView {
       this.FieldRow('对外提示', this.form.accessHint, '如：需谱主审核后可查看', (v: string): void => {
         this.form.accessHint = v;
       })
-      Text(T('人数区间（不填精确人数）'))
+      Text(T('人数区间（不填精确人数）')).fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .width('100%')
       Row() {
         ForEach(MEMBER_COUNT_BANDS, (band: string) => {
-          Text(band)
+          Text(band).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(this.form.memberCountBand === band ? '#FFFFFF' : Theme.inkSecondary)
             .backgroundColor(this.form.memberCountBand === band ? Theme.primary : Theme.field)
@@ -266,7 +266,7 @@ struct FamilyDirectoryView {
         }, (band: string) => 'band_' + band)
       }
       .width('100%')
-      Button(this.busy ? '保存中…' : '保存黄页信息')
+      Button(this.busy ? '保存中…' : '保存黄页信息').fontFamily(uiFontFamily())
         .fontSize(13)
         .height(36)
         .width('100%')
@@ -277,7 +277,7 @@ struct FamilyDirectoryView {
         .onClick((): void => {
           this.doPublish(this.form.directoryEnabled);
         })
-      Text(T('黄页里只允许出现谱名 / 姓氏 / 地域 / 支系概述 / 人数区间 / 封面图 / 提示文案。上传任何人物数据都会被云函数拒绝。'))
+      Text(T('黄页里只允许出现谱名 / 姓氏 / 地域 / 支系概述 / 人数区间 / 封面图 / 提示文案。上传任何人物数据都会被云函数拒绝。')).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 6 })
@@ -311,7 +311,7 @@ struct FamilyDirectoryView {
             this.OwnerPanel()
           }
           Row() {
-            TextInput({ text: this.keyword, placeholder: T('谱名 / 姓氏 / 地域') })
+            TextInput({ text: this.keyword, placeholder: T('谱名 / 姓氏 / 地域') }).fontFamily(uiFontFamily())
               .height(38)
               .fontSize(14)
               .layoutWeight(1)
@@ -323,7 +323,7 @@ struct FamilyDirectoryView {
               .onSubmit(() => {
                 this.search();
               })
-            Button(this.searching ? '搜索中' : '搜索')
+            Button(this.searching ? '搜索中' : '搜索').fontFamily(uiFontFamily())
               .fontSize(13)
               .height(38)
               .margin({ left: Spacing.S })
@@ -338,7 +338,7 @@ struct FamilyDirectoryView {
           .margin({ bottom: Spacing.M })
 
           if (this.message.length > 0) {
-            Text(this.message)
+            Text(this.message).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -352,7 +352,7 @@ struct FamilyDirectoryView {
             this.Card(e)
           }, (e: DirectoryEntry) => 'dir_' + e.dirId)
 
-          Text(T('注意：黄页里出现 ≠ 能看到人物数据；没出现在黄页里 ≠ 不存在（谱主可关闭上架，此时只能靠加入码或分享链接进入）。'))
+          Text(T('注意：黄页里出现 ≠ 能看到人物数据；没出现在黄页里 ≠ 不存在（谱主可关闭上架，此时只能靠加入码或分享链接进入）。')).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .width('100%')

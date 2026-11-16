@@ -1,4 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
+import { uiFontFamily } from '../service/ScriptService';
 import { BackButton } from './BackButton';
 
 /**
@@ -21,14 +22,14 @@ export struct PageNavBar {
         }
       })
       Column() {
-        Text(this.title)
+        Text(T(this.title)).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
         if (this.subtitle.length > 0) {
-          Text(this.subtitle)
+          Text(this.subtitle).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 1 })
@@ -42,7 +43,7 @@ export struct PageNavBar {
       if (this.busy) {
         LoadingProgress().width(20).height(20).color(Theme.primary)
       } else if (this.actionText.length > 0) {
-        Text(this.actionText)
+        Text(this.actionText).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.primary)
           .padding({ left: 8, right: 8, top: 4, bottom: 4 })

@@ -1,5 +1,5 @@
 import { common } from '@kit.AbilityKit';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { photoAccessHelper } from '@kit.MediaLibraryKit';
@@ -87,14 +87,14 @@ struct SelectField {
     Column() {
       Column() {
         Row() {
-          Text(this.label).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(this.label).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
           if (this.required) {
-            Text(' *').fontSize(13).fontColor(Theme.danger)
+            Text(' *').fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.danger)
           }
         }
         .width('100%')
         if (this.hint.length > 0) {
-          Text(this.hint)
+          Text(this.hint).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .width('100%')
@@ -128,7 +128,7 @@ struct SelectField {
             }
           })
         if (this.clearable && this.value.length > 0) {
-          Text(T('清除'))
+          Text(T('清除')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .padding({ left: Spacing.M, top: 10, bottom: 10 })
@@ -225,7 +225,7 @@ struct PersonPickerField {
   @Builder
   pickerSheet() {
     Column() {
-      TextInput({ text: this.keyword, placeholder: T('输入谱名 / 曾用名 / 唯一ID 搜索') })
+      TextInput({ text: this.keyword, placeholder: T('输入谱名 / 曾用名 / 唯一ID 搜索') }).fontFamily(uiFontFamily())
         .height(40)
         .fontSize(14)
         .fontColor(Theme.ink)
@@ -238,13 +238,13 @@ struct PersonPickerField {
         })
 
       if (this.keyword.trim().length === 0) {
-        Text('输入关键字后显示匹配的族人（最多 ' + PICKER_MAX_RESULTS.toString() + ' 条）')
+        Text('输入关键字后显示匹配的族人（最多 ' + PICKER_MAX_RESULTS.toString() + ' 条）').fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .width('100%')
           .margin({ top: Spacing.L })
       } else if (this.results.length === 0) {
-        Text(T('没有匹配的族人'))
+        Text(T('没有匹配的族人')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -255,12 +255,12 @@ struct PersonPickerField {
             ListItem() {
               Row() {
                 Column() {
-                  Text(p.name + '（' + p.uid + '）')
+                  Text(T(p.name + '（' + p.uid + '）')).fontFamily(uiFontFamily())
                     .fontSize(14)
                     .fontColor(Theme.ink)
                     .fontWeight(FontWeight.Medium)
-                  Text(generationLabel(p.generation) + ' · ' + p.gender +
-                    (p.alias.length > 0 ? ' · ' + p.alias : ''))
+                  Text(T(generationLabel(p.generation) + ' · ' + p.gender +
+                    (p.alias.length > 0 ? ' · ' + p.alias : ''))).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .fontColor(Theme.inkTertiary)
                     .margin({ top: 2 })
@@ -269,7 +269,7 @@ struct PersonPickerField {
                 .layoutWeight(1)
 
                 if (p.uid.trim().toUpperCase() === this.value.trim().toUpperCase()) {
-                  Text(T('当前'))
+                  Text(T('当前')).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .fontColor(Theme.primary)
                 }
@@ -299,11 +299,11 @@ struct PersonPickerField {
     Column() {
       Column() {
         Row() {
-          Text(this.label).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(this.label).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
         }
         .width('100%')
         if (this.hint.length > 0) {
-          Text(this.hint)
+          Text(this.hint).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .width('100%')
@@ -315,14 +315,14 @@ struct PersonPickerField {
 
       Row() {
         Row() {
-          Text(this.displayText())
+          Text(this.displayText()).fontFamily(uiFontFamily())
             .fontSize(14)
             .fontColor(this.value.length > 0 ? Theme.ink : Theme.inkTertiary)
             .fontWeight(this.value.length > 0 ? FontWeight.Medium : FontWeight.Normal)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .layoutWeight(1)
-          Text(T('搜索'))
+          Text(T('搜索')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.primary)
         }
@@ -337,7 +337,7 @@ struct PersonPickerField {
         })
 
         if (this.clearable && this.value.length > 0) {
-          Text(T('清除'))
+          Text(T('清除')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .padding({ left: Spacing.M, top: 10, bottom: 10 })
@@ -382,11 +382,11 @@ struct DateFieldInput {
     Column() {
       Column() {
         Row() {
-          Text(this.label).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(this.label).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
         }
         .width('100%')
         if (this.hint.length > 0) {
-          Text(this.hint)
+          Text(this.hint).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .width('100%')
@@ -397,7 +397,7 @@ struct DateFieldInput {
       .margin({ bottom: 4 })
 
       Row() {
-        TextInput({ text: this.value, placeholder: T('点击右侧“选择”，或直接输入') })
+        TextInput({ text: this.value, placeholder: T('点击右侧“选择”，或直接输入') }).fontFamily(uiFontFamily())
           .layoutWeight(1)
           .height(40)
           .fontSize(14)
@@ -408,7 +408,7 @@ struct DateFieldInput {
           .onChange((v: string): void => {
             this.onChange(v);
           })
-        Text(T('📅 选择'))
+        Text(T('📅 选择')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor('#FFFFFF')
           .backgroundColor(Theme.primary)
@@ -1383,14 +1383,14 @@ struct PersonEdit {
   Label(text: string, required: boolean, hint: string) {
     Column() {
       Row() {
-        Text(text).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+        Text(text).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
         if (required) {
-          Text(' *').fontSize(13).fontColor(Theme.danger)
+          Text(' *').fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.danger)
         }
       }
       .width('100%')
       if (hint.length > 0) {
-        Text(T(hint))
+        Text(T(hint)).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -1405,7 +1405,7 @@ struct PersonEdit {
   TextField(label: string, value: string, hint: string, required: boolean, onChange: (v: string) => void) {
     Column() {
       this.Label(label, required, hint)
-      TextInput({ text: value })
+      TextInput({ text: value }).fontFamily(uiFontFamily())
         .height(40)
         .fontSize(14)
         .backgroundColor(Theme.field)
@@ -1580,7 +1580,7 @@ struct PersonEdit {
   DatePickerPanel() {
     Column() {
       Row() {
-        Text(T('取消'))
+        Text(T('取消')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontColor(Theme.inkTertiary)
           .layoutWeight(1)
@@ -1588,13 +1588,13 @@ struct PersonEdit {
           .onClick((): void => {
             this.showDatePicker = false;
           })
-        Text(this.dateTargetLabel)
+        Text(this.dateTargetLabel).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(2)
           .textAlign(TextAlign.Center)
-        Text(T('确定'))
+        Text(T('确定')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.primary)
@@ -1610,17 +1610,17 @@ struct PersonEdit {
 
       // 当前组合预览：公历 + 干支黄历（如 丙午年（马） 戊戌月 辛未日）
       Column() {
-        Text(composeDate(this.pickYear, this.pickMonth, this.pickDay, this.dateCalendar))
+        Text(composeDate(this.pickYear, this.pickMonth, this.pickDay, this.dateCalendar)).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.primary)
-        Text(this.huangLi().text)
+        Text(this.huangLi().text).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.gold)
           .margin({ top: 2 })
           .maxLines(2)
           .textAlign(TextAlign.Center)
-        Text('节气：' + this.huangLi().term)
+        Text('节气：' + this.huangLi().term).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 2 })
@@ -1630,7 +1630,7 @@ struct PersonEdit {
 
       // 古历法记年：先选年号，再选第几年；选择后自动换算公历年
       Row() {
-        Text(T('纪年'))
+        Text(T('纪年')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ right: Spacing.S })
@@ -1706,7 +1706,7 @@ struct PersonEdit {
       .width('100%')
       .padding({ left: Spacing.M, right: Spacing.M })
 
-      Button(T('确定日期'))
+      Button(T('确定日期')).fontFamily(uiFontFamily())
         .width('88%')
         .height(44)
         .margin({ top: 8, bottom: 16 })
@@ -1741,8 +1741,8 @@ struct PersonEdit {
   @Builder
   GroupHeader(title: string, icon: string) {
     Row() {
-      Text(icon).fontSize(15)
-      Text(T(title)).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Theme.primary).margin({ left: 6 })
+      Text(icon).fontFamily(uiFontFamily()).fontSize(15)
+      Text(T(title)).fontFamily(uiFontFamily()).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Theme.primary).margin({ left: 6 })
     }
     .width('100%')
     .padding({ top: Spacing.L, bottom: Spacing.S })
@@ -1754,8 +1754,8 @@ struct PersonEdit {
     Column() {
       Row() {
         Column() {
-          Text(T('配偶关系')).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
-          Text(T('一夫一妻多妾制：正妻 / 平妻 / 贵妾 / 良妾 / 贱妾 / 外室，按先后顺序记录'))
+          Text(T('配偶关系')).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(T('一夫一妻多妾制：正妻 / 平妻 / 贵妾 / 良妾 / 贱妾 / 外室，按先后顺序记录')).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 1 })
@@ -1763,7 +1763,7 @@ struct PersonEdit {
         .alignItems(HorizontalAlign.Start)
         .layoutWeight(1)
 
-        Text(T('+ 添加配偶'))
+        Text(T('+ 添加配偶')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -1777,7 +1777,7 @@ struct PersonEdit {
       .margin({ bottom: Spacing.S })
 
       if (this.fSpouses.length === 0) {
-        Text(T('尚未录入配偶'))
+        Text(T('尚未录入配偶')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -1811,7 +1811,7 @@ struct PersonEdit {
             }
             .layoutWeight(1)
 
-            Text(T('删除'))
+            Text(T('删除')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.danger)
               .padding({ left: Spacing.M, right: Spacing.S, top: 30, bottom: Spacing.M })
@@ -1823,13 +1823,13 @@ struct PersonEdit {
           .alignItems(VerticalAlign.Top)
 
           // 名分含意提示：等级 / 地位 / 所生子女的宗法身份
-          Text(spouseRelationHint(rel.relation))
+          Text(spouseRelationHint(rel.relation)).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .lineHeight(16)
             .width('100%')
           if (childRankOfSpouseRelation(rel.relation).length > 0) {
-            Text('所生子女：' + childRankOfSpouseRelation(rel.relation))
+            Text('所生子女：' + childRankOfSpouseRelation(rel.relation)).fontFamily(uiFontFamily())
               .fontSize(10.5)
               .fontColor(Theme.gold)
               .width('100%')
@@ -1854,7 +1854,7 @@ struct PersonEdit {
           if (this.fAvatar.length > 0) {
             Image(this.fAvatar).width(84).height(84).borderRadius(42).objectFit(ImageFit.Cover)
           } else {
-            Text(this.fName.length > 0 ? this.fName.substring(0, 1) : '谱')
+            Text(this.fName.length > 0 ? this.fName.substring(0, 1) : '谱').fontFamily(uiFontFamily())
               .fontSize(30)
               .fontColor(Theme.primary)
               .width(84)
@@ -1869,7 +1869,7 @@ struct PersonEdit {
         .border({ width: 2, color: Theme.gold, radius: 42 })
 
         Row() {
-          Text(T('点击更换头像'))
+          Text(T('点击更换头像')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor('#FFFFFF')
             .backgroundColor(Theme.primary)
@@ -1879,7 +1879,7 @@ struct PersonEdit {
               this.pickAvatar();
             })
           if (this.fAvatar.length > 0) {
-            Text(T('清除'))
+            Text(T('清除')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkTertiary)
               .margin({ left: Spacing.M })
@@ -1893,7 +1893,7 @@ struct PersonEdit {
       .width('100%')
 
       if (this.errorMsg.length > 0) {
-        Text('⚠ ' + this.errorMsg)
+        Text('⚠ ' + this.errorMsg).fontFamily(uiFontFamily())
           .fontSize(12.5)
           .fontColor(Theme.danger)
           .backgroundColor('#FCEDEA')
@@ -1993,14 +1993,14 @@ struct PersonEdit {
           }
         })
         if (this.fChildStatus !== '未记') {
-          Text(childStatusHint(this.fChildStatus))
+          Text(childStatusHint(this.fChildStatus)).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .lineHeight(16)
             .width('100%')
         }
         if (this.isConcubineChild()) {
-          Text(CONCUBINE_CHILD_TITLE_HINT)
+          Text(CONCUBINE_CHILD_TITLE_HINT).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.gold)
             .lineHeight(16)
@@ -2137,7 +2137,7 @@ struct PersonEdit {
       })
       Column() {
         this.Label('生平简介', false, '500字以内，记录重大成就、品德、事迹（' + this.fBiography.length.toString() + '/500）')
-        TextArea({ text: this.fBiography })
+        TextArea({ text: this.fBiography }).fontFamily(uiFontFamily())
           .height(140)
           .fontSize(14)
           .backgroundColor(Theme.field)
@@ -2152,7 +2152,7 @@ struct PersonEdit {
 
       Column() {
         this.Label('墓葬信息', false, '地点、山向、碑文摘要（仅已故者填写）')
-        TextArea({ text: this.fGraveInfo })
+        TextArea({ text: this.fGraveInfo }).fontFamily(uiFontFamily())
           .height(80)
           .fontSize(14)
           .backgroundColor(Theme.field)
@@ -2163,10 +2163,10 @@ struct PersonEdit {
 
         Column() {
           Row() {
-            Text(T('经度（东经）')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('经度（东经）')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
-          TextInput({ text: this.fGraveLng !== 0 ? this.fGraveLng.toFixed(10) : '' })
+          TextInput({ text: this.fGraveLng !== 0 ? this.fGraveLng.toFixed(10) : '' }).fontFamily(uiFontFamily())
             .height(36)
             .fontSize(12)
             .fontColor(Theme.ink)
@@ -2180,11 +2180,11 @@ struct PersonEdit {
               }
             })
           Row() {
-            Text(T('纬度（北纬）')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('纬度（北纬）')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           .margin({ top: 6 })
-          TextInput({ text: this.fGraveLat !== 0 ? this.fGraveLat.toFixed(10) : '' })
+          TextInput({ text: this.fGraveLat !== 0 ? this.fGraveLat.toFixed(10) : '' }).fontFamily(uiFontFamily())
             .height(36)
             .fontSize(12)
             .fontColor(Theme.ink)
@@ -2198,11 +2198,11 @@ struct PersonEdit {
               }
             })
           Row() {
-            Text(T('海拔（米）')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('海拔（米）')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           .margin({ top: 6 })
-          TextInput({ text: this.fGraveAltitude !== 0 ? this.fGraveAltitude.toFixed(1) : '' })
+          TextInput({ text: this.fGraveAltitude !== 0 ? this.fGraveAltitude.toFixed(1) : '' }).fontFamily(uiFontFamily())
             .height(36)
             .fontSize(12)
             .fontColor(Theme.ink)
@@ -2216,11 +2216,11 @@ struct PersonEdit {
               }
             })
           Row() {
-            Text(T('地图定位信息 / 分享链接')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+            Text(T('地图定位信息 / 分享链接')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
           }
           .width('100%')
           .margin({ top: 6 })
-          TextInput({ text: this.fGraveMapInfo, placeholder: T('粘贴地图分享链接或“经度,纬度”') })
+          TextInput({ text: this.fGraveMapInfo, placeholder: T('粘贴地图分享链接或“经度,纬度”') }).fontFamily(uiFontFamily())
             .height(36)
             .fontSize(12)
             .fontColor(Theme.ink)
@@ -2231,14 +2231,14 @@ struct PersonEdit {
               this.applyMapInfo(v);
             })
           if (this.mapHint.length > 0) {
-            Text(this.mapHint)
+            Text(this.mapHint).fontFamily(uiFontFamily())
               .fontSize(10.5)
               .fontColor(Theme.inkTertiary)
               .width('100%')
               .margin({ top: 4 })
           }
           Row() {
-            Text(this.locating ? '⏳ 正在定位…' : '📍 拾取当前位置')
+            Text(this.locating ? '⏳ 正在定位…' : '📍 拾取当前位置').fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor('#FFFFFF')
               .backgroundColor(Theme.alive)
@@ -2247,7 +2247,7 @@ struct PersonEdit {
               .onClick((): void => {
                 this.pickGraveLocation();
               })
-            Text(T('🗺 地图应用拾取'))
+            Text(T('🗺 地图应用拾取')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.primary)
               .backgroundColor(this.isDark ? '#3A3325' : '#F6E7C8')
@@ -2258,7 +2258,7 @@ struct PersonEdit {
                 this.launchMapApp();
               })
             Blank()
-            Text(this.fGraveLat !== 0 ? '已定位' : '未定位')
+            Text(this.fGraveLat !== 0 ? '已定位' : '未定位').fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(this.fGraveLat !== 0 ? Theme.alive : Theme.inkTertiary)
           }
@@ -2277,7 +2277,7 @@ struct PersonEdit {
       // 联系方式
       this.GroupHeader('联系方式', '📞')
       Row() {
-        Text(T('🔒 以下为隐私字段，仅管理员可见'))
+        Text(T('🔒 以下为隐私字段，仅管理员可见')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.danger)
           .width('100%')
@@ -2293,14 +2293,14 @@ struct PersonEdit {
       // 照片视频：预览框 + “+” 添加（系统图库 / 文件管理器）
       Column() {
         Row() {
-          Text(T('照片视频')).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
-          Text(this.photoList().length > 0 ? '已添加 ' + this.photoList().length.toString() + ' 项' : '')
+          Text(T('照片视频')).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
+          Text(this.photoList().length > 0 ? '已添加 ' + this.photoList().length.toString() + ' 项' : '').fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ left: Spacing.S })
           Blank()
           if (this.photoList().length > 0) {
-            Text(T('清空'))
+            Text(T('清空')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkTertiary)
               .onClick((): void => {
@@ -2310,7 +2310,7 @@ struct PersonEdit {
         }
         .width('100%')
 
-        Text(T('点击“+”从系统图库或文件管理器添加照片、视频'))
+        Text(T('点击“+”从系统图库或文件管理器添加照片、视频')).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -2321,8 +2321,8 @@ struct PersonEdit {
             Stack({ alignContent: Alignment.TopEnd }) {
               if (this.isVideoUri(uri)) {
                 Column() {
-                  Text('🎬').fontSize(22)
-                  Text(T('视频')).fontSize(9).fontColor(Theme.inkTertiary)
+                  Text('🎬').fontFamily(uiFontFamily()).fontSize(22)
+                  Text(T('视频')).fontFamily(uiFontFamily()).fontSize(9).fontColor(Theme.inkTertiary)
                 }
                 .width('100%')
                 .height('100%')
@@ -2337,7 +2337,7 @@ struct PersonEdit {
                   .objectFit(ImageFit.Cover)
                   .borderRadius(8)
               }
-              Text('×')
+              Text('×').fontFamily(uiFontFamily())
                 .fontSize(11)
                 .fontColor('#FFFFFF')
                 .backgroundColor('#99000000')
@@ -2356,7 +2356,7 @@ struct PersonEdit {
           }, (uri: string, index: number): string => uri + '_' + index.toString())
 
           Column() {
-            Text('+').fontSize(28).fontColor(Theme.primary)
+            Text('+').fontFamily(uiFontFamily()).fontSize(28).fontColor(Theme.primary)
           }
           .width('23%')
           .aspectRatio(1)
@@ -2383,34 +2383,34 @@ struct PersonEdit {
   @Builder
   SidePreview() {
     Column() {
-      Text(T('族谱预览')).fontSize(13).fontColor(Theme.inkTertiary).width('100%')
+      Text(T('族谱预览')).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.inkTertiary).width('100%')
       Column() {
-        Text(this.fName.length > 0 ? this.fName : '未命名')
+        Text(this.fName.length > 0 ? this.fName : '未命名').fontFamily(uiFontFamily())
           .fontSize(18)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.fGender === '女' ? Theme.female : Theme.primary)
         Text(generationLabel(this.fGeneration) + ' · ' + (this.fUid.length > 0 ? this.fUid : 'ID 待生成') +
-          (this.fGenChar.length > 0 ? ' · “' + this.fGenChar + '”字' : ''))
+          (this.fGenChar.length > 0 ? ' · “' + this.fGenChar + '”字' : '')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 4 })
         Divider().color(Theme.line).margin({ top: 10, bottom: 10 })
-        Text(this.previewLine('性别', this.fGender))
-        Text(this.previewLine('在世状态', this.fLifeStatus))
+        Text(this.previewLine('性别', this.fGender)).fontFamily(uiFontFamily())
+        Text(this.previewLine('在世状态', this.fLifeStatus)).fontFamily(uiFontFamily())
         Text(this.previewLine('子女身份', this.fChildStatus === '未记' ? '' :
-          childStatusLabel(this.fChildStatus, this.fGender)))
-        Text(this.previewLine('出生', this.fBirthDate))
-        Text(this.previewLine('逝世', this.fDeathDate))
-        Text(this.previewLine('出生地', this.fBirthPlace))
-        Text(this.previewLine('现居地', this.fResidence))
-        Text(this.previewLine('父亲', this.relationValue(this.fFatherId)))
-        Text(this.previewLine('母亲', this.relationValue(this.fMotherId)))
-        Text(this.previewLine('配偶', this.spousesPreview()))
-        Text(this.previewLine('排行', this.fRank))
-        Text(this.previewLine('学历', this.fEducation))
-        Text(this.previewLine('职业', this.fOccupation))
+          childStatusLabel(this.fChildStatus, this.fGender))).fontFamily(uiFontFamily())
+        Text(this.previewLine('出生', this.fBirthDate)).fontFamily(uiFontFamily())
+        Text(this.previewLine('逝世', this.fDeathDate)).fontFamily(uiFontFamily())
+        Text(this.previewLine('出生地', this.fBirthPlace)).fontFamily(uiFontFamily())
+        Text(this.previewLine('现居地', this.fResidence)).fontFamily(uiFontFamily())
+        Text(this.previewLine('父亲', this.relationValue(this.fFatherId))).fontFamily(uiFontFamily())
+        Text(this.previewLine('母亲', this.relationValue(this.fMotherId))).fontFamily(uiFontFamily())
+        Text(this.previewLine('配偶', this.spousesPreview())).fontFamily(uiFontFamily())
+        Text(this.previewLine('排行', this.fRank)).fontFamily(uiFontFamily())
+        Text(this.previewLine('学历', this.fEducation)).fontFamily(uiFontFamily())
+        Text(this.previewLine('职业', this.fOccupation)).fontFamily(uiFontFamily())
         if (this.fBiography.length > 0) {
-          Text(this.fBiography)
+          Text(this.fBiography).fontFamily(uiFontFamily())
             .fontSize(12)
             .lineHeight(20)
             .fontColor(Theme.inkSecondary)
@@ -2442,13 +2442,13 @@ struct PersonEdit {
             this.getUIContext().getRouter().back();
           }
         })
-        Text(this.originalUid.length > 0 ? '编辑族人' : (this.mode === 'child' ? '添加子女' : '新增族人'))
+        Text(this.originalUid.length > 0 ? '编辑族人' : (this.mode === 'child' ? '添加子女' : '新增族人')).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
         if (this.originalUid.length > 0) {
-          Text(T('删除'))
+          Text(T('删除')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.danger)
             .margin({ right: Spacing.M })
@@ -2456,7 +2456,7 @@ struct PersonEdit {
               this.remove();
             })
         }
-        Button(this.saving ? '保存中…' : '保存')
+        Button(this.saving ? '保存中…' : '保存').fontFamily(uiFontFamily())
           .fontSize(13)
           .height(28)
           .padding({ left: 16, right: 16 })

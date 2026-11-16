@@ -1,5 +1,5 @@
 import { Person } from '../model/Person';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { GenealogyStats, GenerationStat } from '../model/Stats';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing } from '../theme/Theme';
@@ -69,7 +69,7 @@ export struct GenealogyStatsPanel {
   @Builder
   RatioRow(label: string, value: number, total: number, color: string) {
     Row() {
-      Text(T(label)).fontSize(12).fontColor(Theme.inkSecondary).width(56)
+      Text(T(label)).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).width(56)
       Stack({ alignContent: Alignment.Start }) {
         Row().width('100%').height(12).backgroundColor(Theme.field).borderRadius(6)
         Row()
@@ -80,8 +80,8 @@ export struct GenealogyStatsPanel {
       }
       .layoutWeight(1)
       .height(12)
-      Text(value.toString()).fontSize(12).fontColor(Theme.ink).width(48).textAlign(TextAlign.End)
-      Text(total === 0 ? '0%' : Math.round(value / total * 100).toString() + '%')
+      Text(value.toString()).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.ink).width(48).textAlign(TextAlign.End)
+      Text(total === 0 ? '0%' : Math.round(value / total * 100).toString() + '%').fontFamily(uiFontFamily())
         .fontSize(11)
         .fontColor(Theme.inkTertiary)
         .width(40)
@@ -95,20 +95,20 @@ export struct GenealogyStatsPanel {
   GenTable() {
     Column() {
       Row() {
-        Text(T('世代')).fontSize(11).fontColor(Theme.inkTertiary).width(64)
-        Text(T('人数')).fontSize(11).fontColor(Theme.inkTertiary).width(44)
-        Text(T('男/女')).fontSize(11).fontColor(Theme.inkTertiary).width(64)
-        Text(T('在世/已故')).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
+        Text(T('世代')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).width(64)
+        Text(T('人数')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).width(44)
+        Text(T('男/女')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).width(64)
+        Text(T('在世/已故')).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).layoutWeight(1)
       }
       .width('100%')
       .padding({ bottom: 6 })
 
       ForEach(this.stats().generations, (g: GenerationStat) => {
         Row() {
-          Text(g.label).fontSize(12.5).fontColor(Theme.primary).width(64)
-          Text(g.total.toString()).fontSize(12.5).fontColor(Theme.ink).width(44)
-          Text(g.male.toString() + '/' + g.female.toString()).fontSize(12).fontColor(Theme.inkSecondary).width(64)
-          Text(g.alive.toString() + '/' + g.deceased.toString()).fontSize(12).fontColor(Theme.inkSecondary).layoutWeight(1)
+          Text(g.label).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.primary).width(64)
+          Text(g.total.toString()).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.ink).width(44)
+          Text(g.male.toString() + '/' + g.female.toString()).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).width(64)
+          Text(g.alive.toString() + '/' + g.deceased.toString()).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).layoutWeight(1)
         }
         .width('100%')
         .padding({ top: 6, bottom: 6 })
@@ -123,11 +123,11 @@ export struct GenealogyStatsPanel {
     Flex({ wrap: FlexWrap.Wrap }) {
       ForEach(this.charDistribution(), (item: string[]) => {
         Row() {
-          Text('“' + item[0] + '”')
+          Text('“' + item[0] + '”').fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.primary)
             .fontWeight(FontWeight.Medium)
-          Text(item[1] + '人')
+          Text(item[1] + '人').fontFamily(uiFontFamily())
             .fontSize(10)
             .fontColor(Theme.inkTertiary)
             .margin({ left: 3 })

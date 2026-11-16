@@ -1,5 +1,5 @@
 import { PersonNode } from '../../model/PersonNode';
-import { T } from '../../service/ScriptService';
+import { T, uiFontFamily } from '../../service/ScriptService';
 import { TreeStyle, generationLabel } from '../../model/Enums';
 import { Theme } from '../../theme/Theme';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
@@ -30,7 +30,7 @@ struct PrintCard {
   build() {
     Column() {
       Row() {
-        Text(this.name)
+        Text(T(this.name)).fontFamily(uiFontFamily())
           .fontSize(this.nameSize)
           .fontColor(this.female ? '#9C4A63' : '#2B2118')
           .fontWeight(FontWeight.Medium)
@@ -38,7 +38,7 @@ struct PrintCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
         if (this.badge.length > 0) {
-          Text(this.badge)
+          Text(this.badge).fontFamily(uiFontFamily())
             .fontSize(this.detailSize)
             .fontColor('#8C2F1E')
             .maxLines(1)
@@ -49,7 +49,7 @@ struct PrintCard {
       .width('100%')
 
       if (this.detail.length > 0) {
-        Text(this.detail)
+        Text(this.detail).fontFamily(uiFontFamily())
           .fontSize(this.detailSize)
           .fontColor('#5F4F3E')
           .maxLines(1)
@@ -445,10 +445,10 @@ export struct PagedTree {
       Row({ space: this.mm(2) }) {
         ForEach(this.ancestorUids, (uid: string, i: number) => {
           Column() {
-            Text(T('承'))
+            Text(T('承')).fontFamily(uiFontFamily())
               .fontSize(this.pt(5.5))
               .fontColor('#9A8A74')
-            Text(this.ancestorNames.length > i ? this.ancestorNames[i] : uid)
+            Text(this.ancestorNames.length > i ? this.ancestorNames[i] : uid).fontFamily(uiFontFamily())
               .fontSize(this.pt(7))
               .fontColor('#5F4F3E')
               .maxLines(1)
@@ -474,7 +474,7 @@ export struct PagedTree {
     if (this.siblingLinks.length > 0) {
       Row({ space: this.mm(3) }) {
         ForEach(this.siblingLinks, (link: PageJump, i: number) => {
-          Text('旁支 ' + link.relation + ' → 第' + link.page.toString() + '页')
+          Text('旁支 ' + link.relation + ' → 第' + link.page.toString() + '页').fontFamily(uiFontFamily())
             .fontSize(this.pt(6.5))
             .fontColor('#8C2F1E')
             .maxLines(1)
@@ -513,7 +513,7 @@ export struct PagedTree {
       this.AncestorCards()
 
       // 页眉：谱名/支系 + 世代范围
-      Text(this.header)
+      Text(this.header).fontFamily(uiFontFamily())
         .fontSize(this.pt(8))
         .fontColor('#7A6A57')
         .maxLines(1)
@@ -596,7 +596,7 @@ export struct PagedTree {
 
       // 页脚接续 + 页码（分两行：接续距底 12mm，页码距底 6mm）
       if (this.footer.length > 0) {
-        Text(this.footer)
+        Text(this.footer).fontFamily(uiFontFamily())
           .fontSize(this.pt(6.5))
           .fontColor('#8C2F1E')
           .maxLines(1)
@@ -607,7 +607,7 @@ export struct PagedTree {
             y: this.mm(this.spec.trimH - 12)
           })
       }
-      Text('第 ' + this.pageNo.toString() + ' 页 / 共 ' + this.pageCount.toString() + ' 页')
+      Text('第 ' + this.pageNo.toString() + ' 页 / 共 ' + this.pageCount.toString() + ' 页').fontFamily(uiFontFamily())
         .fontSize(this.pt(8))
         .fontColor('#5E5041')
         .fontWeight(FontWeight.Medium)
@@ -639,7 +639,7 @@ export struct PagedTree {
     Column() {
       // 页导航
       Row() {
-        Button(T('上一页'))
+        Button(T('上一页')).fontFamily(uiFontFamily())
           .fontSize(11)
           .height(30)
           .fontColor(Theme.primary)
@@ -650,11 +650,11 @@ export struct PagedTree {
           .onClick((): void => {
             this.goto(this.pageNo - 1);
           })
-        Text(this.pageNo.toString() + ' / ' + this.pageCount.toString())
+        Text(this.pageNo.toString() + ' / ' + this.pageCount.toString()).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.ink)
           .margin({ left: 10, right: 10 })
-        Button(T('下一页'))
+        Button(T('下一页')).fontFamily(uiFontFamily())
           .fontSize(11)
           .height(30)
           .fontColor(Theme.primary)
@@ -666,7 +666,7 @@ export struct PagedTree {
             this.goto(this.pageNo + 1);
           })
         Blank()
-        Text('－')
+        Text('－').fontFamily(uiFontFamily())
           .fontSize(16)
           .height(30)
           .width(34)
@@ -677,11 +677,11 @@ export struct PagedTree {
           .onClick((): void => {
             this.zoomAt(this.zoom - 0.5, this.viewW / 2, this.pageViewH() / 2);
           })
-        Text(Math.round(this.zoom * 100).toString() + '%')
+        Text(Math.round(this.zoom * 100).toString() + '%').fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 5, right: 5 })
-        Text('＋')
+        Text('＋').fontFamily(uiFontFamily())
           .fontSize(16)
           .height(30)
           .width(34)
@@ -709,7 +709,7 @@ export struct PagedTree {
               .width(34)
               .height(34)
               .color(Theme.primary)
-            Text(this.planningPct > 0 ? ('正在排版 ' + this.planningPct.toString() + '%') : '正在排版…')
+            Text(this.planningPct > 0 ? ('正在排版 ' + this.planningPct.toString() + '%') : '正在排版…').fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .margin({ top: 10 })

@@ -1,5 +1,5 @@
 import { Person } from '../../model/Person';
-import { T } from '../../service/ScriptService';
+import { T, uiFontFamily } from '../../service/ScriptService';
 import { Theme } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 import { compactUid } from '../../util/StringUtil';
@@ -70,7 +70,7 @@ export struct TreeMiniCard {
   build() {
     Column() {
       Row() {
-        Text(this.person.name)
+        Text(T(this.person.name)).fontFamily(uiFontFamily())
           .fontSize(this.dense ? 13 : 14)
           .fontWeight(FontWeight.Medium)
           .fontColor(this.person.gender === '女' ? Theme.female : Theme.ink)
@@ -79,7 +79,7 @@ export struct TreeMiniCard {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
         if (this.genChar().length > 0) {
-          Text(this.genChar())
+          Text(this.genChar()).fontFamily(uiFontFamily())
             .fontSize(9)
             .lineHeight(this.infoLineHeight())
             .fontColor(Theme.gold)
@@ -88,7 +88,7 @@ export struct TreeMiniCard {
             .flexShrink(0)
         }
         if (this.statusText().length > 0) {
-          Text(this.statusText())
+          Text(this.statusText()).fontFamily(uiFontFamily())
             .fontSize(9)
             .lineHeight(this.infoLineHeight())
             .fontColor(this.person.lifeStatus === '已故' ? Theme.deceased : Theme.lost)
@@ -104,7 +104,7 @@ export struct TreeMiniCard {
 
       // 世代 + 唯一ID + 字派
       Row() {
-        Text(generationLabel(this.person.generation))
+        Text(generationLabel(this.person.generation)).fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
           .fontColor('#FFFFFF')
@@ -112,7 +112,7 @@ export struct TreeMiniCard {
           .borderRadius(4)
           .padding({ left: 4, right: 4 })
           .flexShrink(0)
-        Text(compactUid(this.person.uid))
+        Text(compactUid(this.person.uid)).fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
           .fontColor(Theme.inkTertiary)
@@ -126,7 +126,7 @@ export struct TreeMiniCard {
 
       // 关联配偶
       if (this.spouseText.length > 0) {
-        Text(this.spouseText)
+        Text(this.spouseText).fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
           .fontColor(Theme.inkSecondary)
@@ -142,7 +142,7 @@ export struct TreeMiniCard {
       }
 
       if (this.childCount > 0 && !this.dense) {
-        Text(this.childCount.toString() + '子 · 后代' + this.descendants.toString() + '人')
+        Text(this.childCount.toString() + '子 · 后代' + this.descendants.toString() + '人').fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
           .fontColor(Theme.inkTertiary)

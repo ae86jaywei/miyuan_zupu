@@ -194,3 +194,13 @@ export class ScriptService {
 export function T(text: string): string {
   return ScriptService.getInstance().toDisplay(text);
 }
+
+/** 繁体界面统一使用内置大字库，避免系统 SC 字体缺字回退造成字体混排与字距空格 */
+export const UI_FONT_HANT: string = 'MiyuanHan';
+export const UI_FONT_HANS: string = 'HarmonyOS Sans SC';
+
+/** 当前文字对应的界面字体族 */
+export function uiFontFamily(): string {
+  const s: string | undefined = AppStorage.get<string>(ScriptService.APP_KEY);
+  return s === ScriptService.HANT ? UI_FONT_HANT : UI_FONT_HANS;
+}

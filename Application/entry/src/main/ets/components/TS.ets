@@ -1,5 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 
 /**
  * 卡片标题容器（TS = Title Section）。
@@ -27,16 +27,16 @@ export struct TS {
   build() {
     Row() {
       if (this.icon.length > 0) {
-        Text(this.icon).fontSize(15).margin({ right: Spacing.S })
+        Text(this.icon).fontFamily(uiFontFamily()).fontSize(15).margin({ right: Spacing.S })
       }
       if (this.title.length > 0) {
         Column() {
-          Text(T(this.title))
+          Text(T(this.title)).fontFamily(uiFontFamily())
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(Theme.ink)
           if (this.subtitle.length > 0) {
-            Text(T(this.subtitle))
+            Text(T(this.subtitle)).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 2 })

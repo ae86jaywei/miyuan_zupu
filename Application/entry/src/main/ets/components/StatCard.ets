@@ -1,4 +1,5 @@
 import { Theme, Radius, Spacing } from '../theme/Theme';
+import { uiFontFamily } from '../service/ScriptService';
 
 /** 统计数字卡 */
 @Component
@@ -14,9 +15,9 @@ export struct StatCard {
     Column() {
       Row() {
         if (this.icon.length > 0) {
-          Text(this.icon).fontSize(14).margin({ right: 4 })
+          Text(this.icon).fontFamily(uiFontFamily()).fontSize(14).margin({ right: 4 })
         }
-        Text(this.label)
+        Text(this.label).fontFamily(uiFontFamily())
           .fontSize(this.compact ? 11 : 12)
           .fontColor(Theme.inkTertiary)
           .maxLines(1)
@@ -25,12 +26,12 @@ export struct StatCard {
       .width('100%')
 
       Row() {
-        Text(this.value)
+        Text(this.value).fontFamily(uiFontFamily())
           .fontSize(this.compact ? 20 : 26)
           .fontWeight(FontWeight.Bold)
           .fontColor(this.accent)
         if (this.unit.length > 0) {
-          Text(this.unit)
+          Text(this.unit).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ left: 2, bottom: 3 })

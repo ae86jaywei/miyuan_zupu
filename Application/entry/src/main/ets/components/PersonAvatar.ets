@@ -1,4 +1,5 @@
 import { Theme } from '../theme/Theme';
+import { uiFontFamily } from '../service/ScriptService';
 import { Person } from '../model/Person';
 import { familyChar } from '../util/StringUtil';
 
@@ -20,7 +21,7 @@ export struct PersonAvatar {
           .objectFit(ImageFit.Cover)
           .draggable(false)
       } else {
-        Text(familyChar(this.person === undefined ? '' : this.person.name))
+        Text(T(familyChar(this.person === undefined ? '' : this.person.name))).fontFamily(uiFontFamily())
           .fontSize(this.avatarSize * 0.44)
           .fontColor(this.person !== undefined && this.person.gender === '女' ? Theme.female : Theme.primary)
           .fontWeight(FontWeight.Bold)

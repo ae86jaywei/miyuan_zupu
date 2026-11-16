@@ -1,5 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { TS } from '../components/TS';
 import { AccountService } from '../service/AccountService';
 import { RouterUtil } from '../util/RouterUtil';
@@ -55,13 +55,13 @@ export struct AccountCard {
       TS({ title: '账号与云同步', subtitle: '华为账号登录 · 云服务状态', icon: '☁️' })
       Column() {
         Row() {
-          Text(this.loggedIn ? '已登录' : '未登录')
+          Text(T(this.loggedIn ? '已登录' : '未登录')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(this.loggedIn ? Theme.primary : Theme.inkTertiary)
             .backgroundColor(this.loggedIn ? Theme.field : Theme.paperDeep)
             .borderRadius(10)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-          Text(this.loggedIn ? '华为账号 ' + AccountService.getInstance().getDisplayId() : '登录后可加入家族协作、共享族谱')
+          Text(T(this.loggedIn ? '华为账号 ' + AccountService.getInstance().getDisplayId() : '登录后可加入家族协作、共享族谱')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.ink)
             .layoutWeight(1)
@@ -71,7 +71,7 @@ export struct AccountCard {
         }
         .width('100%')
 
-        Text('UnionID 映射账号：' + (this.userId.length > 0 ? this.userId : '未登录'))
+        Text('UnionID 映射账号：' + (this.userId.length > 0 ? this.userId : '未登录')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -81,7 +81,7 @@ export struct AccountCard {
 
         Row() {
           if (!this.loggedIn) {
-            Button(T('华为账号登录'))
+            Button(T('华为账号登录')).fontFamily(uiFontFamily())
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.primary)
@@ -92,7 +92,7 @@ export struct AccountCard {
                 RouterUtil.login(this.getUIContext());
               })
           } else {
-            Button(T('退出登录'))
+            Button(T('退出登录')).fontFamily(uiFontFamily())
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.field)
@@ -107,7 +107,7 @@ export struct AccountCard {
         .width('100%')
         .margin({ top: Spacing.M })
 
-        Text('云服务：' + (this.cloudMsg.length > 0 ? this.cloudMsg : '未初始化'))
+        Text('云服务：' + (this.cloudMsg.length > 0 ? this.cloudMsg : '未初始化')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(this.cloudReady ? Theme.gold : Theme.inkTertiary)
           .width('100%')
@@ -115,7 +115,7 @@ export struct AccountCard {
           .maxLines(2)
 
         if (this.progressText.length > 0) {
-          Text(this.progressText)
+          Text(this.progressText).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkSecondary)
             .width('100%')

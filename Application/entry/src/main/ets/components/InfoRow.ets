@@ -1,5 +1,5 @@
 import { Theme } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 
 /** 详情页“标签：值”行 */
 @Component
@@ -14,13 +14,13 @@ export struct InfoRow {
 
   build() {
     Row() {
-      Text(T(this.label))
+      Text(T(this.label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(Theme.inkTertiary)
         .width(this.labelWidth)
         .flexShrink(0)
       if (this.privacy) {
-        Text(T('私'))
+        Text(T('私')).fontFamily(uiFontFamily())
           .fontSize(9)
           .fontColor(Theme.danger)
           .backgroundColor('#FCEDEA')
@@ -28,7 +28,7 @@ export struct InfoRow {
           .padding({ left: 3, right: 3, top: 1, bottom: 1 })
           .margin({ right: 4 })
       }
-      Text(T(this.value))
+      Text(T(this.value)).fontFamily(uiFontFamily())
         .fontSize(13.5)
         .fontColor(this.valueColor)
         .layoutWeight(1)

@@ -1,5 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 
 /**
  * 上下滑动选择弹层（自定义实现，替代 TextPicker）。
@@ -53,7 +53,7 @@ export struct SlidePicker {
     Column() {
       // 顶部操作栏
       Row() {
-        Text(T('取消'))
+        Text(T('取消')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontColor(Theme.inkTertiary)
           .layoutWeight(1)
@@ -62,13 +62,13 @@ export struct SlidePicker {
           .onClick((): void => {
             this.onCancel();
           })
-        Text(this.title)
+        Text(T(this.title)).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(2)
           .textAlign(TextAlign.Center)
-        Text(T('确定'))
+        Text(T('确定')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.primary)
@@ -97,7 +97,7 @@ export struct SlidePicker {
           ForEach(this.buildRows(), (row: number) => {
             ListItem() {
               Row() {
-                Text(this.valueAt(row))
+                Text(this.valueAt(row)).fontFamily(uiFontFamily())
                   .fontSize(this.valueAt(row).length > 0 &&
                     this.selected === row - this.padCount() ? 19 : 16)
                   .fontWeight(this.selected === row - this.padCount() ? FontWeight.Medium : FontWeight.Normal)
@@ -132,7 +132,7 @@ export struct SlidePicker {
       .clip(true)
 
       // 底部确认按钮
-      Button('确定选择「' + (this.options.length > 0 ? this.options[this.selected] : '') + '」')
+      Button('确定选择「' + (this.options.length > 0 ? this.options[this.selected] : '') + '」').fontFamily(uiFontFamily())
         .width('90%')
         .height(46)
         .margin({ top: 10, bottom: 16 })

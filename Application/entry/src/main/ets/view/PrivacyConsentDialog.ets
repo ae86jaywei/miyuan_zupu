@@ -1,5 +1,5 @@
 import { Theme, Spacing } from '../theme/Theme';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from '../model/AgreementDoc';
 
 /**
@@ -21,12 +21,12 @@ export struct PrivacyConsentDialog {
 
   build() {
     Column() {
-      Text('欢迎使用' + APP_NAME)
+      Text('欢迎使用' + APP_NAME).fontFamily(uiFontFamily())
         .fontSize(18)
         .fontWeight(FontWeight.Bold)
         .fontColor(Theme.ink)
         .width('100%')
-      Text(T('个人信息保护提示'))
+      Text(T('个人信息保护提示')).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -35,7 +35,7 @@ export struct PrivacyConsentDialog {
       Scroll() {
         Column() {
           Text('我们深知个人信息对你的重要性。为向你提供族谱记录、谱系展示与家族协作服务，' +
-            '我们会在你主动使用时处理以下信息：')
+            '我们会在你主动使用时处理以下信息：').fontFamily(uiFontFamily())
             .fontSize(12.5)
             .fontColor(Theme.inkSecondary)
             .lineHeight(19)
@@ -44,20 +44,20 @@ export struct PrivacyConsentDialog {
             '· 你录入或导入的族人信息（姓名、生卒、亲属关系、联系方式等）；\n' +
             '· 你主动上传的头像、家族相片与视频；\n' +
             '· 你主动标注祖墓位置时读取的经纬度与海拔；\n' +
-            '· 必要的运行日志，用于排查故障。')
+            '· 必要的运行日志，用于排查故障。').fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkSecondary)
             .lineHeight(19)
             .width('100%')
             .margin({ top: 8 })
           Text('族谱数据优先保存在本机；仅当你接入云家族并主动同步时，数据才会加密上传至华为云服务。' +
-            '未经你同意，我们不会初始化或上传任何数据，也不会将你的信息用于广告推送或出售。')
+            '未经你同意，我们不会初始化或上传任何数据，也不会将你的信息用于广告推送或出售。').fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkSecondary)
             .lineHeight(19)
             .width('100%')
             .margin({ top: 8 })
-          Text('运营者：' + OPERATOR_NAME + '　联系邮箱：' + CONTACT_EMAIL)
+          Text('运营者：' + OPERATOR_NAME + '　联系邮箱：' + CONTACT_EMAIL).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .lineHeight(17)
@@ -72,19 +72,19 @@ export struct PrivacyConsentDialog {
       .margin({ top: Spacing.M })
 
       Row() {
-        Text(T('我已阅读并同意'))
+        Text(T('我已阅读并同意')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
-        Text(T('《用户协议》'))
+        Text(T('《用户协议》')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .onClick((): void => {
             this.onOpenDoc('user');
           })
-        Text(T('和'))
+        Text(T('和')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkSecondary)
-        Text(T('《隐私政策》'))
+        Text(T('《隐私政策》')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.primary)
           .onClick((): void => {
@@ -94,7 +94,7 @@ export struct PrivacyConsentDialog {
       .width('100%')
       .margin({ top: Spacing.M })
 
-      Button(T('同意并继续'))
+      Button(T('同意并继续')).fontFamily(uiFontFamily())
         .width('100%')
         .height(42)
         .fontSize(15)
@@ -107,7 +107,7 @@ export struct PrivacyConsentDialog {
           this.onAgree();
         })
 
-      Button(T('不同意并退出'))
+      Button(T('不同意并退出')).fontFamily(uiFontFamily())
         .width('100%')
         .height(42)
         .fontSize(14)

@@ -1,5 +1,5 @@
 import { BusinessError } from '@kit.BasicServicesKit';
-import { T } from '../service/ScriptService';
+import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
@@ -121,12 +121,12 @@ struct AccessApply {
               this.kind = k;
             }
           })
-        Text(T(label))
+        Text(T(label)).fontFamily(uiFontFamily())
           .fontSize(14)
           .fontColor(this.kind === k ? Theme.ink : Theme.inkSecondary)
       }
       .width('100%')
-      Text(T(desc))
+      Text(T(desc)).fontFamily(uiFontFamily())
         .fontSize(10.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 2, left: 28 })
@@ -140,11 +140,11 @@ struct AccessApply {
   ApplicationRow(a: AccessRequestInfo) {
     Column() {
       Row() {
-        Text(accessKindLabel(a.kind))
+        Text(accessKindLabel(a.kind)).fontFamily(uiFontFamily())
           .fontSize(13)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(accessStatusLabel(a.status))
+        Text(accessStatusLabel(a.status)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(a.status === AccessStatus.APPROVED ? Theme.alive :
             (a.status === AccessStatus.REJECTED ? Theme.danger : Theme.gold))
@@ -153,13 +153,13 @@ struct AccessApply {
           .backgroundColor(Theme.field)
       }
       .width('100%')
-      Text((a.familyTitle.length > 0 ? a.familyTitle : a.familyId))
+      Text((a.familyTitle.length > 0 ? a.familyTitle : a.familyId)).fontFamily(uiFontFamily())
         .fontSize(10)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 3 })
         .width('100%')
       if (a.reviewNote.length > 0) {
-        Text('审批备注：' + a.reviewNote)
+        Text('审批备注：' + a.reviewNote).fontFamily(uiFontFamily())
           .fontSize(10.5)
           .fontColor(Theme.inkSecondary)
           .margin({ top: 2 })
@@ -184,12 +184,12 @@ struct AccessApply {
         Column() {
           TS({ title: '提交申请', subtitle: '申请单只会交给该谱谱主审核', icon: '✉️' })
           Column() {
-            Text('族谱ID：' + (this.familyId.length > 0 ? this.familyId : '（请从族谱黄页选择）'))
+            Text('族谱ID：' + (this.familyId.length > 0 ? this.familyId : '（请从族谱黄页选择）')).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .width('100%')
             Row() {
-              TextInput({ text: this.familyId, placeholder: T('从黄页进入会自动带入') })
+              TextInput({ text: this.familyId, placeholder: T('从黄页进入会自动带入') }).fontFamily(uiFontFamily())
                 .height(34)
                 .fontSize(12)
                 .layoutWeight(1)
@@ -198,7 +198,7 @@ struct AccessApply {
                 .onChange((v: string): void => {
                   this.familyId = v.trim();
                 })
-              Button(T('黄页'))
+              Button(T('黄页')).fontFamily(uiFontFamily())
                 .fontSize(12)
                 .height(34)
                 .margin({ left: Spacing.S })
@@ -214,7 +214,7 @@ struct AccessApply {
             this.KindTab(AccessKind.VIEW_APPLY, '申请查看', '只想先看一眼：默认 180 天后自动失效（谱主审批时可改）')
             this.KindTab(AccessKind.JOIN_CLAIM, '申请成为族人并认领支系', '真正的族人身份：永久有效，可修改认领支系内的族人')
 
-            TextInput({ text: this.relationText, placeholder: T('关系说明，如：我是三房李泽民之子') })
+            TextInput({ text: this.relationText, placeholder: T('关系说明，如：我是三房李泽民之子') }).fontFamily(uiFontFamily())
               .height(36)
               .fontSize(13)
               .backgroundColor(Theme.field)
@@ -224,7 +224,7 @@ struct AccessApply {
                 this.relationText = v;
               })
             if (this.kind === AccessKind.JOIN_CLAIM) {
-              TextInput({ text: this.branchUid, placeholder: T('认领支系根人物唯一ID，如 F012') })
+              TextInput({ text: this.branchUid, placeholder: T('认领支系根人物唯一ID，如 F012') }).fontFamily(uiFontFamily())
                 .height(34)
                 .fontSize(13)
                 .backgroundColor(Theme.field)
@@ -234,7 +234,7 @@ struct AccessApply {
                   this.branchUid = v;
                 })
             }
-            TextInput({ text: this.evidenceText, placeholder: T('依据：老谱照片 / 介绍人 / 口述人') })
+            TextInput({ text: this.evidenceText, placeholder: T('依据：老谱照片 / 介绍人 / 口述人') }).fontFamily(uiFontFamily())
               .height(36)
               .fontSize(13)
               .backgroundColor(Theme.field)
@@ -243,7 +243,7 @@ struct AccessApply {
               .onChange((v: string): void => {
                 this.evidenceText = v;
               })
-            Button(this.busy ? '提交中…' : '提交申请')
+            Button(this.busy ? '提交中…' : '提交申请').fontFamily(uiFontFamily())
               .fontSize(14)
               .height(40)
               .width('100%')
@@ -255,7 +255,7 @@ struct AccessApply {
                 this.submit();
               })
             if (this.message.length > 0) {
-              Text(this.message)
+              Text(this.message).fontFamily(uiFontFamily())
                 .fontSize(11.5)
                 .fontColor(Theme.inkSecondary)
                 .margin({ top: Spacing.S })
@@ -273,7 +273,7 @@ struct AccessApply {
           TS({ title: '我的申请', subtitle: '共 ' + this.myApplications.length.toString() + ' 条', icon: '📨' })
           Column() {
             if (this.myApplications.length === 0) {
-              Text(T('还没有提交过申请'))
+              Text(T('还没有提交过申请')).fontFamily(uiFontFamily())
                 .fontSize(12.5)
                 .fontColor(Theme.inkTertiary)
                 .padding(Spacing.L)
