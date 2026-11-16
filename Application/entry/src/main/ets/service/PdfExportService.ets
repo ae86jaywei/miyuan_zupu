@@ -750,6 +750,8 @@ interface PageSpec {
 /** 正文每页栏数（三段）与栏间距 */
 const COLUMNS: number = 3;
 const COLUMN_GAP: number = 14;
+/** 现代版横向三段（上中下）的段间距 */
+const SEGMENT_GAP: number = 12;
 
 /**
  * 现代版三栏分页：每人独占栏，一栏写不完续到下一栏；只有空栏才写下一人。
@@ -757,7 +759,8 @@ const COLUMN_GAP: number = 14;
  */
 async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
   contentW: number, contentH: number): Promise<PaginateResult> {
-  const columnW: number = (contentW - COLUMN_GAP * (COLUMNS - 1)) / COLUMNS;
+  // 现代版是“上中下”三段横条：每段横向铺满版心，段内文字横排
+  const segmentH: number = (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS;
   const pages: PageSpec[] = [];
   const uidPage: Map<string, number> = new Map<string, number>();
   let cur: TextLine[] = [];
@@ -766,7 +769,7 @@ async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
   let curHasPerson: boolean = false;
   const flush = (): void => {
     if (cur.length > 0) {
-      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: columnW });
+      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: contentW });
       cur = [];
       used = 0;
       column = (column + 1) % COLUMNS;
@@ -785,7 +788,7 @@ async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
     }
     for (let j: number = 0; j < e.lines.length; j = j + 1) {
       const ln: TextLine = e.lines[j];
-      if (used + ln.lineH > contentH && cur.length > 0) {
+      if (used + ln.lineH > segmentH && cur.length > 0) {
         flush();
       }
       cur.push(ln);
@@ -1636,18 +1639,18 @@ export class PdfExportService {
     const contentW: number = dieContentW(printSpec);
     const innerX: number = dieInnerX(printSpec, recto);
     const innerY: number = PrintPageSpec.mmToPt(printSpec.innerY());
+    const contentH: number = dieContentH(printSpec);
     const pageNo: number = spec.pageNo ?? 1;
-    // 正文一页三栏；封面/谱序/家训/凡例仍是整页一栏
+    // 现代版是上中下三段横条：每段横向铺满版心，段号决定纵向下移
     const col: number = spec.column ?? 0;
-    const baseW: number = (spec.columnW !== undefined && spec.columnW > 0)
-      ? spec.columnW : contentW;
-    const x0: number = innerX + col * (baseW + COLUMN_GAP);
-    const centerX: number = x0 + baseW / 2;
-    let y: number = isCover ? 0 : innerY;
+    const segmentH: number = (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS;
+    const x0: number = innerX;
+    const centerX: number = innerX + contentW / 2;
+    let y: number = isCover ? 0 : innerY + col * (segmentH + SEGMENT_GAP);
     if (!isCover && spec.chapter.length > 0 && col === 0) {
       const r: PdfTextLine = new PdfTextLine();
       r.text = spec.chapter;
-      r.xPt = x0 + baseW - measurePt(ctx, spec.chapter, 9);
+      r.xPt = innerX + contentW - measurePt(ctx, spec.chapter, 9);
       r.yPt = baselineOf(innerY - 16, 9);
       r.sizePt = 9;
       r.color = C_INK3;
