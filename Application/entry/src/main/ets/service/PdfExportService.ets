@@ -1473,8 +1473,9 @@ export class PdfExportService {
       // 双面印刷按「卷内页序」交替装订侧：每卷单独装订，不按整谱页码判断
       const recto: boolean = ((i + 1) % 2) === 1;
       const isCoverPage: boolean = i < coverPages.length;
-      const lines: PdfTextLine[] = (classic && !isCoverPage)
-        ? PdfExportService.buildVerticalTextLines(ctx, printSpec, all[i], i + 1, total, recto)
+      const lines: PdfTextLine[] = classic
+        ? PdfExportService.buildVerticalTextLines(ctx, printSpec, all[i], i + 1, total, recto,
+          isCoverPage)
         : PdfExportService.buildRawTextLines(ctx, printSpec, all[i], i + 1, total, isCoverPage, recto);
       writer.addTextLinePage(lines, PdfExportService.rawBookmark(all[i], i, coverPages.length),
         PrintPageSpec.mmToPt(printSpec.gutterX(recto)), gutterW);
@@ -1549,10 +1550,10 @@ export class PdfExportService {
     return out;
   }
 
-  /** 仿古竖排：逐字定位，列从右往左、字从上往下；封面仍走横排 */
+  /** 仿古竖排：逐字定位，列从右往左、字从上往下；封面/谱序/家训/凡例全部竖排 */
   private static buildVerticalTextLines(ctx: OffscreenCanvasRenderingContext2D,
     printSpec: PrintPageSpec, spec: PageSpec, pageNo: number, total: number,
-    recto: boolean): PdfTextLine[] {
+    recto: boolean, isCover: boolean): PdfTextLine[] {
     const out: PdfTextLine[] = [];
     const contentW: number = dieContentW(printSpec);
     const contentH: number = dieContentH(printSpec);
@@ -1566,7 +1567,10 @@ export class PdfExportService {
       const colW: number = classicColW(ln.font);
       const rows: number = classicRows(contentH, ln.font);
       if (ln.text.trim().length === 0) {
-        cursorRight = cursorRight - colW;
+        // 封面的 spacer 不占列，避免标题被空白列推到版心左侧
+        if (!isCover) {
+          cursorRight = cursorRight - colW;
+        }
         continue;
       }
       // 先按整行做一次简繁转换，保留 OpenCC 的词条匹配，再拆成单字
@@ -1594,16 +1598,18 @@ export class PdfExportService {
         cursorRight = cursorRight - colW;
       }
     }
-    // 页码仍横排居中（古籍页码在版心外，这里保留现代可读性）
-    const centerX: number = innerX + contentW / 2;
-    const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
-    const f: PdfTextLine = new PdfTextLine();
-    f.text = footer;
-    f.xPt = centerX - measurePt(ctx, footer, 9.5) / 2;
-    f.yPt = PrintPageSpec.mmToPt(printSpec.foot) / 2;
-    f.sizePt = 9.5;
-    f.color = C_INK2;
-    out.push(f);
+    if (!isCover) {
+      // 页码仍横排居中（古籍页码在版心外，这里保留现代可读性）
+      const centerX: number = innerX + contentW / 2;
+      const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
+      const f: PdfTextLine = new PdfTextLine();
+      f.text = footer;
+      f.xPt = centerX - measurePt(ctx, footer, 9.5) / 2;
+      f.yPt = PrintPageSpec.mmToPt(printSpec.foot) / 2;
+      f.sizePt = 9.5;
+      f.color = C_INK2;
+      out.push(f);
+    }
     return out;
   }
 
