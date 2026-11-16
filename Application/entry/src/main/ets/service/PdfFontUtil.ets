@@ -34,6 +34,20 @@ export class PdfFontUtil {
       return;
     }
     PdfFontUtil.resolved = true;
+    const tried: string[] = [];
+    // 优先系统固定路径：命中就不必逐个族名查询，省掉首导几十毫秒的字体配置解析，
+    // 也避免 Text 模块打出一批 “Failed to find font name HarmonyOS_Sans_SC/TC” 错误日志。
+    if (PdfFontUtil.hasCjk(PdfFontUtil.FALLBACK)) {
+      const direct: RawPdfFont | null = RawPdfFont.load(PdfFontUtil.FALLBACK);
+      tried.push(PdfFontUtil.FALLBACK);
+      if (direct !== null) {
+        PdfFontUtil.path = PdfFontUtil.FALLBACK;
+        PdfFontUtil.cached = direct;
+        console.info('[PdfFont] embed=' + PdfFontUtil.FALLBACK);
+        return;
+      }
+    }
+    // 固定路径不存在或不可解析时，再按族名探测（不同机型/系统版本的路径可能不同）
     const candidates: string[] = [];
     const names: string[] = ['HarmonyOS Sans SC', 'HarmonyOS_Sans_SC', 'HarmonyOS Sans TC',
       'HarmonyOS_Sans_TC', 'HarmonyOS Sans'];
@@ -54,7 +68,7 @@ export class PdfFontUtil {
     }
     for (let i: number = 0; i < candidates.length; i = i + 1) {
       const p: string = candidates[i];
-      if (!PdfFontUtil.hasCjk(p)) {
+      if (tried.indexOf(p) >= 0 || !PdfFontUtil.hasCjk(p)) {
         continue;
       }
       const f: RawPdfFont | null = RawPdfFont.load(p);
