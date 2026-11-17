@@ -658,10 +658,6 @@ export struct SettingsView {
           this.NavRow('导入 / 导出', 'JSON 备份、CSV 表格、Markdown 谱文', (): void => {
             RouterUtil.importExport(this.getUIContext());
           })
-          Divider().color(Theme.line).strokeWidth(0.5)
-          this.NavRow('按 Excel 字段导出', '严格对齐《关键信息字段_20261023》', (): void => {
-            RouterUtil.importExport(this.getUIContext());
-          })
         }
         .width('100%')
         .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })

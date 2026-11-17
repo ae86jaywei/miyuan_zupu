@@ -10,7 +10,7 @@ export enum Gender {
 
 export const GENDER_OPTIONS: string[] = [Gender.MALE, Gender.FEMALE];
 
-/** 在世状态（2026-10-23 新版字段：新增“不详”） */
+/** 在世状态：在世 / 已故 / 失联 / 不详 */
 export enum LifeStatus {
   ALIVE = '在世',
   DECEASED = '已故',

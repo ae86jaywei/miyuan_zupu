@@ -730,7 +730,7 @@ struct ImportExport {
                 this.doExport('json-public');
               })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.ExportRow('CSV 表格', '完全对齐《关键信息字段》22 项字段，可用 Excel 打开', 'Excel',
+            this.ExportRow('CSV 表格', '可用 Excel 打开', 'Excel',
               (): void => {
                 this.doExport('csv');
               })
@@ -980,9 +980,9 @@ struct ImportExport {
             .clip(true)
           }
 
-          TS({ title: T('字段规范'), subtitle: '《关键信息字段_20261023.xlsx》', icon: '📋' })
+          TS({ title: T('字段规范'), subtitle: '与族人编辑表单一一对应', icon: '📋' })
           Column() {
-            Text(T('身份标识：世代、唯一ID、谱名、曾用名/小名、性别、辈分/字派、在世状态、身份（嫡出/庶出/婢生/奸生/嗣子/养子；妻妾可记元配/继室/侧室/偏房等名分）')).fontFamily(uiFontFamily())
+            Text(T('身份标识：世代、唯一ID、谱名、字、号、曾用名/小名、性别、辈分/字派、在世状态（在世/已故/失联/不详）、身份（未记/嫡出/庶出/婢生/奸生/嗣子/养子/随母；妻妾可记元配/继室/侧室/偏房等名分）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -991,7 +991,7 @@ struct ImportExport {
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text(T('亲属关系：父亲ID、母亲ID、配偶关系（正妻/平妻/贵妾/良妾/贱妾/外室，格式 UID:名分;UID:名分）、排行、过继/出嗣')).fontFamily(uiFontFamily())
+            Text(T('亲属关系：父亲ID/父名（未收录）、母亲ID/母名（未收录）、配偶关系（元配/继室/侧室/偏房等名分，格式 UID:名分;UID:名分）、排行、过继/出嗣')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
@@ -1006,7 +1006,7 @@ struct ImportExport {
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text(T('图像信息：头像（含相片、视频资料）')).fontFamily(uiFontFamily())
+            Text(T('图像信息：头像、照片视频（相片、视频资料）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
