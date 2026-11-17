@@ -1,6 +1,7 @@
 import { PersonNode } from '../model/PersonNode';
 import { EuCanvas, EuLayout, SuCanvas, SuLayout } from './TreeLayout';
 import { TreeCuller } from './TreeCuller';
+import { GenealogyService } from './GenealogyService';
 import { TreePerf } from '../util/TreePerf';
 
 /**
@@ -19,6 +20,13 @@ export class TreeLayoutCache {
   private euMap: Map<string, EuCanvas> = new Map<string, EuCanvas>();
   private suMap: Map<string, SuCanvas> = new Map<string, SuCanvas>();
   private revision: number = 0;
+  /**
+   * 上次使用缓存时的数据身份（族谱ID#数据版本）。
+   * 不能只靠 invalidate()：删除族谱后画布组件可能已经销毁，@Watch 不会触发；
+   * 重新导入的族谱又常沿用同一套 uid（备份/模板导入），只按 rootUid 命中就会
+   * 把上一部族谱的布局当成新数据，表现为「删了谱欧式还显示旧谱」。
+   */
+  private scope: string = '';
 
   static getInstance(): TreeLayoutCache {
     if (TreeLayoutCache.instance === null) {
@@ -32,6 +40,23 @@ export class TreeLayoutCache {
     this.revision = this.revision + 1;
     this.euMap.clear();
     this.suMap.clear();
+  }
+
+  /**
+   * 校验数据身份并返回缓存域。
+   * 族谱切换、删除后重建、任何一次 reload 都会让版本号变化；身份一变就先清空，
+   * 既避免命中旧谱布局，也及时释放旧布局占用的内存。
+   */
+  private ensureScope(): string {
+    const svc: GenealogyService = GenealogyService.getInstance();
+    const next: string = svc.getCurrentBookId().toString() + '#' + svc.getVersion().toString();
+    if (next !== this.scope) {
+      this.scope = next;
+      this.revision = this.revision + 1;
+      this.euMap.clear();
+      this.suMap.clear();
+    }
+    return this.scope + '#' + this.revision.toString();
   }
 
   /** 淘汰最早插入的欧式布局（Map 保持插入顺序） */
@@ -62,7 +87,7 @@ export class TreeLayoutCache {
 
   eu(rootKey: string, roots: PersonNode[], cardWidth: number, rowHeight: number,
     showSpouse: boolean, startY: number): EuCanvas {
-    const key: string = rootKey + '|' + this.revision.toString() + '|' +
+    const key: string = rootKey + '|' + this.ensureScope() + '|' +
       cardWidth.toString() + '|' + rowHeight.toString() + '|' +
       showSpouse.toString() + '|' + startY.toString();
     const hit: EuCanvas | undefined = this.euMap.get(key);
@@ -88,7 +113,7 @@ export class TreeLayoutCache {
 
   su(rootKey: string, roots: PersonNode[], cardWidth: number,
     dense: boolean, showSpouse: boolean): SuCanvas {
-    const key: string = rootKey + '|' + this.revision.toString() + '|' +
+    const key: string = rootKey + '|' + this.ensureScope() + '|' +
       cardWidth.toString() + '|' + dense.toString() + '|' + showSpouse.toString();
     const hit: SuCanvas | undefined = this.suMap.get(key);
     if (hit !== undefined) {
