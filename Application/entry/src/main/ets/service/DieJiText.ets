@@ -922,7 +922,7 @@ export class DieJiText {
     if (p.graveLat === 0 && p.graveLng === 0) {
       return '';
     }
-    return '定位坐标：东经' + p.graveLng.toFixed(6) + '°北纬' + p.graveLat.toFixed(6) +
+    return '坟定位坐标：东经' + p.graveLng.toFixed(6) + '°北纬' + p.graveLat.toFixed(6) +
       '°，海拔' + p.graveAltitude.toFixed(1) + '米';
   }
 
