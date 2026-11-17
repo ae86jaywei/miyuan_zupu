@@ -10,7 +10,7 @@ import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
 import { parseYear } from '../util/DateUtil';
 import { T, ScriptService } from './ScriptService';
-import { DieJiIndex, DieJiText } from './DieJiText';
+import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
 export class JsonBundle {
@@ -185,8 +185,11 @@ export class ExportService {
     for (let i: number = 0; i < people.length; i++) {
       nameMap.set(people[i].uid.trim().toUpperCase(), people[i].name);
     }
-    // 牒记正文与屏幕 / PDF 共用同一套文言生成器
+    // 牒记正文与屏幕 / PDF 共用同一套文言生成器；Markdown 无页码，只写「（F001）」
     const dieIndex: DieJiIndex = new DieJiIndex(people);
+    const dieRefs: DieJiRefOptions = new DieJiRefOptions();
+    dieRefs.enabled = true;
+    dieRefs.withPage = false;
     let lastGen: number = -1;
     sorted.forEach((p: Person): void => {
       if (p.generation !== lastGen) {
@@ -195,7 +198,7 @@ export class ExportService {
         lines.push(T('### ' + generationLabel(p.generation)));
         lines.push('');
       }
-      lines.push(T('- ' + DieJiText.paragraph(p, dieIndex)));
+      lines.push(T('- ' + DieJiText.paragraph(p, dieIndex, dieRefs)));
     });
     lines.push('');
     lines.push(T('## 家训'));

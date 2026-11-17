@@ -3,12 +3,30 @@ import { Person } from '../../model/Person';
 import { Theme, Spacing } from '../../theme/Theme';
 import { generationLabel } from '../../model/Enums';
 import { Tag } from '../Tag';
-import { DieJiIndex, DieJiText, DieJiNameRange } from '../../service/DieJiText';
+import { DieJiIndex, DieJiText, DieJiNameRange, DieJiRefOptions } from '../../service/DieJiText';
 
-/** 正文分段：姓名段用 30 号加粗，其余保持 14 号 */
+/** 正文分段：姓名段、括号引用段、普通段 */
 class DieJiSpan {
   text: string = '';
   name: boolean = false;
+  ref: boolean = false;
+  /** 亲属姓名：只加粗，字号仍用正文四号 */
+  relative: boolean = false;
+}
+
+/** 牒记字号：姓名 小二号 18fp 加粗，引用 五号 10.5fp，其余 四号 14fp（与 PDF 的 pt 一一对应） */
+const SIZE_NAME: number = 18;
+const SIZE_REF: number = 10.5;
+const SIZE_TEXT: number = 14;
+
+/** pos 落在哪个区间内；不在任何区间返回 null */
+function rangeAt(list: DieJiNameRange[], pos: number): DieJiNameRange | null {
+  for (let i: number = 0; i < list.length; i++) {
+    if (pos >= list[i].start && pos < list[i].end) {
+      return list[i];
+    }
+  }
+  return null;
 }
 
 /**
@@ -16,6 +34,7 @@ class DieJiSpan {
  *
  * 正文由 DieJiText 统一生成（与 PDF / Markdown 共用同一套文言句式），
  * 屏幕只负责排版与交互，避免三端各写一套字段拼接。
+ * 排版口径：姓名 18fp 加粗，「（UID）」10.5fp，其余 14fp 常规，段内只用空格断句。
  */
 @Component
 export struct DieRecord {
@@ -36,48 +55,68 @@ export struct DieRecord {
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
   private dieText(): string {
+    // 屏幕没有页码概念：只写「（F001）」，与 PDF 的「（F001·第2页）」同源同格式
+    const opts: DieJiRefOptions = new DieJiRefOptions();
+    opts.enabled = true;
+    opts.withPage = false;
     if (this.ctx === null) {
       const single: DieJiIndex = new DieJiIndex([this.person]);
-      return DieJiText.paragraph(this.person, single);
+      return DieJiText.paragraph(this.person, single, opts);
     }
-    return DieJiText.paragraph(this.person, this.ctx);
+    return DieJiText.paragraph(this.person, this.ctx, opts);
   }
 
-  /** 把文言正文拆成普通段与姓名段，姓名段加粗放大 */
+  /** 把文言正文切成普通段 / 姓名段 / 引用段（段数不设上限，子女多也不会截断） */
   private spans(): DieJiSpan[] {
     const text: string = this.dieText();
     if (text === this.cachedText && this.cachedSpans.length > 0) {
       return this.cachedSpans;
     }
-    const ranges: DieJiNameRange[] = DieJiText.nameRanges(this.person, text);
+    // 亲属（父母/配偶/子女/岳父）姓名同样 18fp 加粗，需要全谱索引解析
+    const names: DieJiNameRange[] = this.ctx === null ?
+      DieJiText.nameRanges(this.person, text) : DieJiText.nameRanges(this.person, text, this.ctx);
+    const refs: DieJiNameRange[] = DieJiText.refRanges(text);
     const out: DieJiSpan[] = [];
     let pos: number = 0;
-    for (let i: number = 0; i < ranges.length; i++) {
-      const r: DieJiNameRange = ranges[i];
-      if (r.start > pos) {
-        const plain: DieJiSpan = new DieJiSpan();
-        plain.text = text.substring(pos, r.start);
-        out.push(plain);
+    while (pos < text.length) {
+      const nameRange: DieJiNameRange | null = rangeAt(names, pos);
+      if (nameRange !== null) {
+        const s: DieJiSpan = new DieJiSpan();
+        s.text = text.substring(nameRange.start, nameRange.end);
+        s.name = true;
+        s.relative = nameRange.relative;
+        out.push(s);
+        pos = nameRange.end;
+        continue;
       }
-      const name: DieJiSpan = new DieJiSpan();
-      name.text = text.substring(r.start, r.end);
-      name.name = true;
-      out.push(name);
-      pos = r.end;
-    }
-    if (pos < text.length) {
-      const tail: DieJiSpan = new DieJiSpan();
-      tail.text = text.substring(pos);
-      out.push(tail);
+      const refRange: DieJiNameRange | null = rangeAt(refs, pos);
+      if (refRange !== null) {
+        const s: DieJiSpan = new DieJiSpan();
+        s.text = text.substring(refRange.start, refRange.end);
+        s.ref = true;
+        out.push(s);
+        pos = refRange.end;
+        continue;
+      }
+      let next: number = text.length;
+      for (let i: number = 0; i < names.length; i++) {
+        if (names[i].start > pos && names[i].start < next) {
+          next = names[i].start;
+        }
+      }
+      for (let i: number = 0; i < refs.length; i++) {
+        if (refs[i].start > pos && refs[i].start < next) {
+          next = refs[i].start;
+        }
+      }
+      const s: DieJiSpan = new DieJiSpan();
+      s.text = text.substring(pos, next);
+      out.push(s);
+      pos = next;
     }
     this.cachedText = text;
     this.cachedSpans = out;
     return out;
-  }
-
-  private spanAt(i: number): DieJiSpan {
-    const arr: DieJiSpan[] = this.spans();
-    return i < arr.length ? arr[i] : new DieJiSpan();
   }
 
   build() {
@@ -86,10 +125,6 @@ export struct DieRecord {
         Text(T(generationLabel(this.person.generation))).fontFamily(uiFontFamily())
           .fontSize(11.5)
           .fontColor(Theme.gold)
-        Text(T('（' + this.person.uid + '）')).fontFamily(uiFontFamily())
-          .fontSize(11)
-          .fontColor(Theme.inkTertiary)
-          .margin({ left: 4 })
         Blank()
         Tag({
           text: this.person.lifeStatus,
@@ -103,45 +138,19 @@ export struct DieRecord {
       .width('100%')
 
       Text() {
-        if (this.spanAt(0).text.length > 0) {
-          Span(T(this.spanAt(0).text)).fontFamily(uiFontFamily())
-            .fontSize(this.spanAt(0).name ? 30 : 14)
-            .fontWeight(this.spanAt(0).name ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.spanAt(0).name ?
-              (this.person.gender === '女' ? Theme.female : Theme.primary) : Theme.ink)
-        }
-        if (this.spanAt(1).text.length > 0) {
-          Span(T(this.spanAt(1).text)).fontFamily(uiFontFamily())
-            .fontSize(this.spanAt(1).name ? 30 : 14)
-            .fontWeight(this.spanAt(1).name ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.spanAt(1).name ?
-              (this.person.gender === '女' ? Theme.female : Theme.primary) : Theme.ink)
-        }
-        if (this.spanAt(2).text.length > 0) {
-          Span(T(this.spanAt(2).text)).fontFamily(uiFontFamily())
-            .fontSize(this.spanAt(2).name ? 30 : 14)
-            .fontWeight(this.spanAt(2).name ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.spanAt(2).name ?
-              (this.person.gender === '女' ? Theme.female : Theme.primary) : Theme.ink)
-        }
-        if (this.spanAt(3).text.length > 0) {
-          Span(T(this.spanAt(3).text)).fontFamily(uiFontFamily())
-            .fontSize(this.spanAt(3).name ? 30 : 14)
-            .fontWeight(this.spanAt(3).name ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.spanAt(3).name ?
-              (this.person.gender === '女' ? Theme.female : Theme.primary) : Theme.ink)
-        }
-        if (this.spanAt(4).text.length > 0) {
-          Span(T(this.spanAt(4).text)).fontFamily(uiFontFamily())
-            .fontSize(this.spanAt(4).name ? 30 : 14)
-            .fontWeight(this.spanAt(4).name ? FontWeight.Bold : FontWeight.Normal)
-            .fontColor(this.spanAt(4).name ?
-              (this.person.gender === '女' ? Theme.female : Theme.primary) : Theme.ink)
-        }
+        ForEach(this.spans(), (s: DieJiSpan, idx: number) => {
+          Span(T(s.text)).fontFamily(uiFontFamily())
+            .fontSize(s.name ? (s.relative ? SIZE_TEXT : SIZE_NAME) : (s.ref ? SIZE_REF : SIZE_TEXT))
+            .fontWeight(s.name ? FontWeight.Bold : FontWeight.Normal)
+            .fontColor(s.name ?
+              (s.relative ? Theme.ink :
+                (this.person.gender === '女' ? Theme.female : Theme.primary)) :
+              (s.ref ? Theme.inkTertiary : Theme.ink))
+        }, (s: DieJiSpan, idx: number) => idx.toString() + '_' + s.text)
       }
       .fontFamily(uiFontFamily())
-      .fontSize(14)
-      .lineHeight(34)
+      .fontSize(SIZE_TEXT)
+      .lineHeight(30)
       .fontColor(Theme.ink)
       .margin({ top: 6 })
       .width('100%')

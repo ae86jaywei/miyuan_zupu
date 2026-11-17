@@ -41,8 +41,6 @@ const C_ANCESTOR: string = '#888888';
 /** 标准卡（卡高 ≥10mm）上姓名 7→8pt、详情 5.5→6.5pt，矢量文字印出来更清楚 */
 const CARD_NAME_PT: number = 8;
 const CARD_DETAIL_PT: number = 6.5;
-/** 文本宽度测量倍率：pt → px，避免小数精度损失 */
-const MEASURE_SCALE: number = 4;
 const MEASURE_W: number = 1024;
 const MEASURE_H: number = 256;
 
@@ -153,13 +151,36 @@ function baselineOfMm(topMm: number, sizePt: number): number {
   return PAGE_H_PT - topMm * MM_TO_PT - sizePt;
 }
 
-/** 用离屏 ctx 量出文本宽度（pt） */
-function measurePt(ctx: OffscreenCanvasRenderingContext2D, text: string, sizePt: number): number {
-  ctx.save();
-  ctx.font = (sizePt * MEASURE_SCALE).toString() + 'px sans-serif';
-  const w: number = ctx.measureText(text).width / MEASURE_SCALE;
-  ctx.restore();
+/**
+ * 全角字符判断：CJK 汉字、假名、韩文与全角标点，系统字体里都是 1em 宽。
+ */
+function isWideChar(cp: number): boolean {
+  return (cp >= 0x2e80 && cp <= 0x9fff) || (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xff00 && cp <= 0xff60) || (cp >= 0x20000 && cp <= 0x3ffff);
+}
+
+/** 半角字符宽度比例：系统字体数字/字母约 0.55em，取 0.6 按宽估，宁截断不压框 */
+const HALF_WIDTH_RATIO: number = 0.6;
+
+/**
+ * 按字号比例累加文本宽度（px）。
+ * 不能用 OffscreenCanvas.measureText：本机实测只返回真实宽度的两成左右，
+ * 卡片文字的缩字号/截断判断会全部失效，文字直接压出卡片边框和装订线。
+ */
+function measurePx(text: string, fontPx: number): number {
+  let w: number = 0;
+  let i: number = 0;
+  while (i < text.length) {
+    const cp: number = text.codePointAt(i) ?? 0;
+    w = w + (isWideChar(cp) ? fontPx : fontPx * HALF_WIDTH_RATIO);
+    i = i + (cp > 0xffff ? 2 : 1);
+  }
   return w;
+}
+
+/** 量出文本宽度（pt）：与 measurePx 同一比例，只是单位不同 */
+function measurePt(ctx: OffscreenCanvasRenderingContext2D, text: string, sizePt: number): number {
+  return measurePx(text, sizePt);
 }
 
 /** 按最大宽度截断文本，超出部分用省略号，避免卡片文字压出边框 */
@@ -174,8 +195,8 @@ function fitText(ctx: OffscreenCanvasRenderingContext2D, text: string, maxW: num
   return cut.length > 0 ? cut + '…' : '';
 }
 
-/** 卡片文字安全系数：PDF 内嵌字体比 canvas 的 sans-serif 略宽，按 1.18 预留 */
-const CARD_TEXT_SAFETY: number = 1.18;
+/** 卡片文字安全系数：宽度已按字宽比例估，只留 2% 余量吸收取整误差 */
+const CARD_TEXT_SAFETY: number = 1.02;
 
 function cardTextWidth(ctx: OffscreenCanvasRenderingContext2D, text: string, sizePt: number): number {
   return measurePt(ctx, text, sizePt) * CARD_TEXT_SAFETY;
@@ -439,12 +460,12 @@ export class PagedPdfExportService {
     let headerSize: number = 28;
     const header: string = T(PagedPdfExportService.rawHeader(genealogy, rootName, plan));
     ctx.font = headerSize.toString() + 'px sans-serif';
-    while (headerSize > 14 && ctx.measureText(header).width > maxTextW) {
+    while (headerSize > 14 && measurePx(header, headerSize) > maxTextW) {
       headerSize = headerSize - 2;
       ctx.font = headerSize.toString() + 'px sans-serif';
     }
     ctx.fillText(header, RENDER_W / 2, 46);
-    const headerW: number = ctx.measureText(header).width;
+    const headerW: number = measurePx(header, headerSize);
     runs.push(PagedPdfExportService.textRun(header, RENDER_W / 2 - headerW / 2, 46, headerSize));
 
     if (style === 'su') {
@@ -468,7 +489,7 @@ export class PagedPdfExportService {
     const foot: string = T('第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
       ' 页 / 共 ' + totalPages.toString() + ' 页');
     ctx.fillText(foot, RENDER_W / 2, RENDER_H - 24);
-    const footW: number = ctx.measureText(foot).width;
+    const footW: number = measurePx(foot, 22);
     runs.push(PagedPdfExportService.textRun(foot, RENDER_W / 2 - footW / 2, RENDER_H - 24, 22));
     return runs;
   }
@@ -523,28 +544,27 @@ export class PagedPdfExportService {
       let fs: number = isName ? nameFs : detailFs;
       ctx.font = fontOf(fs);
       const raw: string = all[i];
-      const need: number = ctx.measureText(raw).width;
+      const need: number = measurePx(raw, fs);
       // 行太长（姓名+字、生卒串）先按比例缩字号，缩到下限仍放不下再截断
       if (need > availW && need > 0) {
         fs = Math.max(isName ? 10 : 8, Math.floor(fs * availW / need));
         ctx.font = fontOf(fs);
       }
       ctx.fillStyle = isName ? '#2B2B2B' : '#7A6A5A';
-      const text: string = PagedPdfExportService.fitTextPx(ctx, raw, availW);
+      const text: string = PagedPdfExportService.fitTextPx(raw, availW, fs);
       const yTop: number = py + padY + lineH * i + Math.max(0, (lineH - fs) / 2);
       ctx.fillText(text, px + padX, yTop, availW);
       runs.push(PagedPdfExportService.textRun(text, px + padX, yTop + fs * 0.8, fs));
     }
   }
 
-  /** 按像素宽度截断，超出加省略号（ctx.font 需由调用方先设好） */
-  private static fitTextPx(ctx: OffscreenCanvasRenderingContext2D, text: string,
-    maxW: number): string {
-    if (text.length === 0 || ctx.measureText(text).width <= maxW) {
+  /** 按像素宽度截断，超出加省略号（宽度按字号比例估，与绘制字号一致） */
+  private static fitTextPx(text: string, maxW: number, fsPx: number): string {
+    if (text.length === 0 || measurePx(text, fsPx) <= maxW) {
       return text;
     }
     let cut: string = text;
-    while (cut.length > 0 && ctx.measureText(cut + '…').width > maxW) {
+    while (cut.length > 0 && measurePx(cut + '…', fsPx) > maxW) {
       cut = cut.substring(0, cut.length - 1);
     }
     return cut.length > 0 ? cut + '…' : '';

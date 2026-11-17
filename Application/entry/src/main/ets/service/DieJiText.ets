@@ -27,21 +27,30 @@ const COMPOUND_SURNAMES: string[] = ['欧阳', '太史', '端木', '上官', '�
   '东宫', '仲长', '子书', '子桑', '即墨', '达奚', '褚师'];
 
 /**
- * 互引选项：仅 PDF 正文启用。
+ * 互引选项：屏幕 / PDF / Markdown 共用。
  * - enabled：是否在姓名后写 UID、在亲属名后写「UID·第N页」；
  * - refs：第一遍排版传 null 用等宽占位页码，第二遍传真实 uid→页码；
- * - crossRef：分卷导出时本卷查不到的亲属，用「第N卷M页」。
+ * - crossRef：分卷导出时本卷查不到的亲属，用「第N卷M页」；
+ * - withPage：是否带页码。屏幕与 Markdown 无页码概念，只写「（F001）」。
  */
 export class DieJiRefOptions {
   enabled: boolean = false;
   refs: Map<string, number> | null = null;
   crossRef: Map<string, string> | null = null;
+  withPage: boolean = true;
 }
 
-/** 姓名在正文中的区间（UTF-16 下标），供屏幕/PDF 做加粗放大 */
+/** 全角空格：牒记正文的唯一断句符（不用句读标点） */
+export const DIE_SPACE: string = '\u3000';
+
+/**
+ * 姓名在正文中的区间（UTF-16 下标），供屏幕/PDF 做加粗放大。
+ * relative=true 表示亲属姓名：只加粗，字号仍用正文四号。
+ */
 export class DieJiNameRange {
   start: number = 0;
   end: number = 0;
+  relative: boolean = false;
 }
 
 /** 排行前缀 → 行第序号（长子/次子/三子…；独子/随母子返回 -1） */
@@ -375,52 +384,213 @@ export class DieJiText {
    * 由调用方决定是否再做繁简转换（T）。
    */
   static paragraph(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
+    let raw: string = '';
     if (p.gender === '女') {
       const husband: Person | null = DieJiText.husbandOf(p, idx);
       if (husband !== null) {
-        return DieJiText.wifeParagraph(p, husband, idx, opts);
+        raw = DieJiText.wifeParagraph(p, husband, idx, opts);
       }
     }
-    return DieJiText.personParagraph(p, idx, opts);
+    if (raw.length === 0) {
+      raw = DieJiText.personParagraph(p, idx, opts);
+    }
+    // 统一出口去句读标点：三端排版只认全角空格断句
+    return DieJiText.plainPunct(raw);
   }
 
-  /** 姓名在正文中的位置：优先整名，妻妾条目拆成「姓氏」与「讳名」两段 */
-  static nameRanges(p: Person, text: string): DieJiNameRange[] {
+  /**
+   * 正文中的姓名区间：
+   * - 本人谱名：只标第一次出现（后文重复的名是普通正文，不放大）；
+   * - 亲属（父母/配偶/子女/岳父）：只加粗，字号仍为正文四号（relative=true）。
+   * 妻妾条目正文只写「姓氏 + 氏」，整名找不到时退化为「吴氏」与「讳名」。
+   * idx 缺省时只认本人（兼容无全谱索引的单卡片场景）。
+   */
+  static nameRanges(p: Person, text: string, idx?: DieJiIndex): DieJiNameRange[] {
     const out: DieJiNameRange[] = [];
-    const full: string = p.name.trim();
-    if (full.length === 0 || text.length === 0) {
+    if (text.length === 0) {
       return out;
     }
-    const at: number = text.indexOf(full);
-    if (at >= 0) {
-      const r: DieJiNameRange = new DieJiNameRange();
-      r.start = at;
-      r.end = at + full.length;
-      out.push(r);
-      return out;
-    }
-    const clan: string = clanName(full);
-    if (clan.length > 0) {
-      const ci: number = text.indexOf(clan);
-      if (ci >= 0) {
-        const r: DieJiNameRange = new DieJiNameRange();
-        r.start = ci;
-        r.end = ci + clan.length;
-        out.push(r);
+    // 本人优先占位：同名亲属不会抢走「讳XX公」里的谱名
+    DieJiText.markPerson(p.name, text, out, false);
+    if (idx !== undefined) {
+      const names: string[] = [];
+      const father: Person | null = idx.fatherOf(p);
+      if (father !== null) {
+        DieJiText.addName(names, father.name);
       }
-    }
-    const given: string = givenNameOf(full);
-    if (given.length > 0) {
-      const lastEnd: number = out.length > 0 ? out[out.length - 1].end : 0;
-      const gi: number = text.indexOf(given, lastEnd);
-      if (gi >= 0) {
-        const r: DieJiNameRange = new DieJiNameRange();
-        r.start = gi;
-        r.end = gi + given.length;
-        out.push(r);
+      const mother: Person | null = idx.person(p.motherId);
+      if (mother !== null) {
+        DieJiText.addName(names, mother.name);
+      }
+      // 配偶：男性看本人配偶表，女性看双向登记（旧数据常只写单边）
+      const spouses: Person[] = p.gender === '女' ? idx.husbandsOf(p) : DieJiText.spousePersons(p, idx);
+      for (let i: number = 0; i < spouses.length; i++) {
+        const sp: Person = spouses[i];
+        DieJiText.addName(names, sp.name);
+        // 岳父：「本邑李德顺之女」里的李德顺也是姓名
+        const inLaw: Person | null = idx.person(sp.fatherId);
+        if (inLaw !== null) {
+          DieJiText.addName(names, inLaw.name);
+        }
+        DieJiText.addName(names, sp.fatherName);
+      }
+      const kids: Person[] = idx.childrenOf(p.uid);
+      for (let i: number = 0; i < kids.length; i++) {
+        DieJiText.addName(names, kids[i].name);
+      }
+      // 长名优先：「家泽霖」先占区间，避免被短名「家泽」切碎
+      names.sort((a: string, b: string): number => b.length - a.length);
+      for (let i: number = 0; i < names.length; i++) {
+        DieJiText.markPerson(names[i], text, out, true);
       }
     }
     return out;
+  }
+
+  /** 男性本人的配偶对象（妻子条目另走 husbandsOf） */
+  private static spousePersons(p: Person, idx: DieJiIndex): Person[] {
+    const out: Person[] = [];
+    for (let i: number = 0; i < p.spouses.length; i++) {
+      const sp: Person | null = idx.person(p.spouses[i].uid);
+      if (sp !== null) {
+        out.push(sp);
+      }
+    }
+    return out;
+  }
+
+  /** 一个姓名：优先整名，其次「姓氏」，最后「讳名」，每级只标第一次出现 */
+  private static markPerson(name: string, text: string, out: DieJiNameRange[],
+    relative: boolean): void {
+    const full: string = name.trim();
+    if (full.length === 0) {
+      return;
+    }
+    if (DieJiText.markFirst(full, text, out, relative)) {
+      return;
+    }
+    const clan: string = clanName(full);
+    if (clan.length > 0 && clan !== full) {
+      DieJiText.markFirst(clan, text, out, relative);
+    }
+    const given: string = givenNameOf(full);
+    if (given.length >= 2) {
+      DieJiText.markFirst(given, text, out, relative);
+    }
+  }
+
+  /** 标出第一次未占用的出现位置；同一个名字在正文里重复出现时不再加粗 */
+  private static markFirst(name: string, text: string, out: DieJiNameRange[],
+    relative: boolean): boolean {
+    let from: number = 0;
+    while (name.length > 0 && from <= text.length - name.length) {
+      const at: number = text.indexOf(name, from);
+      if (at < 0) {
+        return false;
+      }
+      const end: number = at + name.length;
+      if (!DieJiText.overlaps(out, at, end)) {
+        const r: DieJiNameRange = new DieJiNameRange();
+        r.start = at;
+        r.end = end;
+        r.relative = relative;
+        out.push(r);
+        return true;
+      }
+      from = at + 1;
+    }
+    return false;
+  }
+
+  private static overlaps(out: DieJiNameRange[], start: number, end: number): boolean {
+    for (let i: number = 0; i < out.length; i++) {
+      if (start < out[i].end && end > out[i].start) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static addName(list: string[], name: string): void {
+    const n: string = name.trim();
+    if (n.length === 0 || list.indexOf(n) >= 0) {
+      return;
+    }
+    list.push(n);
+  }
+
+  /**
+   * 牒记排版标点：不用逗号、句号、顿号、分号，一律以全角空格断句；
+   * 冒号保留（「生子四：」「女一：」），括号、书名号、间隔号原样。
+   * 屏幕 / PDF / Markdown 共用这一个出口，改这里三端同步。
+   */
+  static plainPunct(text: string): string {
+    let s: string = text;
+    s = s.split('，').join(DIE_SPACE);
+    s = s.split('。').join(DIE_SPACE);
+    s = s.split('、').join(DIE_SPACE);
+    s = s.split('；').join(DIE_SPACE);
+    // 连续空白（半角空格、换行、制表符、全角空格）压成一个全角空格
+    s = s.replace(/[\s\u3000]+/g, DIE_SPACE);
+    s = s.replace(/^[\s\u3000]+/, '');
+    s = s.replace(/[\s\u3000]+$/, '');
+    return s;
+  }
+
+  /**
+   * 正文中的括号引用区间：本人「（F001）」与亲属「（M001·第2页）」。
+   * 屏幕 / PDF 据此把引用排成五号常规字，不参与姓名放大。
+   */
+  static refRanges(text: string): DieJiNameRange[] {
+    const out: DieJiNameRange[] = [];
+    let i: number = 0;
+    while (i < text.length) {
+      const open: number = text.indexOf('（', i);
+      if (open < 0) {
+        break;
+      }
+      const close: number = text.indexOf('）', open + 1);
+      if (close < 0) {
+        break;
+      }
+      if (DieJiText.isRefBody(text.substring(open + 1, close))) {
+        const r: DieJiNameRange = new DieJiNameRange();
+        r.start = open;
+        r.end = close + 1;
+        out.push(r);
+      }
+      i = close + 1;
+    }
+    return out;
+  }
+
+  /** 「F001」「M002·第2页」「F003·第4卷2页」「F001·另卷」：字母 + 数字 + 可选「·」后缀 */
+  private static isRefBody(body: string): boolean {
+    let i: number = 0;
+    while (i < body.length) {
+      const c: number = body.charCodeAt(i);
+      const alpha: boolean = (c >= 65 && c <= 90) || (c >= 97 && c <= 122);
+      if (!alpha) {
+        break;
+      }
+      i = i + 1;
+    }
+    if (i === 0 || i > 4) {
+      return false;
+    }
+    let d: number = 0;
+    while (i + d < body.length) {
+      const c: number = body.charCodeAt(i + d);
+      if (c < 48 || c > 57) {
+        break;
+      }
+      d = d + 1;
+    }
+    if (d === 0) {
+      return false;
+    }
+    const rest: string = body.substring(i + d);
+    return rest.length === 0 || rest.charAt(0) === '·';
   }
 
   /** 本人 UID：PDF 正文标记「谁是谁」 */
@@ -440,6 +610,10 @@ export class DieJiText {
     const id: string = target.uid.trim().toUpperCase();
     if (id.length === 0) {
       return '';
+    }
+    // 屏幕 / Markdown 没有页码：只留「（F001）」，避免出现「第00卷0000页」占位
+    if (!opts.withPage) {
+      return '（' + id + '）';
     }
     let page: string = '';
     if (opts.refs !== null) {

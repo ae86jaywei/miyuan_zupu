@@ -14,7 +14,7 @@ import { RawPdfWriter, PdfTextLine, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 import { PageSpec as PrintPageSpec } from './PrintLayout';
-import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange } from './DieJiText';
+import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange, DIE_SPACE } from './DieJiText';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -68,8 +68,7 @@ function dieInnerX(spec: PrintPageSpec, recto: boolean): number {
   return PrintPageSpec.mmToPt(innerMm);
 }
 
-// ─── 度量画布常量（px = pt × S） ──────────────────────────
-const S: number = 2;
+// ─── 度量画布尺寸（仅用于创建 OffscreenCanvas，宽度不再参与字宽换算） ──
 const CANVAS_W: number = 1191;
 const CANVAS_H: number = 1684;
 
@@ -204,19 +203,58 @@ function wrapLines(text: string, font: number, indent: number, color: string,
   return out;
 }
 
-/** 单字宽度：ASCII 实测，中文按字号（全角近似），避免逐字 measureText 拖慢整谱导出 */
+/**
+ * 度量用字体（进程内缓存）。必须与 PDF 嵌入字体同源：
+ * 排版推进宽度只有和 PDF /W 字宽表一致，逐字定位的数字/英文才不会叠在一起。
+ */
+let measureFontCache: RawPdfFont | null = null;
+
+function measureFont(): RawPdfFont | null {
+  if (measureFontCache === null) {
+    measureFontCache = PdfFontUtil.rawFont();
+  }
+  return measureFontCache;
+}
+
+/** 全角字符（CJK 汉字、假名、韩文、全角标点）：嵌入字体 advance 就是 1em */
+function isWideChar(cp: number): boolean {
+  return (cp >= 0x2e80 && cp <= 0x9fff) || (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xff00 && cp <= 0xff60) || (cp >= 0x20000 && cp <= 0x3ffff);
+}
+
+/** 半角字符 advance 缓存：Unicode 码点 → advance/1000 */
+const halfWidthRatio: Map<number, number> = new Map<number, number>();
+
+/**
+ * 单字宽度（pt）。
+ * 不能用 OffscreenCanvas.measureText：本机实测它只返回真实字宽的两成左右，
+ * 逐字定位时英文/数字会全部挤在同一点，右对齐的页眉也会被推过装订线。
+ * 全角按 1em；半角（数字/字母/标点）查嵌入字体 hmtx，缺字回退 0.5em。
+ */
 function charWidth(ctx: OffscreenCanvasRenderingContext2D, ch: string, font: number): number {
   const cp: number = ch.codePointAt(0) ?? 0;
-  return cp < 0x80 ? measurePt(ctx, ch, font) : font;
+  if (isWideChar(cp)) {
+    return font;
+  }
+  let ratio: number | undefined = halfWidthRatio.get(cp);
+  if (ratio === undefined) {
+    const f: RawPdfFont | null = measureFont();
+    const gid: number = f === null ? 0 : f.gidOf(cp);
+    const adv: number = (f !== null && gid > 0) ? f.advance1000(gid) : 0;
+    ratio = adv > 0 ? adv / 1000 : 0.5;
+    halfWidthRatio.set(cp, ratio);
+  }
+  return font * ratio;
 }
 
 /**
- * 混排行：正文 12.5pt、姓名 30pt 加粗。
- * 按字符宽度折行，行内按 runs 记录不同字号片段；只有含姓名的行才带 runs。
+ * 混排行：正文 14pt、姓名 18pt 加粗、括号引用 10.5pt 常规。
+ * 按字符宽度折行，行内按 runs 记录不同字号片段；只有含姓名/引用的行才带 runs。
  */
 function wrapStyledLines(ctx: OffscreenCanvasRenderingContext2D, text: string,
-  ranges: DieJiNameRange[], baseFont: number, baseColor: string,
-  nameFont: number, nameColor: string, indent: number = 0,
+  nameRanges: DieJiNameRange[], refRanges: DieJiNameRange[],
+  baseFont: number, baseColor: string, nameFont: number, nameColor: string,
+  refFont: number, refColor: string, indent: number = 0,
   maxW: number = CONTENT_W): TextLine[] {
   const out: TextLine[] = [];
   const lineChars: string[] = [];
@@ -253,24 +291,43 @@ function wrapStyledLines(ctx: OffscreenCanvasRenderingContext2D, text: string,
       continue;
     }
     let inName: boolean = false;
-    for (let r: number = 0; r < ranges.length; r++) {
-      if (i >= ranges[r].start && i < ranges[r].end) {
+    // relative：亲属姓名只加粗，字号仍用正文四号
+    let relative: boolean = false;
+    for (let r: number = 0; r < nameRanges.length; r++) {
+      if (i >= nameRanges[r].start && i < nameRanges[r].end) {
         inName = true;
+        relative = nameRanges[r].relative;
         break;
       }
     }
-    const font: number = inName ? nameFont : baseFont;
-    const color: string = inName ? nameColor : baseColor;
+    let inRef: boolean = false;
+    if (!inName) {
+      for (let r: number = 0; r < refRanges.length; r++) {
+        if (i >= refRanges[r].start && i < refRanges[r].end) {
+          inRef = true;
+          break;
+        }
+      }
+    }
+    // 全角空格断句符排在行首会形成假缩进，直接吞掉
+    if (ch === DIE_SPACE && lineChars.length === 0) {
+      i = i + step;
+      continue;
+    }
+    const font: number = inName ? (relative ? baseFont : nameFont) : (inRef ? refFont : baseFont);
+    const color: string = inName ? (relative ? baseColor : nameColor) : (inRef ? refColor : baseColor);
+    const bold: boolean = inName;
     const w: number = charWidth(ctx, ch, font);
-    if (lineChars.length > 0 && lineW + w > maxW - indent) {
+    // 留 0.5pt 余量：折行判定是浮点累加，贴边时会压到版心边线与装订口
+    if (lineChars.length > 0 && lineW + w > maxW - indent - 0.5) {
       flush();
     }
     lineChars.push(ch);
     const last: TextRun | null = lineRuns.length > 0 ? lineRuns[lineRuns.length - 1] : null;
-    if (last !== null && last.font === font && last.color === color && last.bold === inName) {
+    if (last !== null && last.font === font && last.color === color && last.bold === bold) {
       last.text = last.text + ch;
     } else {
-      const run: TextRun = { text: ch, font: font, color: color, bold: inName };
+      const run: TextRun = { text: ch, font: font, color: color, bold: bold };
       lineRuns.push(run);
     }
     lineW = lineW + w;
@@ -489,11 +546,13 @@ class KinshipIndex {
 let gCrossRef: Map<string, string> | null = null;
 
 // ─── 条目字号 ─────────────────────────────────────────────
-// PDF 默认 100% 缩放时原字号偏小；姓名加大一档，详情加大到原姓名的字号
-const F_NAME: number = 30;   // 牒记姓名标题：30pt 加粗
-const H_NAME: number = 42;
-const F_DETAIL: number = 12.5;
-const H_DETAIL: number = 22;
+// 牒记排版规范：姓名 小二号（18pt）加粗，正文 四号（14pt），括号引用 五号（10.5pt），
+// 除姓名外一律不加粗。与屏幕 DieRecord 的 18/14/10.5 fp 一一对应。
+const F_NAME: number = 18;      // 牒记姓名：18pt 加粗
+const H_NAME: number = 32;
+const F_DETAIL: number = 14;    // 正文：14pt 常规
+const H_DETAIL: number = 24.5;
+const F_REF: number = 10.5;     // 「（F001）」「（M001·第2页）」：10.5pt 常规
 
 
 
@@ -517,8 +576,9 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   opts.crossRef = gCrossRef;
   const text: string = DieJiText.paragraph(p, dieIndex, opts);
   const nameColor: string = p.gender === '女' ? C_FEMALE : C_INK;
-  pushAll(lines, wrapStyledLines(ctx, text, DieJiText.nameRanges(p, text),
-    F_DETAIL, C_INK, F_NAME, nameColor, 0, contentW));
+  pushAll(lines, wrapStyledLines(ctx, text, DieJiText.nameRanges(p, text, dieIndex),
+    DieJiText.refRanges(text), F_DETAIL, C_INK, F_NAME, nameColor,
+    F_REF, C_INK2, 0, contentW));
   lines.push({ text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false });
   return lines;
 }
@@ -586,7 +646,7 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
       lines: [
         { text: ancestorName.trim(), font: F_NAME, lineH: H_NAME, color: C_INK, bold: true, indent: 0, center: false },
         { text: '（' + generationLabel(1) + '）', font: F_DETAIL, lineH: H_DETAIL, color: C_INK, bold: false, indent: 0, center: false },
-        { text: '谱载始迁祖，本谱世系自此始。', font: F_DETAIL, lineH: H_DETAIL, color: C_INK2, bold: false, indent: 10, center: false },
+        { text: '谱载始迁祖' + DIE_SPACE + '本谱世系自此始', font: F_DETAIL, lineH: H_DETAIL, color: C_INK2, bold: false, indent: 10, center: false },
         { text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false }
       ]
     });
@@ -1130,12 +1190,16 @@ function textStyle(size: number, color: string, bold: boolean): pdfService.TextS
   };
 }
 
-/** 用离屏 ctx 量出文本在页面上的宽度（pt） */
+/** 文本宽度（pt）：逐字累加，与 PDF 实际落字宽度严格一致（不再依赖 measureText） */
 function measurePt(ctx: OffscreenCanvasRenderingContext2D, text: string, font: number): number {
-  ctx.save();
-  ctx.font = (font * S).toString() + 'px sans-serif';
-  const w: number = ctx.measureText(text).width / S;
-  ctx.restore();
+  let w: number = 0;
+  let i: number = 0;
+  while (i < text.length) {
+    const cp: number = text.codePointAt(i) ?? 0;
+    const step: number = cp > 0xffff ? 2 : 1;
+    w = w + charWidth(ctx, text.substring(i, i + step), font);
+    i = i + step;
+  }
   return w;
 }
 
@@ -1812,28 +1876,26 @@ export class PdfExportService {
     for (let i: number = 0; i < spec.lines.length; i = i + 1) {
       const ln: TextLine = spec.lines[i];
       if (ln.runs !== undefined && ln.runs.length > 0) {
-        // 混排行：姓名 30pt、正文 12.5pt，同一基线逐字排
+        // 混排行：姓名 30pt、正文 12.5pt、引用 10.5pt，同一基线按 run 整段排
         let rx: number = x0 + ln.indent;
         const baseY: number = baselineOf(y, ln.font);
         for (let ri: number = 0; ri < ln.runs.length; ri++) {
           const run: TextRun = ln.runs[ri];
           const runText: string = replaceParens(run.text, false);
-          let ci: number = 0;
-          while (ci < runText.length) {
-            const cp: number = runText.codePointAt(ci) ?? 0;
-            const step: number = cp > 0xffff ? 2 : 1;
-            const ch: string = runText.substring(ci, ci + step);
-            const r: PdfTextLine = new PdfTextLine();
-            r.text = ch;
-            r.xPt = rx;
-            r.yPt = baseY;
-            r.sizePt = run.font;
-            r.color = run.color;
-            r.bold = run.bold;
-            out.push(r);
-            rx = rx + charWidth(ctx, ch, run.font);
-            ci = ci + step;
+          if (runText.length === 0) {
+            continue;
           }
+          // 一个 run 写成一个文本对象：run 内的字距交给 PDF 字体自身的 /W 字宽表，
+          // 不再逐字定位。逐字定位一旦宽度估偏，英文/数字就会全部叠在同一点。
+          const r: PdfTextLine = new PdfTextLine();
+          r.text = runText;
+          r.xPt = rx;
+          r.yPt = baseY;
+          r.sizePt = run.font;
+          r.color = run.color;
+          r.bold = run.bold;
+          out.push(r);
+          rx = rx + measurePt(ctx, runText, run.font);
         }
       } else if (ln.text.trim().length > 0) {
         const r: PdfTextLine = new PdfTextLine();
