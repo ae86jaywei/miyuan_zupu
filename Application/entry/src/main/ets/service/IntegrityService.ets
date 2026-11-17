@@ -1,6 +1,6 @@
-import { Person } from '../model/Person';
+﻿import { Person } from '../model/Person';
 import { IntegrityCode, IntegrityIssue, IntegrityReport } from '../model/Integrity';
-import { parseDate } from '../util/DateUtil';
+import { parseDate } from '../util/DateConverter';
 
 /**
  * 族谱数据一致性检测。
@@ -497,3 +497,5 @@ export class IntegrityService {
     return /^[FM][0-9]{1,}$/.test(uid) && (uid.charAt(0) === 'F' || uid.charAt(0) === 'M');
   }
 }
+
+

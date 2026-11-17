@@ -1,11 +1,11 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { Person } from '../model/Person';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { EmptyHint } from '../components/EmptyHint';
 import { generationLabel } from '../model/Enums';
-import { lifeSpan } from '../util/DateUtil';
+import { lifeSpan } from '../util/DateConverter';
 import { Breakpoint } from '../common/Constants';
 import { RouterUtil } from '../util/RouterUtil';
 import { FlatListSource } from '../util/FlatListSource';
@@ -288,3 +288,5 @@ export struct CatalogView {
     .height('100%')
   }
 }
+
+

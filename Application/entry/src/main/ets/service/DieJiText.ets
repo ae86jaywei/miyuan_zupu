@@ -1,6 +1,6 @@
-import { Person, SpouseRelation, normalizeSpouseRelation } from '../model/Person';
+﻿import { Person, SpouseRelation, normalizeSpouseRelation } from '../model/Person';
 import { generationLabel } from '../model/Enums';
-import { ageOf, parseHistoricalDate, parseYear } from '../util/DateUtil';
+import { ageOf, parseHistoricalDate, parseYear, formatDateConversion } from '../util/DateConverter';
 import { GanZhi } from '../util/LunarUtil';
 
 /**
@@ -195,8 +195,12 @@ function hasGanZhi(text: string): boolean {
 }
 
 /**
- * 日期文本：原文保留，公历年月日补干支年。
+ * 日期文本：原文保留，公历年月日补转换文本。
  * 农历原文（如「光绪十五年己丑仲秋望日辰时」）不再拼装，避免改写史料。
+ * 转换格式：
+ *  - 1912 年前：年号+干支年+干支月+干支日（如 弘治己酉年丁丑月乙丑日）
+ *  - 1912~1949：民国X年+农历月日（如 民国9年三月廿二日）
+ *  - 1949 后：中文数字年+农历月日（如 一九四九年八月初十日）
  */
 function dateText(date: string, calendar: string): string {
   const raw: string = date.trim();
@@ -211,28 +215,27 @@ function dateText(date: string, calendar: string): string {
     const y: number = parseInt(ymd[1], 10);
     const mo: number = parseInt(ymd[2], 10);
     const da: number = parseInt(ymd[3], 10);
-    const gzNum: string = ganZhiYear(y, mo, da);
-    return '公元' + y.toString() + '年' + (gzNum.length > 0 ? '（' + gzNum + '）' : '') +
-      mo.toString() + '月' + da.toString() + '日';
+    const conv: string = formatDateConversion(y, mo, da);
+    return '公元' + y.toString() + '年' + mo.toString() + '月' + da.toString() + '日' +
+      (conv.length > 0 ? '（' + conv + '）' : '');
   }
-  const gz: string = ganZhiYear(parsed.year, parsed.month, parsed.day);
+  // 农历原文：保留，不改写
   if (calendar === '农历') {
-    if (gz.length === 0 || hasGanZhi(raw)) {
-      return raw;
-    }
-    return raw + '（' + gz + '年）';
+    return raw;
   }
   // 纯公历（1980-05-20 / 1980/5/20）转成谱牒常见写法
   if (parsed.year > 0 && parsed.month > 0 && parsed.day > 0 &&
     raw.indexOf('年') < 0 && raw.indexOf('月') < 0 && raw.indexOf('日') < 0) {
-    const tail: string = gz.length > 0 ? '（' + gz + '）' : '';
-    return '公元' + parsed.year.toString() + '年' + tail +
-      parsed.month.toString() + '月' + parsed.day.toString() + '日';
+    const conv: string = formatDateConversion(parsed.year, parsed.month, parsed.day);
+    return '公元' + parsed.year.toString() + '年' + parsed.month.toString() + '月' + parsed.day.toString() + '日' +
+      (conv.length > 0 ? '（' + conv + '）' : '');
   }
-  if (gz.length === 0 || hasGanZhi(raw)) {
-    return raw;
+  // 其他公历写法（如 1980年5月20日）：保留原文，追加转换
+  if (parsed.year > 0 && parsed.month > 0 && parsed.day > 0) {
+    const conv: string = formatDateConversion(parsed.year, parsed.month, parsed.day);
+    return conv.length > 0 ? raw + '（' + conv + '）' : raw;
   }
-  return raw + '（' + gz + '年）';
+  return raw;
 }
 
 /** 夫妻称谓：元配/正室等统称「配」，其余名分（继室、侧室、偏房…）按原称谓 */
@@ -831,6 +834,9 @@ export class DieJiText {
 
   /** 子女句：生子三：长…、次…；女二：长适…、次适…。 */
   private static childrenSentence(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
+    if (p.childless) {
+      return '生子无出。';
+    }
     const kids: Person[] = idx.childrenOf(p.uid);
     if (kids.length === 0) {
       return '';
@@ -842,7 +848,7 @@ export class DieJiText {
       const names: string[] = [];
       for (let i: number = 0; i < sons.length; i++) {
         names.push(DieJiText.orderWord(i, sons.length) + sons[i].name.trim() +
-          DieJiText.refSuffix(sons[i], opts));
+          DieJiText.childMarkSuffix(sons[i]) + DieJiText.refSuffix(sons[i], opts));
       }
       groups.push('生子' + cnNum(sons.length) + '：' + names.join('、'));
     }
@@ -850,7 +856,8 @@ export class DieJiText {
       const names: string[] = [];
       for (let i: number = 0; i < daughters.length; i++) {
         names.push(DieJiText.orderWord(i, daughters.length) +
-          DieJiText.daughterMarriage(daughters[i], idx) + DieJiText.refSuffix(daughters[i], opts));
+          DieJiText.daughterMarriage(daughters[i], idx) +
+          DieJiText.childMarkSuffix(daughters[i]) + DieJiText.refSuffix(daughters[i], opts));
       }
       groups.push('女' + cnNum(daughters.length) + '：' + names.join('、'));
     }
@@ -863,6 +870,34 @@ export class DieJiText {
       return '';
     }
     return index === 0 ? '长' : index === 1 ? '次' : cnNum(index + 1);
+  }
+
+  /** 子女标记后缀：殇/幼殇/早卒/出嗣/兼祧/继子/养子 */
+  private static childMarkSuffix(child: Person): string {
+    const mark: string = child.childMark.trim();
+    if (mark === '未记' || mark.length === 0) return '';
+    if (mark === '殇') return '（殇）';
+    if (mark === '幼殇') return '（幼殇）';
+    if (mark === '早卒') return '（早卒）';
+    if (mark === '出嗣') {
+      const target: string = child.childMarkTarget.trim();
+      return target.length > 0 ? '（出嗣' + target + '）' : '（出嗣）';
+    }
+    if (mark === '兼祧') {
+      const target: string = child.childMarkTarget.trim();
+      return target.length > 0 ? '（兼祧' + target + '嗣）' : '（兼祧）';
+    }
+    if (mark === '继子') {
+      const source: string = child.childMarkSource.trim();
+      const seq: number = child.childMarkSeq;
+      if (source.length > 0 && seq > 0) {
+        return '（' + source + '第' + cnNum(seq) + '子入继）';
+      }
+      if (source.length > 0) return '（' + source + '入继）';
+      return '（继子）';
+    }
+    if (mark === '养子') return '（养子）';
+    return '';
   }
 
   /** 女适某氏；未嫁则写本名 */
@@ -1107,3 +1142,4 @@ export class DieJiText {
     return s.join('');
   }
 }
+

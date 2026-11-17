@@ -295,6 +295,16 @@ export class Person {
   lifeStatus: string = '在世';
   /** 子女出身/身份：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母 */
   childStatus: string = '未记';
+  /** 子女标记：未记 / 殇 / 幼殇 / 早卒 / 出嗣 / 兼祧 / 继子 / 养子 */
+  childMark: string = '未记';
+  /** 出嗣目标 / 兼祧对象（如：堂叔启明） */
+  childMarkTarget: string = '';
+  /** 入继来源（如：胞兄明远） */
+  childMarkSource: string = '';
+  /** 在源第几子（如：第三子 = 3） */
+  childMarkSeq: number = 0;
+  /** 无出（此人无子女） */
+  childless: boolean = false;
   /** 出生日期（公历年月日或农历原文） */
   birthDate: string = '';
   /** 出生日期历法：公历 / 农历 */
@@ -385,6 +395,11 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'generationChar', label: '辈分/字派', hint: '所属字辈，如：德', group: '身份标识', type: 'text', privacy: false },
   { key: 'lifeStatus', label: '在世状态', hint: '在世 / 已故 / 失联 / 不详（上下滑动选择）', group: '身份标识', type: 'select', privacy: false },
   { key: 'childStatus', label: '身份', hint: '本人身份或出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；妻妾可选元配 / 继室 / 侧室 / 偏房等名分', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childMark', label: '子女标记', hint: '子女特殊标记：未记 / 殇 / 幼殇 / 早卒 / 出嗣 / 兼祧 / 继子 / 养子', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childMarkTarget', label: '出嗣/兼祧对象', hint: '出嗣目标或兼祧对象，如：堂叔启明', group: '身份标识', type: 'text', privacy: false },
+  { key: 'childMarkSource', label: '入继来源', hint: '入继来源，如：胞兄明远', group: '身份标识', type: 'text', privacy: false },
+  { key: 'childMarkSeq', label: '在源第几子', hint: '在来源中的排行，如：第三子 = 3', group: '身份标识', type: 'number', privacy: false },
+  { key: 'childless', label: '无出', hint: '此人无子女（生子无出）', group: '身份标识', type: 'boolean', privacy: false },
   { key: 'birthDate', label: '出生日期', hint: '拉起日历选择（公历），或手填农历 1980年农历四月六', group: '时间信息', type: 'date', privacy: false },
   { key: 'deathDate', label: '逝世日期', hint: '格式同上，在世者留空', group: '时间信息', type: 'date', privacy: false },
   { key: 'birthPlace', label: '出生地', hint: '省-市-县-乡镇-村，如：广东-梅州-兴宁-罗岗镇', group: '时间信息', type: 'text', privacy: false },
@@ -427,6 +442,11 @@ export function copyPersonInto(target: Person, src: Person): void {
   target.generationChar = src.generationChar;
   target.lifeStatus = src.lifeStatus;
   target.childStatus = src.childStatus;
+  target.childMark = src.childMark;
+  target.childMarkTarget = src.childMarkTarget;
+  target.childMarkSource = src.childMarkSource;
+  target.childMarkSeq = src.childMarkSeq;
+  target.childless = src.childless;
   target.birthDate = src.birthDate;
   target.birthCalendar = src.birthCalendar;
   target.deathDate = src.deathDate;

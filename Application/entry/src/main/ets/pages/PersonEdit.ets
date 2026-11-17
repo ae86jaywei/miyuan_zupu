@@ -1,4 +1,4 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { common } from '@kit.AbilityKit';
 import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -15,10 +15,10 @@ import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilyService } from '../service/FamilyService';
 import { EditParams } from '../model/Scope';
 import { IdGenerator } from '../util/IdGenerator';
-import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, generationLabel } from '../model/Enums';
+import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, CHILD_MARK_OPTIONS, generationLabel } from '../model/Enums';
 import { isBlank } from '../util/StringUtil';
-import { parseDate, ParsedDate, parseHistoricalDate, composeDate, cnYearText, ERA_TABLE } from '../util/DateUtil';
-import { huangLiText, HuangLi } from '../util/LunarUtil';
+import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_TABLE } from '../util/DateConverter';
+import { cnYearText, huangLiText, HuangLi } from '../util/LunarUtil';
 
 /** 第一世（始祖）的排行称谓 */
 const ANCESTOR_RANK: string = '第一世（始祖）';
@@ -454,6 +454,11 @@ struct PersonEdit {
   @State fGenChar: string = '';
   @State fLifeStatus: string = '在世';
   @State fChildStatus: string = '未记';
+  @State fChildMark: string = '未记';
+  @State fChildMarkTarget: string = '';
+  @State fChildMarkSource: string = '';
+  @State fChildMarkSeq: number = 0;
+  @State fChildless: boolean = false;
   @State fBirthDate: string = '';
   @State fBirthCalendar: string = '公历';
   @State fDeathDate: string = '';
@@ -644,6 +649,11 @@ struct PersonEdit {
     this.fGenChar = p.generationChar;
     this.fLifeStatus = p.lifeStatus;
     this.fChildStatus = p.childStatus.length > 0 ? p.childStatus : '未记';
+    this.fChildMark = p.childMark.length > 0 ? p.childMark : '未记';
+    this.fChildMarkTarget = p.childMarkTarget;
+    this.fChildMarkSource = p.childMarkSource;
+    this.fChildMarkSeq = p.childMarkSeq;
+    this.fChildless = p.childless;
     this.fBirthDate = p.birthDate;
     this.fBirthCalendar = p.birthCalendar;
     this.fDeathDate = p.deathDate;
@@ -697,6 +707,11 @@ struct PersonEdit {
     p.generationChar = this.fGenChar;
     p.lifeStatus = this.fLifeStatus;
     p.childStatus = this.fChildStatus;
+    p.childMark = this.fChildMark;
+    p.childMarkTarget = this.fChildMarkTarget;
+    p.childMarkSource = this.fChildMarkSource;
+    p.childMarkSeq = this.fChildMarkSeq;
+    p.childless = this.fChildless;
     p.birthDate = this.fBirthDate;
     p.birthCalendar = this.fBirthCalendar;
     p.deathDate = this.fDeathDate;
@@ -1452,6 +1467,79 @@ struct PersonEdit {
     .margin({ bottom: Spacing.M })
   }
 
+  @Builder
+  NumberField(label: string, value: number, hint: string, min: number, max: number, onChange: (v: number) => void) {
+    Column() {
+      this.Label(label, false, hint)
+      Row() {
+        Button('-')
+          .width(36)
+          .height(36)
+          .fontSize(16)
+          .backgroundColor(Theme.field)
+          .fontColor(Theme.ink)
+          .borderRadius(8)
+          .onClick((): void => {
+            const v: number = Math.max(min, value - 1);
+            onChange(v);
+          })
+        TextInput({ text: value.toString() })
+          .fontFamily(uiFontFamily())
+          .height(36)
+          .fontSize(14)
+          .backgroundColor(Theme.field)
+          .fontColor(Theme.ink)
+          .borderRadius(8)
+          .textAlign(TextAlign.Center)
+          .width(60)
+          .margin({ left: Spacing.S, right: Spacing.S })
+          .onChange((v: string): void => {
+            const n: number = parseInt(v, 10);
+            if (!isNaN(n)) {
+              onChange(Math.max(min, Math.min(max, n)));
+            }
+          })
+        Button('+')
+          .width(36)
+          .height(36)
+          .fontSize(16)
+          .backgroundColor(Theme.field)
+          .fontColor(Theme.ink)
+          .borderRadius(8)
+          .onClick((): void => {
+            const v: number = Math.min(max, value + 1);
+            onChange(v);
+          })
+      }
+      .width('100%')
+    }
+    .width('100%')
+    .margin({ bottom: Spacing.M })
+  }
+
+  @Builder
+  Toggle(label: string, value: boolean, hint: string, onChange: (v: boolean) => void) {
+    Column() {
+      this.Label(label, false, hint)
+      Row() {
+        Toggle({ type: ToggleType.Switch, isOn: value })
+          .selectedColor(Theme.primary)
+          .onChange((isOn: boolean): void => {
+            onChange(isOn);
+          })
+        Text(value ? '是' : '否')
+          .fontSize(14)
+          .fontColor(Theme.ink)
+          .margin({ left: Spacing.S })
+      }
+      .width('100%')
+      .height(40)
+      .alignItems(VerticalAlign.Center)
+    }
+    .width('100%')
+    .margin({ bottom: Spacing.M })
+  }
+
   /**
    * 打开历史日期选择面板。
    *
@@ -2045,6 +2133,55 @@ struct PersonEdit {
       .alignItems(HorizontalAlign.Start)
       .width('100%')
 
+      // 齿录模板新增：子女标记
+      Row() {
+        Column() {
+          SelectField({
+            label: '子女标记',
+            hint: '殇/出嗣/兼祧/继子/养子/无出/未记',
+            options: CHILD_MARK_OPTIONS,
+            value: this.fChildMark,
+            onValue: (v: string): void => {
+              this.assignValue('childMark', v);
+            }
+          })
+        }
+        .layoutWeight(1)
+        Column() {
+          this.TextField('出嗣/兼祧对象', this.fChildMarkTarget, '出嗣/兼祧时填写所嗣之房支或人名', false, (v: string): void => {
+            this.fChildMarkTarget = v;
+          })
+        }
+        .layoutWeight(1)
+        .margin({ left: Spacing.M })
+      }
+      .width('100%')
+
+      Row() {
+        Column() {
+          this.TextField('入继来源', this.fChildMarkSource, '入继/兼祧时填写来源房支或人名', false, (v: string): void => {
+            this.fChildMarkSource = v;
+          })
+        }
+        .layoutWeight(1)
+        Column() {
+          this.NumberField('在源第几子', this.fChildMarkSeq, '入继/兼祧时填写在来源中的排行', 1, 99, (v: number): void => {
+            this.fChildMarkSeq = v;
+          })
+        }
+        .layoutWeight(1)
+        .margin({ left: Spacing.M })
+      }
+      .width('100%')
+
+      Row() {
+        this.Toggle('无出', this.fChildless, '无子女', (v: boolean): void => {
+          this.fChildless = v;
+        })
+      }
+      .width('100%')
+      .margin({ top: Spacing.S })
+
       this.TextField('曾用名/小名', this.fAlias, '如有多个用逗号隔开，如：建国, 狗剩', false, (v: string): void => {
         this.fAlias = v;
       })
@@ -2624,3 +2761,5 @@ struct PersonEdit {
     })
   }
 }
+
+

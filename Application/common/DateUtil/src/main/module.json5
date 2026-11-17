@@ -1,0 +1,7 @@
+{
+  "module": {
+    "name": "common-dateutil",
+    "type": "har",
+    "deviceTypes": ["phone", "tablet", "pc"]
+  }
+}

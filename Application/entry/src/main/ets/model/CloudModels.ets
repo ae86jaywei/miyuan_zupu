@@ -254,6 +254,11 @@ export function cloudMemberToPerson(doc: CloudFamilyMember): Person {
   p.generationChar = asText(src.generationChar, '');
   p.lifeStatus = asText(src.lifeStatus, '在世');
   p.childStatus = asText(src.childStatus, '未记');
+  p.childMark = asText(src.childMark, '未记');
+  p.childMarkTarget = asText(src.childMarkTarget, '');
+  p.childMarkSource = asText(src.childMarkSource, '');
+  p.childMarkSeq = asNumber(src.childMarkSeq, 0);
+  p.childless = src.childless === true;
   p.birthDate = asText(src.birthDate, '');
   p.birthCalendar = asText(src.birthCalendar, '公历');
   p.deathDate = asText(src.deathDate, '');

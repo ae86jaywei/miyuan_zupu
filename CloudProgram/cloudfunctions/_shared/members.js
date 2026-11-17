@@ -109,6 +109,22 @@ function personOf(row) {
   if (!payload.generation) {
     payload.generation = row.generation;
   }
+  // 齿录模板新增字段：默认值回退
+  if (!payload.childMark) {
+    payload.childMark = '未记';
+  }
+  if (!payload.childMarkTarget) {
+    payload.childMarkTarget = '';
+  }
+  if (!payload.childMarkSource) {
+    payload.childMarkSource = '';
+  }
+  if (!payload.childMarkSeq) {
+    payload.childMarkSeq = 0;
+  }
+  if (!payload.childless) {
+    payload.childless = false;
+  }
   return payload;
 }
 

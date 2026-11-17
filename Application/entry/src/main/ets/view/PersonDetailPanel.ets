@@ -1,11 +1,11 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { Tag } from '../components/Tag';
 import { InfoRow } from '../components/InfoRow';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { generationLabel } from '../model/Enums';
-import { lifeSpan, ageOf, displayDate } from '../util/DateUtil';
+import { lifeSpan, ageOf, displayDate } from '../util/DateConverter';
 import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from '../components/EmptyHint';
 
@@ -183,6 +183,11 @@ export struct PersonDetailPanel {
                 .alignItems(HorizontalAlign.Start)
                 .width('100%')
                 .padding({ left: 84, bottom: 6 })
+              }
+
+              // 齿录模板新增：子女标记
+              if (this.childMarkText(this.person() as Person).length > 0) {
+                InfoRow({ label: '子女标记', value: this.childMarkText(this.person() as Person) })
               }
 
               // 时间信息
@@ -389,6 +394,45 @@ export struct PersonDetailPanel {
     return p.childStatus === '庶出' || p.childStatus === '婢生' || p.childStatus === '奸生';
   }
 
+  /** 齿录模板：子女标记展示文本 */
+  private childMarkText(p: Person): string {
+    if (p.childless) {
+      return '无出';
+    }
+    if (p.childMark.length === 0 || p.childMark === '未记') {
+      return '';
+    }
+    const cm: string = p.childMark;
+    if (cm === '殇') {
+      return '殇（早夭无后）';
+    }
+    if (cm === '出嗣') {
+      return '出嗣给' + p.childMarkTarget;
+    }
+    if (cm === '兼祧') {
+      let suffix: string = '';
+      if (p.childMarkSource.length > 0) {
+        suffix = '（自' + p.childMarkSource + '第' + p.childMarkSeq + '子）';
+      }
+      return '兼祧' + p.childMarkTarget + suffix;
+    }
+    if (cm === '继子') {
+      let suffix: string = '';
+      if (p.childMarkSource.length > 0) {
+        suffix = '（自' + p.childMarkSource + '第' + p.childMarkSeq + '子）';
+      }
+      return '继子' + suffix;
+    }
+    if (cm === '养子') {
+      let suffix: string = '';
+      if (p.childMarkSource.length > 0) {
+        suffix = '（自' + p.childMarkSource + '）';
+      }
+      return '养子' + suffix;
+    }
+    return '';
+  }
+
   /** 全部配偶及名分，如：“元配（正妻）：林氏（M001，子女 2）” */
   private spouseInfoText(): string {
     const svc: GenealogyService = GenealogyService.getInstance();
@@ -457,3 +501,5 @@ export function maskPhone(phone: string): string {
   }
   return phone.substring(0, 3) + '****' + phone.substring(phone.length - 4);
 }
+
+

@@ -103,6 +103,9 @@ export const RANK_OPTIONS: string[] = ['长子', '次子', '三子', '四子', '
   '长女', '次女', '三女', '四女', '五女', '六女', '七女', '八女', '九女', '十女',
   '独子', '独女', '随母子', '随母女'];
 
+/** 子女标记：殇/幼殇/早卒/出嗣/兼祧/继子/养子 */
+export const CHILD_MARK_OPTIONS: string[] = ['未记', '殇', '幼殇', '早卒', '出嗣', '兼祧', '继子', '养子'];
+
 /** 世代表述：一世…二十世 */
 export function generationLabel(gen: number): string {
   const cn: string[] = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',

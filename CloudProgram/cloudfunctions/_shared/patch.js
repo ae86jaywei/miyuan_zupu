@@ -9,7 +9,8 @@ const { BizError, CODE } = require('./core');
 
 /** 允许在 patch 里出现的字段（Person 公开字段 + 隐私字段，隐私字段会被写进 FamilyPrivate） */
 const PATCHABLE_FIELDS = ['uid', 'generation', 'name', 'courtesyName', 'artName', 'alias', 'gender', 'generationChar', 'lifeStatus',
-  'childStatus', 'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence',
+  'childStatus', 'childMark', 'childMarkTarget', 'childMarkSource', 'childMarkSeq', 'childless',
+  'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence',
   'fatherId', 'fatherName', 'motherId', 'motherName', 'spouseId', 'spouses', 'rank', 'adoption', 'education', 'occupation', 'biography',
   'graveInfo', 'graveLng', 'graveLat', 'graveAltitude', 'phone', 'wechat', 'avatar', 'videos', 'photos'];
 
@@ -133,7 +134,7 @@ function summarize(op, targetName, patch) {
 
 const FIELD_LABELS = {
   name: '谱名', courtesyName: '字', artName: '号', alias: '曾用名', gender: '性别', generation: '世代', generationChar: '字派',
-  lifeStatus: '在世状态', childStatus: '子女身份', birthDate: '出生日期', deathDate: '逝世日期',
+  lifeStatus: '在世状态', childStatus: '子女身份', childMark: '子女标记', childMarkTarget: '出嗣/兼祧对象', childMarkSource: '入继来源', childMarkSeq: '在源第几子', childless: '无出', birthDate: '出生日期', deathDate: '逝世日期',
   birthPlace: '出生地', residence: '现居地', fatherId: '父亲ID', fatherName: '父名（未收录）', motherId: '母亲ID', motherName: '母名（未收录）', spouses: '配偶',
   rank: '排行', adoption: '过继/出嗣', education: '学历', occupation: '职业', biography: '生平简介',
   graveInfo: '墓葬信息', graveLng: '墓葬经度', graveLat: '墓葬纬度', graveAltitude: '墓葬海拔',
