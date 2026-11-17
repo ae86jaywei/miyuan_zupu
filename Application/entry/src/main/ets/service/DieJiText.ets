@@ -1,7 +1,6 @@
 ﻿import { Person, SpouseRelation, normalizeSpouseRelation } from '../model/Person';
 import { generationLabel } from '../model/Enums';
-import { ageOf, parseHistoricalDate, parseYear, formatDateConversion } from '../util/DateConverter';
-import { GanZhi } from '../util/LunarUtil';
+import { ageOf, parseHistoricalDate, parseYear, formatDateConversion, GanZhi } from 'common_dateutil';
 
 /**
  * 牒记式谱的公共正文生成器（屏幕 / PDF / Markdown 三端共用）。
@@ -206,6 +205,11 @@ function dateText(date: string, calendar: string): string {
   const raw: string = date.trim();
   if (raw.length === 0) {
     return '';
+  }
+  // 新版录入已在保存时写入「年号 + 干支 + 农历 + 公历」完整文本（以（公历…）结尾），
+  // 牒记 / PDF / Markdown 直接使用，不再二次换算
+  if (raw.indexOf('（公历') >= 0) {
+    return raw;
   }
   const parsed = parseHistoricalDate(raw);
   // 纯数字公历（1859-02-03）：parseHistoricalDate 的快速路径只取年，

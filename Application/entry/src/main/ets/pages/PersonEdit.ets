@@ -17,8 +17,9 @@ import { EditParams } from '../model/Scope';
 import { IdGenerator } from '../util/IdGenerator';
 import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, CHILD_MARK_OPTIONS, generationLabel } from '../model/Enums';
 import { isBlank } from '../util/StringUtil';
-import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_TABLE } from '../util/DateConverter';
-import { cnYearText, huangLiText, HuangLi } from '../util/LunarUtil';
+import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraLabel, eraYearCount } from 'common_dateutil';
+import { cnYearText, huangLiText, HuangLi, julianDay, LunarMonthOption, lunarMonthsOfYear, lunarMonthDays, lunarToSolar, SolarDate } from 'common_dateutil';
+import { eraYearText, lunarDayName, lunarMonthName, solarToLunar, LunarDate } from 'common_dateutil';
 
 /** 第一世（始祖）的排行称谓 */
 const ANCESTOR_RANK: string = '第一世（始祖）';
@@ -508,6 +509,8 @@ struct PersonEdit {
   @State pickYear: number = 1900;
   @State pickMonth: number = 1;
   @State pickDay: number = 1;
+  /** 农历模式下是否选择闰月 */
+  @State pickLeap: boolean = false;
   @State yearIndex: number = 200;
   /** 年份下限（与年号表最早纪年一致：天福元年） */
   private readonly MIN_YEAR: number = 936;
@@ -1547,46 +1550,68 @@ struct PersonEdit {
    * 因此这里自绘“年 / 月 / 日”三段滚轮，范围 936 ~ 2100，覆盖清朝及更早祖先。
    */
   private openDatePicker(label: string, calendar: string, value: string): void {
-    const parsed: ParsedDate = parseHistoricalDate(value);
+    let year: number = 0;
+    let month: number = 0;
+    let day: number = 0;
+    // 新版保存的文本同时含农历与公历，必须按当前历法取对应段，避免把农历月日当成公历
+    if (calendar === '公历') {
+      const full: RegExpMatchArray | null = value.match(/公历\s*(\d{3,4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+      if (full !== null) {
+        year = parseInt(full[1], 10);
+        month = parseInt(full[2], 10);
+        day = parseInt(full[3], 10);
+      } else {
+        const ymd: RegExpMatchArray | null = value.match(/(\d{3,4})\s*[-/.年]\s*(\d{1,2})\s*[-/.月]\s*(\d{1,2})/);
+        if (ymd !== null) {
+          year = parseInt(ymd[1], 10);
+          month = parseInt(ymd[2], 10);
+          day = parseInt(ymd[3], 10);
+        }
+      }
+    }
+    if (year <= 0) {
+      const parsed: ParsedDate = parseHistoricalDate(value);
+      year = parsed.year;
+      month = parsed.month;
+      day = parsed.day;
+    }
     this.dateTargetLabel = label;
     this.dateCalendar = calendar;
     // 通过字段名区分出生/逝世，避免保存函数引用到状态变量
     this.dateTarget = label.indexOf('逝世') >= 0 ? 'death' : 'birth';
-    this.pickYear = parsed.year > 0 ? parsed.year : 1900;
-    this.pickMonth = parsed.month > 0 ? parsed.month : 1;
-    this.pickDay = parsed.day > 0 ? parsed.day : 1;
+    this.pickYear = year > 0 ? year : 1900;
+    this.pickMonth = month > 0 ? month : 1;
+    this.pickDay = day > 0 ? day : 1;
+    // 原文含“闰”时还原为闰月
+    this.pickLeap = calendar === '农历' && value.indexOf('闰') >= 0;
     this.buildEraOptions();
     this.eraIndex = 0;
     this.useEra = false;
     this.eraYear = 1;
     this.eraYearIndex = 0;
-    this.buildMonthOptions();
     this.refreshDateOptions();
     this.showDatePicker = true;
   }
 
-  /** 生成年/月/日选项并校正日月下标 */
   /** 年号列表（第 0 项为“公历年”） */
   private buildEraOptions(): void {
     if (this.eraOptions.length > 1) {
       return;
     }
     const list: string[] = ['公历年'];
-    ERA_TABLE.forEach((e: Array<Object>): void => {
-      list.push((e[0] as string) + '年（' + (e[1] as number).toString() + '起）');
-    });
+    for (let i: number = 0; i < ERA_LIST.length; i++) {
+      list.push(eraLabel(i));
+    }
     this.eraOptions = list;
   }
 
   /** 某个年号可选的年数（按到下一个年号或 2100 年计算） */
   private eraYearOptions(): string[] {
     const list: string[] = [];
-    if (this.eraIndex <= 0 || this.eraIndex > ERA_TABLE.length) {
+    if (this.eraIndex <= 0 || this.eraIndex > ERA_LIST.length) {
       return ['元年'];
     }
-    const start: number = ERA_TABLE[this.eraIndex - 1][1];
-    const end: number = this.eraIndex - 2 >= 0 ? ERA_TABLE[this.eraIndex - 2][1] - 1 : 2100;
-    const max: number = Math.max(Math.min(end, 2100) - start + 1, 1);
+    const max: number = eraYearCount(this.eraIndex - 1);
     for (let i: number = 1; i <= max; i++) {
       list.push(i === 1 ? '元年' : this.numToCn(i) + '年');
     }
@@ -1616,29 +1641,41 @@ struct PersonEdit {
       years.push(lunarMode ? cnYearText(y) + '年' : y.toString() + '年');
     }
     this.yearOptions = years;
-    // 先按年份范围校正，再计算该月天数，避免把 936~1799 的历史纪年截断到 1800
     this.pickYear = Math.min(Math.max(this.pickYear, this.MIN_YEAR), this.MAX_YEAR);
-    const maxDay: number = this.daysInMonth(this.pickYear, this.pickMonth);
-    if (this.pickDay > maxDay) {
-      this.pickDay = maxDay;
-    }
+    this.buildMonthOptions();
+    this.syncMonthSelection();
     this.syncDayOptions();
     this.yearIndex = this.MAX_YEAR - this.pickYear;
-    this.monthIndex = this.pickMonth - 1;
-    this.dayIndex = this.pickDay - 1;
+    this.dayIndex = Math.max(this.pickDay - 1, 0);
   }
 
-  private daysInMonth(year: number, month: number): number {
+  private daysInMonth(year: number, month: number, isLeap: boolean): number {
+    if (this.dateCalendar === '农历') {
+      return lunarMonthDays(year, month, isLeap);
+    }
     if (year <= 0) {
       return 30;
     }
-    return new Date(year, month, 0).getDate();
+    // 1582 年 10 月 5~14 日不存在（儒略历改格里高利历），仍按 31 天给出日号，
+    // 避免把 15~31 日这些真实存在的日期排除在外
+    if (year === 1582 && month === 10) {
+      return 31;
+    }
+    // 用儒略日差值取月长：new Date 会把 0~99 年当成 19xx 年，且对 1582 年前按格里高利历处理
+    const nextYear: number = month === 12 ? year + 1 : year;
+    const nextMonth: number = month === 12 ? 1 : month + 1;
+    return julianDay(nextYear, nextMonth, 1) - julianDay(year, month, 1);
   }
 
-  /** 按公历/农历生成月份与日期文案 */
+  /** 按公历/农历生成月份选项（农历含闰月） */
   private buildMonthOptions(): void {
     if (this.dateCalendar === '农历') {
-      this.monthOptions = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
+      const months: LunarMonthOption[] = lunarMonthsOfYear(this.pickYear);
+      const list: string[] = [];
+      for (let i: number = 0; i < months.length; i++) {
+        list.push(months[i].label);
+      }
+      this.monthOptions = list.length > 0 ? list : ['正月'];
     } else {
       const m: string[] = [];
       for (let i: number = 1; i <= 12; i++) {
@@ -1648,12 +1685,40 @@ struct PersonEdit {
     }
   }
 
+  /** 让 monthIndex 与 pickMonth / pickLeap 保持一致 */
+  private syncMonthSelection(): void {
+    if (this.dateCalendar === '农历') {
+      const months: LunarMonthOption[] = lunarMonthsOfYear(this.pickYear);
+      if (months.length === 0) {
+        this.monthIndex = 0;
+        return;
+      }
+      let idx: number = 0;
+      for (let i: number = 0; i < months.length; i++) {
+        if (months[i].month === this.pickMonth && months[i].isLeap === this.pickLeap) {
+          idx = i;
+          break;
+        }
+      }
+      this.monthIndex = idx;
+      this.pickMonth = months[idx].month;
+      this.pickLeap = months[idx].isLeap;
+    } else {
+      this.pickMonth = Math.min(Math.max(this.pickMonth, 1), 12);
+      this.pickLeap = false;
+      this.monthIndex = this.pickMonth - 1;
+    }
+  }
+
   private syncDayOptions(): void {
     const days: string[] = [];
-    const max: number = this.daysInMonth(this.pickYear, this.pickMonth);
+    const max: number = this.daysInMonth(this.pickYear, this.pickMonth, this.pickLeap);
     // 切换年 / 月后日期可能超出当月天数，这里同步收敛，避免生成 2 月 31 日这类非法日期
     if (this.pickDay > max) {
       this.pickDay = max;
+    }
+    if (this.pickDay < 1) {
+      this.pickDay = 1;
     }
     if (this.dayIndex > max - 1) {
       this.dayIndex = max - 1;
@@ -1662,20 +1727,53 @@ struct PersonEdit {
       '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
       '廿一', '廿二', '廿三', '廿四', '廿五', '廿六', '廿七', '廿八', '廿九', '三十'];
     for (let d: number = 1; d <= max; d++) {
-      // 农历按传统写法：初一…三十；个别月份到 31 时写作“卅一日”
-      days.push(this.dateCalendar === '农历' ? (d <= 30 ? lunar[d - 1] : '卅一日') : d.toString() + '日');
+      // 农历按传统写法：初一…三十
+      days.push(this.dateCalendar === '农历' ? lunar[d - 1] : d.toString() + '日');
     }
     this.dayOptions = days;
   }
 
+  /**
+   * 生成写回个人信息的完整生卒日期文本（年号 + 干支 + 农历 + 公历）。
+   * 例：弘治六年 癸丑年甲寅月丙子日 农历一四九三年正月初十（公历1493年1月27日）
+   * 没有年号的日期（936 前 / 1949-10-01 后）只省略年号段。
+   */
+  private fullDateText(y: number, m: number, d: number): string {
+    const solarText: string = '公历' + y.toString() + '年' + m.toString() + '月' + d.toString() + '日';
+    const lunar: LunarDate | null = solarToLunar(y, m, d);
+    const hl: HuangLi = huangLiText(y, m, d, -1);
+    const eraText: string = eraYearText(y, m, d);
+    let text: string = eraText.length > 0 ? eraText + ' ' : '';
+    text = text + hl.year + hl.month + hl.day;
+    if (lunar !== null) {
+      // 农历段保留农历年，跨公历年（腊月）回填时才能定位到正确的农历年
+      text = text + ' 农历' + cnYearText(lunar.year) + '年' + lunarMonthName(lunar.month, lunar.isLeap) +
+        lunarDayName(lunar.day);
+    }
+    return text + '（' + solarText + '）';
+  }
+
+  /** 选择器当前组合将要写入个人信息的完整日期文本 */
+  private previewDateText(): string {
+    if (this.dateCalendar === '农历') {
+      const solar: SolarDate | null = lunarToSolar(this.pickYear, this.pickMonth, this.pickDay, this.pickLeap);
+      if (solar !== null) {
+        return this.fullDateText(solar.year, solar.month, solar.day);
+      }
+    } else {
+      // 1582 年 10 月 5~14 日不存在，直接写公历年月日，避免生成矛盾的农历/干支
+      const missingDay: boolean = this.pickYear === 1582 && this.pickMonth === 10 &&
+        this.pickDay >= 5 && this.pickDay <= 14;
+      if (!missingDay) {
+        return this.fullDateText(this.pickYear, this.pickMonth, this.pickDay);
+      }
+    }
+    return composeDate(this.pickYear, this.pickMonth, this.pickDay, this.dateCalendar, this.pickLeap);
+  }
+
   /** 确认日期：直接按目标字段写回（不依赖函数型状态） */
   private confirmDate(): void {
-    const hl: HuangLi = this.huangLi();
-    let text: string = composeDate(this.pickYear, this.pickMonth, this.pickDay, this.dateCalendar);
-    if (this.dateCalendar === '农历') {
-      // 农历模式下同时保留干支记法，方便对照古谱
-      text = text + '（' + hl.year + ' ' + hl.month + ' ' + hl.day + '）';
-    }
+    const text: string = this.previewDateText();
     if (text.length > 0) {
       if (this.dateTarget === 'death') {
         this.fDeathDate = text;
@@ -1688,6 +1786,12 @@ struct PersonEdit {
 
   /** 当前所选日期对应的干支黄历 */
   private huangLi(): HuangLi {
+    if (this.dateCalendar === '农历') {
+      const solar: SolarDate | null = lunarToSolar(this.pickYear, this.pickMonth, this.pickDay, this.pickLeap);
+      if (solar !== null) {
+        return huangLiText(solar.year, solar.month, solar.day, -1);
+      }
+    }
     const y: number = Math.max(this.pickYear, 1);
     return huangLiText(y, this.pickMonth, this.pickDay, -1);
   }
@@ -1730,22 +1834,18 @@ struct PersonEdit {
       .height(52)
       .padding({ left: Spacing.L, right: Spacing.L })
 
-      // 当前组合预览：公历 + 干支黄历（如 丙午年（马） 戊戌月 辛未日）
+      // 当前组合预览：即将写入个人信息的“年号 + 干支 + 农历 + 公历”完整文本
       Column() {
-        Text(T(composeDate(this.pickYear, this.pickMonth, this.pickDay, this.dateCalendar))).fontFamily(uiFontFamily())
-          .fontSize(15)
+        Text(T(this.previewDateText())).fontFamily(uiFontFamily())
+          .fontSize(13.5)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.primary)
-        Text(T(this.huangLi().text)).fontFamily(uiFontFamily())
-          .fontSize(12.5)
-          .fontColor(Theme.gold)
-          .margin({ top: 2 })
-          .maxLines(2)
+          .maxLines(3)
           .textAlign(TextAlign.Center)
         Text(T('节气：' + this.huangLi().term)).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
-          .margin({ top: 2 })
+          .margin({ top: 4 })
       }
       .alignItems(HorizontalAlign.Center)
       .margin({ bottom: 4 })
@@ -1775,8 +1875,9 @@ struct PersonEdit {
             this.eraIndex = index;
             this.useEra = index > 0;
             if (this.useEra) {
-              const start: number = ERA_TABLE[index - 1][1];
-              this.pickYear = start + this.eraYear - 1;
+              this.eraYear = 1;
+              this.eraYearIndex = 0;
+              this.pickYear = ERA_LIST[index - 1].firstYear;
               this.refreshDateOptions();
             }
           })
@@ -1788,8 +1889,7 @@ struct PersonEdit {
               const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
               this.eraYearIndex = idx;
               this.eraYear = idx + 1;
-              const start: number = ERA_TABLE[this.eraIndex - 1][1];
-              this.pickYear = start + this.eraYear - 1;
+              this.pickYear = ERA_LIST[this.eraIndex - 1].firstYear + idx;
               this.refreshDateOptions();
             })
         }
@@ -1805,7 +1905,14 @@ struct PersonEdit {
             const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
             this.yearIndex = idx;
             this.pickYear = this.MAX_YEAR - idx;
+            // 手动改公历年即退出年号联动，避免“年号 + 公历年”两处显示互相矛盾
+            this.eraIndex = 0;
+            this.useEra = false;
+            // 农历闰月随年份变化，换年时重建月份并保持原选择
+            this.buildMonthOptions();
+            this.syncMonthSelection();
             this.syncDayOptions();
+            this.dayIndex = Math.max(this.pickDay - 1, 0);
           })
         TextPicker({ range: this.monthOptions, selected: this.monthIndex })
           .layoutWeight(3)
@@ -1813,8 +1920,18 @@ struct PersonEdit {
           .onChange((value: string | string[], index: number | number[]): void => {
             const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
             this.monthIndex = idx;
-            this.pickMonth = idx + 1;
+            if (this.dateCalendar === '农历') {
+              const months: LunarMonthOption[] = lunarMonthsOfYear(this.pickYear);
+              if (idx >= 0 && idx < months.length) {
+                this.pickMonth = months[idx].month;
+                this.pickLeap = months[idx].isLeap;
+              }
+            } else {
+              this.pickMonth = idx + 1;
+              this.pickLeap = false;
+            }
             this.syncDayOptions();
+            this.dayIndex = Math.max(this.pickDay - 1, 0);
           })
         TextPicker({ range: this.dayOptions, selected: this.dayIndex })
           .layoutWeight(3)

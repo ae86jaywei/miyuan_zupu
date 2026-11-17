@@ -1,6 +1,6 @@
 ﻿import { Person } from '../model/Person';
 import { BirthdayItem } from '../model/TimerSession';
-import { parseDate } from '../util/DateConverter';
+import { parseDate } from 'common_dateutil';
 
 /**
  * 智能提示服务：今日/本月寿辰、资料缺失提醒、世系异常检测等。

@@ -6,7 +6,8 @@
   "author": "zupu",
   "license": "Apache-2.0",
   "dependencies": {
-    "@hw-agconnect/auth": "^1.1.0"
+    "@hw-agconnect/auth": "^1.1.0",
+    "common_dateutil": "file:../common/DateUtil"
   },
   "devDependencies": {},
   "dynamicDependencies": {}

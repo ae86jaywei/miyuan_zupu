@@ -89,6 +89,14 @@ export class RouterUtil {
       });
   }
 
+  /** 万年历：公历/农历/干支/年号互查 */
+  static calendar(ui: UIContext): void {
+    ui.getRouter().pushUrl({ url: 'pages/CalendarPage' })
+      .catch((err: BusinessError): void => {
+        console.error('push CalendarPage failed: ' + err.message);
+      });
+  }
+
   /** 打开协议页：type 为 user（用户协议）或 privacy（隐私政策） */
   static agreement(ui: UIContext, type: string): void {
     const params: AgreementParams = new AgreementParams();

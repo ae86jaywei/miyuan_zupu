@@ -1,8 +1,8 @@
 {
-  "name": "@zupu/common-dateutil",
+  "name": "common_dateutil",
   "version": "1.0.0",
   "description": "公共日期工具 HAR 模块（农历/干支/纪年/日期转换）",
-  "main": "",
+  "main": "Index.ets",
   "author": "zupu",
   "license": "Apache-2.0",
   "dependencies": {},

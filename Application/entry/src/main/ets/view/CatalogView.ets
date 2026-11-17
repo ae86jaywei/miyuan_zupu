@@ -5,7 +5,7 @@ import { Theme, Spacing, Radius } from '../theme/Theme';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { EmptyHint } from '../components/EmptyHint';
 import { generationLabel } from '../model/Enums';
-import { lifeSpan } from '../util/DateConverter';
+import { lifeSpan } from 'common_dateutil';
 import { Breakpoint } from '../common/Constants';
 import { RouterUtil } from '../util/RouterUtil';
 import { FlatListSource } from '../util/FlatListSource';

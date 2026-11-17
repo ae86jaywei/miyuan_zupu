@@ -8,7 +8,7 @@ import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
-import { parseYear } from '../util/DateConverter';
+import { parseYear } from 'common_dateutil';
 import { T, ScriptService } from './ScriptService';
 import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
 
@@ -42,8 +42,8 @@ export class ExportService {
       case '辈分/字派': return p.generationChar;
       case '在世状态': return p.lifeStatus;
       case '子女身份': return p.childStatus === '未记' ? '' : p.childStatus;
-      case '出生日期': return p.birthCalendar === '农历' ? '农历 ' + p.birthDate : p.birthDate;
-      case '逝世日期': return p.deathCalendar === '农历' ? '农历 ' + p.deathDate : p.deathDate;
+      case '出生日期': return ExportService.dateCell(p.birthDate, p.birthCalendar);
+      case '逝世日期': return ExportService.dateCell(p.deathDate, p.deathCalendar);
       case '出生地': return p.birthPlace;
       case '现居地': return p.residence;
       case '父亲ID': return p.fatherId;
@@ -97,8 +97,8 @@ export class ExportService {
         '辈分/字派': p.generationChar,
         '在世状态': p.lifeStatus,
         '子女身份': p.childStatus,
-        '出生日期': p.birthCalendar === '农历' ? '农历 ' + p.birthDate : p.birthDate,
-        '逝世日期': p.deathCalendar === '农历' ? '农历 ' + p.deathDate : p.deathDate,
+        '出生日期': ExportService.dateCell(p.birthDate, p.birthCalendar),
+        '逝世日期': ExportService.dateCell(p.deathDate, p.deathCalendar),
         '出生地': p.birthPlace,
         '现居地': p.residence,
         '父亲ID': p.fatherId,
@@ -371,8 +371,12 @@ export class ExportService {
       p.generationChar = r['辈分/字派'] ?? '';
       p.lifeStatus = ScriptService.getInstance().toSimplified(r['在世状态'] ?? '在世');
       p.childStatus = ScriptService.getInstance().toSimplified(r['子女身份'] ?? '未记');
-      p.birthDate = r['出生日期'] ?? '';
-      p.deathDate = r['逝世日期'] ?? '';
+      const birthRaw: string = r['出生日期'] ?? '';
+      const deathRaw: string = r['逝世日期'] ?? '';
+      p.birthDate = ExportService.importDateCell(birthRaw);
+      p.birthCalendar = ExportService.importDateCalendar(birthRaw);
+      p.deathDate = ExportService.importDateCell(deathRaw);
+      p.deathCalendar = ExportService.importDateCalendar(deathRaw);
       p.birthPlace = r['出生地'] ?? '';
       p.residence = r['现居地'] ?? '';
       p.fatherId = r['父亲ID'] ?? '';
@@ -450,12 +454,12 @@ export class ExportService {
           case '在世状态': p.lifeStatus = norm.length > 0 ? norm : '在世'; break;
           case '子女身份': p.childStatus = norm.length > 0 ? norm : '未记'; break;
           case '出生日期':
-            p.birthCalendar = norm.indexOf('农历') >= 0 ? '农历' : '公历';
-            p.birthDate = norm.replace('农历', '').trim();
+            p.birthCalendar = ExportService.importDateCalendar(norm);
+            p.birthDate = ExportService.importDateCell(norm);
             break;
           case '逝世日期':
-            p.deathCalendar = norm.indexOf('农历') >= 0 ? '农历' : '公历';
-            p.deathDate = norm.replace('农历', '').trim();
+            p.deathCalendar = ExportService.importDateCalendar(norm);
+            p.deathDate = ExportService.importDateCell(norm);
             break;
           case '出生地': p.birthPlace = value; break;
           case '现居地': p.residence = value; break;
@@ -483,6 +487,37 @@ export class ExportService {
       }
     }
     return result;
+  }
+
+  /** 生卒日期单元格：新版完整文本（含年号/干支/农历/公历）原样输出，旧数据仍按农历补前缀 */
+  private static dateCell(date: string, calendar: string): string {
+    const raw: string = date.trim();
+    if (raw.length === 0) {
+      return '';
+    }
+    if (ExportService.isFullDateText(raw) || raw.indexOf('农历') >= 0) {
+      return raw;
+    }
+    return calendar === '农历' ? '农历 ' + raw : raw;
+  }
+
+  /** 是否为新版完整日期文本（年号 + 干支 + 农历 + 公历，以（公历…）结尾） */
+  private static isFullDateText(raw: string): boolean {
+    return raw.indexOf('（公历') >= 0;
+  }
+
+  /**
+   * 导入日期单元格：完整文本原样保留（不再剥“农历”，避免丢失农历段），
+   * 旧文本去掉“农历”前缀后交给 calendar 字段标注。
+   */
+  private static importDateCell(raw: string): string {
+    return ExportService.isFullDateText(raw) ? raw : raw.replace('农历', '').trim();
+  }
+
+  /** 导入日期的历法标记：完整文本含公历段，按公历回填；否则按是否含“农历”判断 */
+  private static importDateCalendar(raw: string): string {
+    if (ExportService.isFullDateText(raw)) return '公历';
+    return raw.indexOf('农历') >= 0 ? '农历' : '公历';
   }
 
   /** 配偶关系序列化：`UID:名分;UID:名分`（兼容旧 spouseId 单值） */

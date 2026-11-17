@@ -1,6 +1,6 @@
 ﻿import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
-import { parseDate } from '../util/DateConverter';
+import { parseDate } from 'common_dateutil';
 import { toChineseNumber } from '../util/StringUtil';
 
 /**

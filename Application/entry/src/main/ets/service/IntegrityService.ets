@@ -1,6 +1,6 @@
 ﻿import { Person } from '../model/Person';
 import { IntegrityCode, IntegrityIssue, IntegrityReport } from '../model/Integrity';
-import { parseDate } from '../util/DateConverter';
+import { parseDate } from 'common_dateutil';
 
 /**
  * 族谱数据一致性检测。

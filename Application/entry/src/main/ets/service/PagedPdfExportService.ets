@@ -13,7 +13,7 @@ import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
 import { PersonNode } from '../model/PersonNode';
 import { compactUid } from '../util/StringUtil';
-import { parseYear } from '../util/DateConverter';
+import { parseYear } from 'common_dateutil';
 import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_Y_MM,
   JPEG_QUALITY, PAGE_H_MM, PAGE_W_MM, PX_PER_MM, RENDER_H, RENDER_W,
   TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';

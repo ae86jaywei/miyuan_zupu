@@ -12,6 +12,7 @@
     "pages/AccessApply",
     "pages/GraveMap",
     "pages/ChangeReview",
+    "pages/CalendarPage",
     "pages/Agreement"
   ]
 }

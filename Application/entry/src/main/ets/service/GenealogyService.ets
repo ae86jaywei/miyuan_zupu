@@ -7,7 +7,7 @@ import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 import { PersonNode } from '../model/PersonNode';
 import { GenerationStat, GenealogyStats } from '../model/Stats';
 import { IdGenerator } from '../util/IdGenerator';
-import { parseYear } from '../util/DateConverter';
+import { parseYear } from 'common_dateutil';
 import { generationLabel } from '../model/Enums';
 import { TreeBuilder } from './TreeBuilder';
 import { SeedData } from './SeedData';

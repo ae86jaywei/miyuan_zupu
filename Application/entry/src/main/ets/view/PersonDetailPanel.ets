@@ -5,7 +5,7 @@ import { Tag } from '../components/Tag';
 import { InfoRow } from '../components/InfoRow';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { generationLabel } from '../model/Enums';
-import { lifeSpan, ageOf, displayDate } from '../util/DateConverter';
+import { lifeSpan, ageOf, displayDate } from 'common_dateutil';
 import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from '../components/EmptyHint';
 

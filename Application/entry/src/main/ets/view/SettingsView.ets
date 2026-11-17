@@ -653,6 +653,20 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
+        TS({ title: T('历法与工具'), subtitle: '公历 / 农历 / 干支 / 年号互查', icon: '📅' })
+        Column() {
+          this.NavRow('万年历', '936~2100 年公历与农历对照，含干支、节气与历代年号', (): void => {
+            RouterUtil.calendar(this.getUIContext());
+          })
+        }
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
+        .backgroundColor(Theme.card)
+        .borderRadius(16)
+        .border({ width: 0.5, color: Theme.line })
+        .margin({ bottom: Spacing.M })
+        .clip(true)
+
         TS({ title: T('数据管理'), icon: '💾' })
         Column() {
           this.NavRow('导入 / 导出', 'JSON 备份、CSV 表格、Markdown 谱文', (): void => {
