@@ -426,8 +426,8 @@ struct CalendarPage {
       .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.S, bottom: Spacing.S })
       .border({ width: { bottom: 0.5 }, color: Theme.line })
 
-      // 年份范围选择（936~2100）
-      Text(T('年份（' + CAL_MIN_YEAR.toString() + '–' + CAL_MAX_YEAR.toString() + '）')).fontFamily(uiFontFamily())
+      // 年份滚轮（936–2100）：可滚动浏览，选中即联动下方月历
+      Text(T('年份')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -443,7 +443,7 @@ struct CalendarPage {
           this.refresh();
         })
 
-      // 月份范围选择（1~12）
+      // 月份快选（1~12）
       Text(T('月份')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
@@ -522,7 +522,15 @@ struct CalendarPage {
               }
               .alignItems(VerticalAlign.Center)
               .onClick((): void => {
-                this.showPicker = !this.showPicker;
+                if (this.showPicker) {
+                  this.showPicker = false;
+                } else {
+                  // 打开时用当前选中日期预填，便于直接改后跳转
+                  this.jumpYear = this.viewYear.toString();
+                  this.jumpMonth = this.viewMonth.toString();
+                  this.jumpDay = this.selectedDay.toString();
+                  this.showPicker = true;
+                }
               })
               Text(T(this.monthSummary())).fontFamily(uiFontFamily())
                 .fontSize(10.5)
