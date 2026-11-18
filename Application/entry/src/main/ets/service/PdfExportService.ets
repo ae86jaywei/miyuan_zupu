@@ -593,7 +593,10 @@ function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
       DieJiText.refRanges(body), F_DETAIL, C_INK, F_NAME, nameColor,
       F_REF, C_INK2, 0, contentW, hanging));
   }
-  lines.push({ text: ' ', font: 8, lineH: 12, color: C_BG, bold: false, indent: 0, center: false });
+  // 人物之间空两行，避免现代横版连续排版时挤在一起
+  for (let k: number = 0; k < 2; k++) {
+    lines.push({ text: ' ', font: F_DETAIL, lineH: H_DETAIL, color: C_BG, bold: false, indent: 0, center: false });
+  }
   return lines;
 }
 
@@ -635,7 +638,6 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
   const index: DieJiIndex = dieIndex === undefined ? new DieJiIndex(people) : dieIndex;
   const units: FamilyUnit[] = buildFamilyUnits(people);
   const entries: EntryBlock[] = [];
-  let lastGen: number = -1;
   let written: number = 0;
   // 谱内没有任何第一世人物（始迁祖未录入，或世代录入从二世起）时，
   // 用谱信息里的始迁祖姓名补出第一世条目，避免正文直接从第二世开始。
@@ -652,25 +654,18 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
       ]
     });
   }
-  // 世代小标题并入本节第一人的条目前，避免分页时标题孤零零留在上一段
-  let headingText: string = '';
+  // 每个人物条目前都写「第X世」小标题：同一世代多人时，每人仍有自己的小标题
   for (let i: number = 0; i < units.length; i++) {
     const unit: FamilyUnit = units[i];
-    if (unit.generation !== lastGen) {
-      lastGen = unit.generation;
-      headingText = generationLabel(unit.generation);
-    }
+    const heading: string = generationLabel(unit.generation);
     const unitId: string = unit.anchorUid + '#' + unit.generation.toString();
     for (let j: number = 0; j < unit.members.length; j++) {
       const p: Person = unit.members[j];
       const lines: TextLine[] = personEntryLines(ctx, p, index, refs, contentW);
-      if (headingText.length > 0) {
-        lines.unshift({
-          text: headingText,
-          font: 15, lineH: 30, color: C_INK, bold: false, indent: 0, center: false
-        });
-        headingText = '';
-      }
+      lines.unshift({
+        text: heading,
+        font: 15, lineH: 30, color: C_INK, bold: false, indent: 0, center: false
+      });
       entries.push({
         uid: p.uid.trim().toUpperCase(),
         unitId: unitId,
@@ -804,60 +799,6 @@ const COLUMNS: number = 3;
 const COLUMN_GAP: number = 14;
 /** 现代版横向三段（上中下）的段间距 */
 const SEGMENT_GAP: number = 12;
-
-/**
- * 现代版三栏分页：每人独占栏，一栏写不完续到下一栏；只有空栏才写下一人。
- * 上一位族人没用完的栏也不与他人共用，避免把两个人的内容挤在同一栏。
- */
-async function paginateEntriesColumns(entries: EntryBlock[], pageOffset: number,
-  contentW: number, contentH: number): Promise<PaginateResult> {
-  // 现代版是“上中下”三段横条：每段横向铺满版心，段内文字横排
-  const segmentH: number = (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS;
-  const pages: PageSpec[] = [];
-  const uidPage: Map<string, number> = new Map<string, number>();
-  let cur: TextLine[] = [];
-  let used: number = 0;
-  let column: number = 0;
-  let curHasPerson: boolean = false;
-  const flush = (): void => {
-    if (cur.length > 0) {
-      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: contentW });
-      cur = [];
-      used = 0;
-      column = (column + 1) % COLUMNS;
-      curHasPerson = false;
-    }
-  };
-  let processed: number = 0;
-  let nextYield: number = 200;
-  for (let i: number = 0; i < entries.length; i = i + 1) {
-    const e: EntryBlock = entries[i];
-    if (curHasPerson) {
-      flush();
-    }
-    if (e.uid.length > 0) {
-      uidPage.set(e.uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
-    }
-    for (let j: number = 0; j < e.lines.length; j = j + 1) {
-      const ln: TextLine = e.lines[j];
-      if (used + ln.lineH > segmentH && cur.length > 0) {
-        flush();
-      }
-      cur.push(ln);
-      used = used + ln.lineH;
-    }
-    if (e.uid.length > 0) {
-      curHasPerson = true;
-    }
-    processed = processed + 1;
-    if (processed >= nextYield) {
-      nextYield = nextYield + 200;
-      await yieldToUi();
-    }
-  }
-  flush();
-  return { pages: pages, uidPage: uidPage };
-}
 
 /** 仿古版三栏分页：每人独占栏，一栏写不完按列续到下一栏 */
 async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset: number,
@@ -1671,7 +1612,7 @@ export class PdfExportService {
           jobs.length === 1 ? book.ancestorName : '', dieIndex);
       const pg: PaginateResult = classicLayout
         ? await paginateEntriesVerticalColumns(entries, offset, contentW, contentH)
-        : await paginateEntriesColumns(entries, offset, contentW, contentH);
+        : await paginateEntries(entries, offset, contentH);
       const multi: boolean = jobs.length > 1;
       pg.uidPage.forEach((pageNo: number, uid: string): void => {
         out.set(uid, multi
@@ -1729,7 +1670,7 @@ export class PdfExportService {
       ancestorForBody, dieIndex);
     const firstPass: PaginateResult = classic
       ? await paginateEntriesVerticalColumns(entries1, offset, contentW, contentH)
-      : await paginateEntriesColumns(entries1, offset, contentW, contentH);
+      : await paginateEntries(entries1, offset, contentH);
     const uidPageMap: Map<string, number> = firstPass.uidPage;
     // 第二遍排版回填真实页码；分卷时用跨卷位置兜底
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
@@ -1755,7 +1696,7 @@ export class PdfExportService {
     }
     let genealogyPages: PageSpec[] = classic
       ? (await paginateEntriesVerticalColumns(entries2, offset, contentW, contentH)).pages
-      : (await paginateEntriesColumns(entries2, offset, contentW, contentH)).pages;
+      : (await paginateEntries(entries2, offset, contentH)).pages;
     gCrossRef = null;
     
     const backPages: PageSpec[] = classic
@@ -1977,10 +1918,14 @@ export class PdfExportService {
             ci = ci + step;
           }
         }
+        const bulletBlock: boolean = chars.length > 0 && chars[0] === BULLET;
         let ci: number = 0;
+        let colIndex: number = 0;
         while (ci < chars.length) {
           const start: number = ci;
-          let used: number = 0;
+          // 圆点是段首标志：续列顶部空一格，正文与第一列圆点下方的文字对齐
+          const topPad: number = (bulletBlock && colIndex > 0) ? 1 : 0;
+          let used: number = topPad * classicStep(fonts[start]);
           let colW: number = 0;
           let colFont: number = 0;
           while (ci < chars.length) {
@@ -2000,7 +1945,7 @@ export class PdfExportService {
             ci = ci + 1;
           }
           const colX: number = cursorRight - colFont;
-          let yy: number = 0;
+          let yy: number = topPad * classicStep(fonts[start]);
           for (let k: number = start; k < ci; k++) {
             const f: number = classicFont(fonts[k]);
             const r: PdfTextLine = new PdfTextLine();
@@ -2014,6 +1959,7 @@ export class PdfExportService {
             yy = yy + classicStep(fonts[k]);
           }
           cursorRight = cursorRight - colW;
+          colIndex = colIndex + 1;
         }
         continue;
       }
@@ -2027,11 +1973,15 @@ export class PdfExportService {
       }
       // 先按整行做一次简繁转换，保留 OpenCC 的词条匹配，再拆成单字
       const full: string = replaceParens(T(ln.text), true);
+      // 圆点是段首标志：续列顶部空一格，正文与第一列圆点下方的文字对齐
+      const bulletBlock: boolean = full.startsWith(BULLET);
       let idx: number = 0;
+      let colIndex: number = 0;
       while (idx < full.length) {
-        const slice: CodeSlice = sliceCodePoints(full, idx, rows);
+        const topPad: number = (bulletBlock && colIndex > 0) ? 1 : 0;
+        const slice: CodeSlice = sliceCodePoints(full, idx, Math.max(1, rows - topPad));
         const colX: number = cursorRight - font;
-        let k: number = 0;
+        let k: number = topPad;
         let ci: number = 0;
         while (ci < slice.text.length) {
           const cp: number = slice.text.codePointAt(ci) ?? 0;
@@ -2048,6 +1998,7 @@ export class PdfExportService {
         }
         idx = slice.next;
         cursorRight = cursorRight - colW;
+        colIndex = colIndex + 1;
       }
     }
     if (!isCover && col === 0) {

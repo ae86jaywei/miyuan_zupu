@@ -801,11 +801,12 @@ export class DieJiText {
         parts.push('年仅' + cnNum(age) + '岁');
       }
     } else {
-      if (dead && age >= 0) {
-        parts.push('享年' + cnNum(age) + '岁');
-      }
       if (dText.length > 0) {
         parts.push((dead ? '终于' : '卒于') + dText);
+      }
+      // 示例版式：逝世日期紧随出生日期，享年放在逝世日期之后
+      if (dead && age >= 0) {
+        parts.push('享年' + cnNum(age) + '岁');
       }
     }
     const base: string = parts.join('，') + '。';
