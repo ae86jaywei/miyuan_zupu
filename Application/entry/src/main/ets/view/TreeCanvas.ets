@@ -9,6 +9,7 @@ import { DieRecord } from '../components/tree/DieRecord';
 import { DieJiIndex } from '../service/DieJiText';
 import { ModernTree } from '../components/tree/ModernTree';
 import { PagedTree } from '../components/tree/PagedTree';
+import { SearchField } from '../components/form/SearchField';
 import { EmptyHint } from '../components/EmptyHint';
 import { Theme, Spacing } from '../theme/Theme';
 import { GenealogyService } from '../service/GenealogyService';
@@ -1273,13 +1274,14 @@ export struct TreeCanvas {
           })
       }
       .width('100%')
-      TextInput({ text: this.searchQuery, placeholder: T('姓名 / 曾用名 / 唯一ID / 字派') }).fontFamily(uiFontFamily())
-        .height(38)
-        .fontSize(14)
-        .margin({ top: 8 })
-        .onChange((v: string): void => {
+      SearchField({
+        text: this.searchQuery,
+        placeholder: '姓名 / 曾用名 / 唯一ID / 字派',
+        marginTop: 8,
+        onChange: (v: string): void => {
           this.runSearch(v);
-        })
+        }
+      })
       if (this.searchQuery.trim().length === 0) {
         Text(T('输入关键词自动匹配，点击结果即跳到该族人在谱系中的位置')).fontFamily(uiFontFamily())
           .fontSize(11)

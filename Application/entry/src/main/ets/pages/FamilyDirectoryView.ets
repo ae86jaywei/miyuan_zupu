@@ -3,6 +3,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 
 import { PageNavBar } from '../components/PageNavBar';
+import { SearchField } from '../components/form/SearchField';
 import { DirectoryForm, DirectoryService, MEMBER_COUNT_BANDS } from '../service/DirectoryService';
 import { FamilyService } from '../service/FamilyService';
 import { GenealogyService } from '../service/GenealogyService';
@@ -310,32 +311,22 @@ struct FamilyDirectoryView {
           if (this.showOwnerPanel) {
             this.OwnerPanel()
           }
-          Row() {
-            TextInput({ text: this.keyword, placeholder: T('谱名 / 姓氏 / 地域') }).fontFamily(uiFontFamily())
-              .height(38)
-              .fontSize(14)
-              .layoutWeight(1)
-              .backgroundColor(Theme.field)
-              .borderRadius(10)
-              .onChange((v: string): void => {
-                this.keyword = v;
-              })
-              .onSubmit(() => {
-                this.search();
-              })
-            Button(T(this.searching ? '搜索中' : '搜索')).fontFamily(uiFontFamily())
-              .fontSize(13)
-              .height(38)
-              .margin({ left: Spacing.S })
-              .backgroundColor(Theme.primary)
-              .fontColor('#FFFFFF')
-              .enabled(!this.searching)
-              .onClick((): void => {
-                this.search();
-              })
-          }
-          .width('100%')
-          .margin({ bottom: Spacing.M })
+          SearchField({
+            text: this.keyword,
+            placeholder: '谱名 / 姓氏 / 地域',
+            actionText: this.searching ? '搜索中' : '搜索',
+            actionEnabled: !this.searching,
+            marginBottom: Spacing.M,
+            onChange: (v: string): void => {
+              this.keyword = v;
+            },
+            onSubmit: (): void => {
+              this.search();
+            },
+            onAction: (): void => {
+              this.search();
+            }
+          })
 
           if (this.message.length > 0) {
             Text(T(this.message)).fontFamily(uiFontFamily())

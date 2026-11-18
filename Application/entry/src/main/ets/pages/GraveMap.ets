@@ -3,6 +3,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
+import { SearchField } from '../components/form/SearchField';
 import { GraveService } from '../service/GraveService';
 import { GenealogyService } from '../service/GenealogyService';
 import { Person } from '../model/Person';
@@ -401,27 +402,18 @@ struct GraveMap {
       List() {
         ListItem() {
           Column() {
-            Row() {
-              TextInput({ text: this.keyword, placeholder: T('人物名 / 谱名 / 墓地名') }).fontFamily(uiFontFamily())
-                .height(38)
-                .fontSize(13.5)
-                .layoutWeight(1)
-                .backgroundColor(Theme.field)
-                .borderRadius(10)
-                .onChange((v: string): void => {
-                  this.keyword = v;
-                })
-              Button(T('查询')).fontFamily(uiFontFamily())
-                .fontSize(13)
-                .height(38)
-                .margin({ left: Spacing.S })
-                .backgroundColor(Theme.primary)
-                .fontColor('#FFFFFF')
-                .onClick((): void => {
-                  this.load();
-                })
-            }
-            .width('100%')
+            SearchField({
+              text: this.keyword,
+              placeholder: '人物名 / 谱名 / 墓地名',
+              fontSize: 13.5,
+              actionText: '查询',
+              onChange: (v: string): void => {
+                this.keyword = v;
+              },
+              onAction: (): void => {
+                this.load();
+              }
+            })
             Row() {
               Text(T('只看本谱')).fontFamily(uiFontFamily())
                 .fontSize(12)
