@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 import { common } from '@kit.AbilityKit';
 import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';

@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 import { Theme, Spacing } from 'common_base';
 
 /**

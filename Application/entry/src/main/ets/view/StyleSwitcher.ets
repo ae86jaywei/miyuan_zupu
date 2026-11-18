@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 import { TREE_STYLES, TreeStyleMeta } from 'common_base';
 import { Theme } from 'common_base';
 import { Breakpoint } from 'common_base';

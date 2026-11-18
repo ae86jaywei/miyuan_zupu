@@ -1,5 +1,5 @@
 ﻿import { pdfService } from '@kit.PDFKit';
-import { T } from './ScriptService';
+import { T } from 'common_base';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';

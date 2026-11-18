@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 

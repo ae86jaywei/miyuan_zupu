@@ -1,4 +1,4 @@
-﻿import { ScriptService } from '../service/ScriptService';
+﻿import { ScriptService } from 'common_base';
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';

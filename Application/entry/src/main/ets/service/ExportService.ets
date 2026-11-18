@@ -9,7 +9,7 @@ import { Genealogy, createEmptyGenealogy } from 'common_base';
 
 import { csvEscape } from 'common_base';
 import { generationLabel } from 'common_base';
-import { T, ScriptService } from './ScriptService';
+import { T, ScriptService } from 'common_base';
 import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */

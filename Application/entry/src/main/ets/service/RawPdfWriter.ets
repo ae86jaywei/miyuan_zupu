@@ -1,4 +1,4 @@
-import { ScriptService } from './ScriptService';
+﻿import { ScriptService } from 'common_base';
 import { fileIo } from '@kit.CoreFileKit';
 import { RawPdfFont } from './RawPdfFont';
 import { PDF_INK, PDF_TEXT } from './pdf/PdfCommon';

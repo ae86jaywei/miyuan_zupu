@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from '../../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 import { PersonNode } from 'common_base';
 import { EuBox, EuCanvas, LineSeg } from '../../service/TreeLayout';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';

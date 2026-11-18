@@ -1,4 +1,4 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 /** 标签胶囊 */
 @Component
 export struct Tag {

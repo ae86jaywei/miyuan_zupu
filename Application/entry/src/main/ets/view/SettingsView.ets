@@ -1,4 +1,4 @@
-﻿import { ScriptService, T, uiFontFamily } from '../service/ScriptService';
+﻿import { ScriptService, T, uiFontFamily } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { Genealogy } from 'common_base';
 import { Theme, Spacing } from 'common_base';

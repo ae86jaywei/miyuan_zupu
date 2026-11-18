@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from 'common_base';
 import { Theme } from 'common_base';
 
 /** 详情页“标签：值”行 */
