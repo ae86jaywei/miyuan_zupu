@@ -119,3 +119,13 @@ export const PERSON_DB_COLUMNS: DbColumnDef[] = [
   { key: 'dirty', column: 'dirty', type: 'INTEGER DEFAULT 0' },
   { key: 'deletedAt', column: 'deleted_at', type: 'INTEGER DEFAULT 0' }
 ];
+
+/** CSV 导出列（顺序即表格列顺序，与 ExportService.fieldOf 的 case 对应） */
+export const PERSON_CSV_COLUMNS: string[] = [
+  '世代', '唯一ID', '谱名', '字', '号', '曾用名/小名', '性别', '辈分/字派', '在世状态', '子女身份',
+  '子女标记', '出嗣/兼祧对象', '入继来源', '在源第几子', '无出',
+  '出生日期', '逝世日期', '出生地', '现居地',
+  '父亲ID', '父名（未收录）', '父名在世状态', '母亲ID', '母名（未收录）', '母名在世状态',
+  '配偶关系', '婚配状态', '夫家/婆家（未收录）', '排行', '过继/出嗣',
+  '学历/学位', '职业/职务', '生平简介', '墓葬信息', '手机号', '微信号', '头像'
+];

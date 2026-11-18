@@ -4,6 +4,7 @@ import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
 import { Person, SpouseRelation, spouseRelationLevel, normalizeSpouseRelation, childStatusLabel } from '../model/Person';
+import { PERSON_CSV_COLUMNS } from '../model/FieldRegistry';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 
 import { csvEscape } from '../util/StringUtil';
@@ -24,14 +25,8 @@ export class JsonBundle {
 export class ExportService {
 
   /** Excel 表头（与《关键信息字段》字段名称一致） */
-  private static readonly HEADERS: string[] = [
-    '世代', '唯一ID', '谱名', '字', '号', '曾用名/小名', '性别', '辈分/字派', '在世状态', '子女身份',
-    '子女标记', '出嗣/兼祧对象', '入继来源', '在源第几子', '无出',
-    '出生日期', '逝世日期', '出生地', '现居地',
-    '父亲ID', '父名（未收录）', '父名在世状态', '母亲ID', '母名（未收录）', '母名在世状态',
-    '配偶关系', '婚配状态', '夫家/婆家（未收录）', '排行', '过继/出嗣',
-    '学历/学位', '职业/职务', '生平简介', '墓葬信息', '手机号', '微信号', '头像'
-  ];
+  /** CSV 列顺序由字段注册表统一维护 */
+  private static readonly HEADERS: string[] = PERSON_CSV_COLUMNS;
 
   private static fieldOf(p: Person, label: string): string {
     switch (label) {
