@@ -2,7 +2,7 @@
 import { GenealogyService } from '../service/GenealogyService';
 import { Genealogy } from 'common_base';
 import { Theme, Spacing } from 'common_base';
-import { TS } from '../components/TS';
+import { TS } from 'common_ui';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { RouterUtil } from 'common_base';
 import { AccountCard } from './AccountCard';
@@ -12,7 +12,7 @@ import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service
 
 import { FamilySyncService } from '../service/FamilySyncService';
 import { SyncMode, SyncResult, roleLabel } from 'common_base';
-import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
+import { SyncProgressOverlay } from 'common_ui';
 
 /**
  * 设置：族谱信息编辑、展示偏好、隐私开关、关于。

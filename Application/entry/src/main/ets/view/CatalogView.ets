@@ -2,8 +2,8 @@
 import { Person } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from 'common_base';
-import { PersonAvatar } from '../components/PersonAvatar';
-import { EmptyHint } from '../components/EmptyHint';
+import { PersonAvatar } from 'common_ui';
+import { EmptyHint } from 'common_ui';
 import { generationLabel } from 'common_base';
 import { lifeSpan } from 'common_dateutil';
 import { Breakpoint } from 'common_base';

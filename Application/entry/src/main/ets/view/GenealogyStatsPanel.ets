@@ -3,8 +3,8 @@ import { Person } from 'common_base';
 import { GenealogyStats, GenerationStat } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing } from 'common_base';
-import { StatCard } from '../components/StatCard';
-import { TS } from '../components/TS';
+import { StatCard } from 'common_ui';
+import { TS } from 'common_ui';
 import { Breakpoint } from 'common_base';
 
 /**

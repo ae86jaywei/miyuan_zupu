@@ -2,7 +2,7 @@
 import { Person } from 'common_base';
 import { Theme, Spacing } from 'common_base';
 import { generationLabel } from 'common_base';
-import { Tag } from '../Tag';
+import { Tag } from 'common_ui';
 import { DieJiIndex, DieJiText, DieJiNameRange, DieJiRefOptions } from '../../service/DieJiText';
 
 /** 正文分段：姓名段、括号引用段、普通段 */

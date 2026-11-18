@@ -1,6 +1,6 @@
 ﻿import { Theme, Spacing } from 'common_base';
 import { SettingsView } from '../view/SettingsView';
-import { PageHeader } from '../components/PageHeader';
+import { PageHeader } from 'common_ui';
 
 /**
  * 独立设置页（大屏 / 从顶栏进入时使用）。

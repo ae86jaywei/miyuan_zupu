@@ -1,6 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Theme, Spacing } from 'common_base';
-import { PageHeader } from '../components/PageHeader';
+import { PageHeader } from 'common_ui';
 import { AgreementDoc, AgreementParams, AgreementSection, agreementDocOf } from 'common_base';
 
 /**

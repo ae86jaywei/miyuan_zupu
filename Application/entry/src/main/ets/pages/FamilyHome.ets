@@ -2,8 +2,8 @@
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
-import { TS } from '../components/TS';
-import { PageNavBar } from '../components/PageNavBar';
+import { TS } from 'common_ui';
+import { PageNavBar } from 'common_ui';
 import { AccountService } from '../service/AccountService';
 import { FamilyService } from '../service/FamilyService';
 import { FamilyBootstrapService } from '../service/FamilyBootstrapService';
@@ -17,7 +17,7 @@ import { CloudSyncService } from '../service/CloudSyncService';
 import { BackupResult } from 'common_base';
 import { ShareService } from '../service/ShareService';
 import { RouterUtil } from 'common_base';
-import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
+import { SyncProgressOverlay } from 'common_ui';
 
 /** 本版是否开启「加入别人的家族」入口 */
 const ALLOW_JOIN: boolean = true;

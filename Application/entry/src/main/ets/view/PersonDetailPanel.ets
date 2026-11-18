@@ -1,13 +1,13 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
-import { PersonAvatar } from '../components/PersonAvatar';
-import { Tag } from '../components/Tag';
-import { InfoRow } from '../components/InfoRow';
+import { PersonAvatar } from 'common_ui';
+import { Tag } from 'common_ui';
+import { InfoRow } from 'common_ui';
 import { Theme, Spacing, Radius } from 'common_base';
 import { generationLabel } from 'common_base';
 import { lifeSpan, ageOf, displayDate } from 'common_dateutil';
 import { GenealogyService } from '../service/GenealogyService';
-import { EmptyHint } from '../components/EmptyHint';
+import { EmptyHint } from 'common_ui';
 
 /**
  * 人物详情面板：展示《关键信息字段》全部字段；

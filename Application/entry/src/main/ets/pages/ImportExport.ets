@@ -1,8 +1,8 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
-import { TS } from '../components/TS';
-import { PageHeader } from '../components/PageHeader';
+import { TS } from 'common_ui';
+import { PageHeader } from 'common_ui';
 import { GenealogyService, BranchSuggestion } from '../service/GenealogyService';
 import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfExportService';

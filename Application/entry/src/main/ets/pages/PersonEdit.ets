@@ -7,10 +7,10 @@ import { geoLocationManager } from '@kit.LocationKit';
 import { sensor } from '@kit.SensorServiceKit';
 import { picker } from '@kit.CoreFileKit';
 import { Theme, Spacing, Radius } from 'common_base';
-import { BackButton } from '../components/BackButton';
-import { SelectField } from '../components/form/SelectField';
-import { PersonPickerField } from '../components/form/PersonPickerField';
-import { DateFieldInput } from '../components/form/DateFieldInput';
+import { BackButton } from 'common_ui';
+import { SelectField } from 'common_ui';
+import { PersonPickerField } from 'common_ui';
+import { DateFieldInput } from 'common_ui';
 import { Breakpoint } from 'common_base';
 import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
@@ -1939,7 +1939,9 @@ struct PersonEdit {
                 clearable: true,
                 onValue: (v: string): void => {
                   this.updateSpouse(idx, v, rel.relation);
-                }
+                },
+                onSearch: (k: string): Person[] => GenealogyService.getInstance().search(k),
+                onResolve: (uid: string): Person | null => GenealogyService.getInstance().getPerson(uid)
               })
               SelectField({
                 label: '名分',
@@ -2324,7 +2326,9 @@ struct PersonEdit {
         clearable: true,
         onValue: (v: string): void => {
           this.fFatherId = v;
-        }
+        },
+        onSearch: (k: string): Person[] => GenealogyService.getInstance().search(k),
+        onResolve: (uid: string): Person | null => GenealogyService.getInstance().getPerson(uid)
       })
       PersonPickerField({
         label: '母亲ID',
@@ -2335,7 +2339,9 @@ struct PersonEdit {
         clearable: true,
         onValue: (v: string): void => {
           this.fMotherId = v;
-        }
+        },
+        onSearch: (k: string): Person[] => GenealogyService.getInstance().search(k),
+        onResolve: (uid: string): Person | null => GenealogyService.getInstance().getPerson(uid)
       })
       // 父母未录入族谱时的兜底姓名：妻子的父亲/母亲即丈夫条目中的岳父/岳母
       Row() {

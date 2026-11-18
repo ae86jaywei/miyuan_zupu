@@ -2,8 +2,8 @@
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 
-import { PageNavBar } from '../components/PageNavBar';
-import { SearchField } from '../components/form/SearchField';
+import { PageNavBar } from 'common_ui';
+import { SearchField } from 'common_ui';
 import { DirectoryForm, DirectoryService, MEMBER_COUNT_BANDS } from '../service/DirectoryService';
 import { FamilyService } from '../service/FamilyService';
 import { GenealogyService } from '../service/GenealogyService';

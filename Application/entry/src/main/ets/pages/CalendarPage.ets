@@ -1,6 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Theme, Spacing, Radius } from 'common_base';
-import { PageNavBar } from '../components/PageNavBar';
+import { PageNavBar } from 'common_ui';
 import {
   cnNum1to99, eraInfoOfSolarDate, EraYearInfo, formatDateConversion,
   huangLiText, HuangLi, jdToDate, julianDay, LunarConst, lunarDateText,

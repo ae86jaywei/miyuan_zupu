@@ -2,7 +2,6 @@
 import { Theme, Spacing } from 'common_base';
 import { Person } from 'common_base';
 import { generationLabel } from 'common_base';
-import { GenealogyService } from '../../service/GenealogyService';
 
 /** 亲属选择器最多展示的搜索结果条数（避免一次渲染数万节点导致页面卡死） */
 const PICKER_MAX_RESULTS: number = 40;
@@ -28,6 +27,10 @@ export struct PersonPickerField {
   @Prop clearable: boolean = false;
   @StorageProp('darkMode') @Watch('onDark') darkMode: boolean = false;
   onValue: (v: string) => void = (v: string): void => {};
+  /** 由页面注入：按编号解析人物，UI 不反向依赖业务服务 */
+  onResolve: (uid: string) => Person | null = (uid: string): Person | null => null;
+  /** 由页面注入：按关键字搜索人物 */
+  onSearch: (keyword: string) => Person[] = (keyword: string): Person[] => [];
   @State showSheet: boolean = false;
   @State keyword: string = '';
   /** 搜索结果（只在输入变化时算一次，build 内不做全表过滤） */
@@ -42,7 +45,7 @@ export struct PersonPickerField {
     if (this.value.length === 0) {
       return this.clearable ? '未选择' : '请选择';
     }
-    const p: Person | null = GenealogyService.getInstance().getPerson(this.value);
+    const p: Person | null = this.onResolve(this.value);
     return p === null ? this.value : p.name + '（' + p.uid + '）';
   }
 
@@ -52,7 +55,7 @@ export struct PersonPickerField {
       this.results = [];
       return;
     }
-    const hits: Person[] = GenealogyService.getInstance().search(k);
+    const hits: Person[] = this.onSearch(k);
     const exclude: string = this.excludeUid.trim().toUpperCase();
     const list: Person[] = [];
     for (let i: number = 0; i < hits.length && list.length < PICKER_MAX_RESULTS; i++) {

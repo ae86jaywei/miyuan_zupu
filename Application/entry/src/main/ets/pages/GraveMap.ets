@@ -1,9 +1,9 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
-import { TS } from '../components/TS';
-import { PageNavBar } from '../components/PageNavBar';
-import { SearchField } from '../components/form/SearchField';
+import { TS } from 'common_ui';
+import { PageNavBar } from 'common_ui';
+import { SearchField } from 'common_ui';
 import { GraveService } from '../service/GraveService';
 import { GenealogyService } from '../service/GenealogyService';
 import { Person } from 'common_base';

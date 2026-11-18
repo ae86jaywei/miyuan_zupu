@@ -1,6 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Theme, Spacing } from 'common_base';
-import { TS } from '../components/TS';
+import { TS } from 'common_ui';
 import { AccountService } from '../service/AccountService';
 import { RouterUtil } from 'common_base';
 

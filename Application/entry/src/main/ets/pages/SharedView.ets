@@ -1,6 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Theme, Spacing } from 'common_base';
-import { PageHeader } from '../components/PageHeader';
+import { PageHeader } from 'common_ui';
 import { Person } from 'common_base';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { AccountService } from '../service/AccountService';

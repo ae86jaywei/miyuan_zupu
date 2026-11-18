@@ -8,6 +8,7 @@
   "dependencies": {
     "@hw-agconnect/auth": "^1.1.0",
     "common_base": "file:../common/base",
+    "common_ui": "file:../common/ui",
     "common_dateutil": "file:../common/DateUtil"
   },
   "devDependencies": {},

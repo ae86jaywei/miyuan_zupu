@@ -1,7 +1,7 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { PersonNode } from 'common_base';
 import { Theme } from 'common_base';
-import { PersonAvatar } from '../PersonAvatar';
+import { PersonAvatar } from 'common_ui';
 import { generationLabel } from 'common_base';
 import { GenealogyService } from '../../service/GenealogyService';
 import { FlatListSource } from 'common_base';

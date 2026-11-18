@@ -1,8 +1,8 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
-import { TS } from '../components/TS';
-import { PageNavBar } from '../components/PageNavBar';
+import { TS } from 'common_ui';
+import { PageNavBar } from 'common_ui';
 import { FamilyService } from '../service/FamilyService';
 import { FamilySyncService } from '../service/FamilySyncService';
 import { GenealogyService } from '../service/GenealogyService';

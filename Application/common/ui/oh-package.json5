@@ -1,0 +1,13 @@
+{
+  "name": "common_ui",
+  "version": "1.0.0",
+  "description": "公共 UI HAR：通用组件与表单控件",
+  "main": "Index.ets",
+  "author": "zupu",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "common_base": "file:../base"
+  },
+  "devDependencies": {},
+  "dynamicDependencies": {}
+}

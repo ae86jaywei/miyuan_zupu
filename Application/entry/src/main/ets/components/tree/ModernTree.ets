@@ -1,8 +1,8 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Person } from 'common_base';
 import { Theme, Spacing } from 'common_base';
-import { PersonAvatar } from '../PersonAvatar';
-import { Tag } from '../Tag';
+import { PersonAvatar } from 'common_ui';
+import { Tag } from 'common_ui';
 import { generationLabel } from 'common_base';
 import { lifeSpan } from 'common_dateutil';
 import { GenealogyService } from '../../service/GenealogyService';
