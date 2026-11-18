@@ -2,6 +2,7 @@ import { T, uiFontFamily } from '../../service/ScriptService';
 import { PersonNode } from '../../model/PersonNode';
 import { TreeStyle, generationLabel } from '../../model/Enums';
 import { Theme } from '../../theme/Theme';
+import { PrintTheme } from '../../theme/PrintTheme';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
 import { PageJump, PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
@@ -33,7 +34,7 @@ struct PrintCard {
       Row() {
         Text(T(this.name)).fontFamily(uiFontFamily())
           .fontSize(this.nameSize)
-          .fontColor(this.female ? '#9C4A63' : '#2B2118')
+          .fontColor(this.female ? PrintTheme.female : PrintTheme.ink)
           .fontWeight(FontWeight.Medium)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -41,7 +42,7 @@ struct PrintCard {
         if (this.badge.length > 0) {
           Text(T(this.badge)).fontFamily(uiFontFamily())
             .fontSize(this.detailSize)
-            .fontColor('#8C2F1E')
+            .fontColor(PrintTheme.foot)
             .maxLines(1)
             .flexShrink(0)
             .margin({ left: 1 })
@@ -52,7 +53,7 @@ struct PrintCard {
       if (this.detail.length > 0) {
         Text(T(this.detail)).fontFamily(uiFontFamily())
           .fontSize(this.detailSize)
-          .fontColor('#5F4F3E')
+          .fontColor(PrintTheme.ink2)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
@@ -62,10 +63,10 @@ struct PrintCard {
     .width(this.cardW)
     .height(this.cardH)
     .padding({ left: this.cardW * 0.06, right: this.cardW * 0.06, top: this.cardH * 0.08, bottom: 0 })
-    .backgroundColor(this.highlight ? '#FFF6E0' : '#FFFFFF')
+    .backgroundColor(this.highlight ? PrintTheme.highlight : PrintTheme.white)
     .border({
       width: this.highlight ? 1.2 : 0.35,
-      color: this.highlight ? '#C9A227' : '#BFB09A'
+      color: this.highlight ? PrintTheme.gold : PrintTheme.line
     })
     .clip(true)
     .alignItems(HorizontalAlign.Start)
@@ -536,18 +537,18 @@ export struct PagedTree {
           Column() {
             Text(T('承')).fontFamily(uiFontFamily())
               .fontSize(this.pt(5.5))
-              .fontColor('#9A8A74')
+              .fontColor(PrintTheme.ink2)
             Text(T(this.ancestorNames.length > i ? this.ancestorNames[i] : uid)).fontFamily(uiFontFamily())
               .fontSize(this.pt(7))
-              .fontColor('#5F4F3E')
+              .fontColor(PrintTheme.ink2)
               .maxLines(1)
               .textOverflow({ overflow: TextOverflow.Ellipsis })
           }
           .width(this.mm(30))
           .height(this.mm(9))
           .justifyContent(FlexAlign.Center)
-          .backgroundColor('#F8F3E7')
-          .border({ width: 0.3, color: '#D8CBB2', style: BorderStyle.Dashed })
+          .backgroundColor(PrintTheme.cardBg)
+          .border({ width: 0.3, color: PrintTheme.line, style: BorderStyle.Dashed })
           .onClick((): void => {
             this.gotoUid(uid);
           })
@@ -565,7 +566,7 @@ export struct PagedTree {
         ForEach(this.siblingLinks, (link: PageJump, i: number) => {
           Text(T('旁支 ' + link.relation + ' → 第' + link.page.toString() + '页')).fontFamily(uiFontFamily())
             .fontSize(this.pt(6.5))
-            .fontColor('#8C2F1E')
+            .fontColor(PrintTheme.foot)
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .onClick((): void => {
@@ -585,14 +586,14 @@ export struct PagedTree {
       Column()
         .width('100%')
         .height('100%')
-        .backgroundColor('#FFFDF6')
-        .border({ width: 0.5, color: '#D8CBB2' })
+        .backgroundColor(PrintTheme.paper)
+        .border({ width: 0.5, color: PrintTheme.line })
 
       // 装订口：按 PageSpec.binding 贴装订侧，双面印刷时奇偶页镜像
       Column()
         .width(this.mm(this.spec.gutter))
         .height('100%')
-        .backgroundColor('#F4EFE3')
+        .backgroundColor(PrintTheme.bind)
         .position({
           x: this.mm(this.spec.gutterX(this.isRecto())),
           y: 0
@@ -604,7 +605,7 @@ export struct PagedTree {
       // 页眉：谱名/支系 + 世代范围
       Text(T(this.header)).fontFamily(uiFontFamily())
         .fontSize(this.pt(8))
-        .fontColor('#7A6A57')
+        .fontColor(PrintTheme.ink2)
         .maxLines(1)
         .position({
           x: this.mm(this.innerX()),
@@ -617,7 +618,7 @@ export struct PagedTree {
           Row()
             .width(Math.max(1, Math.abs(seg.x2 - seg.x1) * this.k))
             .height(this.lineThickness())
-            .backgroundColor(seg.red ? '#B03A2E' : '#C9A227')
+            .backgroundColor(seg.red ? PrintTheme.red : PrintTheme.gold)
             .position({
               x: this.contentX() + Math.min(seg.x1, seg.x2) * this.k,
               y: this.contentY() + seg.y1 * this.k - this.lineThickness() / 2
@@ -626,7 +627,7 @@ export struct PagedTree {
           Column()
             .width(this.lineThickness())
             .height(Math.max(1, Math.abs(seg.y2 - seg.y1) * this.k))
-            .backgroundColor(seg.red ? '#B03A2E' : '#C9A227')
+            .backgroundColor(seg.red ? PrintTheme.red : PrintTheme.gold)
             .position({
               x: this.contentX() + seg.x1 * this.k - this.lineThickness() / 2,
               y: this.contentY() + Math.min(seg.y1, seg.y2) * this.k
@@ -695,7 +696,7 @@ export struct PagedTree {
       if (this.footer.length > 0) {
         Text(T(this.footer)).fontFamily(uiFontFamily())
           .fontSize(this.pt(6.5))
-          .fontColor('#8C2F1E')
+          .fontColor(PrintTheme.foot)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width(this.mm(this.spec.contentWidth() - 10))
@@ -706,7 +707,7 @@ export struct PagedTree {
       }
       Text(T('第 ' + this.pageNo.toString() + ' 页 / 共 ' + this.pageCount.toString() + ' 页')).fontFamily(uiFontFamily())
         .fontSize(this.pt(8))
-        .fontColor('#5E5041')
+        .fontColor(PrintTheme.ink2)
         .fontWeight(FontWeight.Medium)
         .textAlign(TextAlign.Center)
         .width(this.mm(this.spec.trimW))
@@ -715,7 +716,7 @@ export struct PagedTree {
     .width(this.mm(this.spec.trimW))
     .height(this.mm(this.spec.trimH))
     .position({ x: this.panX, y: this.panY })
-    .backgroundColor('#FFFDF6')
+    .backgroundColor(PrintTheme.paper)
     .clip(true)
   }
 
@@ -821,12 +822,12 @@ export struct PagedTree {
         if (this.hintUid.length > 0) {
           Text(T('已选中，长按可查看详情')).fontFamily(uiFontFamily())
             .fontSize(11)
-            .fontColor('#3D3226')
+            .fontColor(PrintTheme.ink)
             .textAlign(TextAlign.Center)
             .width(168)
             .height(28)
-            .backgroundColor('#FBF1D6')
-            .border({ width: 0.8, color: '#C9A227' })
+            .backgroundColor(PrintTheme.paperAlt)
+            .border({ width: 0.8, color: PrintTheme.gold })
             .borderRadius(14)
             .position({ x: this.tapHintX(), y: this.tapHintY() })
             .hitTestBehavior(HitTestMode.None)
