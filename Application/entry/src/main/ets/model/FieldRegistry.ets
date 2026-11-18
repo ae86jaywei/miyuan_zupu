@@ -35,6 +35,8 @@ EXTRA_LABELS.set('generationChar', '字派');
 EXTRA_LABELS.set('education', '学历');
 EXTRA_LABELS.set('occupation', '职业');
 EXTRA_LABELS.set('photos', '相片');
+EXTRA_LABELS.set('spouseId', '配偶ID');
+EXTRA_LABELS.set('videos', '视频');
 
 /**
  * 字段中文名：优先取 Person.FIELD_METAS，避免与表单/详情重复维护；
