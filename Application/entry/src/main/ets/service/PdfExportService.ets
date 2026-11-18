@@ -950,51 +950,6 @@ function classicColW(font: number): number {
   return classicStep(font) + CLASSIC_COL_GAP;
 }
 
-/** 一列可容纳的字数 */
-function classicRows(contentH: number, font: number): number {
-  return Math.max(1, Math.floor((contentH - 6) / classicStep(font)));
-}
-
-/** 文本按码点计数（Ext-B 代理对算 1 字） */
-function codePointCount(text: string): number {
-  let count: number = 0;
-  let i: number = 0;
-  while (i < text.length) {
-    const cp: number = text.codePointAt(i) ?? 0;
-    i = i + (cp > 0xffff ? 2 : 1);
-    count = count + 1;
-  }
-  return count;
-}
-
-class CodeSlice {
-  text: string = '';
-  next: number = 0;
-}
-
-/** 从 start 开始按码点截取最多 maxCount 个字符 */
-function sliceCodePoints(text: string, start: number, maxCount: number): CodeSlice {
-  let idx: number = start;
-  let count: number = 0;
-  while (idx < text.length && count < maxCount) {
-    const cp: number = text.codePointAt(idx) ?? 0;
-    idx = idx + (cp > 0xffff ? 2 : 1);
-    count = count + 1;
-  }
-  const r: CodeSlice = new CodeSlice();
-  r.text = text.substring(start, idx);
-  r.next = idx;
-  return r;
-}
-
-/** 一行文本占用的列数 */
-function classicCols(text: string, contentH: number, font: number): number {
-  if (text.trim().length === 0) {
-    return 1;
-  }
-  return Math.max(1, Math.ceil(codePointCount(text) / classicRows(contentH, font)));
-}
-
 /** 遍历一行的所有字符（runs 或纯文本），回调每个字符的原始字号 */
 function iterLineChars(ln: TextLine, cb: (font: number) => void): void {
   if (ln.runs !== undefined && ln.runs.length > 0) {
@@ -1144,57 +1099,6 @@ function paginateLinesVertical(lines: TextLine[], chapter: string,
     flow.addLine(ln);
   }
   return flow.finish();
-}
-
-/** 仿古分页（按条目，记录每人起始页） */
-async function paginateEntriesVertical(entries: EntryBlock[], pageOffset: number,
-  contentW: number, contentH: number): Promise<PaginateResult> {
-  const pages: PageSpec[] = [];
-  const uidPage: Map<string, number> = new Map<string, number>();
-  let cur: TextLine[] = [];
-  let usedW: number = 0;
-  let processed: number = 0;
-  let nextYield: number = 200;
-  for (let i: number = 0; i < entries.length; i = i + 1) {
-    const e: EntryBlock = entries[i];
-    if (e.uid.length > 0) {
-      // 先判断条目首行是否会把当前页挤爆，避免把起始页码记到上一页
-      let firstNeed: number = 0;
-      for (let f: number = 0; f < e.lines.length; f = f + 1) {
-        if (e.lines[f].text.trim().length > 0) {
-          firstNeed = classicCols(e.lines[f].text, contentH, e.lines[f].font) *
-            classicColW(e.lines[f].font);
-          break;
-        }
-      }
-      if (usedW + firstNeed > contentW && cur.length > 0) {
-        pages.push({ lines: cur, chapter: '世 系' });
-        cur = [];
-        usedW = 0;
-      }
-      uidPage.set(e.uid, pageOffset + pages.length + 1);
-    }
-    for (let j: number = 0; j < e.lines.length; j = j + 1) {
-      const ln: TextLine = e.lines[j];
-      const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
-      if (usedW + needW > contentW && cur.length > 0) {
-        pages.push({ lines: cur, chapter: '世 系' });
-        cur = [];
-        usedW = 0;
-      }
-      cur.push(ln);
-      usedW = usedW + needW;
-    }
-    processed = processed + 1;
-    if (processed >= nextYield) {
-      nextYield = nextYield + 200;
-      await yieldToUi();
-    }
-  }
-  if (cur.length > 0) {
-    pages.push({ lines: cur, chapter: '世 系' });
-  }
-  return { pages: pages, uidPage: uidPage };
 }
 
 /** #RRGGBB → PDF 颜色数值 */
