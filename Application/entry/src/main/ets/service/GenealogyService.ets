@@ -152,6 +152,11 @@ export class GenealogyService {
         generation_char TEXT,
         life_status TEXT,
         child_status TEXT,
+        child_mark TEXT,
+        child_mark_target TEXT,
+        child_mark_source TEXT,
+        child_mark_seq INTEGER,
+        childless INTEGER,
         birth_date TEXT,
         birth_calendar TEXT,
         death_date TEXT,
@@ -204,6 +209,12 @@ export class GenealogyService {
       // 父名/母名（未收录）的在世状态：已故者在牒记中称「公」
       await this.ensureColumn(TABLE_PERSON, 'father_life_status', 'TEXT');
       await this.ensureColumn(TABLE_PERSON, 'mother_life_status', 'TEXT');
+      // 子女标记与无出：殇/幼殇/早卒/出嗣/兼祧/继子/养子，需要在本地库持久化
+      await this.ensureColumn(TABLE_PERSON, 'child_mark', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'child_mark_target', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'child_mark_source', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'child_mark_seq', 'INTEGER DEFAULT 0');
+      await this.ensureColumn(TABLE_PERSON, 'childless', 'INTEGER DEFAULT 0');
       // 协作同步所需列（方案 §七「本地 RDB」行）：
       //   rev        —— 本人物的云端修订号（0 表示尚未上云）
       //   base_rev   —— 最近一次同步到本地时的家族 rev 基线（冲突判定用）
@@ -2359,6 +2370,11 @@ export class GenealogyService {
       'generation_char': p.generationChar,
       'life_status': p.lifeStatus,
       'child_status': p.childStatus,
+      'child_mark': p.childMark,
+      'child_mark_target': p.childMarkTarget,
+      'child_mark_source': p.childMarkSource,
+      'child_mark_seq': p.childMarkSeq,
+      'childless': p.childless ? 1 : 0,
       'birth_date': p.birthDate,
       'birth_calendar': p.birthCalendar,
       'death_date': p.deathDate,
@@ -2588,6 +2604,12 @@ export class GenealogyService {
           p.lifeStatus = resultSet.getString(resultSet.getColumnIndex('life_status'));
           const cs: string = resultSet.getString(resultSet.getColumnIndex('child_status'));
           p.childStatus = (cs === null || cs.length === 0) ? '未记' : cs;
+          const cm: string = resultSet.getString(resultSet.getColumnIndex('child_mark'));
+          p.childMark = (cm === null || cm.length === 0) ? '未记' : cm;
+          p.childMarkTarget = resultSet.getString(resultSet.getColumnIndex('child_mark_target'));
+          p.childMarkSource = resultSet.getString(resultSet.getColumnIndex('child_mark_source'));
+          p.childMarkSeq = resultSet.getLong(resultSet.getColumnIndex('child_mark_seq'));
+          p.childless = resultSet.getLong(resultSet.getColumnIndex('childless')) === 1;
           p.birthDate = resultSet.getString(resultSet.getColumnIndex('birth_date'));
           p.birthCalendar = resultSet.getString(resultSet.getColumnIndex('birth_calendar'));
           p.deathDate = resultSet.getString(resultSet.getColumnIndex('death_date'));

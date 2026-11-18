@@ -903,8 +903,9 @@ export class DieJiText {
 
   /** 子女句：生子三：长…、次…；女二：长适…、次适…。 */
   private static childrenSentence(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
+    // 无出由 heirSentences 统一写「无嗣」，这里不再重复「生子无出」
     if (p.childless) {
-      return '生子无出。';
+      return '';
     }
     const kids: Person[] = idx.childrenOf(p.uid);
     if (kids.length === 0) {
@@ -1085,10 +1086,9 @@ export class DieJiText {
         out.push(p.gender === '女' ? '终身未字' : '终身未娶');
       }
     }
-    if (idx.childrenOf(p.uid).length === 0 && p.adoption.trim().length === 0) {
-      if (young || age >= 18 || hasDate) {
-        out.push('无嗣');
-      }
+    // 只有明确勾选「无出」才写无嗣；未录子女不等于无嗣
+    if (p.childless && idx.childrenOf(p.uid).length === 0 && p.adoption.trim().length === 0) {
+      out.push('无嗣');
     }
     return out.length === 0 ? [] : [out.join('，') + '。'];
   }
@@ -1186,7 +1186,7 @@ export class DieJiText {
     if (p.lifeStatus !== '在世' && p.biography.trim().length > 0) {
       s.push(p.biography.trim().replace(/。$/, '') + '。');
     }
-    if (idx.childrenOf(p.uid).length === 0 && dead) {
+    if (p.childless && idx.childrenOf(p.uid).length === 0 && dead) {
       const adopt: string = p.adoption.trim().replace(/。$/, '');
       if (adopt.length > 0) {
         s.push(adopt.indexOf('为嗣') >= 0 || adopt.indexOf('以') === 0 ?
@@ -1274,7 +1274,7 @@ export class DieJiText {
     const out: DieJiBlock[] = [];
     DieJiText.pushBlock(out, DieJiText.wifeHeadSentence(p, husband, idx, opts), false, 'head');
     DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young), true, 'life');
-    if (idx.childrenOf(p.uid).length === 0 && dead) {
+    if (p.childless && idx.childrenOf(p.uid).length === 0 && dead) {
       const adopt: string = p.adoption.trim().replace(/。$/, '');
       if (adopt.length > 0) {
         DieJiText.pushBlock(out, adopt.indexOf('为嗣') >= 0 || adopt.indexOf('以') === 0 ?

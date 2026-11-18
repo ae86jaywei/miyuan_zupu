@@ -441,6 +441,8 @@ struct PersonEdit {
   @State originalUid: string = '';
   @State loading: boolean = true;
   @State saving: boolean = false;
+  /** 进入页面时的表单快照：返回时据此判断是否有未保存修改 */
+  private baseline: string = '';
 
   // 字段状态
   @State fGeneration: number = 1;
@@ -746,6 +748,8 @@ struct PersonEdit {
     this.fAvatar = p.avatar;
     this.fPhotos = p.photos;
     this.fVideos = p.videos;
+    // 加载完成后记录基线；之后返回时据此判断是否有未保存修改
+    this.baseline = this.formSnapshot();
   }
 
   private toPerson(): Person {
@@ -966,6 +970,8 @@ struct PersonEdit {
         await this.svc().addPerson(p);
       }
       GenealogyStore.notifyChanged();
+      // 保存成功：更新基线，避免返回时再次提示未保存
+      this.baseline = this.formSnapshot();
       // 协作态下说明这次修改的去向：已同步 / 已提交审核 / 离线待传
       this.getUIContext().getPromptAction().showToast({ message: T(this.saveHint()) });
       this.getUIContext().getRouter().back();
@@ -993,6 +999,66 @@ struct PersonEdit {
       return '已保存并同步到云端';
     }
     return '已提交，等谱主审核后合入';
+  }
+
+  /** 当前表单快照：只拼接可编辑字段，避免把加载状态/提示计入脏检查 */
+  private formSnapshot(): string {
+    const parts: string[] = [
+      this.mode, this.fGeneration.toString(), this.fUid, this.fName, this.fCourtesyName,
+      this.fArtName, this.fAlias, this.fGender, this.fGenChar, this.fLifeStatus,
+      this.fChildStatus, this.fChildMark, this.fChildMarkTarget, this.fChildMarkSource,
+      this.fChildMarkSeq.toString(), this.fChildless ? '1' : '0',
+      this.fBirthDate, this.fBirthCalendar, this.fDeathDate, this.fDeathCalendar,
+      this.fBirthPlace, this.fResidence,
+      this.fFatherId, this.fFatherName, this.fFatherLifeStatus,
+      this.fMotherId, this.fMotherName, this.fMotherLifeStatus,
+      this.fRank, this.fAdoption, this.fEducation, this.fOccupation, this.fBiography,
+      this.fGraveInfo, this.fGraveLng.toString(), this.fGraveLat.toString(),
+      this.fGraveAltitude.toString(), this.fPhone, this.fWechat,
+      this.fAvatar, this.fPhotos, this.fVideos
+    ];
+    for (let i: number = 0; i < this.fSpouses.length; i = i + 1) {
+      const r: SpouseRelation = this.fSpouses[i];
+      parts.push(r.uid + '|' + r.relation + '|' + r.level + '|' + r.order.toString());
+    }
+    return parts.join('\u0001');
+  }
+
+  private isDirty(): boolean {
+    return this.baseline.length > 0 && this.formSnapshot() !== this.baseline;
+  }
+
+  /** 返回前确认：有未保存修改时让用户选择保存或放弃 */
+  private confirmExit(): void {
+    if (this.loading || !this.isDirty()) {
+      this.getUIContext().getRouter().back();
+      return;
+    }
+    this.getUIContext().showAlertDialog({
+      title: T('未保存的修改'),
+      message: T('当前修改尚未保存，是否保存后再离开？'),
+      primaryButton: {
+        value: T('保存'),
+        action: (): void => {
+          this.save();
+        }
+      },
+      secondaryButton: {
+        value: T('不保存'),
+        fontColor: Theme.danger,
+        action: (): void => {
+          this.getUIContext().getRouter().back();
+        }
+      }
+    });
+  }
+
+  onBackPress(): boolean {
+    if (this.loading || !this.isDirty()) {
+      return false;
+    }
+    this.confirmExit();
+    return true;
   }
 
   private async remove(): Promise<void> {
@@ -1466,6 +1532,9 @@ struct PersonEdit {
         break;
       case 'childStatus':
         this.fChildStatus = value;
+        break;
+      case 'childMark':
+        this.fChildMark = value;
         break;
       case 'birthCalendar':
         this.fBirthCalendar = value;
@@ -3000,7 +3069,7 @@ struct PersonEdit {
       Row() {
         BackButton({
           onBack: (): void => {
-            this.getUIContext().getRouter().back();
+            this.confirmExit();
           }
         })
         Text(T(this.originalUid.length > 0 ? '编辑族人' : (this.mode === 'child' ? '添加子女' : '新增族人'))).fontFamily(uiFontFamily())

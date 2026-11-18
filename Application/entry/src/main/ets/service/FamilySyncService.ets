@@ -419,6 +419,11 @@ export class FamilySyncService {
     p.generationChar = str(src, 'generationChar');
     p.lifeStatus = str(src, 'lifeStatus').length > 0 ? str(src, 'lifeStatus') : '在世';
     p.childStatus = str(src, 'childStatus').length > 0 ? str(src, 'childStatus') : '未记';
+    p.childMark = str(src, 'childMark').length > 0 ? str(src, 'childMark') : '未记';
+    p.childMarkTarget = str(src, 'childMarkTarget');
+    p.childMarkSource = str(src, 'childMarkSource');
+    p.childMarkSeq = num(src, 'childMarkSeq');
+    p.childless = src['childless'] === true || num(src, 'childless') === 1;
     p.birthDate = str(src, 'birthDate');
     p.birthCalendar = str(src, 'birthCalendar').length > 0 ? str(src, 'birthCalendar') : '公历';
     p.deathDate = str(src, 'deathDate');

@@ -47,6 +47,19 @@ export function buildPersonPatch(before: Person | null, after: Person, op: strin
       patch[key] = makeChange(b, a);
     }
   }
+  const bools: string[] = BOOLEAN_FIELDS;
+  for (let i: number = 0; i < bools.length; i = i + 1) {
+    const key: string = bools[i];
+    const a: boolean = boolOf(after, key);
+    const b: boolean = before === null ? false : boolOf(before, key);
+    if (op === 'ADD') {
+      if (a) {
+        patch[key] = makeChange(null, a);
+      }
+    } else if (a !== b) {
+      patch[key] = makeChange(b, a);
+    }
+  }
   // 配偶关系（对象数组，整体替换）
   const spousesNow: string = JSON.stringify(after.spouses);
   const spousesBefore: string = before === null ? '[]' : JSON.stringify(before.spouses);
@@ -69,13 +82,17 @@ function makeChange(b: Object | null, a: Object): FieldChange {
 
 /** 文本字段（与云侧 PATCHABLE_FIELDS 保持一致） */
 const TEXT_FIELDS: string[] = ['uid', 'name', 'courtesyName', 'artName', 'alias', 'gender', 'generationChar', 'lifeStatus', 'childStatus',
+  'childMark', 'childMarkTarget', 'childMarkSource',
   'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'fatherName', 'fatherLifeStatus',
   'motherId', 'motherName', 'motherLifeStatus',
   'spouseId', 'rank', 'adoption', 'education', 'occupation', 'biography', 'graveInfo', 'phone', 'wechat',
   'avatar', 'videos', 'photos'];
 
 /** 数值字段 */
-const NUMBER_FIELDS: string[] = ['generation'];
+const NUMBER_FIELDS: string[] = ['generation', 'childMarkSeq'];
+
+/** 布尔字段 */
+const BOOLEAN_FIELDS: string[] = ['childless'];
 
 function textOf(p: Person, key: string): string {
   switch (key) {
@@ -88,6 +105,9 @@ function textOf(p: Person, key: string): string {
     case 'generationChar': return p.generationChar;
     case 'lifeStatus': return p.lifeStatus;
     case 'childStatus': return p.childStatus;
+    case 'childMark': return p.childMark;
+    case 'childMarkTarget': return p.childMarkTarget;
+    case 'childMarkSource': return p.childMarkSource;
     case 'birthDate': return p.birthDate;
     case 'birthCalendar': return p.birthCalendar;
     case 'deathDate': return p.deathDate;
@@ -117,7 +137,17 @@ function textOf(p: Person, key: string): string {
 }
 
 function numberOf(p: Person, key: string): number {
-  return key === 'generation' ? p.generation : 0;
+  if (key === 'generation') {
+    return p.generation;
+  }
+  if (key === 'childMarkSeq') {
+    return p.childMarkSeq;
+  }
+  return 0;
+}
+
+function boolOf(p: Person, key: string): boolean {
+  return key === 'childless' ? p.childless : false;
 }
 
 /** 从 patch JSON 还原为「字段名 → {b, a}」便于审核页展示 */
@@ -157,6 +187,11 @@ export function fieldLabel(key: string): string {
     case 'generationChar': return '字派';
     case 'lifeStatus': return '在世状态';
     case 'childStatus': return '身份';
+    case 'childMark': return '子女标记';
+    case 'childMarkTarget': return '出嗣/兼祧对象';
+    case 'childMarkSource': return '入继来源';
+    case 'childMarkSeq': return '在源第几子';
+    case 'childless': return '无出';
     case 'birthDate': return '出生日期';
     case 'birthCalendar': return '出生历法';
     case 'deathDate': return '逝世日期';
