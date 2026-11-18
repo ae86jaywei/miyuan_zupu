@@ -168,9 +168,14 @@ const LUNAR_INFO: number[] = [
   0x04ae0, 0x0a9d4, 0x0a2d0, 0x0d150, 0x0f252, 0x0d520
 ];
 
+/** 农历年结构缓存：solarToLunar 会从 935 年逐年遍历，缓存后避免每次重建对象与数组，显著降低月历刷新开销 */
+const LUNAR_YEAR_CACHE: Map<number, LunarYearInfo> = new Map<number, LunarYearInfo>();
+
 /** 解析某农历年的月份结构；越界返回 null */
 export function lunarYearInfo(year: number): LunarYearInfo | null {
   if (year < LUNAR_MIN_YEAR || year > LUNAR_MAX_YEAR) return null;
+  const cached: LunarYearInfo | undefined = LUNAR_YEAR_CACHE.get(year);
+  if (cached !== undefined) return cached;
   const info: number = LUNAR_INFO[year - LUNAR_MIN_YEAR];
   const leapMonth: number = info & 0xf;
   const leapDays: number = leapMonth > 0 ? ((info & 0x10000) !== 0 ? 30 : 29) : 0;
@@ -182,7 +187,11 @@ export function lunarYearInfo(year: number): LunarYearInfo | null {
     total += d;
   }
   total += leapDays;
-  return { leapMonth: leapMonth, leapDays: leapDays, monthDays: monthDays, totalDays: total };
+  const result: LunarYearInfo = {
+    leapMonth: leapMonth, leapDays: leapDays, monthDays: monthDays, totalDays: total
+  };
+  LUNAR_YEAR_CACHE.set(year, result);
+  return result;
 }
 
 /** 历史年号 */

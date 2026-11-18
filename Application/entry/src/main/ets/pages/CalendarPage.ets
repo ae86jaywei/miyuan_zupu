@@ -72,6 +72,11 @@ struct CalendarPage {
   private todayDay: number = 1;
   /** 年份滚轮数据（936~2100） */
   private yearRange: string[] = [];
+  /** 当前年份 24 节气的精确儒略日缓存：每次刷新只算一次，逐格复用，避免逐格重算太阳黄经 */
+  private viewTermJds: number[] = [];
+  /** 年份滚轮防抖：滚动中只登记待生效年份，停止后再统一重建月历，避免每帧重算卡顿 */
+  private refreshTimer: number = -1;
+  private pendingYear: number = -1;
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
@@ -96,9 +101,39 @@ struct CalendarPage {
     this.refresh();
   }
 
+  aboutToDisappear(): void {
+    if (this.refreshTimer >= 0) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = -1;
+    }
+  }
+
   private refresh(): void {
+    // 本年 24 节气的精确儒略日只算一次，逐格复用（把逐格重算太阳黄经从数百次降为 24 次）
+    const jds: number[] = [];
+    for (let i: number = 0; i < 24; i++) {
+      jds.push(SolarTerms.termJulianDay(this.viewYear, i));
+    }
+    this.viewTermJds = jds;
     this.weeks = this.buildWeeks();
     this.refreshDetail();
+  }
+
+  /** 年份滚轮滚动中：仅登记待生效年份，停止 80ms 后再统一重建月历，避免滚动每帧重算卡顿 */
+  private scheduleYearRefresh(year: number): void {
+    this.pendingYear = year;
+    if (this.refreshTimer >= 0) {
+      clearTimeout(this.refreshTimer);
+    }
+    this.refreshTimer = setTimeout((): void => {
+      this.refreshTimer = -1;
+      if (this.pendingYear !== this.viewYear) {
+        this.viewYear = this.pendingYear;
+        this.selectedDay = (this.viewYear === this.todayYear && this.viewMonth === this.todayMonth) ?
+          this.todayDay : 1;
+      }
+      this.refresh();
+    }, 80);
   }
 
   /** 年份滚轮数据：936~2100 */
@@ -111,14 +146,13 @@ struct CalendarPage {
   }
 
   /**
-   * 指定日期是否为真正的节气日：是则返回节气名，否则返回空串。
-   * 用 termJulianDay 求各节气精确儒略日，落在当日 [正午-0.5, 正午+0.5) 区间即为节气当日。
-   * 与 SolarTerms.termName 的“所在节气段”口径不同——只有节气当日才返回非空。
+   * 在预计算的本年节气儒略日（viewTermJds）中查找该日的节气名，无则空串。
+   * 判定口径与旧 termNameAt 完全一致：节气儒略日落在当日 [正午-0.5, 正午+0.5) 区间即为当日；
+   * 区别仅在于儒略日由 refresh() 一次性算好复用，不再逐日重算太阳黄经。
    */
-  private termNameAt(year: number, month: number, day: number): string {
-    const dateJd: number = julianDay(year, month, day);
-    for (let i: number = 0; i < 24; i++) {
-      const termJd: number = SolarTerms.termJulianDay(year, i);
+  private termNameByJds(dateJd: number): string {
+    for (let i: number = 0; i < this.viewTermJds.length; i++) {
+      const termJd: number = this.viewTermJds[i];
       if (termJd >= dateJd - 0.5 && termJd < dateJd + 0.5) {
         return LunarConst.SOLAR_TERMS[i];
       }
@@ -133,9 +167,9 @@ struct CalendarPage {
   }
 
   /** 造一个真实日期格 */
-  private makeCell(day: number, weekday: number): DayCell {
+  private makeCell(day: number, weekday: number, dateJd: number): DayCell {
     const lunar: LunarDate | null = solarToLunar(this.viewYear, this.viewMonth, day);
-    const term: string = this.termNameAt(this.viewYear, this.viewMonth, day);
+    const term: string = this.termNameByJds(dateJd);
     let small: string = '';
     if (term.length > 0) {
       small = term;
@@ -169,7 +203,7 @@ struct CalendarPage {
     }
     for (let jd: number = startJd; jd < endJd; jd++) {
       const sd: SolarDate = jdToDate(jd);
-      row.push(this.makeCell(sd.day, ((jd + 1) % 7 + 7) % 7));
+      row.push(this.makeCell(sd.day, ((jd + 1) % 7 + 7) % 7, jd));
       if (row.length === 7) {
         rows.push(row);
         row = [];
@@ -210,7 +244,7 @@ struct CalendarPage {
 
     const hl: HuangLi = huangLiText(y, m, d, -1);
     this.detailGanZhi = hl.year + ' ' + hl.month + ' ' + hl.day;
-    const termName: string = this.termNameAt(y, m, d);
+    const termName: string = this.termNameByJds(jd);
     this.detailTerm = termName.length > 0 ? termName : '—';
     const convert: string = formatDateConversion(y, m, d);
     this.detailConvert = convert.length > 0 ? convert : '—';
@@ -437,10 +471,8 @@ struct CalendarPage {
         .height(108)
         .onChange((value: string | string[], index: number | number[]): void => {
           const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
-          this.viewYear = CAL_MIN_YEAR + idx;
-          this.selectedDay = (this.viewYear === this.todayYear && this.viewMonth === this.todayMonth) ?
-            this.todayDay : 1;
-          this.refresh();
+          // 滚动中不立即重建月历，仅登记年份，停止后再刷新，保证滚轮顺滑
+          this.scheduleYearRefresh(CAL_MIN_YEAR + idx);
         })
 
       // 月份快选（1~12）
