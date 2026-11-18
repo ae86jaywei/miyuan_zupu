@@ -3,7 +3,7 @@ import { T } from './ScriptService';
 import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { hidebug } from '@kit.PerformanceAnalysisKit';
+import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
 import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
 import { Genealogy } from '../model/Genealogy';
@@ -79,8 +79,6 @@ const CANVAS_H: number = 1684;
 // 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
 const MEMORY_SOFT_LIMIT_KB: number = 2200 * 1024;
 const MEMORY_CHECK_EVERY_PAGES: number = 16;
-/** 硬上限：仅进程接近系统限制时才中止 */
-const MEMORY_HARD_LIMIT_KB: number = 2600 * 1024;
 /** 导出过程允许的内存增长（KB）：超过只告警 */
 const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
 
@@ -1198,15 +1196,6 @@ function yieldToUi(): Promise<void> {
   });
 }
 
-/** 读取当前进程 PSS（单位 KB），失败返回 -1。hidebug.getPss() 返回 bigint。 */
-function currentPssKb(): number {
-  try {
-    return Number(hidebug.getPss());
-  } catch (_e) {
-    return -1;
-  }
-}
-
 /** 新增一页并把整页文本写入（封面不排页眉页脚） */
 function drawPageToPdf(ctx: OffscreenCanvasRenderingContext2D, doc: pdfService.PdfDocument,
   spec: PageSpec, pageNo: number, total: number, isCover: boolean): void {
@@ -2151,7 +2140,7 @@ export class PdfExportService {
               'MB base=' + Math.round(basePssKb / 1024) + 'MB growth=' +
               Math.round(growthKb / 1024) + 'MB, page=' + i + '/' + total);
           }
-          if (pssKb > MEMORY_HARD_LIMIT_KB) {
+          if (pssKb > PDF_MEMORY_HARD_LIMIT_KB) {
             throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024) +
               'MB，较导出开始增长 ' + Math.round(growthKb / 1024) +
               'MB，第 ' + i + '/' + total + ' 页）。请减少单卷人数后重试');

@@ -5,7 +5,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { Font, LengthMetricsUnit } from '@kit.ArkUI';
 import { taskpool } from '@kit.ArkTS';
-import { hidebug } from '@kit.PerformanceAnalysisKit';
+import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
@@ -51,21 +51,10 @@ const MEASURE_H: number = 256;
 const PAGED_MAX_PAGES_PER_VOLUME: number = 30;
 /** 分页导出软上限：超过只记日志并继续，不再主动中止导出 */
 const PAGED_MEMORY_SOFT_LIMIT_KB: number = 2400 * 1024;
-/** 分页导出硬上限：仅进程接近系统限制时才中止 */
-const PAGED_MEMORY_HARD_LIMIT_KB: number = 2600 * 1024;
 /** 导出过程允许的内存增长（KB）：超过只告警 */
 const PAGED_MEMORY_GROWTH_LIMIT_KB: number = 1200 * 1024;
 /** 每渲染多少页检查一次 PSS */
 const PAGED_MEMORY_CHECK_PAGES: number = 4;
-
-/** 读取当前进程 PSS（KB），失败返回 -1；hidebug.getPss() 返回 bigint */
-function currentPssKb(): number {
-  try {
-    return Number(hidebug.getPss());
-  } catch (_e) {
-    return -1;
-  }
-}
 
 export interface PagedPdfProgress {
   current: number;
@@ -719,7 +708,7 @@ export class PagedPdfExportService {
                 Math.round(growthKb / 1024).toString() + 'MB page=' + globalPage.toString() +
                 '/' + total.toString());
             }
-            if (pssKb > PAGED_MEMORY_HARD_LIMIT_KB) {
+            if (pssKb > PDF_MEMORY_HARD_LIMIT_KB) {
               throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024).toString() +
                 'MB，较导出开始增长 ' + Math.round(growthKb / 1024).toString() +
                 'MB，已渲染 ' + globalPage.toString() + '/' + total.toString() +
