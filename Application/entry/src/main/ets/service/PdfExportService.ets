@@ -137,6 +137,8 @@ interface TextLine {
   center: boolean;
   /** 混排片段：姓名 30pt、正文 12.5pt 时按片段绘制，text 仍保留整行文本用于分页/书签 */
   runs?: TextRun[];
+  /** 仿古竖排：该空行在段内占一列空白（封面 spacer）；正文人物间空行不设此值 */
+  columnGap?: boolean;
 }
 
 /** 行高：字号 × 1.75（中文留白） */
@@ -163,7 +165,7 @@ function spacerLine(): TextLine {
 }
 
 function bigSpacerLine(): TextLine {
-  return { text: ' ', font: 20, lineH: 34, color: C_BG, bold: false, indent: 0, center: false };
+  return { text: ' ', font: 20, lineH: 34, color: C_BG, bold: false, indent: 0, center: false, columnGap: true };
 }
 
 function pushAll(dst: TextLine[], src: TextLine[]): void {
@@ -800,47 +802,31 @@ const COLUMN_GAP: number = 14;
 /** 现代版横向三段（上中下）的段间距 */
 const SEGMENT_GAP: number = 12;
 
-/** 仿古版三栏分页：每人独占栏，一栏写不完按列续到下一栏 */
+/** 仿古版三段竖排分页：列流连续排版，多人同段，段满才换段 */
 async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset: number,
   contentW: number, contentH: number): Promise<PaginateResult> {
   // 仿古版同样是上中下三段横条，但段内文字竖排
   const segmentH: number = (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS;
-  const pages: PageSpec[] = [];
+  const flow: VerticalColumnFlow = new VerticalColumnFlow(contentW, segmentH, '世 系', COLUMNS);
   const uidPage: Map<string, number> = new Map<string, number>();
-  let cur: TextLine[] = [];
-  let usedW: number = 0;
-  let column: number = 0;
-  let curHasPerson: boolean = false;
-  const flush = (): void => {
-    if (cur.length > 0) {
-      pages.push({ lines: cur, chapter: '世 系', column: column, columnW: contentW });
-      cur = [];
-      usedW = 0;
-      column = (column + 1) % COLUMNS;
-      curHasPerson = false;
-    }
-  };
   let processed: number = 0;
   let nextYield: number = 200;
   for (let i: number = 0; i < entries.length; i = i + 1) {
     const e: EntryBlock = entries[i];
-    if (curHasPerson) {
-      flush();
-    }
-    if (e.uid.length > 0) {
-      uidPage.set(e.uid, pageOffset + Math.floor(pages.length / COLUMNS) + 1);
-    }
     for (let j: number = 0; j < e.lines.length; j = j + 1) {
       const ln: TextLine = e.lines[j];
-      const needW: number = classicCols(ln.text, segmentH, ln.font) * classicColW(ln.font);
-      if (usedW + needW > contentW && cur.length > 0) {
-        flush();
+      if (ln.text.trim().length === 0) {
+        // 正文人物间空行在竖排不占列；只有封面 spacer 才占一列
+        if (ln.columnGap === true) {
+          flow.addGap(ln.font);
+        }
+        continue;
       }
-      cur.push(ln);
-      usedW = usedW + needW;
-    }
-    if (e.uid.length > 0) {
-      curHasPerson = true;
+      flow.addLine(ln);
+      // 页码记在人物第一条行所在的那一段（跨段续写时不是末页）
+      if (j === 0 && e.uid.length > 0) {
+        uidPage.set(e.uid, pageOffset + Math.floor(flow.pages.length / COLUMNS) + 1);
+      }
     }
     processed = processed + 1;
     if (processed >= nextYield) {
@@ -848,8 +834,7 @@ async function paginateEntriesVerticalColumns(entries: EntryBlock[], pageOffset:
       await yieldToUi();
     }
   }
-  flush();
-  return { pages: pages, uidPage: uidPage };
+  return { pages: flow.finish(), uidPage: uidPage };
 }
 
 /**
@@ -1010,30 +995,155 @@ function classicCols(text: string, contentH: number, font: number): number {
   return Math.max(1, Math.ceil(codePointCount(text) / classicRows(contentH, font)));
 }
 
-/** 仿古分页：按列宽累加，超出版心宽换页 */
+/** 遍历一行的所有字符（runs 或纯文本），回调每个字符的原始字号 */
+function iterLineChars(ln: TextLine, cb: (font: number) => void): void {
+  if (ln.runs !== undefined && ln.runs.length > 0) {
+    for (let ri: number = 0; ri < ln.runs.length; ri = ri + 1) {
+      const run: TextRun = ln.runs[ri];
+      const full: string = replaceParens(T(run.text), true);
+      let ci: number = 0;
+      while (ci < full.length) {
+        const cp: number = full.codePointAt(ci) ?? 0;
+        cb(run.font);
+        ci = ci + (cp > 0xffff ? 2 : 1);
+      }
+    }
+    return;
+  }
+  const full: string = replaceParens(T(ln.text), true);
+  let ci: number = 0;
+  while (ci < full.length) {
+    const cp: number = full.codePointAt(ci) ?? 0;
+    cb(ln.font);
+    ci = ci + (cp > 0xffff ? 2 : 1);
+  }
+}
+
+/**
+ * 仿古竖排列流：所有行的字符连续填入当前列，列满换列、段满换段。
+ * 分页与绘制共用同一套累加规则，段内列数与绘制完全一致，
+ * 不会出现「前一列没满却换列」或「段尾整列空白」。
+ */
+class VerticalColumnFlow {
+  readonly contentW: number;
+  readonly segmentH: number;
+  readonly chapter: string;
+  readonly columnsPerPage: number;
+  pages: PageSpec[] = [];
+  cur: TextLine[] = [];
+  usedW: number = 0;
+  colUsed: number = 0;
+  colW: number = 0;
+  column: number = 0;
+
+  constructor(contentW: number, segmentH: number, chapter: string, columnsPerPage: number) {
+    this.contentW = contentW;
+    this.segmentH = segmentH;
+    this.chapter = chapter;
+    this.columnsPerPage = columnsPerPage;
+  }
+
+  private curColW(): number {
+    return this.colUsed > 0 ? this.colW : 0;
+  }
+
+  private flush(): void {
+    if (this.cur.length > 0) {
+      const spec: PageSpec = { lines: this.cur, chapter: this.chapter, column: this.column };
+      if (this.columnsPerPage > 1) {
+        spec.columnW = this.contentW;
+      }
+      this.pages.push(spec);
+      this.cur = [];
+      this.usedW = 0;
+      this.colUsed = 0;
+      this.colW = 0;
+      this.column = (this.column + 1) % this.columnsPerPage;
+    }
+  }
+
+  /** 段内换列：当前列宽度计入段宽；段已满则换段 */
+  private nextColumn(): void {
+    if (this.colUsed > 0) {
+      this.usedW += this.colW;
+      this.colUsed = 0;
+      this.colW = 0;
+    }
+    if (this.usedW >= this.contentW - 0.01) {
+      this.flush();
+    }
+  }
+
+  /** 占一列空白（封面 spacer） */
+  addGap(font: number): void {
+    this.nextColumn();
+    this.usedW += classicColW(font);
+    if (this.usedW >= this.contentW - 0.01) {
+      this.flush();
+    }
+  }
+
+  /** 追加一行：先模拟该行新增的完成列宽度，再实际累加，段边界不落在行中间 */
+  addLine(ln: TextLine): void {
+    let simUsed: number = this.colUsed;
+    let simColW: number = this.colW;
+    let extra: number = 0;
+    iterLineChars(ln, (font: number): void => {
+      const st: number = classicStep(font);
+      if (simUsed > 0 && simUsed + st > this.segmentH - 6) {
+        extra = extra + simColW;
+        simUsed = 0;
+        simColW = 0;
+      }
+      simUsed = simUsed + st;
+      const cw: number = classicColW(font);
+      if (cw > simColW) {
+        simColW = cw;
+      }
+    });
+    if (this.usedW + this.curColW() + extra > this.contentW && this.cur.length > 0) {
+      this.flush();
+    }
+    iterLineChars(ln, (font: number): void => {
+      const st: number = classicStep(font);
+      if (this.colUsed > 0 && this.colUsed + st > this.segmentH - 6) {
+        this.usedW += this.colW;
+        this.colUsed = 0;
+        this.colW = 0;
+      }
+      this.colUsed = this.colUsed + st;
+      const cw: number = classicColW(font);
+      if (cw > this.colW) {
+        this.colW = cw;
+      }
+    });
+    this.cur.push(ln);
+  }
+
+  finish(): PageSpec[] {
+    this.flush();
+    return this.pages;
+  }
+}
+
+/** 仿古竖排分页：列流连续排版，超出版心宽换段 */
 function paginateLinesVertical(lines: TextLine[], chapter: string,
   contentW: number, contentH: number): PageSpec[] {
   if (lines.length === 0) {
     return [];
   }
-  const pages: PageSpec[] = [];
-  let cur: TextLine[] = [];
-  let usedW: number = 0;
+  const flow: VerticalColumnFlow = new VerticalColumnFlow(contentW, contentH, chapter, 1);
   for (let i: number = 0; i < lines.length; i = i + 1) {
     const ln: TextLine = lines[i];
-    const needW: number = classicCols(ln.text, contentH, ln.font) * classicColW(ln.font);
-    if (usedW + needW > contentW && cur.length > 0) {
-      pages.push({ lines: cur, chapter: chapter });
-      cur = [];
-      usedW = 0;
+    if (ln.text.trim().length === 0) {
+      if (ln.columnGap === true) {
+        flow.addGap(ln.font);
+      }
+      continue;
     }
-    cur.push(ln);
-    usedW = usedW + needW;
+    flow.addLine(ln);
   }
-  if (cur.length > 0) {
-    pages.push({ lines: cur, chapter: chapter });
-  }
-  return pages;
+  return flow.finish();
 }
 
 /** 仿古分页（按条目，记录每人起始页） */
@@ -1757,8 +1867,8 @@ export class PdfExportService {
           bodyPage = true;
         }
         const lines: PdfTextLine[] = classic
-          ? PdfExportService.buildVerticalTextLines(ctx, printSpec, spec, recto, isCoverPage)
-          : PdfExportService.buildRawTextLines(ctx, printSpec, spec, isCoverPage, recto);
+          ? PdfExportService.buildVerticalTextLines(ctx, printSpec, spec, total, recto, isCoverPage)
+          : PdfExportService.buildRawTextLines(ctx, printSpec, spec, total, isCoverPage, recto);
         for (let k: number = 0; k < lines.length; k = k + 1) {
           pageLines.push(lines[k]);
         }
@@ -1814,7 +1924,7 @@ export class PdfExportService {
 
   /** 把 PageSpec 的文本行转换为 RawPdfWriter 的绝对坐标（pt） */
   private static buildRawTextLines(ctx: OffscreenCanvasRenderingContext2D,
-    printSpec: PrintPageSpec, spec: PageSpec, isCover: boolean,
+    printSpec: PrintPageSpec, spec: PageSpec, total: number, isCover: boolean,
     recto: boolean): PdfTextLine[] {
     const out: PdfTextLine[] = [];
     // 版心起点随装订侧变化：装订侧留 gutter + safeInset，双面时奇偶页镜像
@@ -1867,8 +1977,8 @@ export class PdfExportService {
       y = y + ln.lineH;
     }
     if (!isCover && col === 0) {
-      // 页码整页居中，只写在每页第一栏，避免三栏重复；与示例一致只写数字
-      const footer: string = pageNo.toString();
+      // 页码整页居中，只写在每页第一栏，避免三栏重复
+      const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
       const r: PdfTextLine = new PdfTextLine();
       r.text = footer;
       r.xPt = innerX + contentW / 2 - measurePt(ctx, footer, 9.5) / 2;
@@ -1882,7 +1992,7 @@ export class PdfExportService {
 
   /** 仿古竖排：逐字定位，列从右往左、字从上往下；封面/谱序/家训/凡例全部竖排 */
   private static buildVerticalTextLines(ctx: OffscreenCanvasRenderingContext2D,
-    printSpec: PrintPageSpec, spec: PageSpec, recto: boolean, isCover: boolean): PdfTextLine[] {
+    printSpec: PrintPageSpec, spec: PageSpec, total: number, recto: boolean, isCover: boolean): PdfTextLine[] {
     const out: PdfTextLine[] = [];
     const contentW: number = dieContentW(printSpec);
     const contentH: number = dieContentH(printSpec);
@@ -1895,16 +2005,27 @@ export class PdfExportService {
     const segmentH: number = segmented
       ? (contentH - SEGMENT_GAP * (COLUMNS - 1)) / COLUMNS : contentH;
     const y0: number = innerY + (segmented ? col * (segmentH + SEGMENT_GAP) : 0);
-    let cursorRight: number = innerX + contentW;
+    // ── 仿古竖排列流：所有行字符连续填列，列满换列，段满换段 ──
+    // 拍平字符流（含 columnGap 换列标记），与分页的 VerticalColumnFlow 同源
+    const chars: string[] = [];
+    const fonts: number[] = [];
+    const colors: string[] = [];
+    const bolds: boolean[] = [];
+    const marks: number[] = []; // 0=字符, 1=换列标记
     for (let i: number = 0; i < spec.lines.length; i = i + 1) {
       const ln: TextLine = spec.lines[i];
+      if (ln.text.trim().length === 0) {
+        if (ln.columnGap === true) {
+          chars.push('');
+          fonts.push(ln.font);
+          colors.push(ln.color);
+          bolds.push(ln.bold);
+          marks.push(1);
+        }
+        continue;
+      }
       if (ln.runs !== undefined && ln.runs.length > 0) {
-        // 混排行竖排：按字逐个累计列高，姓名列自动加宽（仿古版最大 22pt）
-        const chars: string[] = [];
-        const fonts: number[] = [];
-        const colors: string[] = [];
-        const bolds: boolean[] = [];
-        for (let ri: number = 0; ri < ln.runs.length; ri++) {
+        for (let ri: number = 0; ri < ln.runs.length; ri = ri + 1) {
           const run: TextRun = ln.runs[ri];
           const full: string = replaceParens(T(run.text), true);
           let ci: number = 0;
@@ -1915,96 +2036,74 @@ export class PdfExportService {
             fonts.push(run.font);
             colors.push(run.color);
             bolds.push(run.bold);
+            marks.push(0);
             ci = ci + step;
           }
         }
-        const bulletBlock: boolean = chars.length > 0 && chars[0] === BULLET;
+      } else {
+        const full: string = replaceParens(T(ln.text), true);
         let ci: number = 0;
-        let colIndex: number = 0;
-        while (ci < chars.length) {
-          const start: number = ci;
-          // 圆点是段首标志：续列顶部空一格，正文与第一列圆点下方的文字对齐
-          const topPad: number = (bulletBlock && colIndex > 0) ? 1 : 0;
-          let used: number = topPad * classicStep(fonts[start]);
-          let colW: number = 0;
-          let colFont: number = 0;
-          while (ci < chars.length) {
-            const st: number = classicStep(fonts[ci]);
-            if (ci > start && used + st > segmentH - 6) {
-              break;
-            }
-            used = used + st;
-            const cw: number = classicColW(fonts[ci]);
-            if (cw > colW) {
-              colW = cw;
-            }
-            const f: number = classicFont(fonts[ci]);
-            if (f > colFont) {
-              colFont = f;
-            }
-            ci = ci + 1;
-          }
-          const colX: number = cursorRight - colFont;
-          let yy: number = topPad * classicStep(fonts[start]);
-          for (let k: number = start; k < ci; k++) {
-            const f: number = classicFont(fonts[k]);
-            const r: PdfTextLine = new PdfTextLine();
-            r.text = chars[k];
-            r.xPt = colX;
-            r.yPt = baselineOf(y0 + yy, f);
-            r.sizePt = f;
-            r.color = colors[k];
-            r.bold = bolds[k];
-            out.push(r);
-            yy = yy + classicStep(fonts[k]);
-          }
-          cursorRight = cursorRight - colW;
-          colIndex = colIndex + 1;
+        while (ci < full.length) {
+          const cp: number = full.codePointAt(ci) ?? 0;
+          const step: number = cp > 0xffff ? 2 : 1;
+          chars.push(full.substring(ci, ci + step));
+          fonts.push(ln.font);
+          colors.push(ln.color);
+          bolds.push(ln.bold);
+          marks.push(0);
+          ci = ci + step;
         }
-        continue;
-      }
-      const font: number = classicFont(ln.font);
-      const step: number = classicStep(ln.font);
-      const colW: number = classicColW(ln.font);
-      const rows: number = classicRows(segmentH, ln.font);
-      if (ln.text.trim().length === 0) {
-        // 空行不占列：封面 spacer 保持标题位置，正文人物间空行也不额外占列
-        continue;
-      }
-      // 先按整行做一次简繁转换，保留 OpenCC 的词条匹配，再拆成单字
-      const full: string = replaceParens(T(ln.text), true);
-      // 圆点是段首标志：续列顶部空一格，正文与第一列圆点下方的文字对齐
-      const bulletBlock: boolean = full.startsWith(BULLET);
-      let idx: number = 0;
-      let colIndex: number = 0;
-      while (idx < full.length) {
-        const topPad: number = (bulletBlock && colIndex > 0) ? 1 : 0;
-        const slice: CodeSlice = sliceCodePoints(full, idx, Math.max(1, rows - topPad));
-        const colX: number = cursorRight - font;
-        let k: number = topPad;
-        let ci: number = 0;
-        while (ci < slice.text.length) {
-          const cp: number = slice.text.codePointAt(ci) ?? 0;
-          const r: PdfTextLine = new PdfTextLine();
-          r.text = String.fromCodePoint(cp);
-          r.xPt = colX;
-          r.yPt = baselineOf(y0 + k * step, font);
-          r.sizePt = font;
-          r.color = ln.color;
-          r.bold = ln.bold;
-          out.push(r);
-          ci = ci + (cp > 0xffff ? 2 : 1);
-          k = k + 1;
-        }
-        idx = slice.next;
-        cursorRight = cursorRight - colW;
-        colIndex = colIndex + 1;
       }
     }
+
+    let cursorRight: number = innerX + contentW;
+    let ci: number = 0;
+    while (ci < chars.length) {
+      if (marks[ci] === 1) {
+        // spacer 占一列空白
+        cursorRight = cursorRight - classicColW(fonts[ci]);
+        ci = ci + 1;
+        continue;
+      }
+      const start: number = ci;
+      let used: number = 0;
+      let maxFont: number = 0;
+      while (ci < chars.length && marks[ci] !== 1) {
+        const st: number = classicStep(fonts[ci]);
+        if (ci > start && used + st > segmentH - 6) {
+          break;
+        }
+        used = used + st;
+        const f: number = classicFont(fonts[ci]);
+        if (f > maxFont) {
+          maxFont = f;
+        }
+        ci = ci + 1;
+      }
+      if (ci === start) {
+        ci = ci + 1;
+        continue;
+      }
+      const colX: number = cursorRight - maxFont;
+      let yy: number = 0;
+      for (let k: number = start; k < ci; k = k + 1) {
+        const f: number = classicFont(fonts[k]);
+        const r: PdfTextLine = new PdfTextLine();
+        r.text = chars[k];
+        r.xPt = colX;
+        r.yPt = baselineOf(y0 + yy, f);
+        r.sizePt = f;
+        r.color = colors[k];
+        r.bold = bolds[k];
+        out.push(r);
+        yy = yy + classicStep(fonts[k]);
+      }
+      cursorRight = cursorRight - classicColW(maxFont);
+    }
     if (!isCover && col === 0) {
-      // 页码横排居中，与示例一致只写数字
+      // 页码横排居中，只写在每页第一段，避免三段重复
       const centerX: number = innerX + contentW / 2;
-      const footer: string = pageNo.toString();
+      const footer: string = '第 ' + pageNo.toString() + ' 页 / 共 ' + total.toString() + ' 页';
       const f: PdfTextLine = new PdfTextLine();
       f.text = footer;
       f.xPt = centerX - measurePt(ctx, footer, 9.5) / 2;
