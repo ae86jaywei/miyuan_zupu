@@ -1,17 +1,17 @@
-import { ScriptService, T, uiFontFamily } from '../service/ScriptService';
+﻿import { ScriptService, T, uiFontFamily } from '../service/ScriptService';
 import { GenealogyService } from '../service/GenealogyService';
-import { Genealogy } from '../model/Genealogy';
-import { Theme, Spacing } from '../theme/Theme';
+import { Genealogy } from 'common_base';
+import { Theme, Spacing } from 'common_base';
 import { TS } from '../components/TS';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { RouterUtil } from '../util/RouterUtil';
+import { RouterUtil } from 'common_base';
 import { AccountCard } from './AccountCard';
 
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
 
 import { FamilySyncService } from '../service/FamilySyncService';
-import { SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
+import { SyncMode, SyncResult, roleLabel } from 'common_base';
 import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
 
 /**

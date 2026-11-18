@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Theme, Spacing } from '../../theme/Theme';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 
 /**
  * 下拉选择字段（原生 Select）。

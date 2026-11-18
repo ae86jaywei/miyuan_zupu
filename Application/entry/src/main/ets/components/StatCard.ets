@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Radius, Spacing } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Radius, Spacing } from 'common_base';
 
 /** 统计数字卡 */
 @Component

@@ -1,6 +1,6 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
 import { AccountService } from '../service/AccountService';
@@ -9,9 +9,9 @@ import { GenealogyService } from '../service/GenealogyService';
 import {
   AccessKind, AccessRequestInfo, MemberInfo, Role,
   accessKindLabel, membershipStatusLabel, roleLabel
-} from '../model/FamilyDomain';
-import { Genealogy } from '../model/Genealogy';
-import { RouterUtil } from '../util/RouterUtil';
+} from 'common_base';
+import { Genealogy } from 'common_base';
+import { RouterUtil } from 'common_base';
 
 /**
  * 成员与访问申请（方案 §七 FamilyMembers + v1.3 增补）。

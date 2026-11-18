@@ -1,11 +1,11 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Person } from '../model/Person';
-import { GenealogyStats, GenerationStat } from '../model/Stats';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Person } from 'common_base';
+import { GenealogyStats, GenerationStat } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
-import { Theme, Spacing } from '../theme/Theme';
+import { Theme, Spacing } from 'common_base';
 import { StatCard } from '../components/StatCard';
 import { TS } from '../components/TS';
-import { Breakpoint } from '../common/Constants';
+import { Breakpoint } from 'common_base';
 
 /**
  * 统计中心：人口结构、世代繁衍、世数、寿命、字派分布、资料完整度、墓葬定位。

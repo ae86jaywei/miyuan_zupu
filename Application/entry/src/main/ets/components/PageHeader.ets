@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Spacing } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 import { BackButton } from './BackButton';
 
 /**

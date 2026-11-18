@@ -1,7 +1,7 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Theme, Spacing } from '../../theme/Theme';
-import { Person } from '../../model/Person';
-import { generationLabel } from '../../model/Enums';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
+import { Person } from 'common_base';
+import { generationLabel } from 'common_base';
 import { GenealogyService } from '../../service/GenealogyService';
 
 /** 亲属选择器最多展示的搜索结果条数（避免一次渲染数万节点导致页面卡死） */

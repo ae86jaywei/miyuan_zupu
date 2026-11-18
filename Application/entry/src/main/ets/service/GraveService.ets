@@ -1,10 +1,10 @@
-import { cloudDatabase } from '@kit.CloudFoundationKit';
+﻿import { cloudDatabase } from '@kit.CloudFoundationKit';
 import { relationalStore } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AccountService } from './AccountService';
 import { GenealogyService } from './GenealogyService';
-import { GraveEntry, num, str } from '../model/FamilyDomain';
-import { CloudGraveLocation } from '../model/FamilyModels';
+import { GraveEntry, num, str } from 'common_base';
+import { CloudGraveLocation } from 'common_base';
 
 const TAG: string = '[Genealogy][Grave]';
 const TABLE_GRAVE: string = 'grave_location';

@@ -1,6 +1,6 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
 import { AccountService } from '../service/AccountService';
@@ -8,9 +8,9 @@ import { FamilyService } from '../service/FamilyService';
 import {
   AccessKind, AccessRequestInfo, AccessStatus,
   accessKindLabel, accessStatusLabel
-} from '../model/FamilyDomain';
-import { AccessParams } from '../model/Scope';
-import { RouterUtil } from '../util/RouterUtil';
+} from 'common_base';
+import { AccessParams } from 'common_base';
+import { RouterUtil } from 'common_base';
 
 /**
  * 申请认证（方案 §十三 门槛①③、§七 AccessApply）。

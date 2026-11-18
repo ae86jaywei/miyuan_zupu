@@ -1,5 +1,5 @@
-import { Person, createEmptyPerson } from '../model/Person';
-import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
+﻿import { Person, createEmptyPerson } from 'common_base';
+import { Genealogy, createEmptyGenealogy } from 'common_base';
 
 /**
  * 演示数据：李氏宗谱（虚构），用于首次启动展示五种谱式效果。

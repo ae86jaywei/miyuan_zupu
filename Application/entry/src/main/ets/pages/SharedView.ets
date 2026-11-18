@@ -1,13 +1,13 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Spacing } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 import { PageHeader } from '../components/PageHeader';
-import { Person } from '../model/Person';
+import { Person } from 'common_base';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { AccountService } from '../service/AccountService';
 import { InviteInfo, ShareService } from '../service/ShareService';
-import { RouterUtil } from '../util/RouterUtil';
+import { RouterUtil } from 'common_base';
 import { FamilyService } from '../service/FamilyService';
-import { FamilySummary } from '../model/FamilyDomain';
+import { FamilySummary } from 'common_base';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 /**

@@ -1,13 +1,13 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { PersonNode } from '../../model/PersonNode';
-import { TreeStyle, generationLabel } from '../../model/Enums';
-import { Theme } from '../../theme/Theme';
-import { PrintTheme } from '../../theme/PrintTheme';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { PersonNode } from 'common_base';
+import { TreeStyle, generationLabel } from 'common_base';
+import { Theme } from 'common_base';
+import { PrintTheme } from 'common_base';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
 import { PageJump, PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
-import { DeviceUtil } from '../../util/DeviceUtil';
-import { compactUid } from '../../util/StringUtil';
+import { DeviceUtil } from 'common_base';
+import { compactUid } from 'common_base';
 
 /**
  * 印刷版人物卡：白底细框、无圆角，姓名 + 世次 + 配偶文字。

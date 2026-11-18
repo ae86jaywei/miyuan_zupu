@@ -1,7 +1,7 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme } from '../theme/Theme';
-import { Person } from '../model/Person';
-import { familyChar } from '../util/StringUtil';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme } from 'common_base';
+import { Person } from 'common_base';
+import { familyChar } from 'common_base';
 
 /**
  * 人物头像：有头像用图片，否则用姓氏字做占位。

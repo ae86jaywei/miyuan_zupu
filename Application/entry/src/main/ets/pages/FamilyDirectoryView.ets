@@ -1,15 +1,15 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 
 import { PageNavBar } from '../components/PageNavBar';
 import { SearchField } from '../components/form/SearchField';
 import { DirectoryForm, DirectoryService, MEMBER_COUNT_BANDS } from '../service/DirectoryService';
 import { FamilyService } from '../service/FamilyService';
 import { GenealogyService } from '../service/GenealogyService';
-import { DirectoryEntry } from '../model/FamilyDomain';
-import { Genealogy } from '../model/Genealogy';
-import { RouterUtil } from '../util/RouterUtil';
+import { DirectoryEntry } from 'common_base';
+import { Genealogy } from 'common_base';
+import { RouterUtil } from 'common_base';
 
 /**
  * 族谱黄页（方案 §五.11、§十三.4）。

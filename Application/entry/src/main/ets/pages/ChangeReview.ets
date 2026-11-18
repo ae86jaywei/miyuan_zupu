@@ -1,15 +1,15 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
 import { FamilyService } from '../service/FamilyService';
 import { FamilySyncService } from '../service/FamilySyncService';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { ChangeRequestInfo, Role, SyncResult, opLabel, roleLabel } from '../model/FamilyDomain';
-import { FieldChange, displayValue, fieldLabel, parsePatchJson } from '../util/PatchUtil';
-import { Genealogy } from '../model/Genealogy';
+import { ChangeRequestInfo, Role, SyncResult, opLabel, roleLabel } from 'common_base';
+import { FieldChange, displayValue, fieldLabel, parsePatchJson } from 'common_base';
+import { Genealogy } from 'common_base';
 
 /**
  * 待审变更（方案 §七 ChangeReview）。

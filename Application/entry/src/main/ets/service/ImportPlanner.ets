@@ -1,7 +1,7 @@
-import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, spouseRelationLevel } from '../model/Person';
-import { IntegrityReport, IntegrityIssue } from '../model/Integrity';
+﻿import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, spouseRelationLevel } from 'common_base';
+import { IntegrityReport, IntegrityIssue } from 'common_base';
 import { IntegrityService } from './IntegrityService';
-import { UidAllocator } from '../util/IdGenerator';
+import { UidAllocator } from 'common_base';
 
 /**
  * 导入合并引擎。

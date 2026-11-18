@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Theme, Spacing } from '../../theme/Theme';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 
 /**
  * 搜索输入框：统一各页的 38vp 高度、输入框底色、圆角与动作按钮样式。

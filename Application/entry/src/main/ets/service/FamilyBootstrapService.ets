@@ -1,12 +1,12 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
+﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { preferences, relationalStore } from '@kit.ArkData';
 import { AccountService } from './AccountService';
 import { GenealogyService } from './GenealogyService';
 import { FamilyService } from './FamilyService';
 import { OutboxService } from './OutboxService';
-import { Genealogy } from '../model/Genealogy';
-import { Person } from '../model/Person';
-import { SyncMode, SyncResult } from '../model/FamilyDomain';
+import { Genealogy } from 'common_base';
+import { Person } from 'common_base';
+import { SyncMode, SyncResult } from 'common_base';
 
 const TAG: string = '[Genealogy][Bootstrap]';
 /**

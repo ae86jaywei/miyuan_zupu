@@ -1,7 +1,7 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Person } from '../../model/Person';
-import { Theme, Spacing } from '../../theme/Theme';
-import { generationLabel } from '../../model/Enums';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Person } from 'common_base';
+import { Theme, Spacing } from 'common_base';
+import { generationLabel } from 'common_base';
 import { Tag } from '../Tag';
 import { DieJiIndex, DieJiText, DieJiNameRange, DieJiRefOptions } from '../../service/DieJiText';
 

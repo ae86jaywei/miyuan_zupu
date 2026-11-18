@@ -1,5 +1,5 @@
-﻿import { Person } from '../model/Person';
-import { IntegrityCode, IntegrityIssue, IntegrityReport } from '../model/Integrity';
+﻿import { Person } from 'common_base';
+import { IntegrityCode, IntegrityIssue, IntegrityReport } from 'common_base';
 import { parseDate } from 'common_dateutil';
 
 /**

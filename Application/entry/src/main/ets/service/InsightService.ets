@@ -1,5 +1,5 @@
-﻿import { Person } from '../model/Person';
-import { BirthdayItem } from '../model/TimerSession';
+﻿import { Person } from 'common_base';
+import { BirthdayItem } from 'common_base';
 import { parseDate } from 'common_dateutil';
 
 /**

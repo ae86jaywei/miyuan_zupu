@@ -1,5 +1,5 @@
-import { PersonNode } from '../model/PersonNode';
-import { TreeStyle, generationLabel } from '../model/Enums';
+﻿import { PersonNode } from 'common_base';
+import { TreeStyle, generationLabel } from 'common_base';
 import { EuCanvas, EuLayout, LineSeg, SuCanvas, SuLayout } from './TreeLayout';
 import { LayoutProfile, PageSpec } from './PrintLayout';
 import { GenealogyService } from './GenealogyService';

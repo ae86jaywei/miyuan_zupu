@@ -1,10 +1,10 @@
-import { relationalStore } from '@kit.ArkData';
+﻿import { relationalStore } from '@kit.ArkData';
 import { common } from '@kit.AbilityKit';
 import { hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 import { GenealogyService } from './GenealogyService';
 import { PagePlan, PageCut, PageJump, PageRootRef, PaginationService, PrintBook } from './PaginationService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
-import { PersonNode } from '../model/PersonNode';
+import { PersonNode } from 'common_base';
 
 /**
  * 分页结果持久化缓存（P0）。

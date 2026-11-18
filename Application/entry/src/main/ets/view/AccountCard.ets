@@ -1,8 +1,8 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Spacing } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 import { TS } from '../components/TS';
 import { AccountService } from '../service/AccountService';
-import { RouterUtil } from '../util/RouterUtil';
+import { RouterUtil } from 'common_base';
 
 /**
  * 设置页“账号与云同步”卡片：

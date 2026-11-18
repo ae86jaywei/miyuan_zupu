@@ -1,9 +1,9 @@
-import { cloudDatabase } from '@kit.CloudFoundationKit';
+﻿import { cloudDatabase } from '@kit.CloudFoundationKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AccountService } from './AccountService';
-import { Genealogy } from '../model/Genealogy';
-import { DirectoryEntry } from '../model/FamilyDomain';
-import { CloudFamilyDirectory } from '../model/FamilyModels';
+import { Genealogy } from 'common_base';
+import { DirectoryEntry } from 'common_base';
+import { CloudFamilyDirectory } from 'common_base';
 
 const TAG: string = '[Genealogy][Directory]';
 const ZONE_NAME: string = 'miyuanfamily';

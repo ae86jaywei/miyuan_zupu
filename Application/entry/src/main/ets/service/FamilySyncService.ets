@@ -1,4 +1,4 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
+﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { relationalStore } from '@kit.ArkData';
 import { AccountService } from './AccountService';
 import { GenealogyService } from './GenealogyService';
@@ -6,11 +6,11 @@ import { FamilyService } from './FamilyService';
 import { OutboxService, OutboxItem } from './OutboxService';
 import { GraveService } from './GraveService';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { Person, createEmptyPerson, SpouseRelation } from '../model/Person';
-import { Genealogy } from '../model/Genealogy';
-import { SyncMode, SyncResult, bool, num, objectList, str } from '../model/FamilyDomain';
+import { Person, createEmptyPerson, SpouseRelation } from 'common_base';
+import { Genealogy } from 'common_base';
+import { SyncMode, SyncResult, bool, num, objectList, str } from 'common_base';
 import { IntegrityService } from './IntegrityService';
-import { IntegrityIssue, IntegrityReport } from '../model/Integrity';
+import { IntegrityIssue, IntegrityReport } from 'common_base';
 
 const TAG: string = '[Genealogy][FamilySync]';
 const PAGE_SIZE: number = 200;

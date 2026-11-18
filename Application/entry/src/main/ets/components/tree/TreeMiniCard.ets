@@ -1,8 +1,8 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Person } from '../../model/Person';
-import { Theme } from '../../theme/Theme';
-import { generationLabel } from '../../model/Enums';
-import { compactUid } from '../../util/StringUtil';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Person } from 'common_base';
+import { Theme } from 'common_base';
+import { generationLabel } from 'common_base';
+import { compactUid } from 'common_base';
 
 /**
  * 欧式 / 苏式 / 宝塔式谱系图中的人物小卡片。

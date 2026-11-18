@@ -7,13 +7,13 @@ import { Font, LengthMetricsUnit } from '@kit.ArkUI';
 import { taskpool } from '@kit.ArkTS';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
 import { MM_TO_PT, PDF_MUTED, PDF_TEXT, PDF_TEXT_2, PDF_HEADER, PDF_FOOTER } from './pdf/PdfCommon';
-import { Genealogy } from '../model/Genealogy';
-import { generationLabel } from '../model/Enums';
+import { Genealogy } from 'common_base';
+import { generationLabel } from 'common_base';
 import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
-import { PersonNode } from '../model/PersonNode';
-import { compactUid } from '../util/StringUtil';
+import { PersonNode } from 'common_base';
+import { compactUid } from 'common_base';
 import { parseYear } from 'common_dateutil';
 import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_Y_MM,
   JPEG_QUALITY, PAGE_H_MM, PAGE_W_MM, PX_PER_MM, RENDER_H, RENDER_W,

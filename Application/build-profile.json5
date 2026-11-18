@@ -61,6 +61,10 @@
       {
         "name": "common_dateutil",
         "srcPath": "./common/DateUtil"
+      },
+      {
+        "name": "common_base",
+        "srcPath": "./common/base"
       }
     ]
 }

@@ -1,4 +1,4 @@
-import { Theme, Spacing } from '../theme/Theme';
+﻿import { Theme, Spacing } from 'common_base';
 import { SettingsView } from '../view/SettingsView';
 import { PageHeader } from '../components/PageHeader';
 

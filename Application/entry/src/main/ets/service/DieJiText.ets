@@ -1,6 +1,6 @@
-﻿import { Person, SpouseRelation, normalizeSpouseRelation } from '../model/Person';
-import { generationLabel } from '../model/Enums';
-import { cnNum, surnameOf, givenNameOf, clanName, shortPlace, CN_DIGITS } from '../util/TextUtil';
+﻿import { Person, SpouseRelation, normalizeSpouseRelation } from 'common_base';
+import { generationLabel } from 'common_base';
+import { cnNum, surnameOf, givenNameOf, clanName, shortPlace, CN_DIGITS } from 'common_base';
 import { ageOf, parseHistoricalDate, parseYear, formatDateConversion, GanZhi } from 'common_dateutil';
 
 /**

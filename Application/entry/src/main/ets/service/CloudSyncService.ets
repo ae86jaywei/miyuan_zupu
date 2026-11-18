@@ -1,4 +1,4 @@
-import { cloudDatabase, cloudStorage } from '@kit.CloudFoundationKit';
+﻿import { cloudDatabase, cloudStorage } from '@kit.CloudFoundationKit';
 import { common } from '@kit.AbilityKit';
 import { BusinessError, request } from '@kit.BasicServicesKit';
 import { fileIo } from '@kit.CoreFileKit';
@@ -6,13 +6,13 @@ import { image } from '@kit.ImageKit';
 import { util } from '@kit.ArkTS';
 import { preferences } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { Person } from '../model/Person';
-import { Genealogy } from '../model/Genealogy';
+import { Person } from 'common_base';
+import { Genealogy } from 'common_base';
 import { BookGroup, GenealogyService } from './GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { AccountService } from './AccountService';
 import { IntegrityService } from './IntegrityService';
-import { IntegrityCode, IntegrityReport } from '../model/Integrity';
+import { IntegrityCode, IntegrityReport } from 'common_base';
 import {
   BackupResult,
   CloudFamilyMedia,
@@ -24,7 +24,7 @@ import {
   cloudMemberToPerson,
   personToCloudMember,
   readCloudMember
-} from '../model/CloudModels';
+} from 'common_base';
 
 const TAG: string = '[Genealogy][Cloud]';
 const ZONE_NAME: string = 'miyuanzupu';

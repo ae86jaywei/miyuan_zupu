@@ -1,19 +1,19 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Person } from '../model/Person';
-import { Genealogy } from '../model/Genealogy';
-import { GenealogyStats, GenerationStat } from '../model/Stats';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Person } from 'common_base';
+import { Genealogy } from 'common_base';
+import { GenealogyStats, GenerationStat } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { StatCard } from '../components/StatCard';
 import { TS } from '../components/TS';
-import { Breakpoint } from '../common/Constants';
-import { generationLabel } from '../model/Enums';
-import { compactUid } from '../util/StringUtil';
+import { Breakpoint } from 'common_base';
+import { generationLabel } from 'common_base';
+import { compactUid } from 'common_base';
 
 import { InsightService } from '../service/InsightService';
 import { IntegrityService } from '../service/IntegrityService';
-import { IntegrityIssue, IntegrityReport } from '../model/Integrity';
-import { BirthdayItem } from '../model/TimerSession';
+import { IntegrityIssue, IntegrityReport } from 'common_base';
+import { BirthdayItem } from 'common_base';
 
 /** 「全部校验提示」面板每批展开的条数（大谱可能有上千条，分批创建组件避免卡顿） */
 const WARN_BATCH: number = 200;

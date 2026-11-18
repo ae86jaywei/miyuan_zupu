@@ -1,13 +1,13 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Person } from '../../model/Person';
-import { Theme, Spacing } from '../../theme/Theme';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Person } from 'common_base';
+import { Theme, Spacing } from 'common_base';
 import { PersonAvatar } from '../PersonAvatar';
 import { Tag } from '../Tag';
-import { generationLabel } from '../../model/Enums';
+import { generationLabel } from 'common_base';
 import { lifeSpan } from 'common_dateutil';
 import { GenealogyService } from '../../service/GenealogyService';
-import { FlatListSource } from '../../util/FlatListSource';
-import { TreePerf } from '../../util/TreePerf';
+import { FlatListSource } from 'common_base';
+import { TreePerf } from 'common_base';
 
 class ModernRow {
   people: Person[];

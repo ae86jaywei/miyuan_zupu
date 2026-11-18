@@ -1,5 +1,5 @@
-﻿import { PersonNode } from '../model/PersonNode';
-import { Person, spouseRelationLevel } from '../model/Person';
+﻿import { PersonNode } from 'common_base';
+import { Person, spouseRelationLevel } from 'common_base';
 
 /** 欧式谱一个节点在画布上的位置 */
 export class EuBox {

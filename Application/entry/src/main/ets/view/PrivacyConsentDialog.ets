@@ -1,6 +1,6 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Spacing } from '../theme/Theme';
-import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from '../model/AgreementDoc';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
+import { APP_NAME, CONTACT_EMAIL, OPERATOR_NAME } from 'common_base';
 
 /**
  * 首次启动隐私同意弹窗。

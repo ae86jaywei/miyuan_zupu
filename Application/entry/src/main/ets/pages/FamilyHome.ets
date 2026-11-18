@@ -1,7 +1,7 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from '../components/TS';
 import { PageNavBar } from '../components/PageNavBar';
 import { AccountService } from '../service/AccountService';
@@ -11,12 +11,12 @@ import { FamilySyncService } from '../service/FamilySyncService';
 import { PrivacyService } from '../service/PrivacyService';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { FamilySummary, Role, SyncMode, SyncResult, roleLabel } from '../model/FamilyDomain';
-import { Genealogy } from '../model/Genealogy';
+import { FamilySummary, Role, SyncMode, SyncResult, roleLabel } from 'common_base';
+import { Genealogy } from 'common_base';
 import { CloudSyncService } from '../service/CloudSyncService';
-import { BackupResult } from '../model/CloudModels';
+import { BackupResult } from 'common_base';
 import { ShareService } from '../service/ShareService';
-import { RouterUtil } from '../util/RouterUtil';
+import { RouterUtil } from 'common_base';
 import { SyncProgressOverlay } from '../components/SyncProgressOverlay';
 
 /** 本版是否开启「加入别人的家族」入口 */

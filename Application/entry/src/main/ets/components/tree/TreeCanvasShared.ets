@@ -1,4 +1,4 @@
-import { PersonNode } from '../../model/PersonNode';
+﻿import { PersonNode } from 'common_base';
 import { GenealogyService } from '../../service/GenealogyService';
 import { EuBox, LineSeg, SuBox } from '../../service/TreeLayout';
 import { ViewRect, ViewportMath } from '../../service/TreeViewport';

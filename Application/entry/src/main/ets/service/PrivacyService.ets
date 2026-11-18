@@ -1,6 +1,6 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
+﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AccountService } from './AccountService';
-import { objectList, str } from '../model/FamilyDomain';
+import { objectList, str } from 'common_base';
 
 const TAG: string = '[Genealogy][Privacy]';
 

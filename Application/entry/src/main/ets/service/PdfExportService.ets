@@ -1,13 +1,13 @@
-import { pdfService } from '@kit.PDFKit';
+﻿import { pdfService } from '@kit.PDFKit';
 import { T } from './ScriptService';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
 import { A4_W_PT, A4_H_PT, PDF_INK, PDF_INK_2, PDF_MUTED, PDF_GOLD, PDF_FEMALE, PDF_BG } from './pdf/PdfCommon';
-import { Person, SpouseRelation } from '../model/Person';
-import { PersonNode } from '../model/PersonNode';
-import { Genealogy } from '../model/Genealogy';
-import { generationLabel } from '../model/Enums';
+import { Person, SpouseRelation } from 'common_base';
+import { PersonNode } from 'common_base';
+import { Genealogy } from 'common_base';
+import { generationLabel } from 'common_base';
 import { GenealogyService } from './GenealogyService';
 import { TreeLayoutCache } from './TreeLayoutCache';
 import { RawPdfWriter, PdfTextLine, PdfInfo, PdfRule } from './RawPdfWriter';

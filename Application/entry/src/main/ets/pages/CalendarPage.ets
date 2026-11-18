@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing, Radius } from 'common_base';
 import { PageNavBar } from '../components/PageNavBar';
 import {
   cnNum1to99, eraInfoOfSolarDate, EraYearInfo, formatDateConversion,

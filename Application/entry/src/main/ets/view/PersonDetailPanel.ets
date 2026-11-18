@@ -1,10 +1,10 @@
 ﻿import { T, uiFontFamily } from '../service/ScriptService';
-import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from '../model/Person';
+import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { Tag } from '../components/Tag';
 import { InfoRow } from '../components/InfoRow';
-import { Theme, Spacing, Radius } from '../theme/Theme';
-import { generationLabel } from '../model/Enums';
+import { Theme, Spacing, Radius } from 'common_base';
+import { generationLabel } from 'common_base';
 import { lifeSpan, ageOf, displayDate } from 'common_dateutil';
 import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from '../components/EmptyHint';

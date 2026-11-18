@@ -1,8 +1,8 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { TREE_STYLES, TreeStyleMeta } from '../model/Enums';
-import { Theme } from '../theme/Theme';
-import { Breakpoint } from '../common/Constants';
-import { TreeScrollMemory } from '../util/TreeScrollMemory';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { TREE_STYLES, TreeStyleMeta } from 'common_base';
+import { Theme } from 'common_base';
+import { Breakpoint } from 'common_base';
+import { TreeScrollMemory } from 'common_base';
 
 /**
  * 谱式切换器：五种谱式横向切换，宽屏显示说明文字，窄屏仅显示名称。

@@ -1,12 +1,12 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { PersonNode } from '../../model/PersonNode';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { PersonNode } from 'common_base';
 import { EuBox, EuCanvas, LineSeg } from '../../service/TreeLayout';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
 import { TreeCuller } from '../../service/TreeCuller';
 import { ViewRect } from '../../service/TreeViewport';
 import { TreeMiniCard } from './TreeMiniCard';
-import { Theme } from '../../theme/Theme';
-import { TreePerf } from '../../util/TreePerf';
+import { Theme } from 'common_base';
+import { TreePerf } from 'common_base';
 import { contentViewRect, findRootNode, isHorizontalSeg, lineThicknessOf, TreeViewportKeyInput,
   treeViewKey, Bubble, DETAIL_BUBBLE, DETAIL_FULL, aggregateEu, detailLevelOf }
   from './TreeCanvasShared';

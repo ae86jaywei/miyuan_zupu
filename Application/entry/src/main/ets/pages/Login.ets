@@ -1,10 +1,10 @@
-import { T } from '../service/ScriptService';
+﻿import { T } from '../service/ScriptService';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { loginComponentManager, LoginPanel } from '@kit.AccountKit';
 import { AccountService, LoginOutcome } from '../service/AccountService';
-import { RouterUtil } from '../util/RouterUtil';
-import { Theme } from '../theme/Theme';
+import { RouterUtil } from 'common_base';
+import { Theme } from 'common_base';
 
 /**
  * 华为账号登录页。

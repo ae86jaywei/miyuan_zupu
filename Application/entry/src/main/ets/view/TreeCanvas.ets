@@ -1,7 +1,7 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { PersonNode } from '../model/PersonNode';
-import { Person } from '../model/Person';
-import { TreeStyle, generationLabel } from '../model/Enums';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { PersonNode } from 'common_base';
+import { Person } from 'common_base';
+import { TreeStyle, generationLabel } from 'common_base';
 import { EuTree } from '../components/tree/EuTree';
 import { SuTree } from '../components/tree/SuTree';
 import { PagodaTree } from '../components/tree/PagodaTree';
@@ -11,16 +11,16 @@ import { ModernTree } from '../components/tree/ModernTree';
 import { PagedTree } from '../components/tree/PagedTree';
 import { SearchField } from '../components/form/SearchField';
 import { EmptyHint } from '../components/EmptyHint';
-import { Theme, Spacing } from '../theme/Theme';
+import { Theme, Spacing } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
-import { compactUid } from '../util/StringUtil';
+import { compactUid } from 'common_base';
 import { TreeLayoutCache } from '../service/TreeLayoutCache';
 import { PaginationService, PrintBook } from '../service/PaginationService';
 import { EuBox, EuCanvas, SuBox, SuCanvas } from '../service/TreeLayout';
 import { ViewportMath } from '../service/TreeViewport';
-import { Breakpoint } from '../common/Constants';
-import { FlatListSource } from '../util/FlatListSource';
-import { TreePerf } from '../util/TreePerf';
+import { Breakpoint } from 'common_base';
+import { FlatListSource } from 'common_base';
+import { TreePerf } from 'common_base';
 
 /** 多宗支时每支标题的固定高度（16 行高 + 8 底部间距），用于精确计算裁剪起点 */
 const BRANCH_HEADER_H: number = 24;

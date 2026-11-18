@@ -1,5 +1,5 @@
-import { GenealogyService } from '../service/GenealogyService';
-import { GenealogyScope } from '../model/Scope';
+﻿import { GenealogyService } from '../service/GenealogyService';
+import { GenealogyScope } from 'common_base';
 
 /**
  * 全局数据仓库（AppStorage 驱动）。

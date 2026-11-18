@@ -1,7 +1,7 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme, Spacing } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 import { PageHeader } from '../components/PageHeader';
-import { AgreementDoc, AgreementParams, AgreementSection, agreementDocOf } from '../model/AgreementDoc';
+import { AgreementDoc, AgreementParams, AgreementSection, agreementDocOf } from 'common_base';
 
 /**
  * 用户协议 / 隐私政策展示页。

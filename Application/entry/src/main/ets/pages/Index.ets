@@ -1,18 +1,18 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { font, uiMaterial } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { Breakpoint } from '../common/Constants';
-import { Theme, Spacing } from '../theme/Theme';
-import { Layout } from '../common/Layout';
+import { Breakpoint } from 'common_base';
+import { Theme, Spacing } from 'common_base';
+import { Layout } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
-import { Genealogy } from '../model/Genealogy';
+import { Genealogy } from 'common_base';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { GenealogyScope } from '../model/Scope';
-import { TreeStyle } from '../model/Enums';
+import { GenealogyScope } from 'common_base';
+import { TreeStyle } from 'common_base';
 
-import { Person } from '../model/Person';
+import { Person } from 'common_base';
 
 import { HomeView } from '../view/HomeView';
 import { TreeCanvas } from '../view/TreeCanvas';
@@ -21,8 +21,8 @@ import { CatalogView } from '../view/CatalogView';
 import { SettingsView } from '../view/SettingsView';
 import { PersonDetailPanel } from '../view/PersonDetailPanel';
 import { GenealogyStatsPanel } from '../view/GenealogyStatsPanel';
-import { RouterUtil } from '../util/RouterUtil';
-import { DeviceUtil } from '../util/DeviceUtil';
+import { RouterUtil } from 'common_base';
+import { DeviceUtil } from 'common_base';
 import { AccountService } from '../service/AccountService';
 import { ConsentService } from '../service/ConsentService';
 import { PageCacheService } from '../service/PageCacheService';

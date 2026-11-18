@@ -1,11 +1,11 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { PersonNode } from '../../model/PersonNode';
-import { Theme } from '../../theme/Theme';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { PersonNode } from 'common_base';
+import { Theme } from 'common_base';
 import { PersonAvatar } from '../PersonAvatar';
-import { generationLabel } from '../../model/Enums';
+import { generationLabel } from 'common_base';
 import { GenealogyService } from '../../service/GenealogyService';
-import { FlatListSource } from '../../util/FlatListSource';
-import { TreePerf } from '../../util/TreePerf';
+import { FlatListSource } from 'common_base';
+import { TreePerf } from 'common_base';
 
 class PagodaRow {
   nodes: PersonNode[];

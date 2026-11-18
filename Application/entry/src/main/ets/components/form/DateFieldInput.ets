@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../../service/ScriptService';
-import { Theme, Spacing } from '../../theme/Theme';
+﻿import { T, uiFontFamily } from '../../service/ScriptService';
+import { Theme, Spacing } from 'common_base';
 
 /**
  * 日期输入 + “选择”按钮。

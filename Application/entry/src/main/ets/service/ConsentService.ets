@@ -1,8 +1,8 @@
-import { common } from '@kit.AbilityKit';
+﻿import { common } from '@kit.AbilityKit';
 import { preferences } from '@kit.ArkData';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
-import { AGREEMENT_VERSION } from '../model/AgreementDoc';
+import { AGREEMENT_VERSION } from 'common_base';
 
 const TAG: string = '[Genealogy][Consent]';
 

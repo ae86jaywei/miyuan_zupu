@@ -1,6 +1,6 @@
-import { T, uiFontFamily } from '../service/ScriptService';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from '../components/TS';
 import { PageHeader } from '../components/PageHeader';
 import { GenealogyService, BranchSuggestion } from '../service/GenealogyService';
@@ -9,9 +9,9 @@ import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfEx
 import { PagedPdfExportService, PagedPdfProgress } from '../service/PagedPdfExportService';
 import { PageSpec } from '../service/PrintLayout';
 import { GenealogyStore } from '../store/GenealogyStore';
-import { GenealogyScope } from '../model/Scope';
-import { Person } from '../model/Person';
-import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
+import { GenealogyScope } from 'common_base';
+import { Person } from 'common_base';
+import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { ImportPlan, ImportResult } from '../service/ImportPlanner';
 
 /**

@@ -1,15 +1,15 @@
-import { ScriptService } from '../service/ScriptService';
+﻿import { ScriptService } from '../service/ScriptService';
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { GenealogyService } from '../service/GenealogyService';
-import { GenealogyScope } from '../model/Scope';
+import { GenealogyScope } from 'common_base';
 import { AccountService } from '../service/AccountService';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { DisplayService } from '../service/DisplayService';
 import { PdfFontUtil } from '../service/PdfFontUtil';
-import { Theme } from '../theme/Theme';
+import { Theme } from 'common_base';
 import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][EntryAbility]';

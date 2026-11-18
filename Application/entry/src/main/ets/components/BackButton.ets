@@ -1,5 +1,5 @@
-import { T, uiFontFamily } from '../service/ScriptService';
-import { Theme } from '../theme/Theme';
+﻿import { T, uiFontFamily } from '../service/ScriptService';
+import { Theme } from 'common_base';
 
 /**
  * 二级页面统一返回按钮（‹）。

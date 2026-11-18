@@ -1,7 +1,7 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
+﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { relationalStore } from '@kit.ArkData';
 import { AccountService } from './AccountService';
-import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
+import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { GenealogyService } from './GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import {
@@ -17,7 +17,7 @@ import {
   num,
   objectList,
   str
-} from '../model/FamilyDomain';
+} from 'common_base';
 import { OutboxItem, OutboxService } from './OutboxService';
 
 const TAG: string = '[Genealogy][Family]';

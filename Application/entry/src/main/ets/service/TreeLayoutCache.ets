@@ -1,8 +1,8 @@
-import { PersonNode } from '../model/PersonNode';
+﻿import { PersonNode } from 'common_base';
 import { EuCanvas, EuLayout, SuCanvas, SuLayout } from './TreeLayout';
 import { TreeCuller } from './TreeCuller';
 import { GenealogyService } from './GenealogyService';
-import { TreePerf } from '../util/TreePerf';
+import { TreePerf } from 'common_base';
 
 /**
  * 布局缓存：同一宗支 + 同一显示参数只计算一次。

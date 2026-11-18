@@ -1,15 +1,15 @@
 ﻿import { T, uiFontFamily } from '../service/ScriptService';
-import { Person } from '../model/Person';
+import { Person } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
-import { Theme, Spacing, Radius } from '../theme/Theme';
+import { Theme, Spacing, Radius } from 'common_base';
 import { PersonAvatar } from '../components/PersonAvatar';
 import { EmptyHint } from '../components/EmptyHint';
-import { generationLabel } from '../model/Enums';
+import { generationLabel } from 'common_base';
 import { lifeSpan } from 'common_dateutil';
-import { Breakpoint } from '../common/Constants';
-import { RouterUtil } from '../util/RouterUtil';
-import { FlatListSource } from '../util/FlatListSource';
-import { TreePerf } from '../util/TreePerf';
+import { Breakpoint } from 'common_base';
+import { RouterUtil } from 'common_base';
+import { FlatListSource } from 'common_base';
+import { TreePerf } from 'common_base';
 
 /**
  * 世系名录：按搜索、世代、性别、状态筛选，以列表/表格形式浏览全部族人。
