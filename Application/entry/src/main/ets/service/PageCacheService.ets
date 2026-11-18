@@ -2,8 +2,10 @@
 import { common } from '@kit.AbilityKit';
 import { hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 import { GenealogyService } from './GenealogyService';
-import { PagePlan, PageCut, PageJump, PageRootRef, PaginationService, PrintBook } from './PaginationService';
-import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
+import { PagePlan, PaginationService, PrintBook } from './PaginationService';
+import { EuCanvas, SuCanvas } from './TreeLayout';
+import { PagePlanRowMapper } from './PagePlanRowMapper';
+import { PageCanvasCodec } from './PageCanvasCodec';
 import { PersonNode } from 'common_base';
 
 /**
@@ -49,25 +51,6 @@ export class PageRef {
   globalPage: number = 1;
   pageRootUid: string = '';
   branchName: string = '';
-}
-
-/** 布局缓存中的一张卡片（只存 uid 与几何，恢复时再挂回 PersonNode） */
-class CanvasBoxRec {
-  uid: string = '';
-  x: number = 0;
-  y: number = 0;
-  w: number = 0;
-  h: number = 0;
-  centerY: number = 0;
-}
-
-/** 一页布局的磁盘格式（欧式/苏式共用，按 style 区分） */
-class CanvasRec {
-  width: number = 0;
-  height: number = 0;
-  rootUid: string = '';
-  boxes: CanvasBoxRec[] = [];
-  lines: LineSeg[] = [];
 }
 
 /** 缓存键 */
@@ -233,24 +216,7 @@ export class PageCacheService {
       const plans: PagePlan[] = [];
       try {
         while (rs.goToNextRow()) {
-          const p: PagePlan = new PagePlan();
-          p.index = rs.getLong(rs.getColumnIndex('page_no'));
-          p.branchId = rs.getString(rs.getColumnIndex('branch_id'));
-          p.genFrom = rs.getLong(rs.getColumnIndex('gen_from'));
-          p.genTo = rs.getLong(rs.getColumnIndex('gen_to'));
-          p.rootUids = PageCacheService.parseStringArray(rs.getString(rs.getColumnIndex('root_uids')));
-          p.uids = PageCacheService.parseUidSet(rs.getString(rs.getColumnIndex('uids')));
-          p.roots = JSON.parse(rs.getString(rs.getColumnIndex('roots_json'))) as PageRootRef[];
-          p.cuts = JSON.parse(rs.getString(rs.getColumnIndex('cuts_json'))) as PageCut[];
-          p.contextAncestors = PageCacheService.parseStringArray(
-            rs.getString(rs.getColumnIndex('context_uids')));
-          p.contextAncestorNames = PageCacheService.parseStringArray(
-            rs.getString(rs.getColumnIndex('context_names')));
-          p.siblingLinks = JSON.parse(rs.getString(rs.getColumnIndex('sibling_json'))) as PageJump[];
-          p.footerText = rs.getString(rs.getColumnIndex('footer_text'));
-          p.branchName = rs.getString(rs.getColumnIndex('branch_name'));
-          p.recto = rs.getLong(rs.getColumnIndex('recto')) === 1;
-          plans.push(p);
+          plans.push(PagePlanRowMapper.parse(rs));
         }
       } finally {
         rs.close();
@@ -331,27 +297,8 @@ export class PageCacheService {
         page.uids.forEach((uid: string): void => {
           uids.push(uid);
         });
-        const planRow: relationalStore.ValuesBucket = {
-          'cache_key': cacheKey,
-          'global_page': globalPage,
-          'volume': volume,
-          'page_no': i % volPages + 1,
-          'branch_id': page.branchId,
-          'page_root_uid': rootUid0,
-          'gen_from': page.genFrom,
-          'gen_to': page.genTo,
-          'root_uids': JSON.stringify(page.rootUids),
-          'uids': JSON.stringify(uids),
-          'roots_json': JSON.stringify(page.roots),
-          'cuts_json': JSON.stringify(page.cuts),
-          'context_uids': JSON.stringify(page.contextAncestors),
-          'context_names': JSON.stringify(page.contextAncestorNames),
-          'sibling_json': JSON.stringify(page.siblingLinks),
-          'footer_text': page.footerText,
-          'branch_name': page.branchName,
-          'recto': page.recto ? 1 : 0
-        };
-        planBatch.push(planRow);
+        planBatch.push(PagePlanRowMapper.toRow(cacheKey, page, globalPage, volume,
+          i % volPages + 1, uids));
 
         if (page.branchId.length > 0) {
           if (!branchStart.has(page.branchId)) {
@@ -496,24 +443,7 @@ export class PageCacheService {
     const plans: PagePlan[] = [];
     try {
       while (rs.goToNextRow()) {
-        const p: PagePlan = new PagePlan();
-        p.index = rs.getLong(rs.getColumnIndex('page_no'));
-        p.branchId = rs.getString(rs.getColumnIndex('branch_id'));
-        p.genFrom = rs.getLong(rs.getColumnIndex('gen_from'));
-        p.genTo = rs.getLong(rs.getColumnIndex('gen_to'));
-        p.rootUids = PageCacheService.parseStringArray(rs.getString(rs.getColumnIndex('root_uids')));
-        p.uids = PageCacheService.parseUidSet(rs.getString(rs.getColumnIndex('uids')));
-        p.roots = JSON.parse(rs.getString(rs.getColumnIndex('roots_json'))) as PageRootRef[];
-        p.cuts = JSON.parse(rs.getString(rs.getColumnIndex('cuts_json'))) as PageCut[];
-        p.contextAncestors = PageCacheService.parseStringArray(
-          rs.getString(rs.getColumnIndex('context_uids')));
-        p.contextAncestorNames = PageCacheService.parseStringArray(
-          rs.getString(rs.getColumnIndex('context_names')));
-        p.siblingLinks = JSON.parse(rs.getString(rs.getColumnIndex('sibling_json'))) as PageJump[];
-        p.footerText = rs.getString(rs.getColumnIndex('footer_text'));
-        p.branchName = rs.getString(rs.getColumnIndex('branch_name'));
-        p.recto = rs.getLong(rs.getColumnIndex('recto')) === 1;
-        plans.push(p);
+        plans.push(PagePlanRowMapper.parse(rs));
       }
     } finally {
       rs.close();
@@ -741,7 +671,7 @@ export class PageCacheService {
     const cacheKey: string = PageCacheKey.of(style, profile, rootUid);
     const rev: number = GenealogyService.getInstance().getVersion();
     try {
-      const json: string = PageCacheService.canvasToJson(canvas, style);
+      const json: string = PageCanvasCodec.encode(canvas, style);
       await this.store.executeSql(
         `INSERT OR REPLACE INTO ${TABLE_CANVAS}(cache_key, style, page_no, data_rev, canvas_json)
          VALUES(?, ?, ?, ?, ?)`, [cacheKey, style, pageNo, rev, json]);
@@ -767,100 +697,13 @@ export class PageCacheService {
         if (!rs.goToNextRow()) {
           return null;
         }
-        return PageCacheService.canvasFromJson(rs.getString(rs.getColumnIndex('canvas_json')), style);
+        return PageCanvasCodec.decode(rs.getString(rs.getColumnIndex('canvas_json')), style);
       } finally {
         rs.close();
       }
     } catch (_e) {
       return null;
     }
-  }
-
-  private static canvasToJson(canvas: EuCanvas | SuCanvas, style: string): string {
-    const rec: CanvasRec = new CanvasRec();
-    rec.width = canvas.width;
-    rec.height = canvas.height;
-    rec.rootUid = canvas.rootBox === null ? '' : canvas.rootBox.node.uid;
-    if (style === 'su') {
-      const su: SuCanvas = canvas as SuCanvas;
-      for (let i: number = 0; i < su.boxes.length; i = i + 1) {
-        const b: SuBox = su.boxes[i];
-        const br: CanvasBoxRec = new CanvasBoxRec();
-        br.uid = b.node.uid;
-        br.x = b.x;
-        br.y = b.y;
-        br.w = b.w;
-        br.h = b.h;
-        rec.boxes.push(br);
-      }
-    } else {
-      const eu: EuCanvas = canvas as EuCanvas;
-      for (let i: number = 0; i < eu.boxes.length; i = i + 1) {
-        const b: EuBox = eu.boxes[i];
-        const br: CanvasBoxRec = new CanvasBoxRec();
-        br.uid = b.node.uid;
-        br.x = b.x;
-        br.y = b.y;
-        br.w = b.w;
-        br.h = b.h;
-        br.centerY = b.centerY;
-        rec.boxes.push(br);
-      }
-    }
-    rec.lines = canvas.lines;
-    return JSON.stringify(rec);
-  }
-
-  private static canvasFromJson(json: string, style: string): EuCanvas | SuCanvas | null {
-    const rec: CanvasRec = JSON.parse(json) as CanvasRec;
-    const nodes: Map<string, PersonNode> = PaginationService.nodeIndexOfCurrentBook();
-    if (style === 'su') {
-      const su: SuCanvas = new SuCanvas();
-      su.width = rec.width;
-      su.height = rec.height;
-      for (let i: number = 0; i < rec.boxes.length; i = i + 1) {
-        const br: CanvasBoxRec = rec.boxes[i];
-        const node: PersonNode | undefined = nodes.get(br.uid);
-        if (node === undefined) {
-          return null;
-        }
-        const b: SuBox = new SuBox();
-        b.node = node;
-        b.x = br.x;
-        b.y = br.y;
-        b.w = br.w;
-        b.h = br.h;
-        su.boxes.push(b);
-        if (rec.rootUid.length > 0 && rec.rootUid === br.uid) {
-          su.rootBox = b;
-        }
-      }
-      su.lines = rec.lines;
-      return su;
-    }
-    const eu: EuCanvas = new EuCanvas();
-    eu.width = rec.width;
-    eu.height = rec.height;
-    for (let i: number = 0; i < rec.boxes.length; i = i + 1) {
-      const br: CanvasBoxRec = rec.boxes[i];
-      const node: PersonNode | undefined = nodes.get(br.uid);
-      if (node === undefined) {
-        return null;
-      }
-      const b: EuBox = new EuBox();
-      b.node = node;
-      b.x = br.x;
-      b.y = br.y;
-      b.w = br.w;
-      b.h = br.h;
-      b.centerY = br.centerY;
-      eu.boxes.push(b);
-      if (rec.rootUid.length > 0 && rec.rootUid === br.uid) {
-        eu.rootBox = b;
-      }
-    }
-    eu.lines = rec.lines;
-    return eu;
   }
 
   scheduleWarmup(): void {
@@ -931,24 +774,5 @@ export class PageCacheService {
     } finally {
       this.warmRunning = false;
     }
-  }
-
-  private static parseStringArray(text: string): string[] {
-    if (text.length === 0) {
-      return [];
-    }
-    return JSON.parse(text) as string[];
-  }
-
-  private static parseUidSet(text: string): Set<string> {
-    const out: Set<string> = new Set<string>();
-    if (text.length === 0) {
-      return out;
-    }
-    const arr: string[] = JSON.parse(text) as string[];
-    for (let i: number = 0; i < arr.length; i = i + 1) {
-      out.add(arr[i]);
-    }
-    return out;
   }
 }
