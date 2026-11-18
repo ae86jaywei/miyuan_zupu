@@ -14,5 +14,6 @@ export * from './src/main/ets/components/SyncProgressOverlay';
 export * from './src/main/ets/components/Tag';
 export * from './src/main/ets/components/form/DateFieldInput';
 export * from './src/main/ets/components/form/PersonPickerField';
+export * from './src/main/ets/components/form/PersonFieldForm';
 export * from './src/main/ets/components/form/SearchField';
 export * from './src/main/ets/components/form/SelectField';

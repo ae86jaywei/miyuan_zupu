@@ -11,6 +11,7 @@ import { BackButton } from 'common_ui';
 import { SelectField } from 'common_ui';
 import { PersonPickerField } from 'common_ui';
 import { DateFieldInput } from 'common_ui';
+import { PersonFieldForm } from 'common_ui';
 import { Breakpoint } from 'common_base';
 import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
@@ -20,6 +21,7 @@ import { EditParams } from 'common_base';
 import { IdGenerator } from 'common_base';
 import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, CHILD_MARK_OPTIONS, generationLabel } from 'common_base';
 import { isBlank } from 'common_base';
+import { fieldMetaOf, PARENT_LIFE_STATUS_OPTIONS } from 'common_base';
 import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraLabel, eraYearCount } from 'common_dateutil';
 import { cnYearText, huangLiText, HuangLi, julianDay, LunarMonthOption, lunarMonthsOfYear, lunarMonthDays, lunarToSolar, SolarDate } from 'common_dateutil';
 import { eraYearText, lunarDayName, lunarMonthName, solarToLunar, LunarDate } from 'common_dateutil';
@@ -2052,15 +2054,25 @@ struct PersonEdit {
       this.GroupHeader('身份标识', '🪪')
       Row() {
         Column() {
-          this.TextField('谱名', this.fName, '族谱上的正式名字，如：李德明', true, (v: string): void => {
-            this.fName = v;
+          PersonFieldForm({
+            meta: fieldMetaOf('name'),
+            value: this.fName,
+            required: true,
+            onValue: (v: string): void => {
+              this.fName = v;
+            }
           })
         }
         .layoutWeight(1)
         Column() {
-          this.TextField('唯一ID', this.fUid, '选性别后自动生成（男 F / 女 M），也可手工填写', false, (v: string): void => {
-            this.fUid = v;
-            this.uidAuto = v.trim().length === 0;
+          PersonFieldForm({
+            meta: fieldMetaOf('uid'),
+            value: this.fUid,
+            hint: '选性别后自动生成（男 F / 女 M），也可手工填写',
+            onValue: (v: string): void => {
+              this.fUid = v;
+              this.uidAuto = v.trim().length === 0;
+            }
           })
         }
         .layoutWeight(1)
@@ -2222,20 +2234,32 @@ struct PersonEdit {
       .width('100%')
       .margin({ top: Spacing.S })
 
-      this.TextField('曾用名/小名', this.fAlias, '如有多个用逗号隔开，如：建国, 狗剩', false, (v: string): void => {
-        this.fAlias = v;
+      PersonFieldForm({
+        meta: fieldMetaOf('alias'),
+        value: this.fAlias,
+        onValue: (v: string): void => {
+          this.fAlias = v;
+        }
       })
 
       Row() {
         Column() {
-          this.TextField('字', this.fCourtesyName, '表字，如：昭远；牒记写作「字昭远」', false, (v: string): void => {
-            this.fCourtesyName = v;
+          PersonFieldForm({
+            meta: fieldMetaOf('courtesyName'),
+            value: this.fCourtesyName,
+            onValue: (v: string): void => {
+              this.fCourtesyName = v;
+            }
           })
         }
         .layoutWeight(1)
         Column() {
-          this.TextField('号', this.fArtName, '别号，如：朴庵；牒记写作「号朴庵」', false, (v: string): void => {
-            this.fArtName = v;
+          PersonFieldForm({
+            meta: fieldMetaOf('artName'),
+            value: this.fArtName,
+            onValue: (v: string): void => {
+              this.fArtName = v;
+            }
           })
         }
         .layoutWeight(1)
@@ -2307,12 +2331,20 @@ struct PersonEdit {
           .margin({ left: Spacing.S })
         }
       }
-      this.TextField('出生地', this.fBirthPlace, '省-市-县-乡镇-村，如：广东-梅州-兴宁-罗岗镇', false,
-        (v: string): void => {
+      PersonFieldForm({
+        meta: fieldMetaOf('birthPlace'),
+        value: this.fBirthPlace,
+        onValue: (v: string): void => {
           this.fBirthPlace = v;
-        })
-      this.TextField('现居地', this.fResidence, '同上，精确到小区/街道', false, (v: string): void => {
-        this.fResidence = v;
+        }
+      })
+      PersonFieldForm({
+        meta: fieldMetaOf('residence'),
+        value: this.fResidence,
+        hint: '同上，精确到小区/街道',
+        onValue: (v: string): void => {
+          this.fResidence = v;
+        }
       })
 
       // 亲属关系
@@ -2353,7 +2385,7 @@ struct PersonEdit {
           SelectField({
             label: '在世状态',
             hint: '',
-            options: ['在世', '已故'],
+            options: PARENT_LIFE_STATUS_OPTIONS,
             value: this.fFatherLifeStatus,
             onValue: (v: string): void => {
               this.fFatherLifeStatus = v;
@@ -2369,7 +2401,7 @@ struct PersonEdit {
           SelectField({
             label: '在世状态',
             hint: '',
-            options: ['在世', '已故'],
+            options: PARENT_LIFE_STATUS_OPTIONS,
             value: this.fMotherLifeStatus,
             onValue: (v: string): void => {
               this.fMotherLifeStatus = v;
@@ -2399,26 +2431,31 @@ struct PersonEdit {
 
       // 生平履历
       this.GroupHeader('生平履历', '📜')
-      this.TextField('学历/学位', this.fEducation, '如：本科-华南理工大学', false, (v: string): void => {
-        this.fEducation = v;
+      PersonFieldForm({
+        meta: fieldMetaOf('education'),
+        value: this.fEducation,
+        onValue: (v: string): void => {
+          this.fEducation = v;
+        }
       })
-      this.TextField('职业/职务', this.fOccupation, '如：高级工程师、村支书', false, (v: string): void => {
-        this.fOccupation = v;
+      PersonFieldForm({
+        meta: fieldMetaOf('occupation'),
+        value: this.fOccupation,
+        onValue: (v: string): void => {
+          this.fOccupation = v;
+        }
       })
-      Column() {
-        this.Label('生平简介', false, '500字以内，记录重大成就、品德、事迹（' + this.fBiography.length.toString() + '/500）')
-        TextArea({ text: this.fBiography }).fontFamily(uiFontFamily())
-          .height(140)
-          .fontSize(14)
-          .backgroundColor(Theme.field)
-          .borderRadius(8)
-          .maxLength(500)
-          .onChange((v: string): void => {
-            this.fBiography = v;
-          })
-      }
-      .width('100%')
-      .margin({ bottom: Spacing.M })
+      PersonFieldForm({
+        meta: fieldMetaOf('biography'),
+        value: this.fBiography,
+        multiline: true,
+        maxLength: 500,
+        textAreaHeight: 140,
+        hint: '500字以内，记录重大成就、品德、事迹（' + this.fBiography.length.toString() + '/500）',
+        onValue: (v: string): void => {
+          this.fBiography = v;
+        }
+      })
 
       Column() {
         this.Label('墓葬信息', false, '地点、山向、碑文摘要（仅已故者填写）')
@@ -2553,11 +2590,20 @@ struct PersonEdit {
           .width('100%')
       }
       .margin({ bottom: Spacing.S })
-      this.TextField('手机号', this.fPhone, '用于核实信息', false, (v: string): void => {
-        this.fPhone = v;
+      PersonFieldForm({
+        meta: fieldMetaOf('phone'),
+        value: this.fPhone,
+        hint: '用于核实信息',
+        onValue: (v: string): void => {
+          this.fPhone = v;
+        }
       })
-      this.TextField('微信号', this.fWechat, '用于建立家族群或电子族谱推送', false, (v: string): void => {
-        this.fWechat = v;
+      PersonFieldForm({
+        meta: fieldMetaOf('wechat'),
+        value: this.fWechat,
+        onValue: (v: string): void => {
+          this.fWechat = v;
+        }
       })
 
       // 照片视频：预览框 + “+” 添加（系统图库 / 文件管理器）

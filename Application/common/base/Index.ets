@@ -8,6 +8,7 @@ export * from './src/main/ets/model/Enums';
 export * from './src/main/ets/model/FamilyDomain';
 export * from './src/main/ets/model/FamilyModels';
 export * from './src/main/ets/model/FieldRegistry';
+export * from './src/main/ets/model/FieldEditorSpec';
 export * from './src/main/ets/model/Genealogy';
 export * from './src/main/ets/model/Integrity';
 export * from './src/main/ets/model/Person';
