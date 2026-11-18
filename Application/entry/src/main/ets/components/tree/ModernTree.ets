@@ -195,6 +195,20 @@ export struct ModernTree {
     })
   }
 
+  /** 该行是否含当前高亮人物：只有新旧高亮行需要重建，避免点选时整树刷新 */
+  private rowHighlighted(row: ModernRow): boolean {
+    if (this.highlightUid.length === 0) {
+      return false;
+    }
+    const values: Person[] = row.values();
+    for (let i: number = 0; i < values.length; i = i + 1) {
+      if (values[i].uid === this.highlightUid) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   build() {
     Stack() {
       // 贯穿时间轴只画一条竖线：不再让每个 ListItem 用 height('100%') 撑高，避免产生空位
@@ -268,8 +282,9 @@ export struct ModernTree {
             .width('100%')
             .alignItems(VerticalAlign.Top)
           }
-        }, (row: ModernRow) => 'mg_' + this.layoutVersion.toString() + '_' + this.highlightUid + '_' +
-          row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString())
+        }, (row: ModernRow) => 'mg_' + this.layoutVersion.toString() + '_' +
+          row.generation.toString() + '_' + row.start.toString() + '_' + row.count.toString() +
+          (this.rowHighlighted(row) ? '_hl' : ''))
       }
       .width('100%')
       .height(LayoutPolicy.matchParent)

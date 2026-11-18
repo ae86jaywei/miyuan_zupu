@@ -1450,7 +1450,8 @@ export struct TreeCanvas {
           }
           .width('100%')
         }
-      }, (person: Person) => 'die_' + this.dataVersion.toString() + '_' + this.highlightUid + '_' + person.uid)
+      }, (person: Person) => 'die_' + this.dataVersion.toString() + '_' + person.uid +
+        (person.uid === this.highlightUid ? '_hl' : ''))
     }
     .width('100%')
     .layoutWeight(1)
