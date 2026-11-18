@@ -9,7 +9,7 @@ import { GenerationStat, GenealogyStats } from 'common_base';
 import { IdGenerator } from 'common_base';
 import { parseYear } from 'common_dateutil';
 import { generationLabel } from 'common_base';
-import { PERSON_DB_COLUMNS, DbColumnDef } from 'common_base';
+
 import { TreeBuilder } from './TreeBuilder';
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -19,13 +19,11 @@ import { IntegrityReport, IntegrityIssue } from 'common_base';
 import { ImportPlan, ImportOptions, ImportPlanner, ImportResult } from './ImportPlanner';
 import { RelationGraph, RepairReport } from './RelationGraph';
 import { buildPersonPatch } from 'common_base';
+import { DatabaseSchema, TABLE_BOOK, TABLE_META, TABLE_PERSON, TABLE_SPOUSE } from './db/DatabaseSchema';
+import { PersonRowMapper } from './db/PersonRowMapper';
 
 const TAG: string = '[Genealogy][Service]';
 const DB_NAME: string = 'genealogy.db';
-const TABLE_PERSON: string = 'person';
-const TABLE_BOOK: string = 'genealogy';
-const TABLE_SPOUSE: string = 'person_spouse';
-const TABLE_META: string = 'app_meta';
 /** 元数据：是否已完成首次初始化（用于区分“首次启动”与“用户清空族谱”） */
 const META_INITIALIZED: string = 'initialized';
 /** 元数据：当前打开的族谱ID（0 表示无族谱） */
@@ -140,107 +138,7 @@ export class GenealogyService {
         securityLevel: relationalStore.SecurityLevel.S1
       };
       this.store = await relationalStore.getRdbStore(context, cfg);
-      await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_PERSON} (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        book_id INTEGER NOT NULL DEFAULT 0,
-        uid TEXT NOT NULL,
-        generation INTEGER,
-        name TEXT,
-        courtesy_name TEXT,
-        art_name TEXT,
-        alias TEXT,
-        gender TEXT,
-        generation_char TEXT,
-        life_status TEXT,
-        child_status TEXT,
-        child_mark TEXT,
-        child_mark_target TEXT,
-        child_mark_source TEXT,
-        child_mark_seq INTEGER,
-        childless INTEGER,
-        birth_date TEXT,
-        birth_calendar TEXT,
-        death_date TEXT,
-        death_calendar TEXT,
-        birth_place TEXT,
-        residence TEXT,
-        father_id TEXT,
-        father_name TEXT,
-        father_life_status TEXT,
-        mother_id TEXT,
-        mother_name TEXT,
-        mother_life_status TEXT,
-        spouse_id TEXT,
-        marriage_status TEXT,
-        spouse_family TEXT,
-        rank TEXT,
-        adoption TEXT,
-        education TEXT,
-        occupation TEXT,
-        biography TEXT,
-        grave_info TEXT,
-        grave_lng REAL,
-        grave_lat REAL,
-        grave_altitude REAL,
-        phone TEXT,
-        wechat TEXT,
-        avatar TEXT,
-        videos TEXT,
-        photos TEXT,
-        created_at INTEGER,
-        updated_at INTEGER
-      )`);
-      // 独立配偶关系表：支持一夫多妻（元配/继室/妾），按 ord 排序
-      // 多族谱下以 (book_id, uid, spouse_uid) 为主键，避免不同族谱同名人物互相覆盖
-      await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_SPOUSE} (
-        book_id INTEGER NOT NULL DEFAULT 0,
-        uid TEXT NOT NULL,
-        spouse_uid TEXT NOT NULL,
-        relation TEXT,
-        level TEXT,
-        ord INTEGER,
-        PRIMARY KEY (book_id, uid, spouse_uid)
-      )`);
-      // 兼容旧库：字段清单统一由 FieldRegistry 维护，新增字段只改注册表即可自动补列
-      for (let i: number = 0; i < PERSON_DB_COLUMNS.length; i = i + 1) {
-        const col: DbColumnDef = PERSON_DB_COLUMNS[i];
-        await this.ensureColumn(TABLE_PERSON, col.column, col.type);
-      }
-      await this.ensureColumn(TABLE_SPOUSE, 'level', 'TEXT');
-      await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_BOOK} (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT,
-        surname TEXT,
-        hall_name TEXT,
-        junwang TEXT,
-        ancestor_name TEXT,
-        generation_poem TEXT,
-        preface TEXT,
-        family_rules TEXT,
-        editing_notes TEXT,
-        cover_color TEXT,
-        cover_pattern TEXT,
-        created_at INTEGER,
-        updated_at INTEGER
-      )`);
-      // 兼容旧库：族谱分支字段（分支谱记录母族谱与分支出自何人）
-      await this.ensureColumn(TABLE_BOOK, 'parent_book_id', 'INTEGER');
-      await this.ensureColumn(TABLE_BOOK, 'branch_root_uid', 'TEXT');
-      // 分支谱上承元数据：母谱书名、母谱世代、上承人 uid/姓名
-      await this.ensureColumn(TABLE_BOOK, 'parent_book_title', 'TEXT');
-      await this.ensureColumn(TABLE_BOOK, 'parent_generation', 'INTEGER');
-      await this.ensureColumn(TABLE_BOOK, 'parent_uid', 'TEXT');
-      await this.ensureColumn(TABLE_BOOK, 'parent_name', 'TEXT');
-      // 协作谱域（方案 §五.0 路线 A：1 部谱 = 1 个 familyId）
-      await this.ensureColumn(TABLE_BOOK, 'family_id', 'TEXT');
-      await this.ensureColumn(TABLE_BOOK, 'sync_mode', 'TEXT');
-      await this.ensureColumn(TABLE_BOOK, 'cloud_rev', 'INTEGER DEFAULT 0');
-      await this.ensureColumn(TABLE_BOOK, 'family_role', 'TEXT');
-      // 应用元数据表：记录首次初始化标记，避免用户删除族谱后重启时重新写入演示数据
-      await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_META} (
-        key TEXT PRIMARY KEY,
-        value TEXT
-      )`);
+      await DatabaseSchema.createTables(this.store as relationalStore.RdbStore);
       // 协作变更队列（断网可编辑：写操作先落本地并在此排队，方案 §四 原则 1）
       await OutboxService.getInstance().ensureTable(this.store);
       // 注意：ResultSet.rowCount 是“游标当前行号”（初始 -1），并非行数，
@@ -254,7 +152,7 @@ export class GenealogyService {
         if (!hasBook) {
           try {
             // 先建族谱元信息，拿到族谱ID后再写入演示族人（带 book_id）
-            const rowId: number = await this.store.insert(TABLE_BOOK, this.bookValues(SeedData.defaultBook()));
+            const rowId: number = await this.store.insert(TABLE_BOOK, PersonRowMapper.bookValues(SeedData.defaultBook()));
             this.currentBookId = rowId;
             await this.setMeta(META_CURRENT_BOOK, rowId.toString());
             if (count === 0) {
@@ -270,7 +168,7 @@ export class GenealogyService {
       // 确定当前打开的族谱（用户可能已删除全部族谱）
       await this.ensureCurrentBook();
       // 旧库迁移：配偶关系表补 book_id 并重建复合主键
-      await this.migrateSpouseBookColumn();
+      await DatabaseSchema.migrateSpouseBookColumn(this.store as relationalStore.RdbStore, this.currentBookId);
       // 旧人物的 book_id 归入当前族谱
       if (this.currentBookId > 0) {
         await this.store.executeSql(
@@ -389,54 +287,6 @@ export class GenealogyService {
     } else {
       this.currentBookId = ids[0];
     }
-  }
-
-  /** 表是否存在指定列 */
-  private async hasColumn(table: string, column: string): Promise<boolean> {
-    if (this.store === null) {
-      return false;
-    }
-    const rs: relationalStore.ResultSet = await this.store.querySql(`PRAGMA table_info(${table})`);
-    let exists: boolean = false;
-    try {
-      const nameIndex: number = rs.getColumnIndex('name');
-      while (rs.goToNextRow()) {
-        if (rs.getString(nameIndex) === column) {
-          exists = true;
-          break;
-        }
-      }
-    } finally {
-      rs.close();
-    }
-    return exists;
-  }
-
-  /**
-   * 旧库迁移：配偶关系表原主键为 (uid, spouse_uid)，多族谱下会互相覆盖。
-   * 缺少 book_id 时重建为 (book_id, uid, spouse_uid) 复合主键，旧数据归入当前族谱。
-   */
-  private async migrateSpouseBookColumn(): Promise<void> {
-    if (this.store === null) {
-      return;
-    }
-    const exists: boolean = await this.hasColumn(TABLE_SPOUSE, 'book_id');
-    if (exists) {
-      return;
-    }
-    await this.store.executeSql(`CREATE TABLE IF NOT EXISTS person_spouse_v2 (
-      book_id INTEGER NOT NULL DEFAULT 0,
-      uid TEXT NOT NULL,
-      spouse_uid TEXT NOT NULL,
-      relation TEXT,
-      level TEXT,
-      ord INTEGER,
-      PRIMARY KEY (book_id, uid, spouse_uid)
-    )`);
-    await this.store.executeSql(`INSERT OR IGNORE INTO person_spouse_v2(book_id, uid, spouse_uid, relation, level, ord)
-      SELECT ?, uid, spouse_uid, relation, level, ord FROM ${TABLE_SPOUSE}`, [this.currentBookId]);
-    await this.store.executeSql(`DROP TABLE ${TABLE_SPOUSE}`);
-    await this.store.executeSql(`ALTER TABLE person_spouse_v2 RENAME TO ${TABLE_SPOUSE}`);
   }
 
   // ---------------------------------------------------------------- 查询
@@ -912,7 +762,7 @@ export class GenealogyService {
     } else {
       predicates.equalTo('id', person.key);
     }
-    const values: relationalStore.ValuesBucket = this.toValues(person);
+    const values: relationalStore.ValuesBucket = PersonRowMapper.toValues(person, this.currentBookId);
     await store.update(values, predicates);
     // 若唯一ID变化，同步更新当前族谱内的引用
     if (originalUid.trim().toUpperCase() !== person.uid) {
@@ -1279,7 +1129,7 @@ export class GenealogyService {
           p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
           p.updatedAt = Date.now();
         }
-        personBatch.push(this.toValues(p, this.currentBookId));
+        personBatch.push(PersonRowMapper.toValues(p, this.currentBookId));
         for (let s: number = 0; s < p.spouses.length; s++) {
           const r: SpouseRelation = p.spouses[s];
           const partner: string = r.uid.trim().toUpperCase();
@@ -1405,9 +1255,9 @@ export class GenealogyService {
     if (book.key > 0) {
       const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_BOOK);
       predicates.equalTo('id', book.key);
-      await store.update(this.bookValues(book), predicates);
+      await store.update(PersonRowMapper.bookValues(book), predicates);
     } else {
-      const rowId: number = await store.insert(TABLE_BOOK, this.bookValues(book));
+      const rowId: number = await store.insert(TABLE_BOOK, PersonRowMapper.bookValues(book));
       book.key = rowId;
     }
     this.book = book;
@@ -1436,7 +1286,7 @@ export class GenealogyService {
       serial++;
     }
     book.title = name;
-    const rowId: number = await store.insert(TABLE_BOOK, this.bookValues(book));
+    const rowId: number = await store.insert(TABLE_BOOK, PersonRowMapper.bookValues(book));
     book.key = rowId;
     this.currentBookId = rowId;
     await this.setMeta(META_CURRENT_BOOK, rowId.toString());
@@ -1597,7 +1447,7 @@ export class GenealogyService {
     // 同一事务内完成「写入分支谱 + 原谱软删后代」，失败整体回滚
     store.beginTransaction();
     try {
-      rowId = await store.insert(TABLE_BOOK, this.bookValues(branch));
+      rowId = await store.insert(TABLE_BOOK, PersonRowMapper.bookValues(branch));
       branch.key = rowId;
       // 始祖 + 后代逐条复制：不构建整支 Person 数组，避免 5 万人谱内存翻倍
       const batchSize: number = 200;
@@ -1639,7 +1489,7 @@ export class GenealogyService {
         this.normalizeSpouses(p);
         p.createdAt = now;
         p.updatedAt = now;
-        personBatch.push(this.toValues(p, rowId));
+        personBatch.push(PersonRowMapper.toValues(p, rowId));
         for (let s: number = 0; s < p.spouses.length; s = s + 1) {
           const r: SpouseRelation = p.spouses[s];
           const partner: string = r.uid.trim().toUpperCase();
@@ -1691,7 +1541,7 @@ export class GenealogyService {
         this.normalizeSpouses(p);
         p.createdAt = now;
         p.updatedAt = now;
-        personBatch.push(this.toValues(p, rowId));
+        personBatch.push(PersonRowMapper.toValues(p, rowId));
         for (let k: number = 0; k < p.spouses.length; k = k + 1) {
           const r: SpouseRelation = p.spouses[k];
           const partner: string = r.uid.trim().toUpperCase();
@@ -1955,7 +1805,7 @@ export class GenealogyService {
       target.coverPattern = book.coverPattern;
       target.parentBookId = 0;
       target.branchRootUid = book.branchRootUid !== undefined ? book.branchRootUid : '';
-      const rowId: number = await store.insert(TABLE_BOOK, this.bookValues(target));
+      const rowId: number = await store.insert(TABLE_BOOK, PersonRowMapper.bookValues(target));
       target.key = rowId;
       bookIdMap.set(book.key, rowId);
       restoredBooks.push(target);
@@ -1981,7 +1831,7 @@ export class GenealogyService {
       restoredBooks[i].parentBookId = mapped;
       const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_BOOK);
       predicates.equalTo('id', restoredBooks[i].key);
-      await store.update(this.bookValues(restoredBooks[i]), predicates);
+      await store.update(PersonRowMapper.bookValues(restoredBooks[i]), predicates);
     }
     this.currentBookId = firstBookId;
     await this.setMeta(META_CURRENT_BOOK, firstBookId.toString());
@@ -1992,14 +1842,14 @@ export class GenealogyService {
   /** 直接插入一条新人物（导入批量写入用，跳过按 id/uid 的两次回查更新） */
   private async insertPerson(p: Person): Promise<void> {
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
-    const rowId: number = await store.insert(TABLE_PERSON, this.toValues(p, this.currentBookId));
+    const rowId: number = await store.insert(TABLE_PERSON, PersonRowMapper.toValues(p, this.currentBookId));
     p.key = rowId;
   }
 
   private async upsertRow(p: Person, bookId: number = 0): Promise<void> {
     const owner: number = bookId > 0 ? bookId : this.currentBookId;
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
-    const values: relationalStore.ValuesBucket = this.toValues(p, owner);
+    const values: relationalStore.ValuesBucket = PersonRowMapper.toValues(p, owner);
     if (p.key > 0) {
       const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_PERSON);
       predicates.equalTo('id', p.key);
@@ -2312,116 +2162,6 @@ export class GenealogyService {
       WHEN relation = '夫' THEN '夫'
       ELSE '未记' END
       WHERE level IS NULL OR level = ''`);
-  }
-
-  /** 兼容旧库：表缺列时自动补充 */
-  private async ensureColumn(table: string, column: string, type: string): Promise<void> {
-    if (this.store === null) {
-      return;
-    }
-    const rs: relationalStore.ResultSet = await this.store.querySql(`PRAGMA table_info(${table})`);
-    let exists: boolean = false;
-    try {
-      const nameIndex: number = rs.getColumnIndex('name');
-      while (rs.goToNextRow()) {
-        if (rs.getString(nameIndex) === column) {
-          exists = true;
-          break;
-        }
-      }
-    } finally {
-      rs.close();
-    }
-    if (!exists) {
-      await this.store.executeSql(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
-    }
-  }
-
-  private toValues(p: Person, bookId: number = 0): relationalStore.ValuesBucket {
-    const owner: number = bookId > 0 ? bookId : this.currentBookId;
-    const v: relationalStore.ValuesBucket = {
-      'book_id': owner,
-      'uid': p.uid,
-      'generation': p.generation,
-      'name': p.name,
-      'courtesy_name': p.courtesyName,
-      'art_name': p.artName,
-      'alias': p.alias,
-      'gender': p.gender,
-      'generation_char': p.generationChar,
-      'life_status': p.lifeStatus,
-      'child_status': p.childStatus,
-      'child_mark': p.childMark,
-      'child_mark_target': p.childMarkTarget,
-      'child_mark_source': p.childMarkSource,
-      'child_mark_seq': p.childMarkSeq,
-      'childless': p.childless ? 1 : 0,
-      'birth_date': p.birthDate,
-      'birth_calendar': p.birthCalendar,
-      'death_date': p.deathDate,
-      'death_calendar': p.deathCalendar,
-      'birth_place': p.birthPlace,
-      'residence': p.residence,
-      'father_id': p.fatherId,
-      'father_name': p.fatherName,
-      'father_life_status': p.fatherLifeStatus,
-      'mother_id': p.motherId,
-      'mother_name': p.motherName,
-      'mother_life_status': p.motherLifeStatus,
-      'spouse_id': p.spouseId,
-      'marriage_status': p.marriageStatus,
-      'spouse_family': p.spouseFamily,
-      'rank': p.rank,
-      'adoption': p.adoption,
-      'education': p.education,
-      'occupation': p.occupation,
-      'biography': p.biography,
-      'grave_info': p.graveInfo,
-      'grave_lng': p.graveLng,
-      'grave_lat': p.graveLat,
-      'grave_altitude': p.graveAltitude,
-      'phone': p.phone,
-      'wechat': p.wechat,
-      'avatar': p.avatar,
-      'videos': p.videos,
-      'photos': p.photos,
-      'created_at': p.createdAt,
-      'updated_at': p.updatedAt,
-      'rev': p.rev,
-      'base_rev': p.baseRev,
-      'dirty': p.dirty ? 1 : 0,
-      'deleted_at': p.deletedAt
-    };
-    return v;
-  }
-
-  private bookValues(b: Genealogy): relationalStore.ValuesBucket {
-    const v: relationalStore.ValuesBucket = {
-      'title': b.title,
-      'surname': b.surname,
-      'hall_name': b.hallName,
-      'junwang': b.junwang,
-      'ancestor_name': b.ancestorName,
-      'generation_poem': b.generationPoem,
-      'preface': b.preface,
-      'family_rules': b.familyRules,
-      'editing_notes': b.editingNotes,
-      'cover_color': b.coverColor,
-      'cover_pattern': b.coverPattern,
-      'parent_book_id': b.parentBookId,
-      'branch_root_uid': b.branchRootUid,
-      'parent_book_title': b.parentBookTitle,
-      'parent_generation': b.parentGeneration,
-      'parent_uid': b.parentUid,
-      'parent_name': b.parentName,
-      'family_id': b.familyId,
-      'sync_mode': b.syncMode,
-      'cloud_rev': b.cloudRev,
-      'family_role': b.familyRole,
-      'created_at': b.createdAt,
-      'updated_at': b.updatedAt
-    };
-    return v;
   }
 
   /** 从数据库重新加载族谱列表与当前族谱的全部数据 */
