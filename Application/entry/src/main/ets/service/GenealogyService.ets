@@ -9,6 +9,7 @@ import { GenerationStat, GenealogyStats } from '../model/Stats';
 import { IdGenerator } from '../util/IdGenerator';
 import { parseYear } from 'common_dateutil';
 import { generationLabel } from '../model/Enums';
+import { PERSON_DB_COLUMNS, DbColumnDef } from '../model/FieldRegistry';
 import { TreeBuilder } from './TreeBuilder';
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -200,37 +201,12 @@ export class GenealogyService {
         ord INTEGER,
         PRIMARY KEY (book_id, uid, spouse_uid)
       )`);
-      // 兼容旧库：补充新增列（child_status / level / book_id）
-      await this.ensureColumn(TABLE_PERSON, 'child_status', 'TEXT');
-      // 牒记「字」「号」：古谱句式需要表字与别号，旧库自动补列
-      await this.ensureColumn(TABLE_PERSON, 'courtesy_name', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'art_name', 'TEXT');
-      // 父母未录入族谱时的自定义姓名（妻子条目中即岳父/岳母）
-      await this.ensureColumn(TABLE_PERSON, 'father_name', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'mother_name', 'TEXT');
-      // 父名/母名（未收录）的在世状态：已故者在牒记中称「公」
-      await this.ensureColumn(TABLE_PERSON, 'father_life_status', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'mother_life_status', 'TEXT');
-      // 子女标记与无出：殇/幼殇/早卒/出嗣/兼祧/继子/养子，需要在本地库持久化
-      await this.ensureColumn(TABLE_PERSON, 'child_mark', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'child_mark_target', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'child_mark_source', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'child_mark_seq', 'INTEGER DEFAULT 0');
-      await this.ensureColumn(TABLE_PERSON, 'childless', 'INTEGER DEFAULT 0');
-      // 婚配状态与夫家/婆家：出嫁但配偶未录入时，牒记可写「适同邑陈氏」
-      await this.ensureColumn(TABLE_PERSON, 'marriage_status', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'spouse_family', 'TEXT');
-      // 协作同步所需列（方案 §七「本地 RDB」行）：
-      //   rev        —— 本人物的云端修订号（0 表示尚未上云）
-      //   base_rev   —— 最近一次同步到本地时的家族 rev 基线（冲突判定用）
-      //   dirty      —— 本地有未上传修改
-      //   deleted_at —— 墓碑时间：非 0 表示该人物已被删除（软删，不再物理删除）
-      await this.ensureColumn(TABLE_PERSON, 'rev', 'INTEGER DEFAULT 0');
-      await this.ensureColumn(TABLE_PERSON, 'base_rev', 'INTEGER DEFAULT 0');
-      await this.ensureColumn(TABLE_PERSON, 'dirty', 'INTEGER DEFAULT 0');
-      await this.ensureColumn(TABLE_PERSON, 'deleted_at', 'INTEGER DEFAULT 0');
+      // 兼容旧库：字段清单统一由 FieldRegistry 维护，新增字段只改注册表即可自动补列
+      for (let i: number = 0; i < PERSON_DB_COLUMNS.length; i = i + 1) {
+        const col: DbColumnDef = PERSON_DB_COLUMNS[i];
+        await this.ensureColumn(TABLE_PERSON, col.column, col.type);
+      }
       await this.ensureColumn(TABLE_SPOUSE, 'level', 'TEXT');
-      await this.ensureColumn(TABLE_PERSON, 'book_id', 'INTEGER');
       await this.store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_BOOK} (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT,

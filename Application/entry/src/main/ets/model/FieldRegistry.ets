@@ -54,3 +54,68 @@ export function fieldLabelOf(key: string): string {
   }
   return root;
 }
+
+/**
+ * Person 表列定义：旧库补列由这张表驱动。
+ * 新增字段时除 FIELD_METAS / PATCH 清单外，再补一行这里，旧库会自动 ALTER TABLE。
+ * 类型使用 ALTER TABLE 可接受的定义（NOT NULL 列一律带 DEFAULT）。
+ */
+export interface DbColumnDef {
+  key: string;
+  column: string;
+  type: string;
+}
+
+export const PERSON_DB_COLUMNS: DbColumnDef[] = [
+  { key: 'bookId', column: 'book_id', type: 'INTEGER DEFAULT 0' },
+  { key: 'uid', column: 'uid', type: 'TEXT' },
+  { key: 'generation', column: 'generation', type: 'INTEGER' },
+  { key: 'name', column: 'name', type: 'TEXT' },
+  { key: 'courtesyName', column: 'courtesy_name', type: 'TEXT' },
+  { key: 'artName', column: 'art_name', type: 'TEXT' },
+  { key: 'alias', column: 'alias', type: 'TEXT' },
+  { key: 'gender', column: 'gender', type: 'TEXT' },
+  { key: 'generationChar', column: 'generation_char', type: 'TEXT' },
+  { key: 'lifeStatus', column: 'life_status', type: 'TEXT' },
+  { key: 'childStatus', column: 'child_status', type: 'TEXT' },
+  { key: 'childMark', column: 'child_mark', type: 'TEXT' },
+  { key: 'childMarkTarget', column: 'child_mark_target', type: 'TEXT' },
+  { key: 'childMarkSource', column: 'child_mark_source', type: 'TEXT' },
+  { key: 'childMarkSeq', column: 'child_mark_seq', type: 'INTEGER' },
+  { key: 'childless', column: 'childless', type: 'INTEGER' },
+  { key: 'birthDate', column: 'birth_date', type: 'TEXT' },
+  { key: 'birthCalendar', column: 'birth_calendar', type: 'TEXT' },
+  { key: 'deathDate', column: 'death_date', type: 'TEXT' },
+  { key: 'deathCalendar', column: 'death_calendar', type: 'TEXT' },
+  { key: 'birthPlace', column: 'birth_place', type: 'TEXT' },
+  { key: 'residence', column: 'residence', type: 'TEXT' },
+  { key: 'fatherId', column: 'father_id', type: 'TEXT' },
+  { key: 'fatherName', column: 'father_name', type: 'TEXT' },
+  { key: 'fatherLifeStatus', column: 'father_life_status', type: 'TEXT' },
+  { key: 'motherId', column: 'mother_id', type: 'TEXT' },
+  { key: 'motherName', column: 'mother_name', type: 'TEXT' },
+  { key: 'motherLifeStatus', column: 'mother_life_status', type: 'TEXT' },
+  { key: 'spouseId', column: 'spouse_id', type: 'TEXT' },
+  { key: 'marriageStatus', column: 'marriage_status', type: 'TEXT' },
+  { key: 'spouseFamily', column: 'spouse_family', type: 'TEXT' },
+  { key: 'rank', column: 'rank', type: 'TEXT' },
+  { key: 'adoption', column: 'adoption', type: 'TEXT' },
+  { key: 'education', column: 'education', type: 'TEXT' },
+  { key: 'occupation', column: 'occupation', type: 'TEXT' },
+  { key: 'biography', column: 'biography', type: 'TEXT' },
+  { key: 'graveInfo', column: 'grave_info', type: 'TEXT' },
+  { key: 'graveLng', column: 'grave_lng', type: 'REAL' },
+  { key: 'graveLat', column: 'grave_lat', type: 'REAL' },
+  { key: 'graveAltitude', column: 'grave_altitude', type: 'REAL' },
+  { key: 'phone', column: 'phone', type: 'TEXT' },
+  { key: 'wechat', column: 'wechat', type: 'TEXT' },
+  { key: 'avatar', column: 'avatar', type: 'TEXT' },
+  { key: 'videos', column: 'videos', type: 'TEXT' },
+  { key: 'photos', column: 'photos', type: 'TEXT' },
+  { key: 'createdAt', column: 'created_at', type: 'INTEGER' },
+  { key: 'updatedAt', column: 'updated_at', type: 'INTEGER' },
+  { key: 'rev', column: 'rev', type: 'INTEGER DEFAULT 0' },
+  { key: 'baseRev', column: 'base_rev', type: 'INTEGER DEFAULT 0' },
+  { key: 'dirty', column: 'dirty', type: 'INTEGER DEFAULT 0' },
+  { key: 'deletedAt', column: 'deleted_at', type: 'INTEGER DEFAULT 0' }
+];
