@@ -2,7 +2,7 @@ import { T, uiFontFamily } from '../service/ScriptService';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { TS } from '../components/TS';
-import { BackButton } from '../components/BackButton';
+import { PageHeader } from '../components/PageHeader';
 import { GenealogyService, BranchSuggestion } from '../service/GenealogyService';
 import { ExportService, JsonBundle } from '../service/ExportService';
 import { PdfExportService, PdfExportProgress, PdfVolume } from '../service/PdfExportService';
@@ -695,26 +695,13 @@ struct ImportExport {
     // 用 Stack 在最上层盖一层遮罩：导入/导出进行中禁止点其它入口、禁止返回
     Stack() {
       Column() {
-        Row() {
-        BackButton({
+        PageHeader({
+          title: '导入 / 导出',
+          loading: this.busy,
           onBack: (): void => {
             this.getUIContext().getRouter().back();
           }
         })
-        Text(T('导入 / 导出')).fontFamily(uiFontFamily())
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Theme.ink)
-          .layoutWeight(1)
-        if (this.busy) {
-          LoadingProgress().width(20).height(20).color(Theme.primary)
-        }
-      }
-      .width('100%')
-      .height(34)
-      .padding({ left: Spacing.S, right: Spacing.L })
-      .backgroundColor(Theme.card)
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
 
       Scroll() {
         Column() {

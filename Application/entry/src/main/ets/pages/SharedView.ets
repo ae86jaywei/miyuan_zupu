@@ -1,6 +1,6 @@
 import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing } from '../theme/Theme';
-import { BackButton } from '../components/BackButton';
+import { PageHeader } from '../components/PageHeader';
 import { Person } from '../model/Person';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { AccountService } from '../service/AccountService';
@@ -189,26 +189,13 @@ struct SharedView {
 
   build() {
     Column() {
-      Row() {
-        BackButton({
-          onBack: (): void => {
-            this.getUIContext().getRouter().back();
-          }
-        })
-        Text(T('分享的族谱')).fontFamily(uiFontFamily())
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Theme.ink)
-          .layoutWeight(1)
-        Text(T(this.people.length > 0 ? this.people.length.toString() + ' 人' : '')).fontFamily(uiFontFamily())
-          .fontSize(11)
-          .fontColor(Theme.inkTertiary)
-      }
-      .width('100%')
-      .height(34)
-      .padding({ left: Spacing.S, right: Spacing.L })
-      .backgroundColor(Theme.card)
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
+      PageHeader({
+        title: '分享的族谱',
+        trailingText: this.people.length > 0 ? this.people.length.toString() + ' 人' : '',
+        onBack: (): void => {
+          this.getUIContext().getRouter().back();
+        }
+      })
 
       if (this.needCode) {
         Column() {

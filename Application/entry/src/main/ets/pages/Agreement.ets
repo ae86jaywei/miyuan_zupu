@@ -1,6 +1,6 @@
 import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing } from '../theme/Theme';
-import { BackButton } from '../components/BackButton';
+import { PageHeader } from '../components/PageHeader';
 import { AgreementDoc, AgreementParams, AgreementSection, agreementDocOf } from '../model/AgreementDoc';
 
 /**
@@ -27,23 +27,12 @@ struct Agreement {
 
   build() {
     Column() {
-      Row() {
-        BackButton({
-          onBack: (): void => {
-            this.getUIContext().getRouter().back();
-          }
-        })
-        Text(T(this.doc.title)).fontFamily(uiFontFamily())
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Theme.ink)
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height(34)
-      .padding({ left: Spacing.S, right: Spacing.L })
-      .backgroundColor(Theme.card)
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
+      PageHeader({
+        title: this.doc.title,
+        onBack: (): void => {
+          this.getUIContext().getRouter().back();
+        }
+      })
 
       Scroll() {
         Column() {

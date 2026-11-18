@@ -1,7 +1,6 @@
-import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing } from '../theme/Theme';
 import { SettingsView } from '../view/SettingsView';
-import { BackButton } from '../components/BackButton';
+import { PageHeader } from '../components/PageHeader';
 
 /**
  * 独立设置页（大屏 / 从顶栏进入时使用）。
@@ -16,23 +15,12 @@ struct Settings {
 
   build() {
     Column() {
-      Row() {
-        BackButton({
-          onBack: (): void => {
-            this.getUIContext().getRouter().back();
-          }
-        })
-        Text(T('设置')).fontFamily(uiFontFamily())
-          .fontSize(17)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Theme.ink)
-          .layoutWeight(1)
-      }
-      .width('100%')
-      .height(34)
-      .padding({ left: Spacing.S, right: Spacing.L })
-      .backgroundColor(Theme.card)
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
+      PageHeader({
+        title: '设置',
+        onBack: (): void => {
+          this.getUIContext().getRouter().back();
+        }
+      })
 
       Column() {
         SettingsView({
