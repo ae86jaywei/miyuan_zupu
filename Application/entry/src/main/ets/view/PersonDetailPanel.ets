@@ -220,6 +220,9 @@ export struct PersonDetailPanel {
               if ((this.person() as Person).fatherId.length === 0
                 && (this.person() as Person).fatherName.length > 0) {
                 InfoRow({ label: '父名（未收录）', value: (this.person() as Person).fatherName })
+                if ((this.person() as Person).fatherLifeStatus.length > 0) {
+                  InfoRow({ label: '父名在世状态', value: (this.person() as Person).fatherLifeStatus })
+                }
               }
               InfoRow({
                 label: '母亲',
@@ -228,9 +231,18 @@ export struct PersonDetailPanel {
               if ((this.person() as Person).motherId.length === 0
                 && (this.person() as Person).motherName.length > 0) {
                 InfoRow({ label: '母名（未收录）', value: (this.person() as Person).motherName })
+                if ((this.person() as Person).motherLifeStatus.length > 0) {
+                  InfoRow({ label: '母名在世状态', value: (this.person() as Person).motherLifeStatus })
+                }
               }
               if ((this.person() as Person).spouses.length > 0) {
                 InfoRow({ label: '配偶', value: this.spouseInfoText() })
+              }
+              if ((this.person() as Person).marriageStatus.length > 0) {
+                InfoRow({ label: '婚配状态', value: (this.person() as Person).marriageStatus })
+              }
+              if ((this.person() as Person).spouseFamily.length > 0) {
+                InfoRow({ label: '夫家/婆家（未收录）', value: (this.person() as Person).spouseFamily })
               }
               if ((this.person() as Person).rank.length > 0) {
                 InfoRow({ label: '排行', value: (this.person() as Person).rank })
