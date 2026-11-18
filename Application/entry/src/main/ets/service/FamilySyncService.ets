@@ -437,6 +437,8 @@ export class FamilySyncService {
     p.motherName = str(src, 'motherName');
     p.motherLifeStatus = str(src, 'motherLifeStatus');
     p.spouseId = str(src, 'spouseId');
+    p.marriageStatus = str(src, 'marriageStatus');
+    p.spouseFamily = str(src, 'spouseFamily');
     p.rank = str(src, 'rank');
     p.adoption = str(src, 'adoption');
     p.education = str(src, 'education');

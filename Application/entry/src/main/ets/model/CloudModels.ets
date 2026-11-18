@@ -270,6 +270,8 @@ export function cloudMemberToPerson(doc: CloudFamilyMember): Person {
   p.motherName = asText(src.motherName, '');
   p.spouseId = asText(src.spouseId, '');
   p.spouses = normalizeSpouses(src.spouses);
+  p.marriageStatus = asText(src.marriageStatus, '');
+  p.spouseFamily = asText(src.spouseFamily, '');
   p.rank = asText(src.rank, '');
   p.adoption = asText(src.adoption, '');
   p.education = asText(src.education, '');

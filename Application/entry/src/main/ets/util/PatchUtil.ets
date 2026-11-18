@@ -85,7 +85,7 @@ const TEXT_FIELDS: string[] = ['uid', 'name', 'courtesyName', 'artName', 'alias'
   'childMark', 'childMarkTarget', 'childMarkSource',
   'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'fatherName', 'fatherLifeStatus',
   'motherId', 'motherName', 'motherLifeStatus',
-  'spouseId', 'rank', 'adoption', 'education', 'occupation', 'biography', 'graveInfo', 'phone', 'wechat',
+  'spouseId', 'marriageStatus', 'spouseFamily', 'rank', 'adoption', 'education', 'occupation', 'biography', 'graveInfo', 'phone', 'wechat',
   'avatar', 'videos', 'photos'];
 
 /** 数值字段 */
@@ -121,6 +121,8 @@ function textOf(p: Person, key: string): string {
     case 'motherName': return p.motherName;
     case 'motherLifeStatus': return p.motherLifeStatus;
     case 'spouseId': return p.spouseId;
+    case 'marriageStatus': return p.marriageStatus;
+    case 'spouseFamily': return p.spouseFamily;
     case 'rank': return p.rank;
     case 'adoption': return p.adoption;
     case 'education': return p.education;
@@ -205,6 +207,8 @@ export function fieldLabel(key: string): string {
     case 'motherName': return '母名（未收录）';
     case 'motherLifeStatus': return '母名在世状态';
     case 'spouses': return '配偶';
+    case 'marriageStatus': return '婚配状态';
+    case 'spouseFamily': return '夫家/婆家（未收录）';
     case 'rank': return '排行';
     case 'adoption': return '过继/出嗣';
     case 'education': return '学历';

@@ -53,6 +53,8 @@ export class ExportService {
       case '母名（未收录）': return p.motherName;
       case '母名在世状态': return p.motherLifeStatus;
       case '配偶关系': return ExportService.spousesText(p);
+      case '婚配状态': return p.marriageStatus;
+      case '夫家/婆家（未收录）': return p.spouseFamily;
       case '排行': return p.rank;
       case '过继/出嗣': return p.adoption;
       case '学历/学位': return p.education;
@@ -111,6 +113,8 @@ export class ExportService {
         '母名在世状态': p.motherLifeStatus,
         '配偶ID': p.spouseId,
         '配偶关系': ExportService.spousesText(p),
+        '婚配状态': p.marriageStatus,
+        '夫家/婆家（未收录）': p.spouseFamily,
         '排行': p.rank,
         '过继/出嗣': p.adoption,
         '学历/学位': p.education,
@@ -390,6 +394,8 @@ export class ExportService {
       p.motherName = r['母名（未收录）'] ?? '';
       p.motherLifeStatus = r['母名在世状态'] ?? '';
       p.spouseId = r['配偶ID'] ?? '';
+      p.marriageStatus = r['婚配状态'] ?? '';
+      p.spouseFamily = r['夫家/婆家（未收录）'] ?? '';
       p.spouses = ExportService.parseSpouses(r['配偶关系'] ?? '', p.gender);
       ExportService.finalizeSpouses(p);
       p.rank = r['排行'] ?? '';
@@ -477,6 +483,8 @@ export class ExportService {
           case '母名在世状态': p.motherLifeStatus = value; break;
           case '配偶ID': p.spouseId = value; break;
           case '配偶关系': p.spouses = ExportService.parseSpouses(value, p.gender); break;
+          case '婚配状态': p.marriageStatus = value; break;
+          case '夫家/婆家（未收录）': p.spouseFamily = value; break;
           case '排行': p.rank = value; break;
           case '过继/出嗣': p.adoption = value; break;
           case '学历/学位': p.education = value; break;

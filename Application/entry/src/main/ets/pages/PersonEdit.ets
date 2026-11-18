@@ -477,6 +477,10 @@ struct PersonEdit {
   @State fMotherLifeStatus: string = '在世';
   /** 配偶关系（可多位：元配 / 继室 / 妾） */
   @State fSpouses: SpouseRelation[] = [];
+  /** 婚配状态：未记/未字/未娶/适人/娶妻/招赘/不详 */
+  @State fMarriageStatus: string = '未记';
+  /** 夫家/婆家/入赘对象（配偶未收录时填写） */
+  @State fSpouseFamily: string = '';
   @State fRank: string = '';
   @State fAdoption: string = '';
   @State fEducation: string = '';
@@ -732,6 +736,8 @@ struct PersonEdit {
       c.level = spouseRelationLevel(c.relation);
       return c;
     });
+    this.fMarriageStatus = p.marriageStatus.length > 0 ? p.marriageStatus : '未记';
+    this.fSpouseFamily = p.spouseFamily;
     this.fRank = this.normalizeRank(p);
     this.fAdoption = p.adoption;
     this.fEducation = p.education;
@@ -788,6 +794,8 @@ struct PersonEdit {
     p.motherLifeStatus = this.fMotherLifeStatus;
     p.spouses = this.buildSpouses();
     p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
+    p.marriageStatus = this.fMarriageStatus === '未记' ? '' : this.fMarriageStatus;
+    p.spouseFamily = this.showSpouseFamily() ? this.fSpouseFamily.trim() : '';
     p.rank = this.fRank;
     p.adoption = this.fAdoption;
     p.education = this.fEducation;
@@ -1013,6 +1021,7 @@ struct PersonEdit {
       this.fFatherId, this.fFatherName, this.fFatherLifeStatus,
       this.fMotherId, this.fMotherName, this.fMotherLifeStatus,
       this.fRank, this.fAdoption, this.fEducation, this.fOccupation, this.fBiography,
+      this.fMarriageStatus, this.fSpouseFamily,
       this.fGraveInfo, this.fGraveLng.toString(), this.fGraveLat.toString(),
       this.fGraveAltitude.toString(), this.fPhone, this.fWechat,
       this.fAvatar, this.fPhotos, this.fVideos
@@ -1477,6 +1486,20 @@ struct PersonEdit {
     return RANK_OPTIONS;
   }
 
+  /** 婚配状态候选：按性别区分未字/未娶、适人/娶妻 */
+  private marriageOptions(): string[] {
+    if (this.fGender === '女') {
+      return ['未记', '未字', '适人', '招赘', '不详'];
+    }
+    return ['未记', '未娶', '娶妻', '招赘', '不详'];
+  }
+
+  /** 选了适人/娶妻/招赘，才显示夫家/婆家输入 */
+  private showSpouseFamily(): boolean {
+    return this.fMarriageStatus === '适人' || this.fMarriageStatus === '娶妻' ||
+      this.fMarriageStatus === '招赘';
+  }
+
   private genCharOptions(): string[] {
     const chars: string[] = this.poemChars();
     const extra: string[] = this.svc().generationChars();
@@ -1518,6 +1541,9 @@ struct PersonEdit {
       }
       case 'gender': {
         this.fGender = value;
+        // 婚配状态选项随性别变化（未字/适人 ↔ 未娶/娶妻），切换后回到未记
+        this.fMarriageStatus = '未记';
+        this.fSpouseFamily = '';
         // 新增且 ID 仍为自动生成 → 按新性别重新计算（男 F / 女 M）
         if (this.originalUid.length === 0 && this.uidAuto) {
           this.fUid = this.svc().nextUid(value);
@@ -2536,6 +2562,23 @@ struct PersonEdit {
       }
       .alignItems(HorizontalAlign.Start)
       .width('100%')
+
+      // 婚配状态：未字/未娶/适人/娶妻/招赘，用于牒记「终身未字」「适XX」
+      SelectField({
+        label: '婚配状态',
+        hint: '未记则不写婚配结论；未字/未娶写「终身未字」；适人/娶妻/招赘可写夫家',
+        options: this.marriageOptions(),
+        value: this.fMarriageStatus,
+        onValue: (v: string): void => {
+          this.fMarriageStatus = v;
+        }
+      })
+      if (this.showSpouseFamily()) {
+        this.TextField('夫家/婆家（未收录）', this.fSpouseFamily,
+          '已出嫁/入赘但配偶未录入时填写，如：同邑陈氏', false, (v: string): void => {
+            this.fSpouseFamily = v;
+          })
+      }
 
       // 齿录模板新增：子女标记
       Row() {

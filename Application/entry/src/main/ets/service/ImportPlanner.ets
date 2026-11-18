@@ -703,6 +703,8 @@ export class ImportPlanner {
     out.fatherLifeStatus = ImportPlanner.pickText(local.fatherLifeStatus, incoming.fatherLifeStatus, localFirst);
     out.motherName = ImportPlanner.pickText(local.motherName, incoming.motherName, localFirst);
     out.motherLifeStatus = ImportPlanner.pickText(local.motherLifeStatus, incoming.motherLifeStatus, localFirst);
+    out.marriageStatus = ImportPlanner.pickText(local.marriageStatus, incoming.marriageStatus, localFirst);
+    out.spouseFamily = ImportPlanner.pickText(local.spouseFamily, incoming.spouseFamily, localFirst);
     out.rank = ImportPlanner.pickText(local.rank, incoming.rank, localFirst);
     out.adoption = ImportPlanner.pickText(local.adoption, incoming.adoption, localFirst);
     out.education = ImportPlanner.pickText(local.education, incoming.education, localFirst);

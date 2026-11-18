@@ -305,6 +305,10 @@ export class Person {
   childMarkSeq: number = 0;
   /** 无出（此人无子女） */
   childless: boolean = false;
+  /** 婚配状态：未记 / 未字（女）/ 未娶（男）/ 适人（女）/ 娶妻（男）/ 招赘 / 不详 */
+  marriageStatus: string = '';
+  /** 夫家/婆家/入赘对象（配偶未收录时填写，如：同邑陈氏） */
+  spouseFamily: string = '';
   /** 出生日期（公历年月日或农历原文） */
   birthDate: string = '';
   /** 出生日期历法：公历 / 农历 */
@@ -415,6 +419,8 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'motherName', label: '母名（未收录）', hint: '母亲未录入族谱时填姓名；妻子的母亲即岳母', group: '亲属关系', type: 'text', privacy: false },
   { key: 'motherLifeStatus', label: '母名在世状态', hint: '母名（未收录）为在世还是已故', group: '亲属关系', type: 'select', privacy: false },
   { key: 'spouses', label: '配偶关系', hint: '支持多位配偶：元配 / 继室 / 妾，按先后顺序记录', group: '亲属关系', type: 'relation', privacy: false },
+  { key: 'marriageStatus', label: '婚配状态', hint: '未字/未娶/适人/娶妻/招赘/不详；未记则不写婚配结论', group: '亲属关系', type: 'select', privacy: false },
+  { key: 'spouseFamily', label: '夫家/婆家（未收录）', hint: '已出嫁/入赘但配偶未录入时填写，如：同邑陈氏', group: '亲属关系', type: 'text', privacy: false },
   { key: 'rank', label: '排行', hint: '第几子/女，如：长子、次女、三子', group: '亲属关系', type: 'text', privacy: false },
   { key: 'adoption', label: '过继/出嗣', hint: '若有过继，填“过继自XX”或“出嗣给XX”', group: '亲属关系', type: 'text', privacy: false },
   { key: 'education', label: '学历/学位', hint: '如：本科-华南理工大学', group: '生平履历', type: 'text', privacy: false },
@@ -467,6 +473,8 @@ export function copyPersonInto(target: Person, src: Person): void {
   target.motherLifeStatus = src.motherLifeStatus;
   target.spouseId = src.spouseId;
   target.spouses = src.spouses.map((r: SpouseRelation): SpouseRelation => cloneSpouseRelation(r));
+  target.marriageStatus = src.marriageStatus;
+  target.spouseFamily = src.spouseFamily;
   target.rank = src.rank;
   target.adoption = src.adoption;
   target.education = src.education;

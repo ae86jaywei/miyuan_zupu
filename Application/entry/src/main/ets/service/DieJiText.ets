@@ -1075,19 +1075,32 @@ export class DieJiText {
     }
     const out: string[] = [];
     const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
-    const hasDate: boolean = p.birthDate.trim().length > 0 || p.deathDate.trim().length > 0;
     const young: boolean = age >= 0 && age <= 15 && p.spouses.length === 0 &&
       idx.childrenOf(p.uid).length === 0;
-    if (p.spouses.length === 0 && idx.childrenOf(p.uid).length === 0) {
+    const marriage: string = p.marriageStatus.trim();
+    const noSpouse: boolean = p.spouses.length === 0;
+    const noKids: boolean = idx.childrenOf(p.uid).length === 0;
+    if (noSpouse && noKids) {
       if (young) {
         out.push(p.gender === '女' ? '未字' : '未聘');
-      } else if (age >= 18 || hasDate) {
-        // 年庚全无时不断言「终身未娶」，避免把早夭或无资料者写死
+      } else if (marriage === '未字' || marriage === '未娶') {
+        // 只有明确标记未字/未娶才写「终身未字」；未记不臆断
         out.push(p.gender === '女' ? '终身未字' : '终身未娶');
       }
     }
+    // 出嫁/娶妻/招赘但配偶未收录：写夫家，如「适同邑陈氏」
+    if (noSpouse) {
+      const family: string = p.spouseFamily.trim();
+      if (marriage === '适人') {
+        out.push(family.length > 0 ? '适' + family : '已适');
+      } else if (marriage === '娶妻') {
+        out.push(family.length > 0 ? '娶' + family : '已娶');
+      } else if (marriage === '招赘') {
+        out.push(family.length > 0 ? '入赘' + family : '入赘');
+      }
+    }
     // 只有明确勾选「无出」才写无嗣；未录子女不等于无嗣
-    if (p.childless && idx.childrenOf(p.uid).length === 0 && p.adoption.trim().length === 0) {
+    if (p.childless && noKids && p.adoption.trim().length === 0) {
       out.push('无嗣');
     }
     return out.length === 0 ? [] : [out.join('，') + '。'];

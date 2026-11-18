@@ -170,6 +170,8 @@ export class GenealogyService {
         mother_name TEXT,
         mother_life_status TEXT,
         spouse_id TEXT,
+        marriage_status TEXT,
+        spouse_family TEXT,
         rank TEXT,
         adoption TEXT,
         education TEXT,
@@ -215,6 +217,9 @@ export class GenealogyService {
       await this.ensureColumn(TABLE_PERSON, 'child_mark_source', 'TEXT');
       await this.ensureColumn(TABLE_PERSON, 'child_mark_seq', 'INTEGER DEFAULT 0');
       await this.ensureColumn(TABLE_PERSON, 'childless', 'INTEGER DEFAULT 0');
+      // 婚配状态与夫家/婆家：出嫁但配偶未录入时，牒记可写「适同邑陈氏」
+      await this.ensureColumn(TABLE_PERSON, 'marriage_status', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'spouse_family', 'TEXT');
       // 协作同步所需列（方案 §七「本地 RDB」行）：
       //   rev        —— 本人物的云端修订号（0 表示尚未上云）
       //   base_rev   —— 最近一次同步到本地时的家族 rev 基线（冲突判定用）
@@ -2388,6 +2393,8 @@ export class GenealogyService {
       'mother_name': p.motherName,
       'mother_life_status': p.motherLifeStatus,
       'spouse_id': p.spouseId,
+      'marriage_status': p.marriageStatus,
+      'spouse_family': p.spouseFamily,
       'rank': p.rank,
       'adoption': p.adoption,
       'education': p.education,
@@ -2623,6 +2630,8 @@ export class GenealogyService {
           p.motherName = resultSet.getString(resultSet.getColumnIndex('mother_name'));
           p.motherLifeStatus = resultSet.getString(resultSet.getColumnIndex('mother_life_status'));
           p.spouseId = resultSet.getString(resultSet.getColumnIndex('spouse_id'));
+          p.marriageStatus = resultSet.getString(resultSet.getColumnIndex('marriage_status'));
+          p.spouseFamily = resultSet.getString(resultSet.getColumnIndex('spouse_family'));
           p.rank = resultSet.getString(resultSet.getColumnIndex('rank'));
           p.adoption = resultSet.getString(resultSet.getColumnIndex('adoption'));
           p.education = resultSet.getString(resultSet.getColumnIndex('education'));
