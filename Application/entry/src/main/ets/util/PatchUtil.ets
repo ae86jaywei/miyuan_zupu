@@ -1,4 +1,5 @@
 import { Person, SpouseRelation } from '../model/Person';
+import { PATCH_TEXT_FIELD_KEYS, PATCH_NUMBER_FIELD_KEYS, PATCH_BOOLEAN_FIELD_KEYS, fieldLabelOf } from '../model/FieldRegistry';
 
 /** 字段级 diff（方案 §五.5：形如 {"birthDate":{"b":"","a":"1942-05"}}） */
 export class FieldChange {
@@ -21,7 +22,7 @@ export function buildPersonPatch(before: Person | null, after: Person, op: strin
   if (op === 'DELETE' || op === 'DELETE_REQ') {
     return '{}';
   }
-  const fields: string[] = TEXT_FIELDS;
+  const fields: string[] = PATCH_TEXT_FIELD_KEYS;
   for (let i: number = 0; i < fields.length; i++) {
     const key: string = fields[i];
     const a: string = textOf(after, key);
@@ -34,7 +35,7 @@ export function buildPersonPatch(before: Person | null, after: Person, op: strin
       patch[key] = makeChange(b, a);
     }
   }
-  const nums: string[] = NUMBER_FIELDS;
+  const nums: string[] = PATCH_NUMBER_FIELD_KEYS;
   for (let i: number = 0; i < nums.length; i++) {
     const key: string = nums[i];
     const a: number = numberOf(after, key);
@@ -47,7 +48,7 @@ export function buildPersonPatch(before: Person | null, after: Person, op: strin
       patch[key] = makeChange(b, a);
     }
   }
-  const bools: string[] = BOOLEAN_FIELDS;
+  const bools: string[] = PATCH_BOOLEAN_FIELD_KEYS;
   for (let i: number = 0; i < bools.length; i = i + 1) {
     const key: string = bools[i];
     const a: boolean = boolOf(after, key);
@@ -79,20 +80,6 @@ function makeChange(b: Object | null, a: Object): FieldChange {
   c.a = a;
   return c;
 }
-
-/** 文本字段（与云侧 PATCHABLE_FIELDS 保持一致） */
-const TEXT_FIELDS: string[] = ['uid', 'name', 'courtesyName', 'artName', 'alias', 'gender', 'generationChar', 'lifeStatus', 'childStatus',
-  'childMark', 'childMarkTarget', 'childMarkSource',
-  'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'fatherName', 'fatherLifeStatus',
-  'motherId', 'motherName', 'motherLifeStatus',
-  'spouseId', 'marriageStatus', 'spouseFamily', 'rank', 'adoption', 'education', 'occupation', 'biography', 'graveInfo', 'phone', 'wechat',
-  'avatar', 'videos', 'photos'];
-
-/** 数值字段 */
-const NUMBER_FIELDS: string[] = ['generation', 'childMarkSeq'];
-
-/** 布尔字段 */
-const BOOLEAN_FIELDS: string[] = ['childless'];
 
 function textOf(p: Person, key: string): string {
   switch (key) {
@@ -175,54 +162,9 @@ export function parsePatchJson(patchJson: string): Map<string, FieldChange> {
   return out;
 }
 
-/** 字段中文名（审核 diff 视图用） */
+/** 字段中文名（审核 diff 视图用）：统一由 FieldRegistry 提供 */
 export function fieldLabel(key: string): string {
-  const idx: number = key.indexOf('.');
-  const root: string = idx >= 0 ? key.substring(0, idx) : key;
-  switch (root) {
-    case 'name': return '谱名';
-    case 'courtesyName': return '字';
-    case 'artName': return '号';
-    case 'alias': return '曾用名';
-    case 'gender': return '性别';
-    case 'generation': return '世代';
-    case 'generationChar': return '字派';
-    case 'lifeStatus': return '在世状态';
-    case 'childStatus': return '身份';
-    case 'childMark': return '子女标记';
-    case 'childMarkTarget': return '出嗣/兼祧对象';
-    case 'childMarkSource': return '入继来源';
-    case 'childMarkSeq': return '在源第几子';
-    case 'childless': return '无出';
-    case 'birthDate': return '出生日期';
-    case 'birthCalendar': return '出生历法';
-    case 'deathDate': return '逝世日期';
-    case 'deathCalendar': return '逝世历法';
-    case 'birthPlace': return '出生地';
-    case 'residence': return '现居地';
-    case 'fatherId': return '父亲ID';
-    case 'fatherName': return '父名（未收录）';
-    case 'fatherLifeStatus': return '父名在世状态';
-    case 'motherId': return '母亲ID';
-    case 'motherName': return '母名（未收录）';
-    case 'motherLifeStatus': return '母名在世状态';
-    case 'spouses': return '配偶';
-    case 'marriageStatus': return '婚配状态';
-    case 'spouseFamily': return '夫家/婆家（未收录）';
-    case 'rank': return '排行';
-    case 'adoption': return '过继/出嗣';
-    case 'education': return '学历';
-    case 'occupation': return '职业';
-    case 'biography': return '生平简介';
-    case 'graveInfo': return '墓葬信息';
-    case 'phone': return '手机号';
-    case 'wechat': return '微信号';
-    case 'avatar': return '头像';
-    case 'videos': return '视频';
-    case 'photos': return '相片';
-    case 'uid': return '唯一ID';
-    default: return root;
-  }
+  return fieldLabelOf(key);
 }
 
 /** 值转展示文本（配偶关系等对象数组做可读化） */
