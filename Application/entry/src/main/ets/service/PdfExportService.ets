@@ -4,6 +4,7 @@ import { Font } from '@kit.ArkUI';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
+import { A4_W_PT, A4_H_PT, PDF_INK, PDF_INK_2, PDF_MUTED, PDF_GOLD } from './pdf/PdfCommon';
 import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
 import { Genealogy } from '../model/Genealogy';
@@ -31,8 +32,8 @@ import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange, DieJiBlock, DIE
  */
 
 // ─── 页面常量（pt） ────────────────────────────────────────
-const PAGE_W: number = 595.28;
-const PAGE_H: number = 841.89;
+const PAGE_W: number = A4_W_PT;
+const PAGE_H: number = A4_H_PT;
 /** 旧 PDFKit 导出路径（exportPdf）使用的固定版心，保留以兼容未调用代码 */
 const MARGIN_LR: number = 56;
 const MARGIN_TOP: number = 64;
@@ -83,10 +84,10 @@ const MEMORY_CHECK_EVERY_PAGES: number = 16;
 const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
-const C_INK: string = '#1a1a1a';
-const C_INK2: string = '#444444';
-const C_INK3: string = '#888888';
-const C_GOLD: string = '#9c7c2e';
+const C_INK: string = PDF_INK;
+const C_INK2: string = PDF_INK_2;
+const C_INK3: string = PDF_MUTED;
+const C_GOLD: string = PDF_GOLD;
 const C_FEMALE: string = '#a0527a';
 const C_BG: string = '#ffffff';
 

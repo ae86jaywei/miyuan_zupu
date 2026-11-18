@@ -1,4 +1,5 @@
 import { LayoutMetrics } from './TreeLayout';
+import { MM_TO_PT } from './pdf/PdfCommon';
 
 /**
  * 纸质族谱的页面规格。
@@ -118,7 +119,7 @@ export class PageSpec {
 
   /** 毫米 → pt（72dpi），未来 PDF 导出使用 */
   static mmToPt(mm: number): number {
-    return mm * 2.8346456693;
+    return mm * MM_TO_PT;
   }
 
   /** 毫米 → px（300dpi），印刷位图使用 */

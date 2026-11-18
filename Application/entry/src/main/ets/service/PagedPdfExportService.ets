@@ -6,6 +6,7 @@ import { common } from '@kit.AbilityKit';
 import { Font, LengthMetricsUnit } from '@kit.ArkUI';
 import { taskpool } from '@kit.ArkTS';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
+import { MM_TO_PT, PDF_MUTED } from './pdf/PdfCommon';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
@@ -24,8 +25,7 @@ import { RawPdfWriter, PdfTextRun, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 
-/** PDF 点：1mm = 72/25.4 pt */
-const MM_TO_PT: number = 72 / 25.4;
+// PDF 单位换算与基础色统一由 service/pdf/PdfCommon 提供
 const PAGE_W_PT: number = PAGE_W_MM * MM_TO_PT;
 const PAGE_H_PT: number = PAGE_H_MM * MM_TO_PT;
 
@@ -37,7 +37,7 @@ const HEADER_PT: number = 8;
 const FOOTER_PT: number = 6.5;
 const PAGE_NO_PT: number = 8;
 /** 页首承接祖先文字：浅灰，弱于正文卡片 */
-const C_ANCESTOR: string = '#888888';
+const C_ANCESTOR: string = PDF_MUTED;
 /** 标准卡（卡高 ≥10mm）上姓名 7→8pt、详情 5.5→6.5pt，矢量文字印出来更清楚 */
 const CARD_NAME_PT: number = 8;
 const CARD_DETAIL_PT: number = 6.5;
