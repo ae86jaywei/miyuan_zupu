@@ -261,7 +261,7 @@ struct FamilyMembers {
         Row() {
           Text(T(roleLabel(Role.VIEWER))).fontFamily(uiFontFamily())
             .fontSize(11.5)
-            .fontColor(m.role === Role.VIEWER ? '#FFFFFF' : Theme.inkSecondary)
+            .fontColor(m.role === Role.VIEWER ? Theme.onPrimary : Theme.inkSecondary)
             .backgroundColor(m.role === Role.VIEWER ? Theme.primary : Theme.field)
             .borderRadius(11)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
@@ -271,7 +271,7 @@ struct FamilyMembers {
             })
           Text(T(roleLabel(Role.EDITOR))).fontFamily(uiFontFamily())
             .fontSize(11.5)
-            .fontColor(m.role === Role.EDITOR ? '#FFFFFF' : Theme.inkSecondary)
+            .fontColor(m.role === Role.EDITOR ? Theme.onPrimary : Theme.inkSecondary)
             .backgroundColor(m.role === Role.EDITOR ? Theme.primary : Theme.field)
             .borderRadius(11)
             .padding({ left: 10, right: 10, top: 4, bottom: 4 })
@@ -371,7 +371,7 @@ struct FamilyMembers {
           .height(32)
           .margin({ left: Spacing.S })
           .backgroundColor(Theme.alive)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .onClick((): void => {
             this.approve(a);
           })
@@ -419,7 +419,7 @@ struct FamilyMembers {
           .height(36)
           .layoutWeight(1)
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .onClick((): void => {
             this.submitApply(AccessKind.VIEW_APPLY);
           })

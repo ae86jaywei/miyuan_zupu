@@ -150,6 +150,26 @@ export class Theme {
     return Theme.dark ? '#3A2620' : '#FCEDEA';
   }
 
+  /** 女性标签底 */
+  static get femaleBg(): string {
+    return Theme.dark ? '#3A2430' : '#FCEEF2';
+  }
+
+  /** 在世 / 正面状态底 */
+  static get aliveBg(): string {
+    return Theme.dark ? '#22352B' : '#E6F3EC';
+  }
+
+  /** 在世高亮浅底（详情页强调块） */
+  static get aliveSoftBg(): string {
+    return Theme.dark ? '#22352B' : '#EAF4EE';
+  }
+
+  /** 轻遮罩 / 轻阴影（弹层、浮层投影） */
+  static get overlayLight(): string {
+    return '#33000000';
+  }
+
   // ---------------------------------------------------------------- 沉浸光感材质
   /** 悬浮导航 / 顶栏的半透明材质底色（配合背景模糊使用） */
   static get glass(): string {

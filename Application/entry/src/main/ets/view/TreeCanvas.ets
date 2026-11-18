@@ -1219,7 +1219,7 @@ export struct TreeCanvas {
       if (this.style === TreeStyle.EU || this.style === TreeStyle.SU) {
         Button(T(this.pagedMode ? '连续' : '分页')).fontFamily(uiFontFamily())
           .fontSize(12)
-          .fontColor(this.pagedMode ? '#FFFFFF' : Theme.primary)
+          .fontColor(this.pagedMode ? Theme.onPrimary : Theme.primary)
           .backgroundColor(this.pagedMode ? Theme.primary : Theme.glass)
           .border({ width: 1, color: Theme.glassBorder })
           .borderRadius(16)
@@ -1414,7 +1414,7 @@ export struct TreeCanvas {
     .width('100%')
     .height('100%')
     .alignItems(HorizontalAlign.Center)
-    .backgroundColor('#33000000')
+    .backgroundColor(Theme.overlayLight)
   }
 
   @Builder
@@ -1509,7 +1509,7 @@ export struct TreeCanvas {
       .backgroundColor(Theme.card)
       .borderRadius(10)
       .border({ width: 1, color: Theme.glassBorder })
-      .shadow({ radius: 14, color: '#33000000', offsetY: 5 })
+      .shadow({ radius: 14, color: Theme.overlayLight, offsetY: 5 })
     }
     .width('100%')
     .height('100%')
@@ -1841,7 +1841,7 @@ export struct TreeCanvas {
           Column() {
             Text(T('已选中 · 长按卡片查看族人详情')).fontFamily(uiFontFamily())
               .fontSize(12)
-              .fontColor('#FFFFFF')
+              .fontColor(Theme.onPrimary)
               .backgroundColor('rgba(0,0,0,0.72)')
               .borderRadius(14)
               .padding({ left: 14, right: 14, top: 6, bottom: 6 })

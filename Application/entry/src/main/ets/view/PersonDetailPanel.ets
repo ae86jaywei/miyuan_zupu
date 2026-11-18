@@ -86,12 +86,12 @@ export struct PersonDetailPanel {
                   .fontWeight(FontWeight.Bold)
                   .fontColor(Theme.ink)
                 if ((this.person() as Person).gender === '女') {
-                  Tag({ text: '女', color: Theme.female, bg: '#FCEEF2' }).margin({ left: 6 })
+                  Tag({ text: '女', color: Theme.female, bg: Theme.femaleBg }).margin({ left: 6 })
                 }
                 Tag({
                   text: (this.person() as Person).lifeStatus,
                   color: (this.person() as Person).lifeStatus === '已故' ? Theme.deceased : Theme.alive,
-                  bg: (this.person() as Person).lifeStatus === '已故' ? Theme.field : '#E6F3EC'
+                  bg: (this.person() as Person).lifeStatus === '已故' ? Theme.field : Theme.aliveBg
                 }).margin({ left: 6 })
               }
               Text(T(generationLabel((this.person() as Person).generation)
@@ -330,7 +330,7 @@ export struct PersonDetailPanel {
                         .textOverflow({ overflow: TextOverflow.Ellipsis })
                     }
                     .padding(8)
-                    .backgroundColor('#EAF4EE')
+                    .backgroundColor(Theme.aliveSoftBg)
                     .borderRadius(Radius.S)
                     .margin({ top: 6 })
                     .width('100%')
