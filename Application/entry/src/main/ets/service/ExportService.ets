@@ -3,13 +3,12 @@ import { common } from '@kit.AbilityKit';
 
 import { BusinessError } from '@kit.BasicServicesKit';
 import { util } from '@kit.ArkTS';
-import { Person, SpouseRelation, spouseRelationLevel, normalizeSpouseRelation, childStatusLabel } from '../model/Person';
+import { Person, SpouseRelation, spouseRelationLevel, normalizeSpouseRelation } from '../model/Person';
 import { PERSON_CSV_COLUMNS } from '../model/FieldRegistry';
 import { Genealogy, createEmptyGenealogy } from '../model/Genealogy';
 
 import { csvEscape } from '../util/StringUtil';
 import { generationLabel } from '../model/Enums';
-import { parseYear } from 'common_dateutil';
 import { T, ScriptService } from './ScriptService';
 import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
 
