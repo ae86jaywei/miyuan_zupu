@@ -19,7 +19,8 @@ import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilyService } from '../service/FamilyService';
 import { EditParams } from 'common_base';
 import { IdGenerator } from 'common_base';
-import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, RANK_OPTIONS, CHILD_MARK_OPTIONS, generationLabel } from 'common_base';
+import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, CLAN_RANK_OPTIONS, NATAL_RANK_OPTIONS,
+  MARRIAGE_OPTIONS_FEMALE, MARRIAGE_OPTIONS_MALE, CHILD_MARK_OPTIONS, generationLabel } from 'common_base';
 import { isBlank } from 'common_base';
 import { fieldMetaOf, PARENT_LIFE_STATUS_OPTIONS } from 'common_base';
 import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraLabel, eraYearCount } from 'common_dateutil';
@@ -263,11 +264,8 @@ struct PersonEdit {
   /** 娘家排行候选：按性别只留子/女排行，去掉随母子/随母女 */
   private natalRankOptions(): string[] {
     const list: string[] = [];
-    for (let i: number = 0; i < RANK_OPTIONS.length; i++) {
-      const r: string = RANK_OPTIONS[i];
-      if (r === '随母子' || r === '随母女') {
-        continue;
-      }
+    for (let i: number = 0; i < NATAL_RANK_OPTIONS.length; i++) {
+      const r: string = NATAL_RANK_OPTIONS[i];
       if (this.fGender === '女' && r.indexOf('子') >= 0) {
         continue;
       }
@@ -296,7 +294,7 @@ struct PersonEdit {
     if (rank.length === 0 || rank === ANCESTOR_RANK) {
       return '';
     }
-    return RANK_OPTIONS.indexOf(rank) >= 0 ? rank : '';
+    return CLAN_RANK_OPTIONS.indexOf(rank) >= 0 ? rank : '';
   }
 
   private fill(p: Person): void {
@@ -1084,15 +1082,15 @@ struct PersonEdit {
     if (this.fGeneration === 1) {
       return [ANCESTOR_RANK];
     }
-    return RANK_OPTIONS;
+    return CLAN_RANK_OPTIONS;
   }
 
   /** 婚配状态候选：按性别区分未字/未娶、适人/娶妻 */
   private marriageOptions(): string[] {
     if (this.fGender === '女') {
-      return ['未记', '未字', '适人', '招赘', '不详'];
+      return MARRIAGE_OPTIONS_FEMALE;
     }
-    return ['未记', '未娶', '娶妻', '招赘', '不详'];
+    return MARRIAGE_OPTIONS_MALE;
   }
 
   /** 选了适人/娶妻/招赘，才显示夫家/婆家输入 */
@@ -1199,23 +1197,6 @@ struct PersonEdit {
     }
     .width('100%')
     .margin({ bottom: 4 })
-  }
-
-  @Builder
-  TextField(label: string, value: string, hint: string, required: boolean, onChange: (v: string) => void) {
-    Column() {
-      this.Label(label, required, hint)
-      TextInput({ text: value }).fontFamily(uiFontFamily())
-        .height(40)
-        .fontSize(14)
-        .backgroundColor(Theme.field)
-        .borderRadius(8)
-        .onChange((v: string): void => {
-          onChange(v);
-        })
-    }
-    .width('100%')
-    .margin({ bottom: Spacing.M })
   }
 
   @Builder
@@ -2179,10 +2160,13 @@ struct PersonEdit {
         }
       })
       if (this.showSpouseFamily()) {
-        this.TextField('夫家/婆家（未收录）', this.fSpouseFamily,
-          '已出嫁/入赘但配偶未录入时填写，如：同邑陈氏', false, (v: string): void => {
+        PersonFieldForm({
+          meta: fieldMetaOf('spouseFamily'),
+          value: this.fSpouseFamily,
+          onValue: (v: string): void => {
             this.fSpouseFamily = v;
-          })
+          }
+        })
       }
 
       // 齿录模板新增：子女标记
@@ -2200,8 +2184,13 @@ struct PersonEdit {
         }
         .layoutWeight(1)
         Column() {
-          this.TextField('出嗣/兼祧对象', this.fChildMarkTarget, '出嗣/兼祧时填写所嗣之房支或人名', false, (v: string): void => {
-            this.fChildMarkTarget = v;
+          PersonFieldForm({
+            meta: fieldMetaOf('childMarkTarget'),
+            value: this.fChildMarkTarget,
+            hint: '出嗣/兼祧时填写所嗣之房支或人名',
+            onValue: (v: string): void => {
+              this.fChildMarkTarget = v;
+            }
           })
         }
         .layoutWeight(1)
@@ -2211,8 +2200,13 @@ struct PersonEdit {
 
       Row() {
         Column() {
-          this.TextField('入继来源', this.fChildMarkSource, '入继/兼祧时填写来源房支或人名', false, (v: string): void => {
-            this.fChildMarkSource = v;
+          PersonFieldForm({
+            meta: fieldMetaOf('childMarkSource'),
+            value: this.fChildMarkSource,
+            hint: '入继/兼祧时填写来源房支或人名',
+            onValue: (v: string): void => {
+              this.fChildMarkSource = v;
+            }
           })
         }
         .layoutWeight(1)
@@ -2378,10 +2372,14 @@ struct PersonEdit {
       // 父母未录入族谱时的兜底姓名：妻子的父亲/母亲即丈夫条目中的岳父/岳母
       Row() {
         Column() {
-          this.TextField('父名（未收录）', this.fFatherName, '父亲未录入族谱时填写；妻子的父亲即岳父', false,
-            (v: string): void => {
+          PersonFieldForm({
+            meta: fieldMetaOf('fatherName'),
+            value: this.fFatherName,
+            hint: '父亲未录入族谱时填写；妻子的父亲即岳父',
+            onValue: (v: string): void => {
               this.fFatherName = v;
-            })
+            }
+          })
           SelectField({
             label: '在世状态',
             hint: '',
@@ -2394,10 +2392,14 @@ struct PersonEdit {
         }
         .layoutWeight(1)
         Column() {
-          this.TextField('母名（未收录）', this.fMotherName, '母亲未录入族谱时填写；妻子的母亲即岳母', false,
-            (v: string): void => {
+          PersonFieldForm({
+            meta: fieldMetaOf('motherName'),
+            value: this.fMotherName,
+            hint: '母亲未录入族谱时填写；妻子的母亲即岳母',
+            onValue: (v: string): void => {
               this.fMotherName = v;
-            })
+            }
+          })
           SelectField({
             label: '在世状态',
             hint: '',
@@ -2424,10 +2426,13 @@ struct PersonEdit {
           this.assignValue('rank', v);
         }
       })
-      this.TextField('过继/出嗣', this.fAdoption, '若有过继，填“过继自XX”或“出嗣给XX”', false,
-        (v: string): void => {
+      PersonFieldForm({
+        meta: fieldMetaOf('adoption'),
+        value: this.fAdoption,
+        onValue: (v: string): void => {
           this.fAdoption = v;
-        })
+        }
+      })
 
       // 生平履历
       this.GroupHeader('生平履历', '📜')

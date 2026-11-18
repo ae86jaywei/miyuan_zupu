@@ -1,4 +1,4 @@
-import { CALENDAR_OPTIONS, CHILD_MARK_OPTIONS, GENDER_OPTIONS, LIFE_STATUS_OPTIONS, RANK_OPTIONS } from './Enums';
+import { CALENDAR_OPTIONS, CHILD_MARK_OPTIONS, CLAN_RANK_OPTIONS, GENDER_OPTIONS, LIFE_STATUS_OPTIONS } from './Enums';
 import { CHILD_STATUS_OPTIONS, FIELD_METAS, FieldMeta } from './Person';
 
 /**
@@ -32,7 +32,7 @@ export function editorOptionsOf(key: string): string[] {
     case 'childMark':
       return CHILD_MARK_OPTIONS;
     case 'rank':
-      return RANK_OPTIONS;
+      return CLAN_RANK_OPTIONS;
     case 'fatherLifeStatus':
     case 'motherLifeStatus':
       return PARENT_LIFE_STATUS_OPTIONS;
