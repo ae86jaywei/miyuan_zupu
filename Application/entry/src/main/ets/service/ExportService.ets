@@ -26,7 +26,10 @@ export class ExportService {
   /** Excel 表头（与《关键信息字段》字段名称一致） */
   private static readonly HEADERS: string[] = [
     '世代', '唯一ID', '谱名', '字', '号', '曾用名/小名', '性别', '辈分/字派', '在世状态', '子女身份',
-    '出生日期', '逝世日期', '出生地', '现居地', '父亲ID', '父名（未收录）', '母亲ID', '母名（未收录）', '配偶关系', '排行', '过继/出嗣',
+    '子女标记', '出嗣/兼祧对象', '入继来源', '在源第几子', '无出',
+    '出生日期', '逝世日期', '出生地', '现居地',
+    '父亲ID', '父名（未收录）', '父名在世状态', '母亲ID', '母名（未收录）', '母名在世状态',
+    '配偶关系', '婚配状态', '夫家/婆家（未收录）', '排行', '过继/出嗣',
     '学历/学位', '职业/职务', '生平简介', '墓葬信息', '手机号', '微信号', '头像'
   ];
 
@@ -42,6 +45,11 @@ export class ExportService {
       case '辈分/字派': return p.generationChar;
       case '在世状态': return p.lifeStatus;
       case '子女身份': return p.childStatus === '未记' ? '' : p.childStatus;
+      case '子女标记': return p.childMark === '未记' ? '' : p.childMark;
+      case '出嗣/兼祧对象': return p.childMarkTarget;
+      case '入继来源': return p.childMarkSource;
+      case '在源第几子': return p.childMarkSeq > 0 ? p.childMarkSeq.toString() : '';
+      case '无出': return p.childless ? '是' : '';
       case '出生日期': return ExportService.dateCell(p.birthDate, p.birthCalendar);
       case '逝世日期': return ExportService.dateCell(p.deathDate, p.deathCalendar);
       case '出生地': return p.birthPlace;
@@ -379,6 +387,14 @@ export class ExportService {
       p.generationChar = r['辈分/字派'] ?? '';
       p.lifeStatus = ScriptService.getInstance().toSimplified(r['在世状态'] ?? '在世');
       p.childStatus = ScriptService.getInstance().toSimplified(r['子女身份'] ?? '未记');
+      p.childMark = ScriptService.getInstance().toSimplified(r['子女标记'] ?? '未记');
+      if (p.childMark.length === 0) {
+        p.childMark = '未记';
+      }
+      p.childMarkTarget = r['出嗣/兼祧对象'] ?? '';
+      p.childMarkSource = r['入继来源'] ?? '';
+      p.childMarkSeq = parseInt(r['在源第几子'] ?? '0', 10) || 0;
+      p.childless = (r['无出'] ?? '') === '是';
       const birthRaw: string = r['出生日期'] ?? '';
       const deathRaw: string = r['逝世日期'] ?? '';
       p.birthDate = ExportService.importDateCell(birthRaw);
@@ -465,6 +481,11 @@ export class ExportService {
           case '辈分/字派': p.generationChar = value; break;
           case '在世状态': p.lifeStatus = norm.length > 0 ? norm : '在世'; break;
           case '子女身份': p.childStatus = norm.length > 0 ? norm : '未记'; break;
+          case '子女标记': p.childMark = norm.length > 0 ? norm : '未记'; break;
+          case '出嗣/兼祧对象': p.childMarkTarget = value; break;
+          case '入继来源': p.childMarkSource = value; break;
+          case '在源第几子': p.childMarkSeq = parseInt(value, 10) || 0; break;
+          case '无出': p.childless = value === '是' || value === '1' || value === 'true'; break;
           case '出生日期':
             p.birthCalendar = ExportService.importDateCalendar(norm);
             p.birthDate = ExportService.importDateCell(norm);
