@@ -40,6 +40,16 @@ export class PdfTextLine {
   bold: boolean = false;
 }
 
+/** 牒记式文本页的分隔线：仿古版每段底部的细实线 */
+export class PdfRule {
+  x1Pt: number = 0;
+  y1Pt: number = 0;
+  x2Pt: number = 0;
+  y2Pt: number = 0;
+  widthPt: number = 0.6;
+  color: string = '#1a1a1a';
+}
+
 /** PDF 文档元信息（/Info），字符串统一按 UTF-16BE 写入 */
 export class PdfInfo {
   title: string = '';
@@ -234,7 +244,7 @@ export class RawPdfWriter {
 
   /** 追加一页纯文本（牒记式）：无图片，文字矢量写入，可搜索/复制 */
   addTextLinePage(lines: PdfTextLine[], bookmarkTitle: string = '',
-    gutterX: number = -1, gutterW: number = 0): void {
+    gutterX: number = -1, gutterW: number = 0, rules: PdfRule[] = []): void {
     const pageId: number = this.nextObj;
     const contentId: number = this.nextObj + 1;
     this.nextObj = this.nextObj + 2;
@@ -253,6 +263,14 @@ export class RawPdfWriter {
       const lineX: number = gutterX <= 0.5 ? gutterX + gutterW : gutterX;
       content = content + 'q\n0.85 0.79 0.68 RG\n0.6 w\n' + lineX.toFixed(2) + ' 0 m\n' +
         lineX.toFixed(2) + ' ' + this.pageH.toString() + ' l\nS\nQ\n';
+    }
+    // 分隔线：仿古版正文三段各一条底部细实线，画在文字之前，文字压在线上也不影响
+    for (let i: number = 0; i < rules.length; i = i + 1) {
+      const r: PdfRule = rules[i];
+      const stroke: string = RawPdfWriter.rgbOp(r.color).replace(' rg', ' RG');
+      content = content + 'q\n' + stroke + '\n' + r.widthPt.toFixed(2) + ' w\n' +
+        r.x1Pt.toFixed(2) + ' ' + r.y1Pt.toFixed(2) + ' m\n' +
+        r.x2Pt.toFixed(2) + ' ' + r.y2Pt.toFixed(2) + ' l\nS\nQ\n';
     }
     for (let i: number = 0; i < lines.length; i = i + 1) {
       const ln: PdfTextLine = lines[i];

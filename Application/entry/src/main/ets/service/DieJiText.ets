@@ -52,6 +52,24 @@ export class DieJiNameRange {
   relative: boolean = false;
 }
 
+/**
+ * 牒记正文语义块：PDF 按块加项目符号分条排版；
+ * 屏幕与 Markdown 仍用 paragraph() 的连续段落，不受影响。
+ */
+export class DieJiBlock {
+  text: string = '';
+  /** 行首是否加项目符号「•」；首句「讳XX公」不加 */
+  bullet: boolean = false;
+  /** 语义类型：head/life/spouse/child/heir/career/bio/grave/adopt */
+  kind: string = '';
+
+  constructor(text: string, bullet: boolean, kind: string) {
+    this.text = text;
+    this.bullet = bullet;
+    this.kind = kind;
+  }
+}
+
 /** 排行前缀 → 行第序号（长子/次子/三子…；独子/随母子返回 -1） */
 function rankIndex(rank: string): number {
   const r: string = rank.trim();
@@ -684,9 +702,18 @@ export class DieJiText {
     return p.gender === '女' ? '女' : '子';
   }
 
-  /** 首句：十世，讳景明，字昭远，号朴庵，行二，乃启文公次子。 */
-  private static headSentence(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
-    const parts: string[] = [DieJiText.generationText(p), DieJiText.namePart(p) + DieJiText.uidSuffix(p, opts)];
+  /**
+   * 首句：十世，讳景明，字昭远，号朴庵，行二，乃启文公次子。
+   * withGeneration=false 时不写世代前缀：PDF 已用独立小标题「第一世」，
+   * 正文直接从「讳XX公」起，避免同一页重复世代。
+   */
+  private static headSentence(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions,
+    withGeneration: boolean = true): string {
+    const parts: string[] = [];
+    if (withGeneration) {
+      parts.push(DieJiText.generationText(p));
+    }
+    parts.push(DieJiText.namePart(p) + DieJiText.uidSuffix(p, opts));
     if (p.courtesyName.trim().length > 0) {
       parts.push('字' + p.courtesyName.trim());
     }
@@ -1144,6 +1171,89 @@ export class DieJiText {
       s.push(grave);
     }
     return s.join('');
+  }
+
+  /**
+   * 正文语义块：供 PDF 按「•」分条排版。
+   * 顺序与示例一致：首句 → 生卒 → 配偶 → 子嗣 → 学职 → 生平 → 墓葬。
+   * 屏幕 / Markdown 继续使用 paragraph()，句序不变。
+   */
+  static blocks(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): DieJiBlock[] {
+    if (p.gender === '女') {
+      const husband: Person | null = DieJiText.husbandOf(p, idx);
+      if (husband !== null) {
+        return DieJiText.wifeBlocks(p, husband, idx, opts);
+      }
+    }
+    return DieJiText.personBlocks(p, idx, opts);
+  }
+
+  /** 只收非空块；句读统一转全角空格，与 paragraph() 同一出口 */
+  private static pushBlock(out: DieJiBlock[], text: string, bullet: boolean, kind: string): void {
+    const body: string = DieJiText.plainPunct(text);
+    if (body.length === 0) {
+      return;
+    }
+    out.push(new DieJiBlock(body, bullet, kind));
+  }
+
+  /** 本支人物语义块 */
+  private static personBlocks(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): DieJiBlock[] {
+    const dead: boolean = DieJiText.isDead(p);
+    const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
+    const young: boolean = dead && age >= 0 && age <= 15 && p.spouses.length === 0 &&
+      idx.childrenOf(p.uid).length === 0;
+    const out: DieJiBlock[] = [];
+    DieJiText.pushBlock(out, DieJiText.headSentence(p, idx, opts, false), false, 'head');
+    DieJiText.pushBlock(out, DieJiText.adoptionSentence(p, idx), true, 'adopt');
+    DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young), true, 'life');
+    const spouse: string[] = DieJiText.spouseSentences(p, idx, opts);
+    if (spouse.length > 0) {
+      DieJiText.pushBlock(out, spouse.join(''), true, 'spouse');
+    }
+    DieJiText.pushBlock(out, DieJiText.childrenSentence(p, idx, opts), true, 'child');
+    const heir: string[] = DieJiText.heirSentences(p, idx);
+    if (heir.length > 0) {
+      DieJiText.pushBlock(out, heir.join(''), true, 'heir');
+    }
+    DieJiText.pushBlock(out, DieJiText.careerSentence(p), true, 'career');
+    // 生不立传：在世者只记齿录，不写生平赞语
+    if (p.lifeStatus !== '在世' && p.biography.trim().length > 0) {
+      DieJiText.pushBlock(out, p.biography.trim().replace(/。$/, '') + '。', true, 'bio');
+    }
+    DieJiText.pushBlock(out, DieJiText.heirByAdoptionSentence(p, idx), true, 'heir');
+    DieJiText.pushBlock(out, DieJiText.graveSentence(p, idx), true, 'grave');
+    return out;
+  }
+
+  /** 妣氏条目语义块 */
+  private static wifeBlocks(p: Person, husband: Person, idx: DieJiIndex,
+    opts?: DieJiRefOptions): DieJiBlock[] {
+    const dead: boolean = DieJiText.isDead(p);
+    const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
+    const young: boolean = dead && age >= 0 && age <= 15 && idx.childrenOf(p.uid).length === 0;
+    const out: DieJiBlock[] = [];
+    DieJiText.pushBlock(out, DieJiText.wifeHeadSentence(p, husband, idx, opts), false, 'head');
+    DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young), true, 'life');
+    if (idx.childrenOf(p.uid).length === 0 && dead) {
+      const adopt: string = p.adoption.trim().replace(/。$/, '');
+      if (adopt.length > 0) {
+        DieJiText.pushBlock(out, adopt.indexOf('为嗣') >= 0 || adopt.indexOf('以') === 0 ?
+          '乏嗣，' + adopt + '。' : '无嗣。', true, 'heir');
+      } else if (idx.childrenOf(husband.uid).length === 0) {
+        // 旧谱常只记父子不记母子：丈夫名下有子女时不轻易断言妻子「无嗣」
+        DieJiText.pushBlock(out, '无嗣。', true, 'heir');
+      }
+    } else {
+      DieJiText.pushBlock(out, DieJiText.childrenSentence(p, idx, opts), true, 'child');
+      DieJiText.pushBlock(out, DieJiText.heirByAdoptionSentence(p, idx), true, 'heir');
+    }
+    DieJiText.pushBlock(out, DieJiText.careerSentence(p), true, 'career');
+    if (p.lifeStatus !== '在世' && p.biography.trim().length > 0) {
+      DieJiText.pushBlock(out, p.biography.trim().replace(/。$/, '') + '。', true, 'bio');
+    }
+    DieJiText.pushBlock(out, DieJiText.graveSentence(p, idx), true, 'grave');
+    return out;
   }
 }
 
