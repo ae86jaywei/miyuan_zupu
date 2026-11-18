@@ -532,7 +532,7 @@ struct FamilyHome {
           .fontSize(14)
           .height(38)
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .margin({ top: Spacing.L })
           .onClick((): void => {
             RouterUtil.login(this.getUIContext());
@@ -576,7 +576,7 @@ struct FamilyHome {
         .height(38)
         .width('100%')
         .backgroundColor(Theme.primary)
-        .fontColor('#FFFFFF')
+        .fontColor(Theme.onPrimary)
         .margin({ top: Spacing.S })
         .enabled(!this.busy && this.loggedIn && this.cloudReady)
         .onClick((): void => {
@@ -617,7 +617,7 @@ struct FamilyHome {
           .height(40)
           .margin({ left: Spacing.S })
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .enabled(!this.busy && this.loggedIn && this.cloudReady)
           .onClick((): void => {
             this.doJoin();
@@ -685,7 +685,7 @@ struct FamilyHome {
           .width('100%')
           .margin({ top: Spacing.S })
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .enabled(!this.busy)
           .onClick((): void => {
             this.doPublish();
@@ -697,7 +697,7 @@ struct FamilyHome {
             .height(36)
             .layoutWeight(1)
             .backgroundColor(Theme.primary)
-            .fontColor('#FFFFFF')
+            .fontColor(Theme.onPrimary)
             .enabled(!this.busy)
             .onClick((): void => {
               this.doSync();
@@ -816,7 +816,7 @@ struct FamilyHome {
         .height(38)
         .width('100%')
         .backgroundColor(Theme.primary)
-        .fontColor('#FFFFFF')
+        .fontColor(Theme.onPrimary)
         .enabled(!this.busy)
         .onClick((): void => {
           this.doShare();

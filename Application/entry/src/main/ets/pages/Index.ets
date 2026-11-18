@@ -370,7 +370,7 @@ struct Index {
       Scroll() {
         Column() {
           Row() {
-            Text(T('谱')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor('#FFFFFF')
+            Text(T('谱')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor(Theme.onPrimary)
           }
           .width(this.navCompact() ? 32 : (collapsed ? 36 : '100%'))
           .height(this.navCompact() ? 32 : 40)
@@ -392,7 +392,7 @@ struct Index {
             .height(this.navCompact() ? 34 : 42)
             .width(this.navCompact() ? 32 : (collapsed ? 38 : '100%'))
             .borderRadius(10)
-            .backgroundColor(this.currentTab === idx ? '#FBEFD9' : Color.Transparent)
+            .backgroundColor(this.currentTab === idx ? Theme.highlightBg : Color.Transparent)
             .justifyContent(FlexAlign.Center)
             .alignItems(collapsed ? HorizontalAlign.Center : HorizontalAlign.Start)
             .padding(collapsed || this.navCompact() ? 0 : { left: Spacing.M })
@@ -413,7 +413,7 @@ struct Index {
 
       Text(T('＋')).fontFamily(uiFontFamily())
         .fontSize(this.navCompact() ? 16 : 20)
-        .fontColor('#FFFFFF')
+        .fontColor(Theme.onPrimary)
         .width(this.navCompact() ? 30 : (collapsed ? 36 : 44))
         .height(this.navCompact() ? 30 : 40)
         .textAlign(TextAlign.Center)
@@ -518,7 +518,7 @@ struct Index {
       Row() {
         Text(T('谱')).fontFamily(uiFontFamily())
           .fontSize(9)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .width(16)
           .height(16)
           .textAlign(TextAlign.Center)
@@ -832,7 +832,7 @@ struct Index {
       Column() {
         Text(T('＋')).fontFamily(uiFontFamily())
           .fontSize(40)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .width(76)
           .height(76)
           .textAlign(TextAlign.Center)
@@ -887,7 +887,7 @@ struct Index {
         .fontSize(14)
         .height(38)
         .backgroundColor(Theme.primary)
-        .fontColor('#FFFFFF')
+        .fontColor(Theme.onPrimary)
         .margin({ top: Spacing.XL })
         .onClick((): void => {
           AppStorage.setOrCreate<number>('gpTab', 1);
@@ -906,7 +906,7 @@ struct Index {
       Column()
         .width('100%')
         .height('100%')
-        .backgroundColor('#66000000')
+        .backgroundColor(Theme.scrimLight)
         .onClick((): void => {
           this.showBookPicker = false;
         })

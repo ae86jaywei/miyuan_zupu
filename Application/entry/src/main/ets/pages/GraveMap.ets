@@ -215,7 +215,7 @@ struct GraveMap {
             .fontSize(12.5)
             .height(32)
             .backgroundColor(Theme.primary)
-            .fontColor('#FFFFFF')
+            .fontColor(Theme.onPrimary)
             .onClick((): void => {
               RouterUtil.openMap(g.lng, g.lat, g.personName + ' 墓');
             })
@@ -300,7 +300,7 @@ struct GraveMap {
           .width(64)
         Text(T('公开')).fontFamily(uiFontFamily())
           .fontSize(12)
-          .fontColor(this.editVisibility === 'PUBLIC' ? '#FFFFFF' : Theme.inkSecondary)
+          .fontColor(this.editVisibility === 'PUBLIC' ? Theme.onPrimary : Theme.inkSecondary)
           .backgroundColor(this.editVisibility === 'PUBLIC' ? Theme.primary : Theme.field)
           .borderRadius(10)
           .padding({ left: 10, right: 10, top: 4, bottom: 4 })
@@ -309,7 +309,7 @@ struct GraveMap {
           })
         Text(T('仅族人可见')).fontFamily(uiFontFamily())
           .fontSize(12)
-          .fontColor(this.editVisibility === 'FAMILY_ONLY' ? '#FFFFFF' : Theme.inkSecondary)
+          .fontColor(this.editVisibility === 'FAMILY_ONLY' ? Theme.onPrimary : Theme.inkSecondary)
           .backgroundColor(this.editVisibility === 'FAMILY_ONLY' ? Theme.primary : Theme.field)
           .borderRadius(10)
           .padding({ left: 10, right: 10, top: 4, bottom: 4 })
@@ -327,7 +327,7 @@ struct GraveMap {
           .width(64)
         Text(T('精确')).fontFamily(uiFontFamily())
           .fontSize(12)
-          .fontColor(this.editPrecision === 'EXACT' ? '#FFFFFF' : Theme.inkSecondary)
+          .fontColor(this.editPrecision === 'EXACT' ? Theme.onPrimary : Theme.inkSecondary)
           .backgroundColor(this.editPrecision === 'EXACT' ? Theme.primary : Theme.field)
           .borderRadius(10)
           .padding({ left: 10, right: 10, top: 4, bottom: 4 })
@@ -336,7 +336,7 @@ struct GraveMap {
           })
         Text(T('模糊约30米')).fontFamily(uiFontFamily())
           .fontSize(12)
-          .fontColor(this.editPrecision === 'BLURRED' ? '#FFFFFF' : Theme.inkSecondary)
+          .fontColor(this.editPrecision === 'BLURRED' ? Theme.onPrimary : Theme.inkSecondary)
           .backgroundColor(this.editPrecision === 'BLURRED' ? Theme.primary : Theme.field)
           .borderRadius(10)
           .padding({ left: 10, right: 10, top: 4, bottom: 4 })
@@ -372,7 +372,7 @@ struct GraveMap {
           .layoutWeight(1)
           .margin({ left: Spacing.S })
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .enabled(!this.busy)
           .onClick((): void => {
             this.submitGrave();

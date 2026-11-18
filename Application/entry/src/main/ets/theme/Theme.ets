@@ -120,6 +120,36 @@ export class Theme {
     return Theme.dark ? '#3A3020' : '#FFF6E0';
   }
 
+  /** 主色底上的文字 / 图标 */
+  static get onPrimary(): string {
+    return '#FFFFFF';
+  }
+
+  /** 主色底上的次级文字（选中态说明） */
+  static get onPrimarySubtle(): string {
+    return '#FFF4DE';
+  }
+
+  /** 弹层遮罩 */
+  static get scrim(): string {
+    return '#99000000';
+  }
+
+  /** 轻遮罩 */
+  static get scrimLight(): string {
+    return '#66000000';
+  }
+
+  /** 金色高亮底（选中标签、始祖提示） */
+  static get goldBg(): string {
+    return Theme.dark ? '#3A3325' : '#F6E7C8';
+  }
+
+  /** 危险提示底 */
+  static get dangerBg(): string {
+    return Theme.dark ? '#3A2620' : '#FCEDEA';
+  }
+
   // ---------------------------------------------------------------- 沉浸光感材质
   /** 悬浮导航 / 顶栏的半透明材质底色（配合背景模糊使用） */
   static get glass(): string {

@@ -515,7 +515,7 @@ struct ImportExport {
           Text(T(tag)).fontFamily(uiFontFamily())
             .fontSize(10)
             .fontColor(Theme.gold)
-            .backgroundColor('#FBF4E2')
+            .backgroundColor(Theme.highlightBg)
             .borderRadius(4)
             .padding({ left: 4, right: 4, top: 1, bottom: 1 })
             .margin({ left: 6 })
@@ -544,11 +544,11 @@ struct ImportExport {
     Column() {
       Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
-        .fontColor(this.pdfLayout === value ? '#FFFFFF' : Theme.ink)
+        .fontColor(this.pdfLayout === value ? Theme.onPrimary : Theme.ink)
         .fontWeight(FontWeight.Medium)
       Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
-        .fontColor(this.pdfLayout === value ? '#FFF4DE' : Theme.inkTertiary)
+        .fontColor(this.pdfLayout === value ? Theme.onPrimarySubtle : Theme.inkTertiary)
         .margin({ top: 2 })
         .maxLines(1)
     }
@@ -569,11 +569,11 @@ struct ImportExport {
     Column() {
       Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
-        .fontColor(this.pdfStyle === value ? '#FFFFFF' : Theme.ink)
+        .fontColor(this.pdfStyle === value ? Theme.onPrimary : Theme.ink)
         .fontWeight(FontWeight.Medium)
       Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
-        .fontColor(this.pdfStyle === value ? '#FFF4DE' : Theme.inkTertiary)
+        .fontColor(this.pdfStyle === value ? Theme.onPrimarySubtle : Theme.inkTertiary)
         .margin({ top: 2 })
         .maxLines(1)
     }
@@ -594,11 +594,11 @@ struct ImportExport {
     Column() {
       Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
-        .fontColor(this.printDuplex === duplex ? '#FFFFFF' : Theme.ink)
+        .fontColor(this.printDuplex === duplex ? Theme.onPrimary : Theme.ink)
         .fontWeight(FontWeight.Medium)
       Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
-        .fontColor(this.printDuplex === duplex ? '#FFF4DE' : Theme.inkTertiary)
+        .fontColor(this.printDuplex === duplex ? Theme.onPrimarySubtle : Theme.inkTertiary)
         .margin({ top: 2 })
         .maxLines(1)
     }
@@ -620,11 +620,11 @@ struct ImportExport {
     Column() {
       Text(T(label)).fontFamily(uiFontFamily())
         .fontSize(12.5)
-        .fontColor(this.printBinding === value ? '#FFFFFF' : Theme.ink)
+        .fontColor(this.printBinding === value ? Theme.onPrimary : Theme.ink)
         .fontWeight(FontWeight.Medium)
       Text(T(hint)).fontFamily(uiFontFamily())
         .fontSize(9)
-        .fontColor(this.printBinding === value ? '#FFF4DE' : Theme.inkTertiary)
+        .fontColor(this.printBinding === value ? Theme.onPrimarySubtle : Theme.inkTertiary)
         .margin({ top: 2 })
         .maxLines(1)
     }
@@ -682,7 +682,7 @@ struct ImportExport {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#99000000')
+    .backgroundColor(Theme.scrim)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .hitTestBehavior(HitTestMode.Block)
@@ -746,7 +746,7 @@ struct ImportExport {
                         .textOverflow({ overflow: TextOverflow.Ellipsis })
                       Text(T('建分支')).fontFamily(uiFontFamily())
                         .fontSize(11)
-                        .fontColor('#FFFFFF')
+                        .fontColor(Theme.onPrimary)
                         .backgroundColor(Theme.primary)
                         .borderRadius(6)
                         .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -772,7 +772,7 @@ struct ImportExport {
                     ForEach(this.exportBookIds, (id: number, i: number) => {
                       Text(T(this.exportBookTitles.length > i ? this.exportBookTitles[i] : id.toString())).fontFamily(uiFontFamily())
                         .fontSize(11)
-                        .fontColor(this.exportBookId === id ? '#FFFFFF' : Theme.ink)
+                        .fontColor(this.exportBookId === id ? Theme.onPrimary : Theme.ink)
                         .backgroundColor(this.exportBookId === id ? Theme.primary : Theme.field)
                         .borderRadius(6)
                         .padding({ left: 8, right: 8, top: 5, bottom: 5 })
@@ -887,7 +887,7 @@ struct ImportExport {
                 (item: string[]) => {
                 Text(T(item[1])).fontFamily(uiFontFamily())
                   .fontSize(12)
-                  .fontColor(this.mergeStrategy === item[0] ? '#FFFFFF' : Theme.inkSecondary)
+                  .fontColor(this.mergeStrategy === item[0] ? Theme.onPrimary : Theme.inkSecondary)
                   .backgroundColor(this.mergeStrategy === item[0] ? Theme.primary : Theme.field)
                   .borderRadius(12)
                   .padding({ left: 12, right: 12, top: 5, bottom: 5 })
