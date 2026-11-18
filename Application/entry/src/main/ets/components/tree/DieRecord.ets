@@ -129,10 +129,10 @@ export struct DieRecord {
         Tag({
           text: this.person.lifeStatus,
           color: this.person.lifeStatus === '已故' ? Theme.deceased : Theme.alive,
-          bg: this.person.lifeStatus === '已故' ? Theme.field : '#E6F3EC'
+          bg: this.person.lifeStatus === '已故' ? Theme.field : Theme.aliveBg
         })
         if (this.person.graveLat !== 0) {
-          Tag({ text: '有墓葬定位', color: Theme.alive, bg: '#E6F3EC' }).margin({ left: 6 })
+          Tag({ text: '有墓葬定位', color: Theme.alive, bg: Theme.aliveBg }).margin({ left: 6 })
         }
       }
       .width('100%')

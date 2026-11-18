@@ -17,3 +17,16 @@ export const PDF_INK_2: string = '#444444';
 export const PDF_MUTED: string = '#888888';
 /** 谱牒金色（始祖/卷名/强调） */
 export const PDF_GOLD: string = '#9c7c2e';
+
+/** 女性姓名 */
+export const PDF_FEMALE: string = '#a0527a';
+/** 纸白 */
+export const PDF_BG: string = '#ffffff';
+/** 卡片正文 */
+export const PDF_TEXT: string = '#2B2B2B';
+/** 卡片次级文字 */
+export const PDF_TEXT_2: string = '#7A6A5A';
+/** 卷首标题 */
+export const PDF_HEADER: string = '#5B4B3B';
+/** 卷末页脚 */
+export const PDF_FOOTER: string = '#6B5B4B';

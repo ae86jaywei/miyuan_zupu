@@ -43,7 +43,7 @@ export struct SearchField {
           .height(38)
           .margin({ left: Spacing.S })
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .enabled(this.actionEnabled)
           .onClick((): void => {
             this.onAction();

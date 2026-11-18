@@ -249,7 +249,7 @@ struct AccessApply {
               .width('100%')
               .margin({ top: Spacing.M })
               .backgroundColor(Theme.primary)
-              .fontColor('#FFFFFF')
+              .fontColor(Theme.onPrimary)
               .enabled(!this.busy)
               .onClick((): void => {
                 this.submit();

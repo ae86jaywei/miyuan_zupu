@@ -223,7 +223,7 @@ struct SharedView {
             .height(40)
             .width('100%')
             .fontSize(14)
-            .fontColor('#FFFFFF')
+            .fontColor(Theme.onPrimary)
             .backgroundColor(Theme.primary)
             .margin({ top: Spacing.M })
             .onClick((): void => {
@@ -262,7 +262,7 @@ struct SharedView {
             Button(T('登录华为账号')).fontFamily(uiFontFamily())
               .height(40)
               .fontSize(14)
-              .fontColor('#FFFFFF')
+              .fontColor(Theme.onPrimary)
               .backgroundColor(Theme.primary)
               .margin({ top: Spacing.L })
               .onClick((): void => {

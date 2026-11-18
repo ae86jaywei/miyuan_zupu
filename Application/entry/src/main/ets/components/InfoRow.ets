@@ -23,7 +23,7 @@ export struct InfoRow {
         Text(T('私')).fontFamily(uiFontFamily())
           .fontSize(9)
           .fontColor(Theme.danger)
-          .backgroundColor('#FCEDEA')
+          .backgroundColor(Theme.dangerBg)
           .borderRadius(4)
           .padding({ left: 3, right: 3, top: 1, bottom: 1 })
           .margin({ right: 4 })

@@ -183,7 +183,7 @@ export struct PagodaTree {
 
                   Text(T(generationLabel(node.person.generation))).fontFamily(uiFontFamily())
                     .fontSize(8)
-                    .fontColor('#FFFFFF')
+                    .fontColor(Theme.onPrimary)
                     .backgroundColor(node.person.gender === '女' ? Theme.female : Theme.primaryLight)
                     .borderRadius(3)
                     .padding({ left: 3, right: 3 })

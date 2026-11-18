@@ -152,9 +152,9 @@ export struct ModernTree {
       .width('100%')
 
       Row() {
-        Tag({ text: generationLabel(p.generation), color: '#FFFFFF', bg: Theme.primaryLight, dense: true })
+        Tag({ text: generationLabel(p.generation), color: Theme.onPrimary, bg: Theme.primaryLight, dense: true })
         if (p.generationChar.length > 0) {
-          Tag({ text: '字派 ' + p.generationChar, color: Theme.gold, bg: '#FBF4E2', dense: true }).margin({ left: 4 })
+          Tag({ text: '字派 ' + p.generationChar, color: Theme.gold, bg: Theme.highlightBg, dense: true }).margin({ left: 4 })
         }
         if (p.occupation.length > 0) {
           Tag({ text: p.occupation, color: Theme.inkSecondary, bg: Theme.field, dense: true }).margin({ left: 4 })

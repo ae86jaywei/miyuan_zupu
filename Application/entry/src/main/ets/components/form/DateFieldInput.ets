@@ -50,7 +50,7 @@ export struct DateFieldInput {
           })
         Text(T('📅 选择')).fontFamily(uiFontFamily())
           .fontSize(12)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .backgroundColor(Theme.primary)
           .padding({ left: 10, right: 10, top: 11, bottom: 11 })
           .borderRadius(14)

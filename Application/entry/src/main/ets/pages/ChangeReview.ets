@@ -146,7 +146,7 @@ struct ChangeReview {
       Row() {
         Text(T(opLabel(r.op))).fontFamily(uiFontFamily())
           .fontSize(10.5)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .backgroundColor(Theme.primary)
           .borderRadius(6)
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
@@ -214,7 +214,7 @@ struct ChangeReview {
               .layoutWeight(1)
               .margin({ left: Spacing.S })
               .backgroundColor(Theme.alive)
-              .fontColor('#FFFFFF')
+              .fontColor(Theme.onPrimary)
               .enabled(!this.busy)
               .onClick((): void => {
                 this.review(r, true);

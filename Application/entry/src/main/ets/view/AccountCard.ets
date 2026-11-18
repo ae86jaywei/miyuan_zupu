@@ -85,7 +85,7 @@ export struct AccountCard {
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.primary)
-              .fontColor('#FFFFFF')
+              .fontColor(Theme.onPrimary)
               .layoutWeight(1)
               .enabled(!this.busy)
               .onClick((): void => {

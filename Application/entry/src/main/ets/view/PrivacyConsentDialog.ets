@@ -98,7 +98,7 @@ export struct PrivacyConsentDialog {
         .width('100%')
         .height(42)
         .fontSize(15)
-        .fontColor('#FFFFFF')
+        .fontColor(Theme.onPrimary)
         .backgroundColor(Theme.primary)
         .borderRadius(10)
         .margin({ top: Spacing.S })

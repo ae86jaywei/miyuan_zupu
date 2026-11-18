@@ -155,6 +155,15 @@ export class Theme {
     return Theme.dark ? '#3A2430' : '#FCEEF2';
   }
 
+  /** 性别描边（树卡片） */
+  static get femaleLine(): string {
+    return Theme.dark ? '#5A3A46' : '#EFC9D5';
+  }
+
+  static get maleLine(): string {
+    return Theme.dark ? '#33475A' : '#CFDCEA';
+  }
+
   /** 在世 / 正面状态底 */
   static get aliveBg(): string {
     return Theme.dark ? '#22352B' : '#E6F3EC';

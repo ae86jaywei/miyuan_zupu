@@ -4,6 +4,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { loginComponentManager, LoginPanel } from '@kit.AccountKit';
 import { AccountService, LoginOutcome } from '../service/AccountService';
 import { RouterUtil } from '../util/RouterUtil';
+import { Theme } from '../theme/Theme';
 
 /**
  * 华为账号登录页。
@@ -131,6 +132,6 @@ struct Login {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#F5F1E8')
+    .backgroundColor(Theme.paper)
   }
 }

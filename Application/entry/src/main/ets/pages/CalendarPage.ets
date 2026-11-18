@@ -446,7 +446,7 @@ struct CalendarPage {
           Button(T('跳转')).fontFamily(uiFontFamily())
             .height(36)
             .fontSize(13)
-            .fontColor('#FFFFFF')
+            .fontColor(Theme.onPrimary)
             .backgroundColor(Theme.primary)
             .borderRadius(8)
             .margin({ left: 8 })

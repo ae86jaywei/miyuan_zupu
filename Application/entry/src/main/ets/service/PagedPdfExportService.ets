@@ -6,7 +6,7 @@ import { common } from '@kit.AbilityKit';
 import { Font, LengthMetricsUnit } from '@kit.ArkUI';
 import { taskpool } from '@kit.ArkTS';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
-import { MM_TO_PT, PDF_MUTED } from './pdf/PdfCommon';
+import { MM_TO_PT, PDF_MUTED, PDF_TEXT, PDF_TEXT_2, PDF_HEADER, PDF_FOOTER } from './pdf/PdfCommon';
 import { Genealogy } from '../model/Genealogy';
 import { generationLabel } from '../model/Enums';
 import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
@@ -445,7 +445,7 @@ export class PagedPdfExportService {
     const maxTextW: number = contentWMm * PX_PER_MM;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#5B4B3B';
+    ctx.fillStyle = PDF_HEADER;
     let headerSize: number = 28;
     const header: string = T(PagedPdfExportService.rawHeader(genealogy, rootName, plan));
     ctx.font = headerSize.toString() + 'px sans-serif';
@@ -473,7 +473,7 @@ export class PagedPdfExportService {
 
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#6B5B4B';
+    ctx.fillStyle = PDF_FOOTER;
     ctx.font = '22px sans-serif';
     const foot: string = T('第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
       ' 页 / 共 ' + totalPages.toString() + ' 页');
@@ -539,7 +539,7 @@ export class PagedPdfExportService {
         fs = Math.max(isName ? 10 : 8, Math.floor(fs * availW / need));
         ctx.font = fontOf(fs);
       }
-      ctx.fillStyle = isName ? '#2B2B2B' : '#7A6A5A';
+      ctx.fillStyle = isName ? PDF_TEXT : PDF_TEXT_2;
       const text: string = PagedPdfExportService.fitTextPx(raw, availW, fs);
       const yTop: number = py + padY + lineH * i + Math.max(0, (lineH - fs) / 2);
       ctx.fillText(text, px + padX, yTop, availW);

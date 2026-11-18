@@ -47,7 +47,7 @@ export struct SyncProgressOverlay {
     }
     .width('100%')
     .height('100%')
-    .backgroundColor('#99000000')
+    .backgroundColor(Theme.scrim)
     .justifyContent(FlexAlign.Center)
     .alignItems(HorizontalAlign.Center)
     .hitTestBehavior(HitTestMode.Block)

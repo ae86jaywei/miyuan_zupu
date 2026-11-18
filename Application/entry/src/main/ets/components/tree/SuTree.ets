@@ -168,7 +168,7 @@ export struct SuTree {
             Column() {
               Text(T(b.label)).fontFamily(uiFontFamily())
                 .fontSize(11 / this.safeZoom())
-                .fontColor('#FFFFFF')
+                .fontColor(Theme.onPrimary)
                 .fontWeight(FontWeight.Medium)
                 .maxLines(1)
                 .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -230,7 +230,7 @@ export struct SuTree {
               .borderRadius(8)
               .border({
                 width: 1 / this.safeZoom(),
-                color: box.node.person.gender === '女' ? '#EFC9D5' : '#CFDCEA'
+                color: box.node.person.gender === '女' ? Theme.femaleLine : Theme.maleLine
               })
               .position({ x: box.x, y: box.y })
               .onClick((): void => {

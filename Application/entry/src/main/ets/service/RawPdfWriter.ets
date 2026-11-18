@@ -1,6 +1,7 @@
 import { ScriptService } from './ScriptService';
 import { fileIo } from '@kit.CoreFileKit';
 import { RawPdfFont } from './RawPdfFont';
+import { PDF_INK, PDF_TEXT } from './pdf/PdfCommon';
 
 /**
  * 极简 PDF 写入器（方案 F）。
@@ -35,7 +36,7 @@ export class PdfTextLine {
   xPt: number = 0;
   yPt: number = 0;
   sizePt: number = 10;
-  color: string = '#2B2B2B';
+  color: string = PDF_TEXT;
   /** 描边模拟粗体（内嵌字体只有 Regular，没有单独的 Bold 字形） */
   bold: boolean = false;
 }
@@ -47,7 +48,7 @@ export class PdfRule {
   x2Pt: number = 0;
   y2Pt: number = 0;
   widthPt: number = 0.6;
-  color: string = '#1a1a1a';
+  color: string = PDF_INK;
 }
 
 /** PDF 文档元信息（/Info），字符串统一按 UTF-16BE 写入 */

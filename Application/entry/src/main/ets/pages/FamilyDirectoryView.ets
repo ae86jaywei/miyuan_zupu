@@ -163,7 +163,7 @@ struct FamilyDirectoryView {
           .fontSize(12)
           .height(30)
           .backgroundColor(Theme.primary)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .onClick((): void => {
             RouterUtil.accessApply(this.getUIContext(), e.familyId);
           })
@@ -256,7 +256,7 @@ struct FamilyDirectoryView {
         ForEach(MEMBER_COUNT_BANDS, (band: string) => {
           Text(T(band)).fontFamily(uiFontFamily())
             .fontSize(11.5)
-            .fontColor(this.form.memberCountBand === band ? '#FFFFFF' : Theme.inkSecondary)
+            .fontColor(this.form.memberCountBand === band ? Theme.onPrimary : Theme.inkSecondary)
             .backgroundColor(this.form.memberCountBand === band ? Theme.primary : Theme.field)
             .borderRadius(10)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })

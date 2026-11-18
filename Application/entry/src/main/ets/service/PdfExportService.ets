@@ -3,7 +3,7 @@ import { T } from './ScriptService';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
-import { A4_W_PT, A4_H_PT, PDF_INK, PDF_INK_2, PDF_MUTED, PDF_GOLD } from './pdf/PdfCommon';
+import { A4_W_PT, A4_H_PT, PDF_INK, PDF_INK_2, PDF_MUTED, PDF_GOLD, PDF_FEMALE, PDF_BG } from './pdf/PdfCommon';
 import { Person, SpouseRelation } from '../model/Person';
 import { PersonNode } from '../model/PersonNode';
 import { Genealogy } from '../model/Genealogy';
@@ -87,8 +87,8 @@ const C_INK: string = PDF_INK;
 const C_INK2: string = PDF_INK_2;
 const C_INK3: string = PDF_MUTED;
 const C_GOLD: string = PDF_GOLD;
-const C_FEMALE: string = '#a0527a';
-const C_BG: string = '#ffffff';
+const C_FEMALE: string = PDF_FEMALE;
+const C_BG: string = PDF_BG;
 
 // ─── 导出选项与进度 ────────────────────────────────────────
 export interface PdfExportOptions {

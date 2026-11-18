@@ -107,7 +107,7 @@ export struct TreeMiniCard {
         Text(T(generationLabel(this.person.generation))).fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .backgroundColor(Theme.primaryLight)
           .borderRadius(4)
           .padding({ left: 4, right: 4 })
@@ -159,7 +159,7 @@ export struct TreeMiniCard {
     .borderRadius(10)
     .border({
       width: this.highlight ? 2 : 1,
-      color: this.highlight ? Theme.gold : (this.person.gender === '女' ? '#EFC9D5' : '#CFDCEA')
+      color: this.highlight ? Theme.gold : (this.person.gender === '女' ? Theme.femaleLine : Theme.maleLine)
     })
     // 兜底：卡片高度由谱式布局固定，任何一行都不允许画到卡片外
     .clip(true)
