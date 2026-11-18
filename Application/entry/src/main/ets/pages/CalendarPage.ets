@@ -2,23 +2,10 @@ import { T, uiFontFamily } from '../service/ScriptService';
 import { Theme, Spacing, Radius } from '../theme/Theme';
 import { PageNavBar } from '../components/PageNavBar';
 import {
-  cnNum1to99,
-  eraInfoOfSolarDate,
-  EraYearInfo,
-  formatDateConversion,
-  huangLiText,
-  HuangLi,
-  jdToDate,
-  julianDay,
-  lunarDateText,
-  lunarDayName,
-  lunarMonthName,
-  LunarDate,
-  LUNAR_MAX_YEAR,
-  LUNAR_MIN_YEAR,
-  solarToLunar,
-  SolarDate,
-  SolarTerms
+  cnNum1to99, eraInfoOfSolarDate, EraYearInfo, formatDateConversion,
+  huangLiText, HuangLi, jdToDate, julianDay, LunarConst, lunarDateText,
+  lunarDayName, lunarMonthName, LunarDate, LUNAR_MAX_YEAR,
+  LUNAR_MIN_YEAR, solarToLunar, SolarDate, SolarTerms
 } from 'common_dateutil';
 
 /** 周几简写（0 = 周日） */
@@ -29,6 +16,8 @@ const WEEK_FULL: string[] = ['星期日', '星期一', '星期二', '星期三',
 const CAL_MIN_YEAR: number = LUNAR_MIN_YEAR + 1;
 /** 月历最大公历年 */
 const CAL_MAX_YEAR: number = LUNAR_MAX_YEAR;
+/** 月份数字 1~12 */
+const MONTH_NUMBERS: number[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 /** 月历单元格 */
 interface DayCell {
@@ -71,10 +60,14 @@ struct CalendarPage {
   @State detailGanZhi: string = '';
   @State detailTerm: string = '';
   @State detailConvert: string = '';
+  /** 年月选择浮层是否展开 */
+  @State showPicker: boolean = false;
 
   private todayYear: number = 2024;
   private todayMonth: number = 1;
   private todayDay: number = 1;
+  /** 年份滚轮数据（936~2100） */
+  private yearRange: string[] = [];
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
@@ -95,12 +88,38 @@ struct CalendarPage {
       this.viewMonth = 1;
       this.selectedDay = 1;
     }
+    this.yearRange = this.buildYearRange();
     this.refresh();
   }
 
   private refresh(): void {
     this.weeks = this.buildWeeks();
     this.refreshDetail();
+  }
+
+  /** 年份滚轮数据：936~2100 */
+  private buildYearRange(): string[] {
+    const list: string[] = [];
+    for (let y: number = CAL_MIN_YEAR; y <= CAL_MAX_YEAR; y++) {
+      list.push(y.toString());
+    }
+    return list;
+  }
+
+  /**
+   * 指定日期是否为真正的节气日：是则返回节气名，否则返回空串。
+   * 用 termJulianDay 求各节气精确儒略日，落在当日 [正午-0.5, 正午+0.5) 区间即为节气当日。
+   * 与 SolarTerms.termName 的“所在节气段”口径不同——只有节气当日才返回非空。
+   */
+  private termNameAt(year: number, month: number, day: number): string {
+    const dateJd: number = julianDay(year, month, day);
+    for (let i: number = 0; i < 24; i++) {
+      const termJd: number = SolarTerms.termJulianDay(year, i);
+      if (termJd >= dateJd - 0.5 && termJd < dateJd + 0.5) {
+        return LunarConst.SOLAR_TERMS[i];
+      }
+    }
+    return '';
   }
 
   /** 造一个空白格（对齐当月 1 号前的空位与月末补位） */
@@ -112,7 +131,7 @@ struct CalendarPage {
   /** 造一个真实日期格 */
   private makeCell(day: number, weekday: number): DayCell {
     const lunar: LunarDate | null = solarToLunar(this.viewYear, this.viewMonth, day);
-    const term: string = SolarTerms.termName(this.viewYear, this.viewMonth, day);
+    const term: string = this.termNameAt(this.viewYear, this.viewMonth, day);
     let small: string = '';
     if (term.length > 0) {
       small = term;
@@ -187,7 +206,8 @@ struct CalendarPage {
 
     const hl: HuangLi = huangLiText(y, m, d, -1);
     this.detailGanZhi = hl.year + ' ' + hl.month + ' ' + hl.day;
-    this.detailTerm = hl.term.length > 0 ? hl.term : '—';
+    const termName: string = this.termNameAt(y, m, d);
+    this.detailTerm = termName.length > 0 ? termName : '—';
     const convert: string = formatDateConversion(y, m, d);
     this.detailConvert = convert.length > 0 ? convert : '—';
   }
@@ -231,6 +251,15 @@ struct CalendarPage {
     this.refreshDetail();
   }
 
+  /** 从年月选择器选定月份：切换到该月并关闭浮层 */
+  private selectMonth(m: number): void {
+    this.viewMonth = m;
+    this.selectedDay = (this.viewYear === this.todayYear && this.viewMonth === this.todayMonth) ?
+      this.todayDay : 1;
+    this.showPicker = false;
+    this.refresh();
+  }
+
   private canPrev(): boolean {
     return this.viewYear > CAL_MIN_YEAR || this.viewMonth > 1;
   }
@@ -270,24 +299,77 @@ struct CalendarPage {
     })
   }
 
+  /**
+   * 年月选择浮层：年份滚轮 + 月份网格。点击月份即选定并关闭；滚动年份实时联动下方月历。
+   * 由 build() 中的 Stack 承载，悬浮于顶部；点击浮层外部（半透明遮罩）关闭。
+   */
   @Builder
-  DetailRow(label: string, value: string) {
-    Row() {
-      Text(T(label)).fontFamily(uiFontFamily())
-        .fontSize(12)
-        .fontColor(Theme.inkTertiary)
-        .width(52)
-      Text(T(value)).fontFamily(uiFontFamily())
-        .fontSize(13)
-        .fontColor(Theme.ink)
-        .layoutWeight(1)
+  YearMonthPicker() {
+    Column() {
+      Row() {
+        Text(T('选择年月')).fontFamily(uiFontFamily())
+          .fontSize(14)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Theme.ink)
+          .layoutWeight(1)
+        Text('✕').fontFamily(uiFontFamily())
+          .fontSize(16)
+          .fontColor(Theme.inkTertiary)
+          .onClick((): void => {
+            this.showPicker = false;
+          })
+      }
+      .width('100%')
+      .height(44)
+      .padding({ left: Spacing.L, right: Spacing.L })
+      .border({ width: { bottom: 0.5 }, color: Theme.line })
+
+      TextPicker({ range: this.yearRange, selected: this.viewYear - CAL_MIN_YEAR })
+        .width('100%')
+        .height(120)
+        .onChange((value: string | string[], index: number | number[]): void => {
+          const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
+          this.viewYear = CAL_MIN_YEAR + idx;
+          this.selectedDay = (this.viewYear === this.todayYear && this.viewMonth === this.todayMonth) ?
+            this.todayDay : 1;
+          this.refresh();
+        })
+
+      Grid() {
+        ForEach(MONTH_NUMBERS, (m: number) => {
+          GridItem() {
+            Text(T(m.toString() + '月')).fontFamily(uiFontFamily())
+              .fontSize(14)
+              .fontWeight(this.viewMonth === m ? FontWeight.Bold : FontWeight.Normal)
+              .fontColor(this.viewMonth === m ? Theme.primary : Theme.ink)
+              .width('100%')
+              .height(40)
+              .textAlign(TextAlign.Center)
+              .backgroundColor(this.viewMonth === m ? Theme.highlightBg : Color.Transparent)
+              .borderRadius(Radius.S)
+              .onClick((): void => {
+                this.selectMonth(m);
+              })
+          }
+        }, (m: number) => 'm_' + m.toString())
+      }
+      .columnsTemplate('1fr 1fr 1fr 1fr')
+      .rowsTemplate('1fr 1fr 1fr')
+      .width('100%')
+      .height(132)
+      .padding({ left: Spacing.S, right: Spacing.S, top: Spacing.XS, bottom: Spacing.S })
     }
     .width('100%')
-    .alignItems(VerticalAlign.Top)
-    .padding({ top: 5, bottom: 5 })
+    .backgroundColor(Theme.card)
+    .borderRadius({ topLeft: Radius.L, topRight: Radius.L })
+    .border({ width: { bottom: 0.5 }, color: Theme.line })
+    .onClick((): void => {
+      // 拦截浮层内部点击，避免误关
+    })
   }
 
   build() {
+    Stack() {
     Column() {
       PageNavBar({
         title: T('万年历'),
@@ -314,10 +396,20 @@ struct CalendarPage {
                 this.goMonth(-1);
               })
             Column() {
-              Text(this.viewYear.toString() + ' 年 ' + this.viewMonth.toString() + ' 月').fontFamily(uiFontFamily())
-                .fontSize(17)
-                .fontWeight(FontWeight.Medium)
-                .fontColor(Theme.ink)
+              Row() {
+                Text(this.viewYear.toString() + ' 年 ' + this.viewMonth.toString() + ' 月').fontFamily(uiFontFamily())
+                  .fontSize(17)
+                  .fontWeight(FontWeight.Medium)
+                  .fontColor(Theme.ink)
+                Text(' ▼').fontFamily(uiFontFamily())
+                  .fontSize(11)
+                  .fontColor(Theme.inkTertiary)
+                  .margin({ left: 2 })
+              }
+              .alignItems(VerticalAlign.Center)
+              .onClick((): void => {
+                this.showPicker = !this.showPicker;
+              })
               Text(T(this.monthSummary())).fontFamily(uiFontFamily())
                 .fontSize(10.5)
                 .fontColor(Theme.inkTertiary)
@@ -380,17 +472,89 @@ struct CalendarPage {
               .fontColor(Theme.inkTertiary)
               .width('100%')
               .margin({ bottom: 4 })
-            this.DetailRow('公历', this.detailSolar)
+            Row() {
+              Text(T('公历')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkTertiary)
+                .width(52)
+              Text(T(this.detailSolar)).fontFamily(uiFontFamily())
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
+            .padding({ top: 5, bottom: 5 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.DetailRow('农历', this.detailLunar)
+            Row() {
+              Text(T('农历')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkTertiary)
+                .width(52)
+              Text(T(this.detailLunar)).fontFamily(uiFontFamily())
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
+            .padding({ top: 5, bottom: 5 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.DetailRow('干支', this.detailGanZhi)
+            Row() {
+              Text(T('干支')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkTertiary)
+                .width(52)
+              Text(T(this.detailGanZhi)).fontFamily(uiFontFamily())
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
+            .padding({ top: 5, bottom: 5 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.DetailRow('节气', this.detailTerm)
+            Row() {
+              Text(T('节气')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkTertiary)
+                .width(52)
+              Text(T(this.detailTerm)).fontFamily(uiFontFamily())
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
+            .padding({ top: 5, bottom: 5 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.DetailRow('年号', this.detailEra)
+            Row() {
+              Text(T('年号')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkTertiary)
+                .width(52)
+              Text(T(this.detailEra)).fontFamily(uiFontFamily())
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
+            .padding({ top: 5, bottom: 5 })
             Divider().color(Theme.line).strokeWidth(0.5)
-            this.DetailRow('旧历记法', this.detailConvert)
+            Row() {
+              Text(T('旧历记法')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkTertiary)
+                .width(52)
+              Text(T(this.detailConvert)).fontFamily(uiFontFamily())
+                .fontSize(13)
+                .fontColor(Theme.ink)
+                .layoutWeight(1)
+            }
+            .width('100%')
+            .alignItems(VerticalAlign.Top)
+            .padding({ top: 5, bottom: 5 })
           }
           .width('100%')
           .padding(Spacing.L)
@@ -416,6 +580,22 @@ struct CalendarPage {
       .layoutWeight(1)
       .width('100%')
       .scrollBar(BarState.Off)
+    }
+    .width('100%')
+    .height('100%')
+
+    if (this.showPicker) {
+      Column() {
+        this.YearMonthPicker()
+        Blank()
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor('rgba(0,0,0,0.35)')
+      .onClick((): void => {
+        this.showPicker = false;
+      })
+    }
     }
     .width('100%')
     .height('100%')
