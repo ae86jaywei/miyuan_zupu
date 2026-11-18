@@ -2,7 +2,7 @@
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from 'common_base';
+import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, normalizeSpouseRelations, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from 'common_base';
 import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { PersonNode } from 'common_base';
 import { GenerationStat, GenealogyStats } from 'common_base';
@@ -21,6 +21,7 @@ import { RelationGraph, RepairReport } from './RelationGraph';
 import { buildPersonPatch } from 'common_base';
 import { DatabaseSchema, TABLE_BOOK, TABLE_META, TABLE_PERSON, TABLE_SPOUSE } from './db/DatabaseSchema';
 import { PersonRowMapper } from './db/PersonRowMapper';
+import { BookRowMapper } from './BookRowMapper';
 
 const TAG: string = '[Genealogy][Service]';
 const DB_NAME: string = 'genealogy.db';
@@ -737,7 +738,7 @@ export class GenealogyService {
     person.uid = person.uid.trim().toUpperCase();
     person.createdAt = Date.now();
     person.updatedAt = person.createdAt;
-    this.normalizeSpouses(person);
+    normalizeSpouseRelations(person);
     await this.upsertRow(person);
     await this.saveSpouses(person.uid, person.spouses);
     this.applySavedPerson(person, '');
@@ -753,7 +754,7 @@ export class GenealogyService {
     const person: Person = clonePerson(p);
     person.uid = person.uid.trim().toUpperCase();
     person.updatedAt = Date.now();
-    this.normalizeSpouses(person);
+    normalizeSpouseRelations(person);
     const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
     const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_PERSON);
     if (originalUid !== person.uid) {
@@ -1006,7 +1007,7 @@ export class GenealogyService {
     for (let i: number = 0; i < list.length; i++) {
       const p: Person = clonePerson(list[i]);
       p.uid = p.uid.trim().toUpperCase();
-      this.normalizeSpouses(p);
+      normalizeSpouseRelations(p);
       if (p.uid.length === 0) {
         // 导入文件缺少唯一ID时补一个未使用的编号，避免空ID无法建立亲属关系
         p.uid = this.nextUid(p.gender, batchUsed);
@@ -1123,7 +1124,7 @@ export class GenealogyService {
       for (let i: number = 0; i < total; i++) {
         const p: Person = clonePerson(plan.people[i]);
         p.uid = p.uid.trim().toUpperCase();
-        this.normalizeSpouses(p);
+        normalizeSpouseRelations(p);
         const exist: Person | undefined = this.peopleMap.get(p.uid);
         if (exist !== undefined) {
           p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
@@ -1242,7 +1243,7 @@ export class GenealogyService {
     for (let i: number = 0; i < list.length; i++) {
       const p: Person = clonePerson(list[i]);
       p.uid = p.uid.trim().toUpperCase();
-      this.normalizeSpouses(p);
+      normalizeSpouseRelations(p);
       await this.upsertRow(p);
       await this.saveSpouses(p.uid, p.spouses);
     }
@@ -1486,7 +1487,7 @@ export class GenealogyService {
           !spouseSet.has(p.spouseId.trim().toUpperCase())) {
           p.spouseId = '';
         }
-        this.normalizeSpouses(p);
+        normalizeSpouseRelations(p);
         p.createdAt = now;
         p.updatedAt = now;
         personBatch.push(PersonRowMapper.toValues(p, rowId));
@@ -1538,7 +1539,7 @@ export class GenealogyService {
         if (!picked.has(p.spouseId.trim().toUpperCase())) {
           p.spouseId = '';
         }
-        this.normalizeSpouses(p);
+        normalizeSpouseRelations(p);
         p.createdAt = now;
         p.updatedAt = now;
         personBatch.push(PersonRowMapper.toValues(p, rowId));
@@ -1817,7 +1818,7 @@ export class GenealogyService {
         const p: Person = clonePerson(group.people[j]);
         p.key = 0;
         p.uid = p.uid.trim().toUpperCase();
-        this.normalizeSpouses(p);
+        normalizeSpouseRelations(p);
         await this.upsertRow(p, rowId);
         await this.saveSpouses(p.uid, p.spouses, rowId);
         restored++;
@@ -1867,43 +1868,6 @@ export class GenealogyService {
     }
     const rowId: number = await store.insert(TABLE_PERSON, values);
     p.key = rowId;
-  }
-
-  /**
-   * 归一化配偶关系：去空值 / 去重 / 去本人，补齐名分与次序，
-   * 并把 spouseId 同步为主配偶（spouses[0]）。
-   */
-  private normalizeSpouses(p: Person): void {
-    const list: SpouseRelation[] = [];
-    const seen: Set<string> = new Set<string>();
-    const self: string = p.uid.trim().toUpperCase();
-    p.spouses.forEach((r: SpouseRelation): void => {
-      const id: string = r.uid.trim().toUpperCase();
-      if (id.length === 0 || id === self || seen.has(id)) {
-        return;
-      }
-      seen.add(id);
-      const nr: SpouseRelation = new SpouseRelation();
-      nr.uid = id;
-      const rawRel: string = r.relation.trim();
-      // 历史数据可能把等级写进称谓（如“夫（侧室）”），保存时统一回“夫”
-      nr.relation = rawRel.length > 0 ? normalizeSpouseRelation(rawRel) :
-        (p.gender === '女' ? '夫' : '未记');
-      nr.level = spouseRelationLevel(nr.relation);
-      nr.order = list.length + 1;
-      list.push(nr);
-    });
-    const legacy: string = p.spouseId.trim().toUpperCase();
-    if (list.length === 0 && legacy.length > 0 && legacy !== self) {
-      const nr: SpouseRelation = new SpouseRelation();
-      nr.uid = legacy;
-      nr.relation = p.gender === '女' ? '夫' : '元配';
-      nr.level = spouseRelationLevel(nr.relation);
-      nr.order = 1;
-      list.push(nr);
-    }
-    p.spouses = list;
-    p.spouseId = list.length > 0 ? list[0].uid : '';
   }
 
   /**
@@ -2172,7 +2136,7 @@ export class GenealogyService {
     const bookRs: relationalStore.ResultSet = await store.querySql(`SELECT * FROM ${TABLE_BOOK} ORDER BY id`);
     try {
       while (bookRs.goToNextRow()) {
-        books.push(this.rowToBook(bookRs));
+        books.push(BookRowMapper.fromRow(bookRs));
       }
     } finally {
       bookRs.close();
@@ -2262,39 +2226,6 @@ export class GenealogyService {
     // 切换/加载族谱后同步协作态（familyId / 角色 / 同步模式）
     FamilyService.getInstance().applyBookFamilyState();
     this.bump();
-  }
-
-  /** 读取数据库中的族谱行 */
-  private rowToBook(rs: relationalStore.ResultSet): Genealogy {
-    const b: Genealogy = createEmptyGenealogy();
-    b.key = rs.getLong(rs.getColumnIndex('id'));
-    b.title = rs.getString(rs.getColumnIndex('title'));
-    b.surname = rs.getString(rs.getColumnIndex('surname'));
-    b.hallName = rs.getString(rs.getColumnIndex('hall_name'));
-    b.junwang = rs.getString(rs.getColumnIndex('junwang'));
-    b.ancestorName = rs.getString(rs.getColumnIndex('ancestor_name'));
-    b.generationPoem = rs.getString(rs.getColumnIndex('generation_poem'));
-    b.preface = rs.getString(rs.getColumnIndex('preface'));
-    b.familyRules = rs.getString(rs.getColumnIndex('family_rules'));
-    b.editingNotes = rs.getString(rs.getColumnIndex('editing_notes'));
-    b.coverColor = rs.getString(rs.getColumnIndex('cover_color'));
-    b.coverPattern = rs.getString(rs.getColumnIndex('cover_pattern'));
-    b.parentBookId = rs.getLong(rs.getColumnIndex('parent_book_id'));
-    const rootUid: string = rs.getString(rs.getColumnIndex('branch_root_uid'));
-    b.branchRootUid = rootUid === null ? '' : rootUid;
-    b.parentBookTitle = readBookText(rs, 'parent_book_title');
-    const parentGenCol: number = rs.getColumnIndex('parent_generation');
-    b.parentGeneration = parentGenCol >= 0 ? rs.getLong(parentGenCol) : 0;
-    b.parentUid = readBookText(rs, 'parent_uid');
-    b.parentName = readBookText(rs, 'parent_name');
-    b.familyId = readBookText(rs, 'family_id');
-    b.syncMode = readBookText(rs, 'sync_mode');
-    b.familyRole = readBookText(rs, 'family_role');
-    const cloudRevCol: number = rs.getColumnIndex('cloud_rev');
-    b.cloudRev = cloudRevCol >= 0 ? rs.getLong(cloudRevCol) : 0;
-    b.createdAt = rs.getLong(rs.getColumnIndex('created_at'));
-    b.updatedAt = rs.getLong(rs.getColumnIndex('updated_at'));
-    return b;
   }
 
   /** 读取指定族谱的人物行（墓碑 deleted_at > 0 的不返回） */
@@ -2496,7 +2427,7 @@ export class GenealogyService {
     for (let i: number = 0; i < people.length; i++) {
       const p: Person = clonePerson(people[i]);
       p.uid = p.uid.trim().toUpperCase();
-      this.normalizeSpouses(p);
+      normalizeSpouseRelations(p);
       await this.upsertRow(p, this.currentBookId);
       await this.saveSpouses(p.uid, p.spouses, this.currentBookId);
     }
@@ -2586,7 +2517,7 @@ export class GenealogyService {
       p.key = exist.key;
       p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
     }
-    this.normalizeSpouses(p);
+    normalizeSpouseRelations(p);
     await this.upsertRow(p, bookId);
     await this.saveSpouses(p.uid, p.spouses, bookId);
     await this.store.executeSql(
@@ -2647,16 +2578,6 @@ export class GenealogyService {
       hilog.warn(0x0000, TAG, 'notify cloud change failed: %{public}s', JSON.stringify(err));
     }
   }
-}
-
-/** 读取可能不存在的文本列 */
-function readBookText(rs: relationalStore.ResultSet, column: string): string {
-  const idx: number = rs.getColumnIndex(column);
-  if (idx < 0) {
-    return '';
-  }
-  const v: string = rs.getString(idx);
-  return v === null || v === undefined ? '' : v;
 }
 
 /** 读取可能不存在的数字列 */

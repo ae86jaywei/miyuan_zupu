@@ -14,6 +14,7 @@ export * from './src/main/ets/model/Integrity';
 export * from './src/main/ets/model/Person';
 export * from './src/main/ets/model/PersonNode';
 export * from './src/main/ets/model/Scope';
+export * from './src/main/ets/model/SpouseRules';
 export * from './src/main/ets/model/Stats';
 export * from './src/main/ets/model/TimerSession';
 export * from './src/main/ets/util/DeviceUtil';
