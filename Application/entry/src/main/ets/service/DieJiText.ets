@@ -1095,7 +1095,8 @@ export class DieJiText {
     const young: boolean = dead && age >= 0 && age <= 15 && p.spouses.length === 0 &&
       idx.childrenOf(p.uid).length === 0;
     const s: string[] = [];
-    s.push(DieJiText.headSentence(p, idx, opts));
+    // 世代已由屏幕卡片 / Markdown 章节 / PDF 小标题独立承载，正文姓名前不再重复「X世」
+    s.push(DieJiText.headSentence(p, idx, opts, false));
     const adopt: string = DieJiText.adoptionSentence(p, idx);
     if (adopt.length > 0) {
       s.push(adopt);
