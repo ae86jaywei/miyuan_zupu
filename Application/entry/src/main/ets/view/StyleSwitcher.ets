@@ -25,12 +25,12 @@ export struct StyleSwitcher {
             Text(T(meta.name)).fontFamily(uiFontFamily())
               .fontSize(this.windowWidth < Breakpoint.SM ? 11.5 : 14)
               .fontWeight(this.current === meta.key ? FontWeight.Bold : FontWeight.Normal)
-              .fontColor(this.current === meta.key ? '#FFFFFF' : Theme.inkSecondary)
+              .fontColor(this.current === meta.key ? Theme.onPrimary : Theme.inkSecondary)
               .maxLines(1)
             if (this.showDesc()) {
               Text(T(meta.subtitle)).fontFamily(uiFontFamily())
                 .fontSize(9.5)
-                .fontColor(this.current === meta.key ? '#F3DDB0' : Theme.inkTertiary)
+                .fontColor(this.current === meta.key ? Theme.onGoldSoft : Theme.inkTertiary)
                 .margin({ top: 1 })
                 .maxLines(1)
             }

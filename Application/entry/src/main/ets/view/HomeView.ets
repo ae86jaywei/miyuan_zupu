@@ -118,7 +118,7 @@ export struct HomeView {
           Text(T((this.book().ancestorName.length > 0 ? '始迁祖 ' + this.book().ancestorName + ' 公' : '') +
             ' · 历 ' + this.statsView.maxGeneration.toString() + ' 世')).fontFamily(uiFontFamily())
             .fontSize(12)
-            .fontColor('#E9D6B4')
+            .fontColor(Theme.onGoldSoft)
             .margin({ top: 4 })
         }
         .alignItems(HorizontalAlign.Start)
@@ -132,7 +132,7 @@ export struct HomeView {
     // 高度交给内容撑开：族谱信息行数变化（无字派/无始迁祖）时自动伸缩，
     // 下方统计卡片跟随上下移动，避免固定高度留下大片空白。
     // 渐变直接挂在外层，避免 100% 高度的背景子节点把卡片撑满整页。
-    .linearGradient({ angle: 135, colors: [[this.book().coverColor, 0.0], ['#5A1C10', 1.0]] })
+    .linearGradient({ angle: 135, colors: [[this.book().coverColor, 0.0], [Theme.coverDeep, 1.0]] })
     .borderRadius(Radius.XL)
     .clip(true)
     .shadow({ radius: 16, color: 'rgba(90,28,16,0.25)', offsetY: 6 })
@@ -189,7 +189,7 @@ export struct HomeView {
               .borderRadius(8)
               .linearGradient({ angle: 90, colors: [[Theme.gold, 0.0], [Theme.primary, 1.0]] })
             Row() {
-              Text(T(g.total.toString() + ' 人')).fontFamily(uiFontFamily()).fontSize(10).fontColor('#FFFFFF').margin({ left: 6 })
+              Text(T(g.total.toString() + ' 人')).fontFamily(uiFontFamily()).fontSize(10).fontColor(Theme.onPrimary).margin({ left: 6 })
             }
             .width('100%')
             .height(16)

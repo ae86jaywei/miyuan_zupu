@@ -126,7 +126,7 @@ export struct CatalogView {
 
         Text(T('＋ 新增')).fontFamily(uiFontFamily())
           .fontSize(13)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .backgroundColor(Theme.primary)
           .borderRadius(18)
           .padding({ left: 14, right: 14, top: 8, bottom: 8 })
@@ -177,7 +177,7 @@ export struct CatalogView {
   FilterChip(label: string, active: boolean, action: () => void) {
     Text(T(label)).fontFamily(uiFontFamily())
       .fontSize(12)
-      .fontColor(active ? '#FFFFFF' : Theme.inkSecondary)
+      .fontColor(active ? Theme.onPrimary : Theme.inkSecondary)
       .backgroundColor(active ? Theme.primary : Theme.field)
       .borderRadius(14)
       .padding({ left: 10, right: 10, top: 4, bottom: 4 })

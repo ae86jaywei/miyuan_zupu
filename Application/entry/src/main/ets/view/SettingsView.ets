@@ -368,7 +368,7 @@ export struct SettingsView {
             .fontSize(13)
             .height(34)
             .backgroundColor(Theme.primary)
-            .fontColor('#FFFFFF')
+            .fontColor(Theme.onPrimary)
             .margin({ top: Spacing.M })
             .onClick((): void => {
               this.createBook();
@@ -807,7 +807,7 @@ struct DeleteGenealogyDialog {
           })
         Button(T('确认删除')).fontFamily(uiFontFamily())
           .backgroundColor(Theme.danger)
-          .fontColor('#FFFFFF')
+          .fontColor(Theme.onPrimary)
           .layoutWeight(1)
           .height(38)
           .margin({ left: Spacing.S })

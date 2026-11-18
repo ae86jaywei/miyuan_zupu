@@ -170,6 +170,16 @@ export class Theme {
     return '#33000000';
   }
 
+  /** 深色封面渐变终点 */
+  static get coverDeep(): string {
+    return '#5A1C10';
+  }
+
+  /** 主色 / 封面深底上的浅金文字 */
+  static get onGoldSoft(): string {
+    return '#F3DDB0';
+  }
+
   // ---------------------------------------------------------------- 沉浸光感材质
   /** 悬浮导航 / 顶栏的半透明材质底色（配合背景模糊使用） */
   static get glass(): string {
