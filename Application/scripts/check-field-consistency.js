@@ -81,11 +81,38 @@ const extraLabels = unique(indexOfAll(registry, /EXTRA_LABELS\.set\('([A-Za-z]+)
 const missingLabel = patchKeys.filter((k) => !metaKeys.includes(k) && !extraLabels.includes(k));
 if (missingLabel.length) problems.push('补丁字段缺中文名: ' + missingLabel.join(', '));
 
+// 5. 云函数白名单 → 注册表（避免本地加字段、云侧漏字段导致补丁被丢弃）
+const cloudPatchPath = path.join(__dirname, '..', '..', 'CloudProgram', 'cloudfunctions', '_shared', 'patch.js');
+let cloudKeyCount = 0;
+if (fs.existsSync(cloudPatchPath)) {
+  const cloud = fs.readFileSync(cloudPatchPath, 'utf8');
+  const cloudBlock = cloud.match(/PATCHABLE_FIELDS = \[([\s\S]*?)\];/);
+  if (cloudBlock) {
+    const cloudKeys = unique(indexOfAll(cloudBlock[1], /'([A-Za-z]+)'/g));
+    cloudKeyCount = cloudKeys.length;
+    const missingCloud = patchKeys.filter((k) => !cloudKeys.includes(k));
+    if (missingCloud.length) problems.push('云函数白名单缺字段: ' + missingCloud.join(', '));
+  } else {
+    problems.push('云函数 patch.js 未找到 PATCHABLE_FIELDS');
+  }
+  const labelBlock = cloud.match(/FIELD_LABELS = \{([\s\S]*?)\};/);
+  if (labelBlock) {
+    const cloudLabels = unique(indexOfAll(labelBlock[1], /([A-Za-z]+):\s*'/g));
+    const missingCloudLabel = patchKeys.filter((k) => !cloudLabels.includes(k));
+    if (missingCloudLabel.length) problems.push('云函数缺字段中文名: ' + missingCloudLabel.join(', '));
+  } else {
+    problems.push('云函数 patch.js 未找到 FIELD_LABELS');
+  }
+} else {
+  problems.push('未找到云函数 patch.js: ' + cloudPatchPath);
+}
+
 console.log('字段统计:');
 console.log('  FIELD_METAS      ', metaKeys.length);
 console.log('  补丁字段         ', patchKeys.length);
 console.log('  SQLite 列        ', dbKeys.length, '(建表', ddlCols.length + ')');
 console.log('  CSV 列           ', csvCols.length);
+console.log('  云函数白名单     ', cloudKeyCount);
 console.log('');
 
 if (problems.length === 0) {
