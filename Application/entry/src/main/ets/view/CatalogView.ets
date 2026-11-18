@@ -2,10 +2,9 @@
 import { Person } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from 'common_base';
-import { PersonAvatar } from 'common_ui';
 import { EmptyHint } from 'common_ui';
 import { generationLabel } from 'common_base';
-import { lifeSpan } from 'common_dateutil';
+import { CatalogPersonRow } from './CatalogPersonRow';
 import { Breakpoint } from 'common_base';
 import { RouterUtil } from 'common_base';
 import { FlatListSource } from 'common_base';
@@ -39,6 +38,8 @@ export struct CatalogView {
   private filterCacheKey: string = '';
   private generationVersion: number = -1;
   private resettingFilters: boolean = false;
+  /** 上一次高亮的行：选中变化时只刷新这两行 */
+  private lastSelectedUid: string = '';
 
   aboutToAppear(): void {
     this.refreshFiltered();
@@ -51,7 +52,28 @@ export struct CatalogView {
   }
 
   onSelectionChanged(): void {
-    this.listSource.setData(this.filteredCache);
+    const prev: string = this.lastSelectedUid;
+    this.lastSelectedUid = this.selectedUid;
+    const oldIndex: number = this.indexOfUid(prev);
+    const newIndex: number = this.indexOfUid(this.selectedUid);
+    if (oldIndex >= 0) {
+      this.listSource.notifyItemChanged(oldIndex);
+    }
+    if (newIndex >= 0 && newIndex !== oldIndex) {
+      this.listSource.notifyItemChanged(newIndex);
+    }
+  }
+
+  private indexOfUid(uid: string): number {
+    if (uid.length === 0) {
+      return -1;
+    }
+    for (let i: number = 0; i < this.filteredCache.length; i = i + 1) {
+      if (this.filteredCache[i].uid === uid) {
+        return i;
+      }
+    }
+    return -1;
   }
 
   private svc(): GenealogyService {
@@ -92,6 +114,7 @@ export struct CatalogView {
   private refreshFiltered(): void {
     const list: Person[] = this.filtered();
     this.filteredCount = list.length;
+    this.lastSelectedUid = this.selectedUid;
     this.listSource.setData(list);
     if (this.generationVersion !== this.version) {
       const set: Set<number> = new Set<number>();
@@ -187,63 +210,6 @@ export struct CatalogView {
       })
   }
 
-  @Builder
-  PersonRow(p: Person, showArrow: boolean) {
-    Row() {
-      PersonAvatar({ person: p, avatarSize: this.isWide() ? 40 : 38, showRing: false })
-      Column() {
-        Row() {
-          Text(T(p.name)).fontFamily(uiFontFamily())
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor(p.gender === '女' ? Theme.female : Theme.ink)
-          if (p.rank.length > 0) {
-            Text(T(p.rank)).fontFamily(uiFontFamily())
-              .fontSize(10)
-              .fontColor(Theme.gold)
-              .margin({ left: 4 })
-          }
-          if (p.lifeStatus === '已故') {
-            Text(T('已故')).fontFamily(uiFontFamily()).fontSize(9).fontColor(Theme.deceased).margin({ left: 4 })
-          }
-        }
-        Row() {
-          Text(T(p.uid + ' · ' + generationLabel(p.generation)
-            + (p.generationChar.length > 0 ? ' · ' + p.generationChar + '字' : ''))).fontFamily(uiFontFamily())
-            .fontSize(10.5)
-            .fontColor(Theme.inkTertiary)
-        }
-        .margin({ top: 2 })
-        if (this.isWide() && (p.occupation.length > 0 || p.birthPlace.length > 0)) {
-          Text(T(lifeSpan(p.birthDate, p.deathDate, p.lifeStatus)
-            + (p.occupation.length > 0 ? ' · ' + p.occupation : ''))).fontFamily(uiFontFamily())
-            .fontSize(11)
-            .fontColor(Theme.inkSecondary)
-            .maxLines(1)
-            .textOverflow({ overflow: TextOverflow.Ellipsis })
-            .margin({ top: 2 })
-        }
-      }
-      .alignItems(HorizontalAlign.Start)
-      .layoutWeight(1)
-      .margin({ left: Spacing.M })
-
-      if (showArrow) {
-        Text(T(this.selectedUid === p.uid ? '●' : '›')).fontFamily(uiFontFamily())
-          .fontSize(this.selectedUid === p.uid ? 12 : 18)
-          .fontColor(this.selectedUid === p.uid ? Theme.primary : Theme.inkTertiary)
-      }
-    }
-    .width('100%')
-    .padding({ top: 10, bottom: 10, left: 4, right: 4 })
-    .backgroundColor(this.selectedUid === p.uid ? Theme.highlightBg : Color.Transparent)
-    .borderRadius(8)
-    .onClick((): void => {
-      this.selectedUid = p.uid;
-      this.onOpenPerson(p.uid);
-    })
-  }
-
   build() {
     Column() {
       this.FilterBar()
@@ -272,9 +238,19 @@ export struct CatalogView {
         List({ space: 2 }) {
           LazyForEach(this.listSource, (p: Person) => {
             ListItem() {
-              this.PersonRow(p, !this.isMasterDetail)
+              CatalogPersonRow({
+                person: p,
+                selected: this.selectedUid === p.uid,
+                showArrow: !this.isMasterDetail,
+                wide: this.isWide(),
+                onOpen: (uid: string): void => {
+                  this.selectedUid = uid;
+                  this.onOpenPerson(uid);
+                }
+              })
             }
-          }, (p: Person) => 'cat_' + this.selectedUid + '_' + p.uid + p.updatedAt.toString())
+          }, (p: Person) => 'cat_' + p.uid + '_' + p.updatedAt.toString()
+            + (this.selectedUid === p.uid ? '_sel' : ''))
         }
         .layoutWeight(1)
         .width('100%')

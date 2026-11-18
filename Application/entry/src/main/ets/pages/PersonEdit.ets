@@ -45,6 +45,9 @@ struct PersonEdit {
   @State saving: boolean = false;
   /** 进入页面时的表单快照：返回时据此判断是否有未保存修改 */
   private baseline: string = '';
+  /** 姻亲判定缓存：build 每次重绘都要用，避免按配偶反复查人 */
+  private natalKey: string = '';
+  private natalValue: boolean = false;
 
   // 字段状态
   @State fGeneration: number = 1;
@@ -245,20 +248,30 @@ struct PersonEdit {
    * 姻亲的「排行」表示娘家排行，不能写死「第一世（始祖）」。
    */
   private isNatalOutsider(): boolean {
-    if (this.fFatherId.trim().length > 0) {
-      return false;
-    }
+    let key: string = this.fFatherId.trim().toUpperCase();
     for (let i: number = 0; i < this.fSpouses.length; i++) {
-      const id: string = this.fSpouses[i].uid.trim().toUpperCase();
-      if (id.length === 0) {
-        continue;
-      }
-      const sp: Person | null = this.svc().getPerson(id);
-      if (sp !== null && sp.fatherId.trim().length > 0) {
-        return true;
+      key = key + '|' + this.fSpouses[i].uid.trim().toUpperCase();
+    }
+    if (key === this.natalKey) {
+      return this.natalValue;
+    }
+    let result: boolean = false;
+    if (this.fFatherId.trim().length === 0) {
+      for (let i: number = 0; i < this.fSpouses.length; i++) {
+        const id: string = this.fSpouses[i].uid.trim().toUpperCase();
+        if (id.length === 0) {
+          continue;
+        }
+        const sp: Person | null = this.svc().getPerson(id);
+        if (sp !== null && sp.fatherId.trim().length > 0) {
+          result = true;
+          break;
+        }
       }
     }
-    return false;
+    this.natalKey = key;
+    this.natalValue = result;
+    return result;
   }
 
   /** 娘家排行候选：按性别只留子/女排行，去掉随母子/随母女 */
