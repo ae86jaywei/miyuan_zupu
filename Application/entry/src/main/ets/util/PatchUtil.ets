@@ -69,7 +69,8 @@ function makeChange(b: Object | null, a: Object): FieldChange {
 
 /** 文本字段（与云侧 PATCHABLE_FIELDS 保持一致） */
 const TEXT_FIELDS: string[] = ['uid', 'name', 'courtesyName', 'artName', 'alias', 'gender', 'generationChar', 'lifeStatus', 'childStatus',
-  'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'fatherName', 'motherId', 'motherName',
+  'birthDate', 'birthCalendar', 'deathDate', 'deathCalendar', 'birthPlace', 'residence', 'fatherId', 'fatherName', 'fatherLifeStatus',
+  'motherId', 'motherName', 'motherLifeStatus',
   'spouseId', 'rank', 'adoption', 'education', 'occupation', 'biography', 'graveInfo', 'phone', 'wechat',
   'avatar', 'videos', 'photos'];
 
@@ -95,8 +96,10 @@ function textOf(p: Person, key: string): string {
     case 'residence': return p.residence;
     case 'fatherId': return p.fatherId;
     case 'fatherName': return p.fatherName;
+    case 'fatherLifeStatus': return p.fatherLifeStatus;
     case 'motherId': return p.motherId;
     case 'motherName': return p.motherName;
+    case 'motherLifeStatus': return p.motherLifeStatus;
     case 'spouseId': return p.spouseId;
     case 'rank': return p.rank;
     case 'adoption': return p.adoption;
@@ -162,8 +165,10 @@ export function fieldLabel(key: string): string {
     case 'residence': return '现居地';
     case 'fatherId': return '父亲ID';
     case 'fatherName': return '父名（未收录）';
+    case 'fatherLifeStatus': return '父名在世状态';
     case 'motherId': return '母亲ID';
     case 'motherName': return '母名（未收录）';
+    case 'motherLifeStatus': return '母名在世状态';
     case 'spouses': return '配偶';
     case 'rank': return '排行';
     case 'adoption': return '过继/出嗣';

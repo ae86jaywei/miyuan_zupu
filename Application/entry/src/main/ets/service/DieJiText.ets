@@ -813,34 +813,71 @@ export class DieJiText {
     return lost ? base + '享年未知，为' + p.lifeStatus + '。' : base;
   }
 
+  /** 娘家排行：长女/次女/三女；无有效排行时返回空串（仍写“之女”） */
+  private static natalOrdinal(p: Person): string {
+    const rank: string = p.rank.trim();
+    if (rank.length === 0 || rank === '第一世（始祖）') {
+      return '';
+    }
+    if (rank === '独女' || rank === '独子') {
+      return rank;
+    }
+    const n: number = rankIndex(rank);
+    if (n > 0) {
+      return (n === 1 ? '长' : n === 2 ? '次' : cnNum(n)) + '女';
+    }
+    return rank;
+  }
+
+  /** 父名尊称：在世“吴忠伟”，已故“吴公忠伟”（姓 + 公 + 名） */
+  private static parentDisplay(name: string, dead: boolean): string {
+    const n: string = name.trim();
+    if (n.length === 0) {
+      return '';
+    }
+    if (!dead) {
+      return n;
+    }
+    const s: string = surnameOf(n);
+    const given: string = givenNameOf(n);
+    if (s.length > 0 && given.length > 0) {
+      return s + '公' + given;
+    }
+    return n + '公';
+  }
+
   /** 妻子父母称谓：优先已录入的父亲，其次自定义父名；再其次母亲 */
   private static parentClause(sp: Person, idx: DieJiIndex): string {
+    const ordinal: string = DieJiText.natalOrdinal(sp);
+    const suffix: string = ordinal.length > 0 ? '之' + ordinal : '之女';
     const father: Person | null = idx.person(sp.fatherId);
     if (father !== null && father.name.trim().length > 0) {
-      return father.name.trim() + (DieJiText.isDead(father) ? '公' : '') + '之女';
+      return DieJiText.parentDisplay(father.name, DieJiText.isDead(father)) + suffix;
     }
     if (sp.fatherName.trim().length > 0) {
-      return sp.fatherName.trim() + '之女';
+      const dead: boolean = sp.fatherLifeStatus === '已故';
+      return DieJiText.parentDisplay(sp.fatherName, dead) + suffix;
     }
     const mother: Person | null = idx.person(sp.motherId);
     if (mother !== null && mother.name.trim().length > 0) {
-      return DieJiText.motherClause(mother.name);
+      return DieJiText.motherClause(mother.name, ordinal);
     }
     if (sp.motherName.trim().length > 0) {
-      return DieJiText.motherClause(sp.motherName);
+      return DieJiText.motherClause(sp.motherName, ordinal);
     }
     return '';
   }
 
-  /** 岳母：王秀兰→王氏讳秀兰之女；王氏/王→王氏之女 */
-  private static motherClause(name: string): string {
+  /** 岳母：王秀兰→王氏讳秀兰之长女；王氏/王→王氏之女 */
+  private static motherClause(name: string, ordinal: string = ''): string {
     const n: string = name.trim();
     const s: string = surnameOf(n);
     if (s.length === 0) {
       return '';
     }
-    let given: string = givenNameOf(n);
-    return given.length > 0 ? s + '氏讳' + given + '之女' : s + '氏之女';
+    const given: string = givenNameOf(n);
+    const title: string = given.length > 0 ? s + '氏讳' + given : s + '氏';
+    return title + (ordinal.length > 0 ? '之' + ordinal : '之女');
   }
 
   /** 配偶句：配李氏，本邑李德顺之女。不写配偶生卒，也不加「孺人」。 */

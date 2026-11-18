@@ -427,8 +427,10 @@ export class FamilySyncService {
     p.residence = str(src, 'residence');
     p.fatherId = str(src, 'fatherId');
     p.fatherName = str(src, 'fatherName');
+    p.fatherLifeStatus = str(src, 'fatherLifeStatus');
     p.motherId = str(src, 'motherId');
     p.motherName = str(src, 'motherName');
+    p.motherLifeStatus = str(src, 'motherLifeStatus');
     p.spouseId = str(src, 'spouseId');
     p.rank = str(src, 'rank');
     p.adoption = str(src, 'adoption');

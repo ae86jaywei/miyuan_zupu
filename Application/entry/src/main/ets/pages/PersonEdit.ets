@@ -468,8 +468,11 @@ struct PersonEdit {
   @State fResidence: string = '';
   @State fFatherId: string = '';
   @State fFatherName: string = '';
+  /** 父名（未收录）在世状态：已故者牒记称「吴公忠伟」 */
+  @State fFatherLifeStatus: string = '在世';
   @State fMotherId: string = '';
   @State fMotherName: string = '';
+  @State fMotherLifeStatus: string = '在世';
   /** 配偶关系（可多位：元配 / 继室 / 妾） */
   @State fSpouses: SpouseRelation[] = [];
   @State fRank: string = '';
@@ -630,11 +633,55 @@ struct PersonEdit {
   }
 
   /**
-   * 加载排行：第一世固定“始祖”；排行只允许子/女排行。
+   * 是否为姻亲（娶回来的妻妾 / 入赘）：本人没有本族父亲，但配偶是本族子女。
+   * 姻亲的「排行」表示娘家排行，不能写死「第一世（始祖）」。
+   */
+  private isNatalOutsider(): boolean {
+    if (this.fFatherId.trim().length > 0) {
+      return false;
+    }
+    for (let i: number = 0; i < this.fSpouses.length; i++) {
+      const id: string = this.fSpouses[i].uid.trim().toUpperCase();
+      if (id.length === 0) {
+        continue;
+      }
+      const sp: Person | null = this.svc().getPerson(id);
+      if (sp !== null && sp.fatherId.trim().length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 娘家排行候选：按性别只留子/女排行，去掉随母子/随母女 */
+  private natalRankOptions(): string[] {
+    const list: string[] = [];
+    for (let i: number = 0; i < RANK_OPTIONS.length; i++) {
+      const r: string = RANK_OPTIONS[i];
+      if (r === '随母子' || r === '随母女') {
+        continue;
+      }
+      if (this.fGender === '女' && r.indexOf('子') >= 0) {
+        continue;
+      }
+      if (this.fGender === '男' && r.indexOf('女') >= 0) {
+        continue;
+      }
+      list.push(r);
+    }
+    return list;
+  }
+
+  /**
+   * 加载排行：姻亲用娘家排行；本族第一世固定“始祖”；排行只允许子/女排行。
    * 历史数据把“正妻/侧室”等名分误写进排行（女性尤其常见）时直接清空：
    * 身份与排行不是一个意思，只有用户手动选择排行才保留。
    */
   private normalizeRank(p: Person): string {
+    if (this.isNatalOutsider()) {
+      const natal: string = p.rank.trim();
+      return natal.length > 0 && natal !== ANCESTOR_RANK ? natal : '';
+    }
     if (p.generation === 1) {
       return ANCESTOR_RANK;
     }
@@ -671,8 +718,10 @@ struct PersonEdit {
     this.fResidence = p.residence;
     this.fFatherId = p.fatherId;
     this.fFatherName = p.fatherName;
+    this.fFatherLifeStatus = p.fatherLifeStatus.length > 0 ? p.fatherLifeStatus : '在世';
     this.fMotherId = p.motherId;
     this.fMotherName = p.motherName;
+    this.fMotherLifeStatus = p.motherLifeStatus.length > 0 ? p.motherLifeStatus : '在世';
     this.fSpouses = p.spouses.map((r: SpouseRelation): SpouseRelation => {
       const c: SpouseRelation = cloneSpouseRelation(r);
       // 历史数据可能把等级写进称谓（如“夫（侧室）”），统一回“夫”，
@@ -729,8 +778,10 @@ struct PersonEdit {
     p.residence = this.fResidence;
     p.fatherId = this.fFatherId;
     p.fatherName = this.fFatherName.trim();
+    p.fatherLifeStatus = this.fFatherLifeStatus;
     p.motherId = this.fMotherId;
     p.motherName = this.fMotherName.trim();
+    p.motherLifeStatus = this.fMotherLifeStatus;
     p.spouses = this.buildSpouses();
     p.spouseId = p.spouses.length > 0 ? p.spouses[0].uid : '';
     p.rank = this.fRank;
@@ -1349,8 +1400,11 @@ struct PersonEdit {
     return list;
   }
 
-  /** 排行候选：第一世只有“第一世（始祖）”，其余世代为子/女排行 */
+  /** 排行候选：姻亲用娘家排行；本族第一世只有“第一世（始祖）”，其余为子/女排行 */
   private rankOptions(): string[] {
+    if (this.isNatalOutsider()) {
+      return this.natalRankOptions();
+    }
     if (this.fGeneration === 1) {
       return [ANCESTOR_RANK];
     }
@@ -1388,8 +1442,8 @@ struct PersonEdit {
           break;
         }
         this.fGeneration = g;
-        // 第一世用“第一世（始祖）”，其余世代恢复子/女排行
-        if (this.fGeneration === 1) {
+        // 姻亲的排行是娘家排行，不随世代写死为“第一世（始祖）”
+        if (this.fGeneration === 1 && !this.isNatalOutsider()) {
           this.fRank = ANCESTOR_RANK;
         } else if (this.fRank === ANCESTOR_RANK) {
           this.fRank = '';
@@ -2587,6 +2641,15 @@ struct PersonEdit {
             (v: string): void => {
               this.fFatherName = v;
             })
+          SelectField({
+            label: '在世状态',
+            hint: '',
+            options: ['在世', '已故'],
+            value: this.fFatherLifeStatus,
+            onValue: (v: string): void => {
+              this.fFatherLifeStatus = v;
+            }
+          })
         }
         .layoutWeight(1)
         Column() {
@@ -2594,6 +2657,15 @@ struct PersonEdit {
             (v: string): void => {
               this.fMotherName = v;
             })
+          SelectField({
+            label: '在世状态',
+            hint: '',
+            options: ['在世', '已故'],
+            value: this.fMotherLifeStatus,
+            onValue: (v: string): void => {
+              this.fMotherLifeStatus = v;
+            }
+          })
         }
         .layoutWeight(1)
         .margin({ left: Spacing.S })
@@ -2602,8 +2674,9 @@ struct PersonEdit {
       this.SpouseSection()
       SelectField({
         label: '排行',
-        hint: this.fGeneration === 1 ? '第一世为始祖，排行记为“第一世（始祖）”' :
-          '第几子/女，上下滑动选择，如：长子、次女',
+        hint: this.isNatalOutsider() ? '填写在娘家的排行' :
+          (this.fGeneration === 1 ? '第一世为始祖，排行记为“第一世（始祖）”' :
+            '第几子/女，上下滑动选择，如：长子、次女'),
         options: this.rankOptions(),
         value: this.fRank,
         onValue: (v: string): void => {

@@ -160,8 +160,10 @@ export class GenealogyService {
         residence TEXT,
         father_id TEXT,
         father_name TEXT,
+        father_life_status TEXT,
         mother_id TEXT,
         mother_name TEXT,
+        mother_life_status TEXT,
         spouse_id TEXT,
         rank TEXT,
         adoption TEXT,
@@ -199,6 +201,9 @@ export class GenealogyService {
       // 父母未录入族谱时的自定义姓名（妻子条目中即岳父/岳母）
       await this.ensureColumn(TABLE_PERSON, 'father_name', 'TEXT');
       await this.ensureColumn(TABLE_PERSON, 'mother_name', 'TEXT');
+      // 父名/母名（未收录）的在世状态：已故者在牒记中称「公」
+      await this.ensureColumn(TABLE_PERSON, 'father_life_status', 'TEXT');
+      await this.ensureColumn(TABLE_PERSON, 'mother_life_status', 'TEXT');
       // 协作同步所需列（方案 §七「本地 RDB」行）：
       //   rev        —— 本人物的云端修订号（0 表示尚未上云）
       //   base_rev   —— 最近一次同步到本地时的家族 rev 基线（冲突判定用）
@@ -2362,8 +2367,10 @@ export class GenealogyService {
       'residence': p.residence,
       'father_id': p.fatherId,
       'father_name': p.fatherName,
+      'father_life_status': p.fatherLifeStatus,
       'mother_id': p.motherId,
       'mother_name': p.motherName,
+      'mother_life_status': p.motherLifeStatus,
       'spouse_id': p.spouseId,
       'rank': p.rank,
       'adoption': p.adoption,
@@ -2589,8 +2596,10 @@ export class GenealogyService {
           p.residence = resultSet.getString(resultSet.getColumnIndex('residence'));
           p.fatherId = resultSet.getString(resultSet.getColumnIndex('father_id'));
           p.fatherName = resultSet.getString(resultSet.getColumnIndex('father_name'));
+          p.fatherLifeStatus = resultSet.getString(resultSet.getColumnIndex('father_life_status'));
           p.motherId = resultSet.getString(resultSet.getColumnIndex('mother_id'));
           p.motherName = resultSet.getString(resultSet.getColumnIndex('mother_name'));
+          p.motherLifeStatus = resultSet.getString(resultSet.getColumnIndex('mother_life_status'));
           p.spouseId = resultSet.getString(resultSet.getColumnIndex('spouse_id'));
           p.rank = resultSet.getString(resultSet.getColumnIndex('rank'));
           p.adoption = resultSet.getString(resultSet.getColumnIndex('adoption'));
