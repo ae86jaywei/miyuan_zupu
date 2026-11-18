@@ -526,6 +526,12 @@ struct PersonEdit {
   @State useEra: boolean = false;
   @State monthOptions: string[] = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
   @State dayOptions: string[] = [];
+  /** 跳转指定日期输入：年 / 月 / 日 */
+  @State jumpYear: string = '';
+  @State jumpMonth: string = '';
+  @State jumpDay: string = '';
+  /** 纪年（年号）选择弹窗是否展开 */
+  @State showEraPicker: boolean = false;
   @State mediaNote: string = '';
 
   onPageShow(): void {
@@ -1784,6 +1790,53 @@ struct PersonEdit {
     this.showDatePicker = false;
   }
 
+  /** 跳到指定日期：解析年/月/日输入并同步到三段滚轮 */
+  private jumpToDate(): void {
+    const y: number = parseInt(this.jumpYear, 10);
+    const m: number = parseInt(this.jumpMonth, 10);
+    const d: number = parseInt(this.jumpDay, 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) {
+      this.getUIContext().getPromptAction().showToast({ message: T('请输入有效的年 / 月 / 日') });
+      return;
+    }
+    if (y < this.MIN_YEAR || y > this.MAX_YEAR) {
+      this.getUIContext().getPromptAction().showToast({
+        message: T('年份范围 ' + this.MIN_YEAR.toString() + '~' + this.MAX_YEAR.toString() + ' 年')
+      });
+      return;
+    }
+    if (m < 1 || m > 12) {
+      this.getUIContext().getPromptAction().showToast({ message: T('月份需在 1~12 之间') });
+      return;
+    }
+    const maxDay: number = this.dateCalendar === '农历' ?
+      lunarMonthDays(y, m, false) : this.daysInMonth(y, m, false);
+    if (d < 1 || d > maxDay) {
+      this.getUIContext().getPromptAction().showToast({ message: T('该月只有 ' + maxDay.toString() + ' 天') });
+      return;
+    }
+    this.pickYear = y;
+    this.pickMonth = m;
+    this.pickDay = d;
+    this.pickLeap = false;
+    // 手动跳到某个公历年即退出年号联动
+    this.eraIndex = 0;
+    this.useEra = false;
+    this.refreshDateOptions();
+  }
+
+  /** 选定年号（纪年弹窗回调）：换算为对应公历年并重建日期选项 */
+  private selectEra(index: number): void {
+    this.eraIndex = index;
+    this.useEra = index > 0;
+    if (this.useEra) {
+      this.eraYear = 1;
+      this.eraYearIndex = 0;
+      this.pickYear = ERA_LIST[index - 1].firstYear;
+      this.refreshDateOptions();
+    }
+  }
+
   /** 当前所选日期对应的干支黄历 */
   private huangLi(): HuangLi {
     if (this.dateCalendar === '农历') {
@@ -1850,41 +1903,90 @@ struct PersonEdit {
       .alignItems(HorizontalAlign.Center)
       .margin({ bottom: 4 })
 
+      // 跳到指定日期：直接输入年月日快速定位，免去滚动上千年的年份滚轮
+      Row() {
+        Text(T('跳到指定日期')).fontFamily(uiFontFamily())
+          .fontSize(12)
+          .fontColor(Theme.inkTertiary)
+          .width(78)
+        TextInput({ text: this.jumpYear, placeholder: T('年') })
+          .height(34)
+          .layoutWeight(3)
+          .fontSize(13)
+          .textAlign(TextAlign.Center)
+          .backgroundColor(Theme.field)
+          .borderRadius(8)
+          .onChange((v: string): void => {
+            this.jumpYear = v;
+          })
+        TextInput({ text: this.jumpMonth, placeholder: T('月') })
+          .height(34)
+          .layoutWeight(2)
+          .fontSize(13)
+          .textAlign(TextAlign.Center)
+          .backgroundColor(Theme.field)
+          .borderRadius(8)
+          .margin({ left: 6 })
+          .onChange((v: string): void => {
+            this.jumpMonth = v;
+          })
+        TextInput({ text: this.jumpDay, placeholder: T('日') })
+          .height(34)
+          .layoutWeight(2)
+          .fontSize(13)
+          .textAlign(TextAlign.Center)
+          .backgroundColor(Theme.field)
+          .borderRadius(8)
+          .margin({ left: 6 })
+          .onChange((v: string): void => {
+            this.jumpDay = v;
+          })
+        Button(T('跳转')).fontFamily(uiFontFamily())
+          .height(34)
+          .fontSize(13)
+          .fontColor('#FFFFFF')
+          .backgroundColor(Theme.primary)
+          .borderRadius(8)
+          .margin({ left: 8 })
+          .onClick((): void => {
+            this.jumpToDate();
+          })
+      }
+      .width('100%')
+      .padding({ left: Spacing.M, right: Spacing.M, top: 2, bottom: 2 })
+
       // 古历法记年：先选年号，再选第几年；选择后自动换算公历年
       Row() {
         Text(T('纪年')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ right: Spacing.S })
-        Select(this.selectOptions(this.eraOptions))
-          .selected(this.eraIndex)
-          .value(this.eraIndex === 0 ? '公历年' : this.eraOptions[this.eraIndex])
-          .font({ size: 13 })
-          .fontColor(Theme.ink)
-          .optionFont({ size: 13 })
-          .optionFontColor(Theme.ink)
-          .optionBgColor(Theme.card)
-          .selectedOptionFontColor(Theme.primary)
-          .selectedOptionBgColor(Theme.highlightBg)
-          .menuBackgroundColor(Theme.card)
-          .backgroundColor(Theme.field)
-          .borderRadius(8)
-          .layoutWeight(1)
-          .optionWidth(OptionWidthMode.FIT_CONTENT)
-          .onSelect((index: number): void => {
-            this.eraIndex = index;
-            this.useEra = index > 0;
-            if (this.useEra) {
-              this.eraYear = 1;
-              this.eraYearIndex = 0;
-              this.pickYear = ERA_LIST[index - 1].firstYear;
-              this.refreshDateOptions();
-            }
-          })
+        Row() {
+          Text(T(this.eraIndex === 0 ? '公历年' : this.eraOptions[this.eraIndex])).fontFamily(uiFontFamily())
+            .fontSize(13)
+            .fontColor(Theme.ink)
+            .layoutWeight(1)
+            .maxLines(1)
+            .textOverflow({ overflow: TextOverflow.Ellipsis })
+          Text('▾').fontFamily(uiFontFamily())
+            .fontSize(12)
+            .fontColor(Theme.inkTertiary)
+            .margin({ left: 6 })
+        }
+        .layoutWeight(1)
+        .height(44)
+        .padding({ left: 10, right: 10 })
+        .backgroundColor(Theme.field)
+        .borderRadius(8)
+        .alignItems(VerticalAlign.Center)
+        .onClick((): void => {
+          this.showEraPicker = true;
+        })
         if (this.useEra) {
           TextPicker({ range: this.eraYearOptions(), selected: this.eraYearIndex })
             .width(110)
             .height(44)
+            .margin({ left: Spacing.S })
             .onChange((value: string | string[], index: number | number[]): void => {
               const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
               this.eraYearIndex = idx;
@@ -1956,6 +2058,68 @@ struct PersonEdit {
         })
     }
     .width('100%')
+    .backgroundColor(Theme.card)
+    .borderRadius({ topLeft: 20, topRight: 20 })
+  }
+
+  /**
+   * 纪年（年号）选择弹窗：全宽滚动列表，条目完整显示不截断（替代宽度不足的 Select 下拉）。
+   * 由 build() 中的 Stack 承载，覆盖在日期面板之上；点击遮罩关闭。
+   */
+  @Builder
+  EraPickerPanel() {
+    Column() {
+      Row() {
+        Text(T('选择纪年（年号）')).fontFamily(uiFontFamily())
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .fontColor(Theme.ink)
+          .layoutWeight(1)
+        Text(T('关闭')).fontFamily(uiFontFamily())
+          .fontSize(14)
+          .fontColor(Theme.primary)
+          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
+          .onClick((): void => {
+            this.showEraPicker = false;
+          })
+      }
+      .width('100%')
+      .height(48)
+      .padding({ left: Spacing.L, right: Spacing.L })
+      .border({ width: { bottom: 0.5 }, color: Theme.line })
+
+      List() {
+        ForEach(this.eraOptions, (label: string, idx: number) => {
+          ListItem() {
+            Row() {
+              Text(T(label)).fontFamily(uiFontFamily())
+                .fontSize(14)
+                .fontColor(idx === this.eraIndex ? Theme.primary : Theme.ink)
+                .fontWeight(idx === this.eraIndex ? FontWeight.Medium : FontWeight.Normal)
+                .layoutWeight(1)
+              if (idx === this.eraIndex) {
+                Text('✓').fontFamily(uiFontFamily())
+                  .fontSize(15)
+                  .fontColor(Theme.primary)
+              }
+            }
+            .width('100%')
+            .padding({ left: Spacing.L, right: Spacing.L, top: 13, bottom: 13 })
+            .backgroundColor(idx === this.eraIndex ? Theme.highlightBg : Color.Transparent)
+          }
+          .onClick((): void => {
+            this.selectEra(idx);
+            this.showEraPicker = false;
+          })
+        }, (label: string, idx: number) => 'era_' + idx.toString())
+      }
+      .width('100%')
+      .layoutWeight(1)
+      .scrollBar(BarState.Auto)
+      .divider({ strokeWidth: 0.5, color: Theme.line })
+    }
+    .width('100%')
+    .height('68%')
     .backgroundColor(Theme.card)
     .borderRadius({ topLeft: 20, topRight: 20 })
   }
@@ -2862,6 +3026,20 @@ struct PersonEdit {
         .backgroundColor('rgba(0,0,0,0.35)')
         .onClick((): void => {
           this.showDatePicker = false;
+        })
+      }
+
+      // 纪年选择弹窗（覆盖在日期面板之上）
+      if (this.showEraPicker) {
+        Column() {
+          Blank()
+          this.EraPickerPanel()
+        }
+        .width('100%')
+        .height('100%')
+        .backgroundColor('rgba(0,0,0,0.5)')
+        .onClick((): void => {
+          this.showEraPicker = false;
         })
       }
     }

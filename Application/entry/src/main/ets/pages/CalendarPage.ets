@@ -62,6 +62,10 @@ struct CalendarPage {
   @State detailConvert: string = '';
   /** 年月选择浮层是否展开 */
   @State showPicker: boolean = false;
+  /** 跳转指定日期输入：年 / 月 / 日 */
+  @State jumpYear: string = '';
+  @State jumpMonth: string = '';
+  @State jumpDay: string = '';
 
   private todayYear: number = 2024;
   private todayMonth: number = 1;
@@ -260,6 +264,47 @@ struct CalendarPage {
     this.refresh();
   }
 
+  /** 某年某月的天数（公历，1582 年 10 月过渡期按 31 天处理） */
+  private daysInMonth(year: number, month: number): number {
+    if (year === 1582 && month === 10) {
+      return 31;
+    }
+    const nextYear: number = month === 12 ? year + 1 : year;
+    const nextMonth: number = month === 12 ? 1 : month + 1;
+    return julianDay(nextYear, nextMonth, 1) - julianDay(year, month, 1);
+  }
+
+  /** 跳到指定日期：解析年/月/日输入并切换视图 */
+  private jumpToDate(): void {
+    const y: number = parseInt(this.jumpYear, 10);
+    const m: number = parseInt(this.jumpMonth, 10);
+    const d: number = parseInt(this.jumpDay, 10);
+    if (isNaN(y) || isNaN(m) || isNaN(d)) {
+      this.getUIContext().getPromptAction().showToast({ message: T('请输入有效的年 / 月 / 日') });
+      return;
+    }
+    if (y < CAL_MIN_YEAR || y > CAL_MAX_YEAR) {
+      this.getUIContext().getPromptAction().showToast({
+        message: T('年份范围 ' + CAL_MIN_YEAR.toString() + '~' + CAL_MAX_YEAR.toString() + ' 年')
+      });
+      return;
+    }
+    if (m < 1 || m > 12) {
+      this.getUIContext().getPromptAction().showToast({ message: T('月份需在 1~12 之间') });
+      return;
+    }
+    const maxDay: number = this.daysInMonth(y, m);
+    if (d < 1 || d > maxDay) {
+      this.getUIContext().getPromptAction().showToast({ message: T('该月只有 ' + maxDay.toString() + ' 天') });
+      return;
+    }
+    this.viewYear = y;
+    this.viewMonth = m;
+    this.selectedDay = d;
+    this.showPicker = false;
+    this.refresh();
+  }
+
   private canPrev(): boolean {
     return this.viewYear > CAL_MIN_YEAR || this.viewMonth > 1;
   }
@@ -324,9 +369,72 @@ struct CalendarPage {
       .padding({ left: Spacing.L, right: Spacing.L })
       .border({ width: { bottom: 0.5 }, color: Theme.line })
 
+      // 跳到指定日期
+      Column() {
+        Text(T('跳到指定日期')).fontFamily(uiFontFamily())
+          .fontSize(12)
+          .fontColor(Theme.inkTertiary)
+          .width('100%')
+          .margin({ bottom: 6 })
+        Row() {
+          TextInput({ text: this.jumpYear, placeholder: T('年') })
+            .height(36)
+            .layoutWeight(3)
+            .fontSize(13)
+            .textAlign(TextAlign.Center)
+            .backgroundColor(Theme.field)
+            .borderRadius(8)
+            .onChange((v: string): void => {
+              this.jumpYear = v;
+            })
+          TextInput({ text: this.jumpMonth, placeholder: T('月') })
+            .height(36)
+            .layoutWeight(2)
+            .fontSize(13)
+            .textAlign(TextAlign.Center)
+            .backgroundColor(Theme.field)
+            .borderRadius(8)
+            .margin({ left: 6 })
+            .onChange((v: string): void => {
+              this.jumpMonth = v;
+            })
+          TextInput({ text: this.jumpDay, placeholder: T('日') })
+            .height(36)
+            .layoutWeight(2)
+            .fontSize(13)
+            .textAlign(TextAlign.Center)
+            .backgroundColor(Theme.field)
+            .borderRadius(8)
+            .margin({ left: 6 })
+            .onChange((v: string): void => {
+              this.jumpDay = v;
+            })
+          Button(T('跳转')).fontFamily(uiFontFamily())
+            .height(36)
+            .fontSize(13)
+            .fontColor('#FFFFFF')
+            .backgroundColor(Theme.primary)
+            .borderRadius(8)
+            .margin({ left: 8 })
+            .onClick((): void => {
+              this.jumpToDate();
+            })
+        }
+        .width('100%')
+      }
+      .width('100%')
+      .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.S, bottom: Spacing.S })
+      .border({ width: { bottom: 0.5 }, color: Theme.line })
+
+      // 年份范围选择（936~2100）
+      Text(T('年份（' + CAL_MIN_YEAR.toString() + '–' + CAL_MAX_YEAR.toString() + '）')).fontFamily(uiFontFamily())
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.S })
       TextPicker({ range: this.yearRange, selected: this.viewYear - CAL_MIN_YEAR })
         .width('100%')
-        .height(120)
+        .height(108)
         .onChange((value: string | string[], index: number | number[]): void => {
           const idx: number = Array.isArray(index) ? (index as number[])[0] : (index as number);
           this.viewYear = CAL_MIN_YEAR + idx;
@@ -335,6 +443,12 @@ struct CalendarPage {
           this.refresh();
         })
 
+      // 月份范围选择（1~12）
+      Text(T('月份')).fontFamily(uiFontFamily())
+        .fontSize(12)
+        .fontColor(Theme.inkTertiary)
+        .width('100%')
+        .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.XS })
       Grid() {
         ForEach(MONTH_NUMBERS, (m: number) => {
           GridItem() {
