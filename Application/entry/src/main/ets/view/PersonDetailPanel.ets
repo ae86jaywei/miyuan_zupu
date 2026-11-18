@@ -143,7 +143,7 @@ export struct PersonDetailPanel {
               // 身份标识
               this.GroupHeader('身份标识')
               InfoRow({ label: '世代', value: generationLabel((this.person() as Person).generation) })
-              InfoRow({ label: '唯—ID', value: (this.person() as Person).uid })
+              InfoRow({ label: '唯一ID', value: (this.person() as Person).uid })
               InfoRow({ label: '谱名', value: (this.person() as Person).name })
               if ((this.person() as Person).courtesyName.length > 0) {
                 InfoRow({ label: '字', value: (this.person() as Person).courtesyName })
@@ -188,6 +188,18 @@ export struct PersonDetailPanel {
               // 齿录模板新增：子女标记
               if (this.childMarkText(this.person() as Person).length > 0) {
                 InfoRow({ label: '子女标记', value: this.childMarkText(this.person() as Person) })
+              }
+              if ((this.person() as Person).childMarkTarget.length > 0) {
+                InfoRow({ label: '出嗣/兼祧对象', value: (this.person() as Person).childMarkTarget })
+              }
+              if ((this.person() as Person).childMarkSource.length > 0) {
+                InfoRow({ label: '入继来源', value: (this.person() as Person).childMarkSource })
+              }
+              if ((this.person() as Person).childMarkSeq > 0) {
+                InfoRow({ label: '在源第几子', value: (this.person() as Person).childMarkSeq.toString() })
+              }
+              if ((this.person() as Person).childless) {
+                InfoRow({ label: '无出', value: '是' })
               }
 
               // 时间信息
