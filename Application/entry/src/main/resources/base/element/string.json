@@ -21,10 +21,6 @@
       "value": "用于拾取墓葬GPS经纬度、海拔"
     },
     {
-      "name": "permission_media_reason",
-      "value": "用于选择头像与家族相片"
-    },
-    {
       "name": "agc_client_id",
       "value": "2069158863092892224"
     },

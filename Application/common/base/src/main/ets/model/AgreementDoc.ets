@@ -11,6 +11,10 @@ export const OPERATOR_NAME: string = '韦榕明';
 export const CONTACT_EMAIL: string = '236056971@163.com';
 /** 应用名称 */
 export const APP_NAME: string = '觅源';
+/** 在线协议地址（应用内“在线查看”入口与上架材料保持一致） */
+export const AGREEMENT_URL: string = 'https://www.fengg.net.cn/miyuan-agreement';
+export const PRIVACY_URL: string = 'https://www.fengg.net.cn/miyuan-privacy';
+
 /** 协议版本与生效时间，更新协议时同步修改 */
 export const AGREEMENT_VERSION: string = '1.0';
 export const AGREEMENT_UPDATED_AT: string = '2026年11月8日';
@@ -60,7 +64,8 @@ export function privacyPolicyDoc(): AgreementDoc {
       '6. 本地存储：族谱数据库、导入导出文件、导出 PDF 均优先保存在本机；接入云家族后，上述族谱内容才会同步至云端。'),
     new AgreementSection('二、系统权限说明', '1. 网络（INTERNET）：用于华为账号登录、云家族同步、族谱黄页查询与地图底图加载。\n' +
       '2. 位置（LOCATION）：仅用于为祖墓拾取 GPS 经纬度与海拔，拒绝授权不影响其他功能。\n' +
-      '3. 相册/媒体（MEDIA）：仅用于选择族人头像、家族相片与视频，拒绝授权不影响文字录入。\n' +
+      '3. 相册选择：族人头像、家族相片与视频通过系统安全控件选取，应用不申请相册读取权限，' +
+      '取消选择不影响文字录入。\n' +
       '以上权限均在你主动触发对应功能时申请，你可以随时在系统设置中关闭。'),
     new AgreementSection('三、我们如何使用个人信息', '1. 提供族谱录入、检索、谱系图渲染、统计、导入导出与 PDF 打印服务；\n' +
       '2. 在接入云家族后，为家族成员提供协同补录、变更审核、数据同步与成员权限管理；\n' +
@@ -83,7 +88,7 @@ export function privacyPolicyDoc(): AgreementDoc {
     new AgreementSection('六、你的个人信息权利', '1. 查阅与复制：可在应用内查看族谱内容，并通过“导入 / 导出”导出 JSON、CSV、PDF 副本。\n' +
       '2. 更正与补充：可在族人详情页或编辑页修改本人及经授权管理的信息。\n' +
       '3. 删除：可删除单个族人、删除整部族谱；云家族内可申请谱主删除或更正。\n' +
-      '4. 撤回同意：可在系统设置中关闭位置、相册权限，或在设置页退出登录；撤回同意不影响此前已完成的处理。\n' +
+      '4. 撤回同意：可在系统设置中关闭位置权限，或在设置页退出登录；撤回同意不影响此前已完成的处理。\n' +
       '5. 注销与投诉：可通过下方邮箱联系我们，我们将在 15 个工作日内答复处理。'),
     new AgreementSection('七、未成年人保护', '本应用面向家族成员记录族谱，不主动面向未成年人单独提供服务。若你是未满 14 周岁的儿童，' +
       '请在监护人陪同下阅读本政策，并在监护人同意后使用；监护人可联系我们删除儿童个人信息。'),

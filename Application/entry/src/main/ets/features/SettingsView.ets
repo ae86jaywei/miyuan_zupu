@@ -7,6 +7,7 @@ import { Theme, Spacing } from 'common_base';
 import { TS } from 'common_ui';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { RouterUtil } from 'common_base';
+import { AGREEMENT_URL, PRIVACY_URL } from 'common_base';
 import { AccountCard } from './AccountCard';
 
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -706,6 +707,14 @@ export struct SettingsView {
           Divider().color(Theme.line).strokeWidth(0.5)
           this.NavRow('隐私政策', '我们如何收集、使用、存储与保护个人信息', (): void => {
             RouterUtil.agreement(this.getUIContext(), 'privacy');
+          })
+          Divider().color(Theme.line).strokeWidth(0.5)
+          this.NavRow('在线查看用户协议', 'www.fengg.net.cn/miyuan-agreement', (): void => {
+            RouterUtil.openUrl(AGREEMENT_URL);
+          })
+          Divider().color(Theme.line).strokeWidth(0.5)
+          this.NavRow('在线查看隐私声明', 'www.fengg.net.cn/miyuan-privacy', (): void => {
+            RouterUtil.openUrl(PRIVACY_URL);
           })
         }
         .width('100%')

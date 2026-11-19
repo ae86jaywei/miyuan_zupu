@@ -1,5 +1,5 @@
 import { UIContext } from '@kit.ArkUI';
-import { common, Want } from '@kit.AbilityKit';
+import { common, OpenLinkOptions, Want } from '@kit.AbilityKit';
 import { AccessParams, EditParams, GenealogyScope } from '../model/Scope';
 import { AgreementParams } from '../model/AgreementDoc';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -122,6 +122,20 @@ export class RouterUtil {
     context.openLink(uri, options)
       .catch((err: BusinessError): void => {
         console.error('open geo link failed: ' + err.message);
+      });
+  }
+
+  /** 打开外部网页（在线用户协议 / 隐私声明），由系统浏览器接管 */
+  static openUrl(url: string): void {
+    const context: common.UIAbilityContext | null = GenealogyScope.context();
+    if (context === null || context === undefined) {
+      return;
+    }
+    // appLinkingOnly=false：没有匹配的 App Linking 时交给系统浏览器打开
+    const options: OpenLinkOptions = { appLinkingOnly: false };
+    context.openLink(url, options)
+      .catch((err: BusinessError): void => {
+        console.error('open url failed: ' + err.message);
       });
   }
 

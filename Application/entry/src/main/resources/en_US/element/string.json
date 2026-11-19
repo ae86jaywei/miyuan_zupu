@@ -21,10 +21,6 @@
       "value": "For picking grave GPS coordinates and altitude"
     },
     {
-      "name": "permission_media_reason",
-      "value": "For selecting avatar and family photos"
-    },
-    {
       "name": "agc_client_id",
       "value": "2069158863092892224"
     },
