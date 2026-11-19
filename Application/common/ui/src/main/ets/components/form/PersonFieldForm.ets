@@ -17,6 +17,8 @@ export struct PersonFieldForm {
   @Prop value: string = '';
   /** 覆盖 FIELD_METAS 的 hint（用于带计数的简介等动态提示） */
   @Prop hint: string = '';
+  /** 覆盖 FIELD_METAS 的选项（随性别等动态变化的字段） */
+  @Prop optionsOverride: string[] = [];
   @Prop required: boolean = false;
   @Prop multiline: boolean = false;
   @Prop maxLength: number = 0;
@@ -30,6 +32,10 @@ export struct PersonFieldForm {
 
   private hintText(): string {
     return this.hint.length > 0 ? this.hint : this.meta.hint;
+  }
+
+  private optionsList(): string[] {
+    return this.optionsOverride.length > 0 ? this.optionsOverride : editorOptionsOf(this.meta.key);
   }
 
   private labelText(): string {
@@ -61,12 +67,12 @@ export struct PersonFieldForm {
 
   build() {
     Column() {
-      if (editorOptionsOf(this.meta.key).length > 0) {
+      if (this.optionsList().length > 0) {
         SelectField({
           label: this.meta.label,
           hint: this.hintText(),
           required: this.required,
-          options: editorOptionsOf(this.meta.key),
+          options: this.optionsList(),
           value: this.value,
           onValue: (v: string): void => {
             this.onValue(v);

@@ -13,14 +13,14 @@ import { PersonPickerField } from 'common_ui';
 import { DateFieldInput } from 'common_ui';
 import { PersonFieldForm } from 'common_ui';
 import { Breakpoint } from 'common_base';
-import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, CHILD_STATUS_OPTIONS, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
+import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilyService } from '../service/FamilyService';
 import { EditParams } from 'common_base';
 import { IdGenerator } from 'common_base';
-import { GENDER_OPTIONS, LIFE_STATUS_OPTIONS, CALENDAR_OPTIONS, CLAN_RANK_OPTIONS, NATAL_RANK_OPTIONS,
-  MARRIAGE_OPTIONS_FEMALE, MARRIAGE_OPTIONS_MALE, CHILD_MARK_OPTIONS, generationLabel } from 'common_base';
+import { CALENDAR_OPTIONS, CLAN_RANK_OPTIONS, NATAL_RANK_OPTIONS,
+  MARRIAGE_OPTIONS_FEMALE, MARRIAGE_OPTIONS_MALE, generationLabel } from 'common_base';
 import { isBlank } from 'common_base';
 import { fieldMetaOf, PARENT_LIFE_STATUS_OPTIONS } from 'common_base';
 import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraLabel, eraYearCount } from 'common_dateutil';
@@ -2105,12 +2105,11 @@ struct PersonEdit {
 
       Row() {
         Column() {
-          SelectField({
-            label: '性别',
+          PersonFieldForm({
+            meta: fieldMetaOf('gender'),
+            value: this.fGender,
             hint: '上下滑动选择男 / 女',
             required: true,
-            options: GENDER_OPTIONS,
-            value: this.fGender,
             onValue: (v: string): void => {
               this.assignValue('gender', v);
             }
@@ -2118,12 +2117,11 @@ struct PersonEdit {
         }
         .layoutWeight(1)
         Column() {
-          SelectField({
-            label: '在世状态',
+          PersonFieldForm({
+            meta: fieldMetaOf('lifeStatus'),
+            value: this.fLifeStatus,
             hint: '在世 / 已故 / 失联 / 不详',
             required: true,
-            options: LIFE_STATUS_OPTIONS,
-            value: this.fLifeStatus,
             onValue: (v: string): void => {
               this.assignValue('lifeStatus', v);
             }
@@ -2134,10 +2132,8 @@ struct PersonEdit {
       }
 
       Column() {
-        SelectField({
-          label: '身份',
-          hint: '本人身份或出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；妻妾可选元配 / 继室 / 侧室 / 偏房等名分',
-          options: CHILD_STATUS_OPTIONS,
+        PersonFieldForm({
+          meta: fieldMetaOf('childStatus'),
           value: this.fChildStatus,
           onValue: (v: string): void => {
             this.assignValue('childStatus', v);
@@ -2163,11 +2159,11 @@ struct PersonEdit {
       .width('100%')
 
       // 婚配状态：未字/未娶/适人/娶妻/招赘，用于牒记「终身未字」「适XX」
-      SelectField({
-        label: '婚配状态',
-        hint: '未记则不写婚配结论；未字/未娶写「终身未字」；适人/娶妻/招赘可写夫家',
-        options: this.marriageOptions(),
+      PersonFieldForm({
+        meta: fieldMetaOf('marriageStatus'),
         value: this.fMarriageStatus,
+        hint: '未记则不写婚配结论；未字/未娶写「终身未字」；适人/娶妻/招赘可写夫家',
+        optionsOverride: this.marriageOptions(),
         onValue: (v: string): void => {
           this.fMarriageStatus = v;
         }
@@ -2185,11 +2181,10 @@ struct PersonEdit {
       // 齿录模板新增：子女标记
       Row() {
         Column() {
-          SelectField({
-            label: '子女标记',
-            hint: '殇/出嗣/兼祧/继子/养子/无出/未记',
-            options: CHILD_MARK_OPTIONS,
+          PersonFieldForm({
+            meta: fieldMetaOf('childMark'),
             value: this.fChildMark,
+            hint: '殇/出嗣/兼祧/继子/养子/无出/未记',
             onValue: (v: string): void => {
               this.assignValue('childMark', v);
             }
