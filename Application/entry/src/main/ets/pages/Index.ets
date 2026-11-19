@@ -14,19 +14,19 @@ import { TreeStyle } from 'common_base';
 
 import { Person } from 'common_base';
 
-import { HomeView } from '../view/HomeView';
-import { TreeCanvas } from '../view/TreeCanvas';
-import { StyleSwitcher } from '../view/StyleSwitcher';
-import { CatalogView } from '../view/CatalogView';
-import { SettingsView } from '../view/SettingsView';
-import { PersonDetailPanel } from '../view/PersonDetailPanel';
-import { GenealogyStatsPanel } from '../view/GenealogyStatsPanel';
+import { HomeView } from '../features/HomeView';
+import { TreeCanvas } from '../features/TreeCanvas';
+import { StyleSwitcher } from '../features/StyleSwitcher';
+import { CatalogView } from '../features/CatalogView';
+import { SettingsView } from '../features/SettingsView';
+import { PersonDetailPanel } from '../features/PersonDetailPanel';
+import { GenealogyStatsPanel } from '../features/GenealogyStatsPanel';
 import { RouterUtil } from 'common_base';
 import { DeviceUtil } from 'common_base';
 import { AccountService } from '../service/AccountService';
 import { ConsentService } from '../service/ConsentService';
 import { PageCacheService } from '../service/PageCacheService';
-import { PrivacyConsentDialog } from '../view/PrivacyConsentDialog';
+import { PrivacyConsentDialog } from '../features/PrivacyConsentDialog';
 import { resourceManager } from '@kit.LocalizationKit';
 
 const TAG: string = '[Genealogy][Index]';

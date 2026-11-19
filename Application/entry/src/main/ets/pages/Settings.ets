@@ -1,5 +1,5 @@
 ﻿import { Theme, Spacing } from 'common_base';
-import { SettingsView } from '../view/SettingsView';
+import { SettingsView } from '../features/SettingsView';
 import { PageHeader } from 'common_ui';
 
 /**

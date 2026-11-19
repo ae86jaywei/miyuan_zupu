@@ -7,7 +7,7 @@ import { SearchField } from 'common_ui';
 import { GraveService } from '../service/GraveService';
 import { GenealogyService } from '../service/GenealogyService';
 import { Person } from 'common_base';
-import { GraveCardView } from '../view/GraveCardView';
+import { GraveCardView } from '../features/GraveCardView';
 import { GraveEntry, Role } from 'common_base';
 import { RouterUtil } from 'common_base';
 import { FlatListSource } from 'common_base';
