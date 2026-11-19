@@ -20,7 +20,7 @@ import { FamilyService } from '../service/FamilyService';
 import { EditParams } from 'common_base';
 import { IdGenerator } from 'common_base';
 import { CALENDAR_OPTIONS, CLAN_RANK_OPTIONS, NATAL_RANK_OPTIONS,
-  MARRIAGE_OPTIONS_FEMALE, MARRIAGE_OPTIONS_MALE, generationLabel } from 'common_base';
+  MARRIAGE_OPTIONS_FEMALE, MARRIAGE_OPTIONS_MALE, GENERATION_LABELS, GENERATION_KEYS, generationLabel } from 'common_base';
 import { isBlank } from 'common_base';
 import { fieldMetaOf, PARENT_LIFE_STATUS_OPTIONS } from 'common_base';
 import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraLabel, eraYearCount } from 'common_dateutil';
@@ -1071,20 +1071,12 @@ struct PersonEdit {
   // ---------------------------------------------------------------- 下拉滑动选择
 
   private generationOptions(): string[] {
-    const list: string[] = [];
-    for (let i: number = 1; i <= 40; i++) {
-      list.push(generationLabel(i));
-    }
-    return list;
+    return GENERATION_LABELS;
   }
 
   /** 世代候选对应的数值键：文案是“第十世”等中文，必须用键回传数值，否则解析不出世代 */
   private generationKeys(): string[] {
-    const list: string[] = [];
-    for (let i: number = 1; i <= 40; i++) {
-      list.push(i.toString());
-    }
-    return list;
+    return GENERATION_KEYS;
   }
 
   /** 排行候选：姻亲用娘家排行；本族第一世只有“第一世（始祖）”，其余为子/女排行 */

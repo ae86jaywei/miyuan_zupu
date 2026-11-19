@@ -117,16 +117,39 @@ export const MARRIAGE_OPTIONS_MALE: string[] = ['未记', '未娶', '娶妻', '�
 /** 子女标记：殇/幼殇/早卒/出嗣/兼祧/继子/养子 */
 export const CHILD_MARK_OPTIONS: string[] = ['未记', '殇', '幼殇', '早卒', '出嗣', '兼祧', '继子', '养子'];
 
+/** 一…三十的中文数字（模块级常量，避免每次调用重建数组） */
+const GEN_CN: string[] = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
+  '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
+  '二十一', '二十二', '二十三', '二十四', '二十五', '二十六', '二十七', '二十八', '二十九', '三十'];
+
 /** 世代表述：一世…二十世 */
 export function generationLabel(gen: number): string {
-  const cn: string[] = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
-    '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十',
-    '二十一', '二十二', '二十三', '二十四', '二十五', '二十六', '二十七', '二十八', '二十九', '三十'];
   if (gen <= 0) {
     return '未编世';
   }
-  if (gen <= cn.length) {
-    return '第' + cn[gen - 1] + '世';
+  if (gen <= GEN_CN.length) {
+    return '第' + GEN_CN[gen - 1] + '世';
   }
   return '第' + gen + '世';
+}
+
+/** 世代下拉候选（1…40 世称谓，模块加载时构建一次，供各页面共用） */
+export const GENERATION_LABELS: string[] = buildGenerationLabels(40);
+/** 世代候选对应的数值键，与 GENERATION_LABELS 一一对应 */
+export const GENERATION_KEYS: string[] = buildGenerationKeys(40);
+
+function buildGenerationLabels(max: number): string[] {
+  const list: string[] = [];
+  for (let i: number = 1; i <= max; i++) {
+    list.push(generationLabel(i));
+  }
+  return list;
+}
+
+function buildGenerationKeys(max: number): string[] {
+  const list: string[] = [];
+  for (let i: number = 1; i <= max; i++) {
+    list.push(i.toString());
+  }
+  return list;
 }
