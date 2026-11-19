@@ -15,6 +15,7 @@ import { SpouseRelations } from './SpouseRelations';
 import { PersonQuery } from './PersonQuery';
 import { PersonEditor } from './PersonEditor';
 import { PersonRepository } from './PersonRepository';
+import { CloudReplay } from './CloudReplay';
 
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -105,6 +106,14 @@ export class GenealogyService {
     (): relationalStore.RdbStore | null => this.store,
     (): number => this.currentBookId,
     this.peopleStore);
+  /** 云回放域：云侧成员行写回本地与回放后刷新 */
+  private cloudReplay: CloudReplay = new CloudReplay(
+    (): relationalStore.RdbStore | null => this.store,
+    (): number => this.currentBookId,
+    this.peopleStore,
+    this.personRepository,
+    (uid: string, name: string): Promise<void> => this.recordRetired(uid, name),
+    (): Promise<void> => this.reload());
   private book: Genealogy = createEmptyGenealogy();
   /** 全部族谱元信息（支持多族谱管理） */
   private books: Genealogy[] = [];
@@ -1958,68 +1967,15 @@ export class GenealogyService {
 
   /**
    * 供协作层调用的「云端回放入口」（§七 GenealogyService.applyRemoteChange）。
-   * 把云侧成员行写回本地 RDB：
-   *   - deleted=true 视为墓碑：仅标记，不物理删除；
-   *   - 隐私字段在 VIEWER/EDITOR 侧本就拿不到，保持本地原值不动；
-   *   - 回放永远不写入 outbox（它不是本地修改）。
+   * 具体回放语义见 CloudReplay。
    */
   async applyRemoteChange(uid: string, person: Person | null, rev: number, deleted: boolean): Promise<boolean> {
-    if (this.store === null) {
-      return false;
-    }
-    const u: string = uid.trim().toUpperCase();
-    if (u.length === 0) {
-      return false;
-    }
-    const bookId: number = this.currentBookId;
-    if (deleted) {
-      const tomb: Person | null = this.getPerson(u);
-      await this.store.executeSql(
-        `UPDATE ${TABLE_PERSON} SET deleted_at = ?, rev = ?, base_rev = ?, dirty = 0 WHERE book_id = ? AND UPPER(uid) = ?`,
-        [Date.now(), rev, rev, bookId, u]);
-      // 墓碑同样要断开引用：否则其他族人的父亲/配偶仍指向这个已删除编号，
-      // 一旦该编号被新族人复用，旧关系就会挂到新人身上。
-      await this.store.executeSql(`UPDATE ${TABLE_PERSON} SET father_id = '' WHERE book_id = ? AND UPPER(father_id) = ?`,
-        [bookId, u]);
-      await this.store.executeSql(`UPDATE ${TABLE_PERSON} SET mother_id = '' WHERE book_id = ? AND UPPER(mother_id) = ?`,
-        [bookId, u]);
-      await this.store.executeSql(`UPDATE ${TABLE_PERSON} SET spouse_id = '' WHERE book_id = ? AND UPPER(spouse_id) = ?`,
-        [bookId, u]);
-      await this.store.executeSql(
-        `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) = ? OR UPPER(spouse_uid) = ?)`,
-        [bookId, u, u]);
-      // 云端墓碑的编号同样封存，后续新增不得复用
-      await this.recordRetired(u, tomb === null ? '' : tomb.name);
-      return true;
-    }
-    const exist: Person | null = this.getPerson(u);
-    const p: Person = person !== null ? clonePerson(person) : createEmptyPerson();
-    p.uid = u;
-    if (exist !== null) {
-      if (p.phone.length === 0) {
-        p.phone = exist.phone;
-      }
-      if (p.wechat.length === 0) {
-        p.wechat = exist.wechat;
-      }
-      if (p.residence.length === 0) {
-        p.residence = exist.residence;
-      }
-      p.key = exist.key;
-      p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
-    }
-    normalizeSpouseRelations(p);
-    await this.personRepository.upsert(p, bookId);
-    await this.personRepository.saveSpouses(p.uid, p.spouses, bookId);
-    await this.store.executeSql(
-      `UPDATE ${TABLE_PERSON} SET rev = ?, base_rev = ?, dirty = 0, deleted_at = 0 WHERE book_id = ? AND UPPER(uid) = ?`,
-      [rev, rev, bookId, u]);
-    return true;
+    return this.cloudReplay.applyRemoteChange(uid, person, rev, deleted);
   }
 
   /** 回放完成后刷新内存与界面 */
   async reloadAfterReplay(): Promise<void> {
-    await this.reload();
+    await this.cloudReplay.reloadAfterReplay();
   }
 
   /** 本地某部族谱的云端基线 rev */
