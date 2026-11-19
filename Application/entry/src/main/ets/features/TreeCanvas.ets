@@ -33,6 +33,8 @@ const MIN_ZOOM: number = 0.05;
 const MAX_ZOOM: number = 1.5;
 /** 点击聚合气泡后放大到的目标比例 */
 const BUBBLE_ZOOM: number = 0.85;
+/** 全览/初始视角与可视区边缘的留白（vp）：保证卡片与文字不贴边 */
+const VIEW_FIT_PAD: number = 12;
 /** 左下角小地图尺寸（vp） */
 const MINI_W: number = 84;
 const MINI_H: number = 58;
@@ -153,6 +155,8 @@ export struct TreeCanvas {
   private branchH: number[] = [];
   /** 苏式谱切换后待把始祖居中（等可视区宽度就绪后再执行一次） */
   private pendingCenter: boolean = true;
+  /** 上一次卡片宽度：窗口连续拖拽时只有宽度跨断点才需要重新适配视图 */
+  private lastCardWidth: number = 0;
   /** 延迟布局令牌：连续切换时只让最后一次计算落地 */
   private layoutToken: number = 0;
   /** 延迟布局定时器：组件销毁时清掉，避免回调操作已卸载的页面 */
@@ -265,6 +269,9 @@ export struct TreeCanvas {
       this.scheduleLayout();
     } else {
       this.layoutBusy = false;
+      // 非分页谱式不再等 onAreaChange：画布尺寸没变时它不会触发，偏移会停在 0，
+      // 右起谱式的始祖留在屏幕外，同样会被判成截断
+      this.centerOnRootIfReady();
     }
   }
 
@@ -336,11 +343,19 @@ export struct TreeCanvas {
 
   /** 断点/窗口宽度变化会改变卡片宽度与密度，画布尺寸与各支起点需重算 */
   onWindowWidthChanged(): void {
+    const cw: number = this.cardWidth();
+    const cardWidthChanged: boolean = cw !== this.lastCardWidth;
+    this.lastCardWidth = cw;
     if (this.isPagedStyle()) {
       this.pendingCenter = true;
       this.scheduleLayout();
-    } else {
-      this.rebuildCanvasSize();
+      return;
+    }
+    this.rebuildCanvasSize();
+    // 窗口连续拖拽时卡片宽度大多不变，只有跨断点才重新适配，避免把用户拖动的视图反复拉回
+    if (cardWidthChanged) {
+      this.pendingCenter = true;
+      this.centerOnRootIfReady();
     }
   }
 
@@ -871,8 +886,10 @@ export struct TreeCanvas {
   }
 
   /**
-   * 初始视角：把当前宗支的始祖（第一世）卡片居中。
-   * 首次进入欧式/苏式、切换谱式、切换宗支时都生效；可视区尺寸就绪后执行一次。
+   * 初始视角：把当前宗支整体适配到可视区内（全览），首屏不允许任何卡片被屏幕边缘裁切。
+   * 早期实现按 100% 把始祖卡片居中，而欧式/苏式是右起谱式（第一世在最右、逐代向左），
+   * 谱系一宽，左侧世代的卡片就连同文字一起留在屏幕外，上架 UX 检测会判成“文字/按钮截断”。
+   * 现在始祖仍处于视觉中心附近，用户可再双指放大阅读细节。
    */
   private centerOnRootIfReady(): void {
     if (!this.pendingCenter) {
@@ -887,46 +904,9 @@ export struct TreeCanvas {
     if (this.viewW <= 0 || this.viewH <= 0 || this.rootUids.length === 0) {
       return;
     }
-    const roots: PersonNode[] = SR.genealogy().getRoots();
-    if (roots.length === 0) {
-      return;
-    }
-    const idx: number = this.clampBranchIndex();
-    const rootUid: string = roots[idx].uid;
-    const cache: TreeLayoutCache = SR.treeCache();
-    let bx: number = -1;
-    let by: number = 0;
-    let bw: number = 0;
-    let bh: number = 0;
-    if (this.style === TreeStyle.SU) {
-      const c: SuCanvas = cache.su(rootUid, [roots[idx]], this.cardWidth(), this.isNarrow(), true);
-      // [PERF] 布局阶段已记录始祖主卡，居中无需再线性扫描数万个 boxes
-      const rb: SuBox | null = c.rootBox;
-      if (rb !== null) {
-        bx = rb.x;
-        by = rb.y;
-        bw = rb.w;
-        bh = rb.h;
-      }
-    } else {
-      const c: EuCanvas = cache.eu(rootUid, [roots[idx]], this.cardWidth(),
-        this.isNarrow() ? 66 : 78, true, 6);
-      const rb: EuBox | null = c.rootBox;
-      if (rb !== null) {
-        bx = rb.x;
-        by = rb.y;
-        bw = rb.w;
-        bh = rb.h;
-      }
-    }
     this.pendingCenter = false;
-    if (bx < 0) {
-      return;
-    }
-    const top: number = this.branchTops.length > 0 ? this.branchTops[0] : 0;
-    // 屏幕坐标 = 内容坐标 × zoom + 宗支起点 + offset
-    this.offsetX = this.clampX(this.viewW / 2 - (bx + bw / 2) * this.scaleValue);
-    this.offsetY = this.clampY(this.viewH / 2 - (by + bh / 2) * this.scaleValue - top);
+    this.rebuildCanvasSize();
+    this.resetView();
   }
 
   /** 未选中族人时默认高亮当前宗支的始祖，作为进入欧式/苏式的初始焦点 */
@@ -972,7 +952,7 @@ export struct TreeCanvas {
     return TreeZoomMath.clampZoom(v, MIN_ZOOM, MAX_ZOOM);
   }
 
-  /** 一键全览：按内容尺寸取最合适的缩放，并把整谱居中 */
+  /** 一键全览：按内容尺寸取最合适的缩放，并把整谱居中，四周留出与屏幕边缘的呼吸位 */
   private resetView(): void {
     if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
       return;
@@ -989,17 +969,25 @@ export struct TreeCanvas {
       cw = Math.max(cw, this.branchW[i]);
     }
     let ch: number = 0;
+    let contentH: number = 0;
     for (let i: number = 0; i < this.branchH.length; i = i + 1) {
       ch = ch + header + this.branchH[i] + Spacing.XXL;
+      contentH = contentH + this.branchH[i];
     }
-    if (cw <= 0 || ch <= 0) {
+    if (cw <= 0 || ch <= 0 || contentH <= 0) {
       return;
     }
-    const fit: number = this.clampZoom(Math.min(this.viewW / cw, this.viewH / ch, 1));
+    // 全览必须完整落在可视区内：扣掉两侧留白后取最小值，否则卡片会贴着屏幕边缘，
+    // 文字仍会被 UX 检测判成截断。宗支标题与支间留白是固定高度、不随 zoom 缩放，
+    // 必须先从可用高度里扣掉，否则按整体高度算出的比例仍会超出一截。
+    const fixedH: number = ch - contentH;
+    const fitW: number = (this.viewW - VIEW_FIT_PAD * 2) / cw;
+    const fitH: number = (this.viewH - VIEW_FIT_PAD * 2 - fixedH) / contentH;
+    const fit: number = this.clampZoom(Math.min(fitW, fitH, 1));
     this.scaleValue = fit;
     this.rebuildCanvasSize();
-    this.offsetX = this.clampX((this.viewW - cw * fit) / 2);
-    this.offsetY = this.clampY((this.viewH - ch * fit) / 2);
+    this.offsetX = this.clampX((this.viewW - this.canvasW) / 2);
+    this.offsetY = this.clampY((this.viewH - this.canvasH) / 2);
   }
 
   /** 点击聚合气泡：以该内容点为中心放大到可读层级 */
