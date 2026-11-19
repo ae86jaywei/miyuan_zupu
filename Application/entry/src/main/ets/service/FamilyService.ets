@@ -19,6 +19,7 @@ import {
   str
 } from 'common_base';
 import { OutboxItem, OutboxService } from './OutboxService';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Family]';
 
@@ -29,7 +30,7 @@ export const VIEW_APPLY_DEFAULT_DAYS: number = 180;
  * 家族协作服务（单例）。
  *
  * 职责边界（方案 §七）：
- *  - 云函数的**唯一调用封装点**（AccountService.callFunction 之上加业务语义）；
+ *  - 家族业务的云函数入口（在 CloudFunctionClient 网关之上加业务语义）；
  *  - 家族身份（familyId / 角色 / 分支）的本地缓存与发布（AppStorage + genealogy 表）；
  *  - 写路径编排：在线 → 云函数；离线 → outbox 排队（由 FamilySyncService 补传）；
  *  - 本地族谱在「仅本机 / 已接入云家族」两种模式间切换。
@@ -178,7 +179,7 @@ export class FamilyService {
 
   /** 拉取「我参与的全部家族」 */
   async listMine(): Promise<FamilySummary[]> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('family-list-mine', {});
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-list-mine', {});
     const out: FamilySummary[] = [];
     const rows: Record<string, Object>[] = objectList(data, 'families');
     for (let i: number = 0; i < rows.length; i++) {
@@ -212,7 +213,7 @@ export class FamilyService {
 
   /** 创建家族：服务端生成 familyId 与加入码，然后绑定到当前本地族谱 */
   async createFamily(title: string, nickName: string): Promise<FamilySummary> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('family-create', {
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-create', {
       'title': title,
       'nickName': nickName,
       'unionId': AccountService.getInstance().getUnionId()
@@ -235,7 +236,7 @@ export class FamilyService {
    * 成功后若本机已有该谱则切换，否则由调用方决定是否新建本地谱。
    */
   async joinFamily(inviteCode: string, nickName: string): Promise<FamilySummary> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('family-join', {
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-join', {
       'inviteCode': inviteCode.trim().toUpperCase(),
       'nickName': nickName
     });
@@ -252,7 +253,7 @@ export class FamilyService {
 
   /** 成员列表（仅谱主） */
   async listMembers(familyId: string): Promise<MemberInfo[]> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('family-acl-list',
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-acl-list',
       { 'familyId': familyId });
     const out: MemberInfo[] = [];
     const rows: Record<string, Object>[] = objectList(data, 'memberships');
@@ -267,7 +268,7 @@ export class FamilyService {
   /** 调整成员角色 / 分支 / 期限 / 状态 */
   async updateMember(familyId: string, userId: string, role: string, branchRootUid: string,
     expireAt: number, status: string): Promise<void> {
-    await AccountService.getInstance().callFunction('family-acl-set', {
+    await CloudFunctionClient.getInstance().call('family-acl-set', {
       'familyId': familyId, 'action': 'UPDATE', 'targetUserId': userId, 'role': role,
       'branchRootUid': branchRootUid, 'expireAt': expireAt, 'status': status
     });
@@ -275,7 +276,7 @@ export class FamilyService {
 
   /** 轮换加入码（旧码立即失效，对应方案 §八.3 邀请码治理） */
   async rotateInvite(familyId: string, inviteExpireAt: number, inviteRole: string): Promise<string> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('family-acl-set', {
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-acl-set', {
       'familyId': familyId, 'action': 'ROTATE_INVITE', 'inviteExpireAt': inviteExpireAt, 'inviteRole': inviteRole
     });
     return str(data, 'inviteCode');
@@ -378,7 +379,7 @@ export class FamilyService {
   /** 谱主直写（member-direct-write，字段级 LWW） */
   private async directWrite(familyId: string, op: string, uid: string, patchJson: string,
     baseRev: number): Promise<void> {
-    await AccountService.getInstance().callFunction('member-direct-write', {
+    await CloudFunctionClient.getInstance().call('member-direct-write', {
       'familyId': familyId,
       'uid': uid,
       'op': op === 'DELETE' ? 'DELETE_REQ' : op,
@@ -390,7 +391,7 @@ export class FamilyService {
   /** 编辑者提交审核（change-submit） */
   private async submitChange(familyId: string, op: string, uid: string, patchJson: string, baseRev: number,
     evidence: string): Promise<void> {
-    await AccountService.getInstance().callFunction('change-submit', {
+    await CloudFunctionClient.getInstance().call('change-submit', {
       'familyId': familyId,
       'op': op === 'DELETE' ? 'DELETE_REQ' : op,
       'targetUid': uid,
@@ -402,7 +403,7 @@ export class FamilyService {
 
   /** 待审变更列表 */
   async listPendingChanges(familyId: string): Promise<ChangeRequestInfo[]> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction(
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call(
       'change-list-pending', { 'familyId': familyId });
     const out: ChangeRequestInfo[] = [];
     const rows: Record<string, Object>[] = objectList(data, 'requests');
@@ -414,7 +415,7 @@ export class FamilyService {
 
   /** 审批变更（通过 / 拒绝），返回云侧的提示语 */
   async reviewChange(requestId: string, approve: boolean, note: string): Promise<string> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('change-review', {
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('change-review', {
       'requestId': requestId, 'decision': approve ? 'APPROVED' : 'REJECTED', 'note': note
     });
     return str(data, 'message');
@@ -429,7 +430,7 @@ export class FamilyService {
    */
   async requestAccess(familyId: string, kind: string, relationClaim: string, branchClaimUid: string,
     evidence: string, applicantName: string): Promise<string> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('access-request', {
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('access-request', {
       'familyId': familyId,
       'kind': kind,
       'relationClaim': relationClaim,
@@ -450,7 +451,7 @@ export class FamilyService {
   /** 审批访问申请（唯一动作 = 写一条 Membership） */
   async reviewAccess(requestId: string, approve: boolean, note: string, grantedRole: string,
     expireAt: number): Promise<void> {
-    await AccountService.getInstance().callFunction('access-review', {
+    await CloudFunctionClient.getInstance().call('access-review', {
       'requestId': requestId,
       'decision': approve ? 'APPROVED' : 'REJECTED',
       'note': note,
@@ -461,14 +462,14 @@ export class FamilyService {
 
   /** 谱主的待审申请 */
   async listPendingAccess(familyId: string): Promise<AccessRequestInfo[]> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('access-list',
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('access-list',
       { 'familyId': familyId, 'mode': 'inbox' });
     return FamilyService.parseAccessList(data);
   }
 
   /** 我的全部申请 */
   async listMyAccess(): Promise<AccessRequestInfo[]> {
-    const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('access-list',
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('access-list',
       { 'mode': 'mine' });
     return FamilyService.parseAccessList(data);
   }
@@ -532,7 +533,7 @@ export class FamilyService {
    * 成功后：若当前本地族谱正绑定该家族，则退回「仅本机」模式。
    */
   async deleteCloudFamily(familyId: string, confirmTitle: string): Promise<void> {
-    await AccountService.getInstance().callFunction('family-delete', {
+    await CloudFunctionClient.getInstance().call('family-delete', {
       'familyId': familyId,
       'confirmTitle': confirmTitle
     });

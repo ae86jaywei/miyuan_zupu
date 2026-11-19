@@ -7,6 +7,7 @@ import { OutboxService } from './OutboxService';
 import { Genealogy } from 'common_base';
 import { Person } from 'common_base';
 import { SyncMode, SyncResult } from 'common_base';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Bootstrap]';
 /**
@@ -197,7 +198,7 @@ export class FamilyBootstrapService {
     let attempt: number = 0;
     while (true) {
       try {
-        await AccountService.getInstance().callFunction('family-bootstrap', data, FUNCTION_TIMEOUT_MS);
+        await CloudFunctionClient.getInstance().call('family-bootstrap', data, FUNCTION_TIMEOUT_MS);
         this.batchIntervalMs = Math.max(BATCH_INTERVAL_MS, this.batchIntervalMs - 20);
         return;
       } catch (err) {

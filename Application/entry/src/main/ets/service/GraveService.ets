@@ -5,6 +5,7 @@ import { AccountService } from './AccountService';
 import { GenealogyService } from './GenealogyService';
 import { GraveEntry, num, str } from 'common_base';
 import { CloudGraveLocation } from 'common_base';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Grave]';
 const TABLE_GRAVE: string = 'grave_location';
@@ -203,7 +204,7 @@ export class GraveService {
    */
   async updateGrave(familyId: string, uid: string, grave: Record<string, Object>, visibility: string,
     precision: string, evidence: string): Promise<void> {
-    await AccountService.getInstance().callFunction('grave-update', {
+    await CloudFunctionClient.getInstance().call('grave-update', {
       'familyId': familyId, 'uid': uid, 'grave': grave, 'visibility': visibility,
       'precision': precision, 'evidence': evidence
     });

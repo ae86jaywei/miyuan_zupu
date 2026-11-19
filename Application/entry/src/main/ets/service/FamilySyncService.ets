@@ -11,6 +11,7 @@ import { Genealogy } from 'common_base';
 import { SyncMode, SyncResult, bool, num, objectList, str } from 'common_base';
 import { IntegrityService } from './IntegrityService';
 import { IntegrityIssue, IntegrityReport } from 'common_base';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][FamilySync]';
 const PAGE_SIZE: number = 200;
@@ -179,7 +180,7 @@ export class FamilySyncService {
       try {
         if (item.scope === 'book' || FamilyService.getInstance().isOwnerCurrent()) {
           // 谱主（或谱元信息）走直写
-          await AccountService.getInstance().callFunction('member-direct-write', {
+          await CloudFunctionClient.getInstance().call('member-direct-write', {
             'familyId': familyId,
             'uid': item.scope === 'book' ? '' : item.target,
             'op': item.op === 'DELETE' ? 'DELETE_REQ' : item.op,
@@ -187,7 +188,7 @@ export class FamilySyncService {
             'baseRev': baseRev
           });
         } else {
-          await AccountService.getInstance().callFunction('change-submit', {
+          await CloudFunctionClient.getInstance().call('change-submit', {
             'familyId': familyId,
             'op': item.op === 'DELETE' ? 'DELETE_REQ' : item.op,
             'targetUid': item.target,
@@ -230,7 +231,7 @@ export class FamilySyncService {
     FamilySyncService.report(onProgress, '正在读取云端更新…', 38);
     while (guard < 20) {
       guard++;
-      const data: Record<string, Object> | null = await AccountService.getInstance().callFunction('sync-pull', {
+      const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('sync-pull', {
         'familyId': familyId, 'sinceRev': since, 'limit': PAGE_SIZE, 'offset': offset
       });
       this.ensureSameBook(bookKey, familyId);

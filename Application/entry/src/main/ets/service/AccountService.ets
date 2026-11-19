@@ -1,11 +1,11 @@
 import { authentication } from '@kit.AccountKit';
 import { util } from '@kit.ArkTS';
 import { common } from '@kit.AbilityKit';
-import { BusinessError, request } from '@kit.BasicServicesKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { preferences } from '@kit.ArkData';
-import { cloudCommon, cloudFunction } from '@kit.CloudFoundationKit';
 import auth, { AuthUser, HwIdCredentialInfo, SignInParam } from '@hw-agconnect/auth';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Account]';
 
@@ -34,7 +34,6 @@ export class AccountService {
   private prefs: preferences.Preferences | null = null;
   private initPromise: Promise<void> | null = null;
   private agcReady: boolean = false;
-  private cloudInited: boolean = false;
 
   static readonly KEY_LOGIN: string = 'gpLogin';
   static readonly KEY_USER_ID: string = 'gpUserId';
@@ -223,125 +222,6 @@ export class AccountService {
     AppStorage.setOrCreate<boolean>(AccountService.KEY_IDENTITY_VERIFIED, verified);
   }
 
-  /**
-   * 用户凭据 accessToken（方案 §6.0 方案②「端侧显式传 token」）。
-   *
-   * 取不到就返回空串 —— 云函数侧会自动落到网关认证（方案①）。
-   * **任何情况下都不允许把端侧自报的 uid 当鉴权依据。**
-   */
-  async getAuthToken(): Promise<string> {
-    if (!this.agcReady) {
-      return '';
-    }
-    try {
-      const provider: cloudCommon.AuthProvider | undefined = auth.getAuthProvider();
-      if (provider === undefined || provider === null) {
-        return '';
-      }
-      const token: string = await provider.getAccessToken(false);
-      return token !== undefined && token !== null ? token : '';
-    } catch (err) {
-      hilog.warn(0x0000, TAG, 'getAccessToken unavailable: %{public}s', JSON.stringify(err));
-      return '';
-    }
-  }
-
-  /**
-   * 调用云函数并返回 \`data\` 部分（方案 §六）。
-   *
-   * - 自动附带 accessToken（取不到就不带，由网关认证兜底）；
-   * - 统一把 \`{code,message,data}\` 的 JSON 串解析出来；
-   * - code ≠ 200 时抛出 Error（message 为云函数给的中文提示），业务层可直接展示。
-   */
-  async callFunction(name: string, data: Record<string, Object>,
-    timeoutMs: number = 20 * 1000): Promise<Record<string, Object> | null> {
-    this.ensureCloudReady();
-    const payload: Record<string, Object> = {};
-    const keys: string[] = Object.keys(data);
-    for (let i: number = 0; i < keys.length; i++) {
-      payload[keys[i]] = data[keys[i]];
-    }
-    const token: string = await this.getAuthToken();
-    if (token.length > 0) {
-      payload['accessToken'] = token;
-    }
-    const request: cloudFunction.FunctionParams = {
-      name: name,
-      version: '$latest',
-      timeout: timeoutMs,
-      data: payload
-    };
-    let result: cloudFunction.FunctionResult;
-    try {
-      result = await cloudFunction.call(request);
-    } catch (err) {
-      const be: BusinessError = err as BusinessError;
-      hilog.error(0x0000, TAG, 'call %{public}s failed: %{public}s', name, JSON.stringify(err));
-      throw new Error(AccountService.describeFunctionError(be));
-    }
-    // cloudFunction.call 的 result.result 既可能是 JSON 字符串，也可能已经是对象，
-    // 统一归一化成 Record，避免 String(obj) 得到 "[object Object]"。
-    const raw: Object | undefined = result.result;
-    if (raw === undefined || raw === null) {
-      throw new Error('云函数 ' + name + ' 返回为空');
-    }
-    let parsed: Record<string, Object>;
-    if (typeof raw === 'string') {
-      const text: string = raw as string;
-      if (text.length === 0) {
-        throw new Error('云函数 ' + name + ' 返回为空');
-      }
-      try {
-        parsed = JSON.parse(text) as Record<string, Object>;
-      } catch (err) {
-        hilog.error(0x0000, TAG, 'call %{public}s bad json: %{public}s', name,
-          text.length > 300 ? text.substring(0, 300) : text);
-        throw new Error('云函数 ' + name + ' 返回格式异常');
-      }
-    } else {
-      parsed = raw as Record<string, Object>;
-    }
-    const code: number = Number(parsed['code'] !== undefined ? parsed['code'] : 0);
-    const message: string = parsed['message'] !== undefined ? String(parsed['message']) : '';
-    if (code !== 200) {
-      const reason: string = parsed['reason'] !== undefined ? String(parsed['reason']) : '';
-      hilog.warn(0x0000, TAG, 'call %{public}s code=%{public}d reason=%{public}s', name, code, reason);
-      const err: Error = new Error(message.length > 0
-        ? message : ('云函数 ' + name + ' 失败（' + code.toString() + '）'));
-      err.name = 'CloudFunctionError:' + code.toString() + ':' + reason;
-      throw err;
-    }
-    const body: Object | undefined = parsed['data'];
-    if (body === undefined || body === null) {
-      return null;
-    }
-    return body as Record<string, Object>;
-  }
-
-  /** 把云函数调用错误翻译成用户能看懂的提示（含 AGC 已知错误码） */
-  private static describeFunctionError(be: BusinessError): string {
-    const msg: string = be.message !== undefined ? be.message : String(be.code);
-    if (msg.indexOf('mismatched authType') >= 0) {
-      return '云函数认证类型不正确：请在 function-config.json 中把 authType 设为 cloudgw-client';
-    }
-    if (msg.indexOf("doesn't have permission") >= 0 || msg.indexOf('does not have permission') >= 0) {
-      return '云函数调用被拒绝：多为签名配置问题，请确认调试/发布证书指纹已在 AGC 关联';
-    }
-    if (msg.indexOf('not found') >= 0 || msg.indexOf('NOT_FOUND') >= 0) {
-      return '云函数不存在：请在 AGC 控制台或 DevEco 云侧工程中部署该函数';
-    }
-    const hasCode: boolean = be.code !== undefined && be.code !== 0;
-    const code: string = hasCode ? '（' + String(be.code) + '）' : '';
-    return '云函数调用失败' + code + '：' + msg;
-  }
-
-  private ensureCloudReady(): void {
-    if (!this.isCloudReady()) {
-      const msg: string = this.getCloudMessage();
-      throw new Error(msg.length > 0 ? msg : '云服务未就绪，请先登录华为账号');
-    }
-  }
-
   /** 手动登录：走授权请求，每次都会拉起华为账号原生的“同意 / 拒绝”授权对话框 */
   login(): Promise<LoginOutcome> {
     return this.executeLogin(true);
@@ -471,42 +351,11 @@ export class AccountService {
         const param: SignInParam = { credentialInfo: credential, autoCreateUser: true };
         await auth.signIn(param);
       }
-      this.initCloudCommon();
+      CloudFunctionClient.getInstance().initCloud();
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.setCloudState(false, 'AGC 认证失败：' + (be.message !== undefined ? be.message : '请检查云服务配置'));
       hilog.error(0x0000, TAG, 'agc signIn failed: %{public}s', JSON.stringify(err));
-    }
-  }
-
-  /** 初始化云开发服务（幂等） */
-  private initCloudCommon(): void {
-    if (this.cloudInited) {
-      this.setCloudState(true, '云端已就绪');
-      return;
-    }
-    try {
-      cloudCommon.init({
-        region: cloudCommon.CloudRegion.CHINA,
-        authProvider: auth.getAuthProvider(),
-        functionOptions: {
-          timeout: 10 * 1000
-        },
-        storageOptions: {
-          mode: request.agent.Mode.BACKGROUND,
-          network: request.agent.Network.ANY
-        },
-        databaseOptions: {
-          schema: 'schema.json'
-        }
-      });
-      this.cloudInited = true;
-      this.setCloudState(true, '云端已就绪');
-      hilog.info(0x0000, TAG, 'cloudCommon init success');
-    } catch (err) {
-      const be: BusinessError = err as BusinessError;
-      this.setCloudState(false, '云服务初始化失败：' + (be.message !== undefined ? be.message : String(be.code)));
-      hilog.error(0x0000, TAG, 'cloudCommon init failed: %{public}s', JSON.stringify(err));
     }
   }
 

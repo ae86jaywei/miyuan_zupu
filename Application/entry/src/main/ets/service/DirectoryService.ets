@@ -4,6 +4,7 @@ import { AccountService } from './AccountService';
 import { Genealogy } from 'common_base';
 import { DirectoryEntry } from 'common_base';
 import { CloudFamilyDirectory } from 'common_base';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Directory]';
 const ZONE_NAME: string = 'miyuanfamily';
@@ -99,7 +100,7 @@ export class DirectoryService {
 
   /** 上架 / 更新黄页（仅谱主/编辑者，云侧做字段白名单校验） */
   async upsert(familyId: string, form: DirectoryForm): Promise<void> {
-    await AccountService.getInstance().callFunction('directory-upsert', {
+    await CloudFunctionClient.getInstance().call('directory-upsert', {
       'familyId': familyId,
       'directoryEnabled': form.directoryEnabled,
       'surname': form.surname,

@@ -1,6 +1,7 @@
 ﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AccountService } from './AccountService';
 import { objectList, str } from 'common_base';
+import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Privacy]';
 
@@ -37,7 +38,7 @@ export class PrivacyService {
     }
     try {
       const data: Record<string, Object> | null =
-        await AccountService.getInstance().callFunction('family-private-get', { 'familyId': familyId });
+        await CloudFunctionClient.getInstance().call('family-private-get', { 'familyId': familyId });
       const rows: Record<string, Object>[] = objectList(data, 'privates');
       this.cache.clear();
       for (let i: number = 0; i < rows.length; i++) {
