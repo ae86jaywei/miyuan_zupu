@@ -3,7 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { hidebug, hilog } from '@kit.PerformanceAnalysisKit';
 import { GenealogyService } from './GenealogyService';
 import { PagePlan, PaginationService, PrintBook } from './PaginationService';
-import { EuCanvas, SuCanvas } from './TreeLayout';
+import { EuCanvas, SuCanvas } from 'common_base';
 import { PagePlanRowMapper } from './PagePlanRowMapper';
 import { PageCanvasCodec } from './PageCanvasCodec';
 import { PersonNode } from 'common_base';

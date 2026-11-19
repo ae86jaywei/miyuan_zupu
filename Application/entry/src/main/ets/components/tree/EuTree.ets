@@ -1,9 +1,9 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { PersonNode } from 'common_base';
-import { EuBox, EuCanvas, LineSeg } from '../../service/TreeLayout';
+import { EuBox, EuCanvas, LineSeg } from 'common_base';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
-import { TreeCuller } from '../../service/TreeCuller';
-import { ViewRect } from '../../service/TreeViewport';
+import { TreeCuller } from 'common_base';
+import { ViewRect } from 'common_base';
 import { TreeMiniCard } from './TreeMiniCard';
 import { Theme } from 'common_base';
 import { TreePerf } from 'common_base';

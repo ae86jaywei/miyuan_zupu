@@ -1,7 +1,7 @@
-﻿import { Person, SpouseRelation } from 'common_base';
-import { PersonNode } from 'common_base';
+﻿import { Person, SpouseRelation } from '../model/Person';
+import { PersonNode } from '../model/PersonNode';
 import { parseDate } from 'common_dateutil';
-import { toChineseNumber } from 'common_base';
+import { toChineseNumber } from '../util/StringUtil';
 
 /**
  * 世系树构建器：把扁平人物列表转换为可渲染的树结构，

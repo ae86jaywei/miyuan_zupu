@@ -1,6 +1,6 @@
 ﻿import { PersonNode } from 'common_base';
-import { EuCanvas, EuLayout, SuCanvas, SuLayout } from './TreeLayout';
-import { TreeCuller } from './TreeCuller';
+import { EuCanvas, EuLayout, SuCanvas, SuLayout } from 'common_base';
+import { TreeCuller } from 'common_base';
 import { GenealogyService } from './GenealogyService';
 import { TreePerf } from 'common_base';
 

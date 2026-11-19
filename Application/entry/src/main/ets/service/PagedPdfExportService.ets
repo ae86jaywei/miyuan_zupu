@@ -11,7 +11,7 @@ import { Genealogy } from 'common_base';
 import { generationLabel } from 'common_base';
 import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
-import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from './TreeLayout';
+import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from 'common_base';
 import { PersonNode } from 'common_base';
 import { compactUid } from 'common_base';
 import { parseYear } from 'common_dateutil';

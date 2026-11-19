@@ -1,5 +1,5 @@
-﻿import { Person, SpouseRelation } from 'common_base';
-import { PersonNode } from 'common_base';
+﻿import { Person, SpouseRelation } from '../model/Person';
+import { PersonNode } from '../model/PersonNode';
 import { TreeBuilder } from './TreeBuilder';
 
 /**

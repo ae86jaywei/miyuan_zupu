@@ -1,6 +1,6 @@
 ﻿import { PersonNode } from 'common_base';
 import { TreeStyle, generationLabel } from 'common_base';
-import { EuCanvas, EuLayout, LineSeg, SuCanvas, SuLayout } from './TreeLayout';
+import { EuCanvas, EuLayout, LineSeg, SuCanvas, SuLayout } from 'common_base';
 import { LayoutProfile, PageSpec } from './PrintLayout';
 import { GenealogyService } from './GenealogyService';
 import { taskpool } from '@kit.ArkTS';

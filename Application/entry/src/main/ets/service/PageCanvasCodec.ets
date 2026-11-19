@@ -1,5 +1,5 @@
 import { PersonNode } from 'common_base';
-import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from './TreeLayout';
+import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from 'common_base';
 import { PaginationService } from './PaginationService';
 
 /**

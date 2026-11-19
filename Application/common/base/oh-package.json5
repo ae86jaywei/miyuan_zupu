@@ -5,7 +5,9 @@
   "main": "Index.ets",
   "author": "zupu",
   "license": "Apache-2.0",
-  "dependencies": {},
+  "dependencies": {
+    "common_dateutil": "file:../DateUtil"
+  },
   "devDependencies": {},
   "dynamicDependencies": {}
 }

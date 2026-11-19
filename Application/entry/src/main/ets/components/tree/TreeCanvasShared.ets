@@ -1,7 +1,7 @@
 ﻿import { PersonNode } from 'common_base';
 import { GenealogyService } from '../../service/GenealogyService';
-import { EuBox, LineSeg, SuBox } from '../../service/TreeLayout';
-import { ViewRect, ViewportMath } from '../../service/TreeViewport';
+import { EuBox, LineSeg, SuBox } from 'common_base';
+import { ViewRect, ViewportMath } from 'common_base';
 
 /**
  * 欧式 / 苏式谱画布（EuTree、SuTree）之间完全相同的纯逻辑。

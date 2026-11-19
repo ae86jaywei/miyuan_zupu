@@ -10,14 +10,14 @@ import { IdGenerator } from 'common_base';
 import { parseYear } from 'common_dateutil';
 import { generationLabel } from 'common_base';
 
-import { TreeBuilder } from './TreeBuilder';
+import { TreeBuilder } from 'common_base';
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
 import { FamilyService } from './FamilyService';
 import { IntegrityService } from './IntegrityService';
 import { IntegrityReport, IntegrityIssue } from 'common_base';
 import { ImportPlan, ImportOptions, ImportPlanner, ImportResult } from './ImportPlanner';
-import { RelationGraph, RepairReport } from './RelationGraph';
+import { RelationGraph, RepairReport } from 'common_base';
 import { buildPersonPatch } from 'common_base';
 import { DatabaseSchema, TABLE_BOOK, TABLE_META, TABLE_PERSON, TABLE_SPOUSE } from './db/DatabaseSchema';
 import { PersonRowMapper } from './db/PersonRowMapper';

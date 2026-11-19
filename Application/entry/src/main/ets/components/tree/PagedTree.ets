@@ -3,7 +3,7 @@ import { PersonNode } from 'common_base';
 import { TreeStyle, generationLabel } from 'common_base';
 import { Theme } from 'common_base';
 import { PrintTheme } from 'common_base';
-import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from '../../service/TreeLayout';
+import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from 'common_base';
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
 import { PageJump, PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
 import { DeviceUtil } from 'common_base';

@@ -1,4 +1,4 @@
-import { LayoutMetrics } from './TreeLayout';
+import { LayoutMetrics } from 'common_base';
 import { MM_TO_PT } from './pdf/PdfCommon';
 
 /**
