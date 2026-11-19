@@ -15,7 +15,9 @@ const fs = require('fs');
 const path = require('path');
 
 const ETS = path.join(__dirname, '..', 'entry', 'src', 'main', 'ets');
+const BASE = path.join(__dirname, '..', 'common', 'base', 'src', 'main', 'ets');
 const read = (rel) => fs.readFileSync(path.join(ETS, rel), 'utf8');
+const readBase = (rel) => fs.readFileSync(path.join(BASE, rel), 'utf8');
 
 function unique(list) {
   return [...new Set(list)];
@@ -29,12 +31,12 @@ function indexOfAll(text, regex) {
 }
 
 // 1. 模型字段
-const person = read('model/Person.ets');
+const person = readBase('model/Person.ets');
 const metaBlock = person.match(/FIELD_METAS: FieldMeta\[\] = \[([^\]]*?)\]/);
 const metaKeys = unique(indexOfAll(metaBlock[1], /key:\s*'([A-Za-z]+)'/g));
 
 // 2. 注册表
-const registry = read('model/FieldRegistry.ets');
+const registry = readBase('model/FieldRegistry.ets');
 const patchText = registry.match(/PATCH_TEXT_FIELD_KEYS: string\[\] = \[([^\]]*?)\]/);
 const patchNum = registry.match(/PATCH_NUMBER_FIELD_KEYS: string\[\] = \[([^\]]*?)\]/);
 const patchBool = registry.match(/PATCH_BOOLEAN_FIELD_KEYS: string\[\] = \[([^\]]*?)\]/);
@@ -51,11 +53,11 @@ const csvCols = unique(indexOfAll(registry.match(/PERSON_CSV_COLUMNS: string\[\]
 const exportService = read('service/ExportService.ets');
 const fieldCases = unique(indexOfAll(exportService, /case '([^']+)':/g));
 
-// 4. 建表列
-const service = read('service/GenealogyService.ets');
-const ddlStart = service.indexOf('CREATE TABLE IF NOT EXISTS ${TABLE_PERSON}');
-const ddlEnd = service.indexOf(')`);', ddlStart);
-const ddl = service.slice(ddlStart, ddlEnd);
+// 4. 建表列（DDL 已拆分到 service/db/DatabaseSchema.ets）
+const schema = read('service/db/DatabaseSchema.ets');
+const ddlStart = schema.indexOf('CREATE TABLE IF NOT EXISTS ${TABLE_PERSON}');
+const ddlEnd = schema.indexOf(')`);', ddlStart);
+const ddl = ddlStart < 0 ? '' : schema.slice(ddlStart, ddlEnd);
 const ddlCols = unique(indexOfAll(ddl, /^\s*([a-z_]+)\s+(TEXT|INTEGER|REAL)/gm)).filter((c) => c !== 'id');
 
 // 允许的例外：补丁不追踪表级/系统字段

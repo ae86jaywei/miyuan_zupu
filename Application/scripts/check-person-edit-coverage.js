@@ -13,7 +13,8 @@ const fs = require('fs');
 const path = require('path');
 
 const ETS = path.join(__dirname, '..', 'entry', 'src', 'main', 'ets');
-const person = fs.readFileSync(path.join(ETS, 'model', 'Person.ets'), 'utf8');
+const BASE = path.join(__dirname, '..', 'common', 'base', 'src', 'main', 'ets');
+const person = fs.readFileSync(path.join(BASE, 'model', 'Person.ets'), 'utf8');
 const edit = fs.readFileSync(path.join(ETS, 'pages', 'PersonEdit.ets'), 'utf8');
 
 const metaBlock = person.match(/FIELD_METAS: FieldMeta\[\] = \[([^\]]*?)\]/);
