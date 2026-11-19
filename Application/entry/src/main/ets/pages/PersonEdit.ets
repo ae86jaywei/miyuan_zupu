@@ -29,6 +29,10 @@ import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraL
 import { cnYearText, huangLiText, HuangLi, julianDay, LunarMonthOption, lunarMonthsOfYear, lunarMonthDays, lunarToSolar, SolarDate } from 'common_dateutil';
 import { eraYearText, lunarDayName, lunarMonthName, solarToLunar, LunarDate } from 'common_dateutil';
 import { CoordParseResult, DateMath, GraveCoordParser, NumTextUtil, PersonMediaUtil } from './personedit/PersonEditUtils';
+import { FormLabel, FormToggleRow, GroupHeaderRow, NumberFieldRow } from './personedit/FormWidgets';
+import { SpouseSection } from './personedit/SpouseSection';
+import { PreviewItem, SidePreview } from './personedit/SidePreview';
+import { EraPickerPanel } from './personedit/EraPickerPanel';
 
 /** 第一世（始祖）的排行称谓 */
 const ANCESTOR_RANK: string = '第一世（始祖）';
@@ -1120,100 +1124,6 @@ struct PersonEdit {
 
   // ---------------------------------------------------------------- 构建
 
-  @Builder
-  Label(text: string, required: boolean, hint: string) {
-    Column() {
-      Row() {
-        Text(T(text)).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
-        if (required) {
-          Text(T(' *')).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.danger)
-        }
-      }
-      .width('100%')
-      if (hint.length > 0) {
-        Text(T(hint)).fontFamily(uiFontFamily())
-          .fontSize(10.5)
-          .fontColor(Theme.inkTertiary)
-          .width('100%')
-          .margin({ top: 1 })
-      }
-    }
-    .width('100%')
-    .margin({ bottom: 4 })
-  }
-
-  @Builder
-  NumberField(label: string, value: number, hint: string, min: number, max: number, onChange: (v: number) => void) {
-    Column() {
-      this.Label(label, false, hint)
-      Row() {
-        Button('-')
-          .width(36)
-          .height(36)
-          .fontSize(16)
-          .backgroundColor(Theme.field)
-          .fontColor(Theme.ink)
-          .borderRadius(8)
-          .onClick((): void => {
-            const v: number = Math.max(min, value - 1);
-            onChange(v);
-          })
-        TextInput({ text: value.toString() })
-          .fontFamily(uiFontFamily())
-          .height(36)
-          .fontSize(14)
-          .backgroundColor(Theme.field)
-          .fontColor(Theme.ink)
-          .borderRadius(8)
-          .textAlign(TextAlign.Center)
-          .width(60)
-          .margin({ left: Spacing.S, right: Spacing.S })
-          .onChange((v: string): void => {
-            const n: number = parseInt(v, 10);
-            if (!isNaN(n)) {
-              onChange(Math.max(min, Math.min(max, n)));
-            }
-          })
-        Button('+')
-          .width(36)
-          .height(36)
-          .fontSize(16)
-          .backgroundColor(Theme.field)
-          .fontColor(Theme.ink)
-          .borderRadius(8)
-          .onClick((): void => {
-            const v: number = Math.min(max, value + 1);
-            onChange(v);
-          })
-      }
-      .width('100%')
-    }
-    .width('100%')
-    .margin({ bottom: Spacing.M })
-  }
-
-  @Builder
-  Toggle(label: string, value: boolean, hint: string, onChange: (v: boolean) => void) {
-    Column() {
-      this.Label(label, false, hint)
-      Row() {
-        Toggle({ type: ToggleType.Switch, isOn: value })
-          .selectedColor(Theme.primary)
-          .onChange((isOn: boolean): void => {
-            onChange(isOn);
-          })
-        Text(value ? '是' : '否')
-          .fontSize(14)
-          .fontColor(Theme.ink)
-          .margin({ left: Spacing.S })
-      }
-      .width('100%')
-      .height(40)
-      .alignItems(VerticalAlign.Center)
-    }
-    .width('100%')
-    .margin({ bottom: Spacing.M })
-  }
 
   /**
    * 打开历史日期选择面板。
@@ -1705,75 +1615,31 @@ struct PersonEdit {
     .borderRadius({ topLeft: 20, topRight: 20 })
   }
 
-  /**
-   * 纪年（年号）选择弹窗：全宽滚动列表，条目完整显示不截断（替代宽度不足的 Select 下拉）。
-   * 由 build() 中的 Stack 承载，覆盖在日期面板之上；点击遮罩关闭。
-   */
-  @Builder
-  EraPickerPanel() {
-    Column() {
-      Row() {
-        Text(T('选择纪年（年号）')).fontFamily(uiFontFamily())
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(Theme.ink)
-          .layoutWeight(1)
-        Text(T('关闭')).fontFamily(uiFontFamily())
-          .fontSize(14)
-          .fontColor(Theme.primary)
-          .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-          .onClick((): void => {
-            this.showEraPicker = false;
-          })
-      }
-      .width('100%')
-      .height(48)
-      .padding({ left: Spacing.L, right: Spacing.L })
-      .border({ width: { bottom: 0.5 }, color: Theme.line })
-
-      List() {
-        ForEach(this.eraOptions, (label: string, idx: number) => {
-          ListItem() {
-            Row() {
-              Text(T(label)).fontFamily(uiFontFamily())
-                .fontSize(14)
-                .fontColor(idx === this.eraIndex ? Theme.primary : Theme.ink)
-                .fontWeight(idx === this.eraIndex ? FontWeight.Medium : FontWeight.Normal)
-                .layoutWeight(1)
-              if (idx === this.eraIndex) {
-                Text('✓').fontFamily(uiFontFamily())
-                  .fontSize(15)
-                  .fontColor(Theme.primary)
-              }
-            }
-            .width('100%')
-            .padding({ left: Spacing.L, right: Spacing.L, top: 13, bottom: 13 })
-            .backgroundColor(idx === this.eraIndex ? Theme.highlightBg : Color.Transparent)
-          }
-          .onClick((): void => {
-            this.selectEra(idx);
-            this.showEraPicker = false;
-          })
-        }, (label: string, idx: number) => 'era_' + idx.toString())
-      }
-      .width('100%')
-      .layoutWeight(1)
-      .scrollBar(BarState.Auto)
-      .divider({ strokeWidth: 0.5, color: Theme.line })
-    }
-    .width('100%')
-    .height('68%')
-    .backgroundColor(Theme.card)
-    .borderRadius({ topLeft: 20, topRight: 20 })
+  private previewItem(label: string, value: string): PreviewItem {
+    const item: PreviewItem = new PreviewItem();
+    item.label = label;
+    item.value = value;
+    return item;
   }
 
-  /** 名分下拉文案：称谓（等级），keys 仍为 SPOUSE_RELATIONS */
-  private spouseRelationOptions(): string[] {
-    const labels: string[] = [];
-    SPOUSE_RELATIONS.forEach((r: string): void => {
-      labels.push(spouseRelationLabel(r));
-    });
-    return labels;
+  /** 右侧预览卡的数据行 */
+  private previewItems(): PreviewItem[] {
+    const list: PreviewItem[] = [];
+    list.push(this.previewItem('性别', this.fGender));
+    list.push(this.previewItem('在世状态', this.fLifeStatus));
+    list.push(this.previewItem('身份', this.fChildStatus === '未记' ? '' :
+      childStatusLabel(this.fChildStatus, this.fGender)));
+    list.push(this.previewItem('出生', this.fBirthDate));
+    list.push(this.previewItem('逝世', this.fDeathDate));
+    list.push(this.previewItem('出生地', this.fBirthPlace));
+    list.push(this.previewItem('现居地', this.fResidence));
+    list.push(this.previewItem('父亲', this.relationValue(this.fFatherId)));
+    list.push(this.previewItem('母亲', this.relationValue(this.fMotherId)));
+    list.push(this.previewItem('配偶', this.spousesPreview()));
+    list.push(this.previewItem('排行', this.fRank));
+    list.push(this.previewItem('学历', this.fEducation));
+    list.push(this.previewItem('职业', this.fOccupation));
+    return list;
   }
 
   private relationValue(value: string): string {
@@ -1784,114 +1650,7 @@ struct PersonEdit {
     return p === null ? value : p.name + '（' + p.uid + '）';
   }
 
-  @Builder
-  GroupHeader(title: string, icon: string) {
-    Row() {
-      Text(T(icon)).fontFamily(uiFontFamily()).fontSize(15)
-      Text(T(title)).fontFamily(uiFontFamily()).fontSize(15).fontWeight(FontWeight.Medium).fontColor(Theme.primary).margin({ left: 6 })
-    }
-    .width('100%')
-    .padding({ top: Spacing.L, bottom: Spacing.S })
-  }
 
-  /** 配偶关系编辑区：可增删多位配偶，并为每位选择名分 */
-  @Builder
-  SpouseSection() {
-    Column() {
-      Row() {
-        Column() {
-          Text(T('配偶关系')).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.ink).fontWeight(FontWeight.Medium)
-          Text(T('一夫一妻多妾制：正妻 / 平妻 / 贵妾 / 良妾 / 贱妾 / 外室，按先后顺序记录')).fontFamily(uiFontFamily())
-            .fontSize(10.5)
-            .fontColor(Theme.inkTertiary)
-            .margin({ top: 1 })
-        }
-        .alignItems(HorizontalAlign.Start)
-        .layoutWeight(1)
-
-        Text(T('+ 添加配偶')).fontFamily(uiFontFamily())
-          .fontSize(12)
-          .fontColor(Theme.primary)
-          .padding({ left: 10, right: 10, top: 5, bottom: 5 })
-          .borderRadius(12)
-          .border({ width: 1, color: Theme.primary })
-          .onClick((): void => {
-            this.addSpouse();
-          })
-      }
-      .width('100%')
-      .margin({ bottom: Spacing.S })
-
-      if (this.fSpouses.length === 0) {
-        Text(T('尚未录入配偶')).fontFamily(uiFontFamily())
-          .fontSize(11)
-          .fontColor(Theme.inkTertiary)
-          .width('100%')
-          .padding({ top: 6, bottom: 6 })
-      }
-
-      ForEach(this.fSpouses, (rel: SpouseRelation, idx: number) => {
-        Column() {
-          Row() {
-            Column() {
-              PersonPickerField({
-                label: '配偶' + (idx + 1).toString(),
-                hint: '点击搜索并选择配偶，不可选本人',
-                value: rel.uid,
-                excludeUid: this.fUid,
-                clearable: true,
-                onValue: (v: string): void => {
-                  this.updateSpouse(idx, v, rel.relation);
-                },
-                onSearch: (k: string): Person[] => SR.genealogy().search(k),
-                onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
-              })
-              SelectField({
-                label: '名分',
-                hint: '选择具体称谓，括号内为其名分等级',
-                options: this.spouseRelationOptions(),
-                keys: SPOUSE_RELATIONS,
-                value: rel.relation,
-                onValue: (v: string): void => {
-                  this.updateSpouse(idx, rel.uid, v);
-                }
-              })
-            }
-            .layoutWeight(1)
-
-            Text(T('删除')).fontFamily(uiFontFamily())
-              .fontSize(12)
-              .fontColor(Theme.danger)
-              .padding({ left: Spacing.M, right: Spacing.S, top: 30, bottom: Spacing.M })
-              .onClick((): void => {
-                this.removeSpouse(idx);
-              })
-          }
-          .width('100%')
-          .alignItems(VerticalAlign.Top)
-
-          // 名分含意提示：等级 / 地位 / 所生子女的宗法身份
-          Text(T(spouseRelationHint(rel.relation))).fontFamily(uiFontFamily())
-            .fontSize(10.5)
-            .fontColor(Theme.inkTertiary)
-            .lineHeight(16)
-            .width('100%')
-          if (childRankOfSpouseRelation(rel.relation).length > 0) {
-            Text(T('所生子女：' + childRankOfSpouseRelation(rel.relation))).fontFamily(uiFontFamily())
-              .fontSize(10.5)
-              .fontColor(Theme.gold)
-              .width('100%')
-              .margin({ top: 2 })
-          }
-        }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-        .padding({ left: 4, right: 4, bottom: 6 })
-      }, (rel: SpouseRelation) => 'spouse_' + rel.uid + '_' + rel.relation + '_' + rel.order.toString())
-    }
-    .width('100%')
-    .margin({ bottom: Spacing.M })
-  }
 
   @Builder
   FormContent() {
@@ -1952,7 +1711,7 @@ struct PersonEdit {
       }
 
       // 身份标识
-      this.GroupHeader('身份标识', '🪪')
+      GroupHeaderRow({ title: '身份标识', icon: '🪪' })
       Row() {
         Column() {
           PersonFieldForm({
@@ -2126,8 +1885,15 @@ struct PersonEdit {
         }
         .layoutWeight(1)
         Column() {
-          this.NumberField('在源第几子', this.fChildMarkSeq, '入继/兼祧时填写在来源中的排行', 1, 99, (v: number): void => {
-            this.fChildMarkSeq = v;
+          NumberFieldRow({
+            label: '在源第几子',
+            value: this.fChildMarkSeq,
+            hint: '入继/兼祧时填写在来源中的排行',
+            min: 1,
+            max: 99,
+            onChange: (v: number): void => {
+              this.fChildMarkSeq = v;
+            }
           })
         }
         .layoutWeight(1)
@@ -2136,8 +1902,13 @@ struct PersonEdit {
       .width('100%')
 
       Row() {
-        this.Toggle('无出', this.fChildless, '无子女', (v: boolean): void => {
-          this.fChildless = v;
+        FormToggleRow({
+          label: '无出',
+          value: this.fChildless,
+          hint: '无子女',
+          onChange: (v: boolean): void => {
+            this.fChildless = v;
+          }
         })
       }
       .width('100%')
@@ -2177,7 +1948,7 @@ struct PersonEdit {
       .width('100%')
 
       // 时间信息
-      this.GroupHeader('时间信息', '📅')
+      GroupHeaderRow({ title: '时间信息', icon: '📅' })
       Row() {
         Column() {
           DateFieldInput({
@@ -2257,7 +2028,7 @@ struct PersonEdit {
       })
 
       // 亲属关系
-      this.GroupHeader('亲属关系', '👪')
+      GroupHeaderRow({ title: '亲属关系', icon: '👪' })
       PersonPickerField({
         label: '父亲ID',
         hint: '点击搜索并选择父亲，如：F000；妻/妾等无父母者可留空',
@@ -2329,7 +2100,19 @@ struct PersonEdit {
         .margin({ left: Spacing.S })
       }
       .width('100%')
-      this.SpouseSection()
+      SpouseSection({
+        spouses: this.fSpouses,
+        selfUid: this.fUid,
+        onAdd: (): void => {
+          this.addSpouse();
+        },
+        onRemove: (index: number): void => {
+          this.removeSpouse(index);
+        },
+        onChange: (index: number, uid: string, relation: string): void => {
+          this.updateSpouse(index, uid, relation);
+        }
+      })
       SelectField({
         label: '排行',
         hint: this.isNatalOutsider() ? '填写在娘家的排行' :
@@ -2350,7 +2133,7 @@ struct PersonEdit {
       })
 
       // 生平履历
-      this.GroupHeader('生平履历', '📜')
+      GroupHeaderRow({ title: '生平履历', icon: '📜' })
       PersonFieldForm({
         meta: fieldMetaOf('education'),
         value: this.fEducation,
@@ -2378,7 +2161,7 @@ struct PersonEdit {
       })
 
       Column() {
-        this.Label('墓葬信息', false, '地点、山向、碑文摘要（仅已故者填写）')
+        FormLabel({ text: '墓葬信息', required: false, hint: '地点、山向、碑文摘要（仅已故者填写）' })
         TextArea({ text: this.fGraveInfo }).fontFamily(uiFontFamily())
           .height(80)
           .fontSize(14)
@@ -2502,7 +2285,7 @@ struct PersonEdit {
       .margin({ bottom: Spacing.M })
 
       // 联系方式
-      this.GroupHeader('联系方式', '📞')
+      GroupHeaderRow({ title: '联系方式', icon: '📞' })
       Row() {
         Text(T('🔒 以下为隐私字段，仅管理员可见')).fontFamily(uiFontFamily())
           .fontSize(11)
@@ -2616,57 +2399,7 @@ struct PersonEdit {
     .width('100%')
   }
 
-  @Builder
-  SidePreview() {
-    Column() {
-      Text(T('族谱预览')).fontFamily(uiFontFamily()).fontSize(13).fontColor(Theme.inkTertiary).width('100%')
-      Column() {
-        Text(T(this.fName.length > 0 ? this.fName : '未命名')).fontFamily(uiFontFamily())
-          .fontSize(18)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.fGender === '女' ? Theme.female : Theme.primary)
-        Text(T(generationLabel(this.fGeneration) + ' · ' + (this.fUid.length > 0 ? this.fUid : 'ID 待生成') +
-          (this.fGenChar.length > 0 ? ' · “' + this.fGenChar + '”字' : ''))).fontFamily(uiFontFamily())
-          .fontSize(12)
-          .fontColor(Theme.inkTertiary)
-          .margin({ top: 4 })
-        Divider().color(Theme.line).margin({ top: 10, bottom: 10 })
-        Text(T(this.previewLine('性别', this.fGender))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('在世状态', this.fLifeStatus))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('身份', this.fChildStatus === '未记' ? '' :
-          childStatusLabel(this.fChildStatus, this.fGender)))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('出生', this.fBirthDate))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('逝世', this.fDeathDate))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('出生地', this.fBirthPlace))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('现居地', this.fResidence))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('父亲', this.relationValue(this.fFatherId)))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('母亲', this.relationValue(this.fMotherId)))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('配偶', this.spousesPreview()))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('排行', this.fRank))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('学历', this.fEducation))).fontFamily(uiFontFamily())
-        Text(T(this.previewLine('职业', this.fOccupation))).fontFamily(uiFontFamily())
-        if (this.fBiography.length > 0) {
-          Text(T(this.fBiography)).fontFamily(uiFontFamily())
-            .fontSize(12)
-            .lineHeight(20)
-            .fontColor(Theme.inkSecondary)
-            .margin({ top: 8 })
-        }
-      }
-      .alignItems(HorizontalAlign.Start)
-      .width('100%')
-      .padding(Spacing.L)
-      .backgroundColor(Theme.card)
-      .borderRadius(Radius.L)
-      .border({ width: 0.5, color: Theme.line })
-      .margin({ top: Spacing.S })
-    }
-    .width('100%')
-  }
 
-  private previewLine(label: string, value: string): string {
-    return value.length > 0 ? label + '：' + value : '';
-  }
 
   build() {
     Stack({ alignContent: Alignment.Bottom }) {
@@ -2730,7 +2463,15 @@ struct PersonEdit {
 
           Scroll() {
             Column() {
-              this.SidePreview()
+              SidePreview({
+                name: this.fName,
+                gender: this.fGender,
+                subtitle: generationLabel(this.fGeneration) + ' · ' +
+                  (this.fUid.length > 0 ? this.fUid : 'ID 待生成') +
+                  (this.fGenChar.length > 0 ? ' · “' + this.fGenChar + '”字' : ''),
+                items: this.previewItems(),
+                biography: this.fBiography
+              })
               Column().height(120)
             }
             .width('100%')
@@ -2781,7 +2522,16 @@ struct PersonEdit {
       if (this.showEraPicker) {
         Column() {
           Blank()
-          this.EraPickerPanel()
+          EraPickerPanel({
+            options: this.eraOptions,
+            selected: this.eraIndex,
+            onSelect: (idx: number): void => {
+              this.selectEra(idx);
+            },
+            onClose: (): void => {
+              this.showEraPicker = false;
+            }
+          })
         }
         .width('100%')
         .height('100%')

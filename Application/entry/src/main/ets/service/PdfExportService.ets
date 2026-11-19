@@ -3,7 +3,6 @@ import { T } from 'common_base';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB, PDF_SOFT_LIMIT_KB } from './pdf/PdfMemory';
-import { A4_W_PT, A4_H_PT, PDF_INK, PDF_INK_2, PDF_MUTED, PDF_GOLD, PDF_FEMALE, PDF_BG } from './pdf/PdfCommon';
 import { Person, SpouseRelation } from 'common_base';
 import { PersonNode } from 'common_base';
 import { Genealogy } from 'common_base';
@@ -18,6 +17,11 @@ import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange, DieJiBlock, DIE
 import {
   BranchInfo, FamilyUnit, KinshipIndex, TextLine, TextRun, charWidth, lineHOf
 } from './pdf/PdfTextCompose';
+import {
+  C_BG, C_FEMALE, C_GOLD, C_INK, C_INK2, C_INK3, CONTENT_H, CONTENT_W, MARGIN_BOTTOM, MARGIN_LR,
+  MARGIN_TOP, PAGE_H, PAGE_W, PageSpec, bigSpacerLine, pushAll, pushAllPages, replaceParens,
+  spacerLine, todayStr, wrapLines, wrapStyledLines
+} from './pdf/PdfTextKit';
 
 /**
  * 族谱 PDF 导出服务（端侧原生排版，矢量文本）。
@@ -34,14 +38,6 @@ import {
  */
 
 // ─── 页面常量（pt） ────────────────────────────────────────
-const PAGE_W: number = A4_W_PT;
-const PAGE_H: number = A4_H_PT;
-/** 旧 PDFKit 导出路径（exportPdf）使用的固定版心，保留以兼容未调用代码 */
-const MARGIN_LR: number = 56;
-const MARGIN_TOP: number = 64;
-const MARGIN_BOTTOM: number = 52;
-const CONTENT_W: number = PAGE_W - MARGIN_LR * 2;
-const CONTENT_H: number = PAGE_H - MARGIN_TOP - MARGIN_BOTTOM;
 
 /** 牒记式 A4 页面规格：每次导出时读取最新的装订方向与单双面设置 */
 function dieSpec(): PrintPageSpec {
@@ -85,12 +81,6 @@ const MEMORY_CHECK_EVERY_PAGES: number = 16;
 const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
-const C_INK: string = PDF_INK;
-const C_INK2: string = PDF_INK_2;
-const C_INK3: string = PDF_MUTED;
-const C_GOLD: string = PDF_GOLD;
-const C_FEMALE: string = PDF_FEMALE;
-const C_BG: string = PDF_BG;
 
 // ─── 导出选项与进度 ────────────────────────────────────────
 export interface PdfExportOptions {
@@ -119,165 +109,6 @@ export interface PdfExportProgress {
   message: string;
 }
 
-/**
- * 牒记版标点：现代横排圆括号保持（ ）、书名号《》→『』；
- * 仿古竖排圆括号（ ）→﹇﹈、书名号《》→﹃﹄。
- */
-function replaceParens(text: string, classic: boolean = false): string {
-  // 现代横排：圆括号保持（ ），书名号《》→『』
-  if (!classic) {
-    return text.split('《').join('『').split('》').join('』');
-  }
-  // 仿古竖排：圆括号（ ）→﹇﹈，书名号《》→﹃﹄
-  return text.split('（').join('﹇').split('）').join('﹈')
-    .split('《').join('﹃').split('》').join('﹄');
-}
-
-function spacerLine(): TextLine {
-  return { text: ' ', font: 10, lineH: 16, color: C_BG, bold: false, indent: 0, center: false };
-}
-
-function bigSpacerLine(): TextLine {
-  return { text: ' ', font: 20, lineH: 34, color: C_BG, bold: false, indent: 0, center: false, columnGap: true };
-}
-
-function pushAll(dst: TextLine[], src: TextLine[]): void {
-  for (let i: number = 0; i < src.length; i++) {
-    dst.push(src[i]);
-  }
-}
-
-function pushAllPages(dst: PageSpec[], src: PageSpec[]): void {
-  for (let i: number = 0; i < src.length; i++) {
-    dst.push(src[i]);
-  }
-}
-
-/** 中文按字符宽度断行（不逐字 measureText，避免数万人大谱卡死主线程） */
-function wrapLines(text: string, font: number, indent: number, color: string,
-  maxW: number = CONTENT_W): TextLine[] {
-  const out: TextLine[] = [];
-  const maxChars: number = Math.max(1, Math.floor((maxW - indent) / font * 0.98));
-  const paras: string[] = text.split('\n');
-  for (let pi: number = 0; pi < paras.length; pi++) {
-    const para: string = paras[pi];
-    if (para.length === 0) {
-      out.push({ text: ' ', font: font, lineH: lineHOf(font), color: color, bold: false, indent: indent, center: false });
-      continue;
-    }
-    let start: number = 0;
-    while (start < para.length) {
-      const end: number = Math.min(start + maxChars, para.length);
-      out.push({
-        text: para.substring(start, end),
-        font: font, lineH: lineHOf(font), color: color, bold: false, indent: indent, center: false
-      });
-      start = end;
-    }
-  }
-  return out;
-}
-
-/**
- * 混排行：正文 14pt、姓名 18pt 加粗、括号引用 10.5pt 常规。
- * 按字符宽度折行，行内按 runs 记录不同字号片段；只有含姓名/引用的行才带 runs。
- */
-function wrapStyledLines(ctx: OffscreenCanvasRenderingContext2D, text: string,
-  nameRanges: DieJiNameRange[], refRanges: DieJiNameRange[],
-  baseFont: number, baseColor: string, nameFont: number, nameColor: string,
-  refFont: number, refColor: string, indent: number = 0,
-  maxW: number = CONTENT_W, hangingIndent: number = 0): TextLine[] {
-  const out: TextLine[] = [];
-  const lineChars: string[] = [];
-  let lineRuns: TextRun[] = [];
-  let lineW: number = 0;
-  let maxFont: number = baseFont;
-  // 首行用 indent，发生折行后改用悬挂缩进，让正文与项目符号后的文字对齐
-  let lineIndent: number = indent;
-  const flush = (): void => {
-    if (lineChars.length === 0) {
-      return;
-    }
-    const onlyBase: boolean = lineRuns.length === 1 && lineRuns[0].font === baseFont &&
-      !lineRuns[0].bold;
-    const ln: TextLine = {
-      text: lineChars.join(''), font: maxFont, lineH: lineHOf(maxFont), color: baseColor,
-      bold: false, indent: lineIndent, center: false
-    };
-    if (!onlyBase) {
-      ln.runs = lineRuns.slice();
-    }
-    out.push(ln);
-    lineChars.length = 0;
-    lineRuns = [];
-    lineW = 0;
-    maxFont = baseFont;
-    lineIndent = hangingIndent;
-  };
-  let i: number = 0;
-  while (i < text.length) {
-    const cp: number = text.codePointAt(i) ?? 0;
-    const step: number = cp > 0xffff ? 2 : 1;
-    const ch: string = text.substring(i, i + step);
-    if (ch === '\n') {
-      flush();
-      i = i + step;
-      continue;
-    }
-    let inName: boolean = false;
-    // relative：亲属姓名只加粗，字号仍用正文四号
-    let relative: boolean = false;
-    for (let r: number = 0; r < nameRanges.length; r++) {
-      if (i >= nameRanges[r].start && i < nameRanges[r].end) {
-        inName = true;
-        relative = nameRanges[r].relative;
-        break;
-      }
-    }
-    let inRef: boolean = false;
-    if (!inName) {
-      for (let r: number = 0; r < refRanges.length; r++) {
-        if (i >= refRanges[r].start && i < refRanges[r].end) {
-          inRef = true;
-          break;
-        }
-      }
-    }
-    // 全角空格断句符排在行首会形成假缩进，直接吞掉
-    if (ch === DIE_SPACE && lineChars.length === 0) {
-      i = i + step;
-      continue;
-    }
-    const font: number = inName ? (relative ? baseFont : nameFont) : (inRef ? refFont : baseFont);
-    const color: string = inName ? (relative ? baseColor : nameColor) : (inRef ? refColor : baseColor);
-    const bold: boolean = inName;
-    const w: number = charWidth(ctx, ch, font);
-    // 留 0.5pt 余量：折行判定是浮点累加，贴边时会压到版心边线与装订口
-    if (lineChars.length > 0 && lineW + w > maxW - lineIndent - 0.5) {
-      flush();
-    }
-    lineChars.push(ch);
-    const last: TextRun | null = lineRuns.length > 0 ? lineRuns[lineRuns.length - 1] : null;
-    if (last !== null && last.font === font && last.color === color && last.bold === bold) {
-      last.text = last.text + ch;
-    } else {
-      const run: TextRun = { text: ch, font: font, color: color, bold: bold };
-      lineRuns.push(run);
-    }
-    lineW = lineW + w;
-    if (font > maxFont) {
-      maxFont = font;
-    }
-    i = i + step;
-  }
-  flush();
-  return out;
-}
-
-function todayStr(): string {
-  const d: Date = new Date();
-  return d.getFullYear().toString() + '年' + (d.getMonth() + 1).toString() + '月' + d.getDate().toString() + '日';
-}
 
 // ─── 内容构建 ─────────────────────────────────────────────
 
@@ -660,16 +491,6 @@ function buildBack(ctx: OffscreenCanvasRenderingContext2D, book: Genealogy,
 
 // ─── 分页与绘制 ───────────────────────────────────────────
 
-interface PageSpec {
-  lines: TextLine[];
-  chapter: string;
-  /** 页内分栏：0/1/2；缺省 0（整页一栏） */
-  column?: number;
-  /** 单栏宽度（pt）；缺省用整页版心宽 */
-  columnW?: number;
-  /** 页号（1 起，含前置页偏移）；exportRawTextPdf 统一分配 */
-  pageNo?: number;
-}
 
 /** 正文每页栏数（三段）与栏间距 */
 const COLUMNS: number = 3;
