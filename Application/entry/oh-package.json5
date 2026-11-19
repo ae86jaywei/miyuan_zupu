@@ -11,6 +11,8 @@
     "common_ui": "file:../common/ui",
     "common_dateutil": "file:../common/DateUtil"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@ohos/hypium": "1.0.25"
+  },
   "dynamicDependencies": {}
 }
