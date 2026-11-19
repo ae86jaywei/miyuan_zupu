@@ -10,8 +10,8 @@ import { PersonNode } from 'common_base';
 import { GenealogyStats } from 'common_base';
 import { IdGenerator } from 'common_base';
 import { StatsCalculator } from './StatsCalculator';
+import { PeopleStore } from './PeopleStore';
 
-import { TreeBuilder } from 'common_base';
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
 import { FamilyService } from './FamilyService';
@@ -88,19 +88,17 @@ export class GenealogyService {
   private static instance: GenealogyService | null = null;
 
   private store: relationalStore.RdbStore | null = null;
-  private people: Person[] = [];
+  /** 人员数据存储：统一持有列表/uid 映射/宗支根/版本，供后续子域服务共享 */
+  private peopleStore: PeopleStore = new PeopleStore();
   private book: Genealogy = createEmptyGenealogy();
   /** 全部族谱元信息（支持多族谱管理） */
   private books: Genealogy[] = [];
   /** 当前打开的族谱ID（0 表示无族谱） */
   private currentBookId: number = 0;
-  private peopleMap: Map<string, Person> = new Map<string, Person>();
   /** 当前族谱中已删除人员的编号（uid → 原姓名），新增人员时不得复用 */
   private retiredUids: Map<string, string> = new Map<string, string>();
-  private roots: PersonNode[] = [];
   /** 编辑前快照（uid → Person），用于生成字段级 diff */
   private beforeSnapshots: Map<string, Person> = new Map<string, Person>();
-  private version: number = 0;
   /** 全量统计缓存：概览页 build 内会多次调用 computeStats，8 万人单次需数百毫秒，按版本号复用 */
   private statsCache: GenealogyStats | null = null;
   private statsCacheVersion: number = -1;
@@ -112,7 +110,7 @@ export class GenealogyService {
   private constructor() {
     // 布局缓存位于公共层，数据身份（族谱ID#数据版本）由本服务注入，避免公共层反向依赖业务服务
     TreeLayoutCache.getInstance().setScopeProvider((): string => {
-      return this.currentBookId.toString() + '#' + this.version.toString();
+      return this.currentBookId.toString() + '#' + this.peopleStore.getVersion().toString();
     });
   }
 
@@ -128,7 +126,7 @@ export class GenealogyService {
   }
 
   getVersion(): number {
-    return this.version;
+    return this.peopleStore.getVersion();
   }
 
   /** 初始化数据库并加载数据（幂等） */
@@ -198,7 +196,7 @@ export class GenealogyService {
       }
       await this.reload();
       this.ready = true;
-      hilog.info(0x0000, TAG, 'ready, people=%{public}d', this.people.length);
+      hilog.info(0x0000, TAG, 'ready, people=%{public}d', this.peopleStore.getAll().length);
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'init failed %{public}d %{public}s', err.code, err.message);
@@ -303,12 +301,12 @@ export class GenealogyService {
   // ---------------------------------------------------------------- 查询
 
   getPeople(): Person[] {
-    return this.people;
+    return this.peopleStore.getAll();
   }
 
   /** 返回副本，供编辑页使用 */
   getPeopleCopy(): Person[] {
-    return this.people.map((p: Person): Person => clonePerson(p));
+    return this.peopleStore.getAll().map((p: Person): Person => clonePerson(p));
   }
 
   getPerson(uid: string): Person | null {
@@ -316,15 +314,15 @@ export class GenealogyService {
       return null;
     }
     // 库内 uid 统一为大写：常见路径直接命中，省去 trim + toUpperCase 的临时字符串
-    let p: Person | undefined = this.peopleMap.get(uid);
+    let p: Person | undefined = this.peopleStore.getMap().get(uid);
     if (p === undefined) {
-      p = this.peopleMap.get(uid.trim().toUpperCase());
+      p = this.peopleStore.getMap().get(uid.trim().toUpperCase());
     }
     return p === undefined ? null : p;
   }
 
   getRoots(): PersonNode[] {
-    return this.roots;
+    return this.peopleStore.getRoots();
   }
 
   getBook(): Genealogy {
@@ -356,20 +354,20 @@ export class GenealogyService {
         reserved.add(uid);
       });
     }
-    return IdGenerator.next(this.people, gender, reserved);
+    return IdGenerator.next(this.peopleStore.getAll(), gender, reserved);
   }
 
   /** 当前族谱的数据一致性体检（重复ID、关系悬空、世代/性别/日期错位、编号复用） */
   checkIntegrity(): IntegrityReport {
-    const report: IntegrityReport = IntegrityService.check(this.people, this.book.title);
-    report.merge(IntegrityService.reused(this.people, this.retiredUids));
-    report.merge(IntegrityService.reusedReferences(this.people, this.retiredUids));
+    const report: IntegrityReport = IntegrityService.check(this.peopleStore.getAll(), this.book.title);
+    report.merge(IntegrityService.reused(this.peopleStore.getAll(), this.retiredUids));
+    report.merge(IntegrityService.reusedReferences(this.peopleStore.getAll(), this.retiredUids));
     return report;
   }
 
   /** 导入合并前的综合体检 */
   checkImport(list: Person[]): IntegrityReport {
-    return IntegrityService.incoming(list, this.people, this.retiredUids);
+    return IntegrityService.incoming(list, this.peopleStore.getAll(), this.retiredUids);
   }
 
   /** 读取某部族谱的已删除编号表 */
@@ -472,7 +470,7 @@ export class GenealogyService {
   search(keyword: string): Person[] {
     const k: string = keyword.trim();
     if (k.length === 0) {
-      return this.people;
+      return this.peopleStore.getAll();
     }
     // 使用索引搜索，避免同步遍历全表
     return this.index.search(k);
@@ -511,7 +509,7 @@ export class GenealogyService {
   /** 子女 */
   childrenOf(uid: string): Person[] {
     const u: string = uid.trim().toUpperCase();
-    return this.people.filter((p: Person): boolean => {
+    return this.peopleStore.getAll().filter((p: Person): boolean => {
       return p.fatherId.trim().toUpperCase() === u || p.motherId.trim().toUpperCase() === u;
     });
   }
@@ -523,7 +521,7 @@ export class GenealogyService {
     if (a.length === 0 || b.length === 0) {
       return [];
     }
-    return this.people.filter((p: Person): boolean => {
+    return this.peopleStore.getAll().filter((p: Person): boolean => {
       const f: string = p.fatherId.trim().toUpperCase();
       const m: string = p.motherId.trim().toUpperCase();
       return (f === a && m === b) || (f === b && m === a);
@@ -542,7 +540,7 @@ export class GenealogyService {
     if (f.length === 0 && m.length === 0) {
       return [];
     }
-    return this.people.filter((x: Person): boolean => {
+    return this.peopleStore.getAll().filter((x: Person): boolean => {
       const xu: string = x.uid.toUpperCase();
       if (xu === u) {
         return false;
@@ -627,25 +625,25 @@ export class GenealogyService {
 
   /** 按世代分组 */
   groupByGeneration(filterFn?: (p: Person) => boolean): Map<number, Person[]> {
-    return StatsCalculator.groupByGeneration(this.people, filterFn);
+    return StatsCalculator.groupByGeneration(this.peopleStore.getAll(), filterFn);
   }
 
   /** 全部字派（去重） */
   generationChars(): string[] {
-    return StatsCalculator.generationChars(this.people);
+    return StatsCalculator.generationChars(this.peopleStore.getAll());
   }
 
   // ---------------------------------------------------------------- 统计
 
   computeStats(filterFn?: (p: Person) => boolean): GenealogyStats {
     // 全量统计按版本号缓存：比例页/概览页会在 build 内反复调用，切页重建组件时也要能命中
-    if (filterFn === undefined && this.statsCache !== null && this.statsCacheVersion === this.version) {
+    if (filterFn === undefined && this.statsCache !== null && this.statsCacheVersion === this.peopleStore.getVersion()) {
       return this.statsCache as GenealogyStats;
     }
-    const stats: GenealogyStats = StatsCalculator.compute(this.people, filterFn);
+    const stats: GenealogyStats = StatsCalculator.compute(this.peopleStore.getAll(), filterFn);
     if (filterFn === undefined) {
       this.statsCache = stats;
-      this.statsCacheVersion = this.version;
+      this.statsCacheVersion = this.peopleStore.getVersion();
     }
     return stats;
   }
@@ -725,7 +723,7 @@ export class GenealogyService {
   private applySavedPerson(person: Person, originalUid: string): void {
     const prevUid: string = originalUid.trim().toUpperCase();
     const nextUid: string = person.uid.trim().toUpperCase();
-    const old: Person | undefined = this.peopleMap.get(prevUid.length > 0 ? prevUid : nextUid);
+    const old: Person | undefined = this.peopleStore.getMap().get(prevUid.length > 0 ? prevUid : nextUid);
     const structural: boolean = old === undefined
       || prevUid !== nextUid
       || old.fatherId.trim().toUpperCase() !== person.fatherId.trim().toUpperCase()
@@ -740,22 +738,22 @@ export class GenealogyService {
     const oldObj: Person | null = old === undefined ? null : old;
     // 1. 在内存列表中定位并替换（新增时追加）
     let index: number = -1;
-    for (let i: number = 0; i < this.people.length; i++) {
-      const u: string = this.people[i].uid.trim().toUpperCase();
+    for (let i: number = 0; i < this.peopleStore.getAll().length; i++) {
+      const u: string = this.peopleStore.getAll()[i].uid.trim().toUpperCase();
       if (u === prevUid || u === nextUid) {
         index = i;
         break;
       }
     }
     if (index >= 0) {
-      this.people[index] = person;
+      this.peopleStore.setAt(index, person);
     } else {
-      this.people.push(person);
+      this.peopleStore.push(person);
     }
     // 2. 编号变更：同步其他族人的父母ID / 配偶ID
     if (prevUid.length > 0 && prevUid !== nextUid) {
-      for (let i: number = 0; i < this.people.length; i++) {
-        const p: Person = this.people[i];
+      for (let i: number = 0; i < this.peopleStore.getAll().length; i++) {
+        const p: Person = this.peopleStore.getAll()[i];
         if (p.uid.trim().toUpperCase() === nextUid) {
           continue;
         }
@@ -777,14 +775,14 @@ export class GenealogyService {
     }
     // 3. 重建索引
     const map: Map<string, Person> = new Map<string, Person>();
-    this.people.forEach((p: Person): void => {
+    this.peopleStore.getAll().forEach((p: Person): void => {
       map.set(p.uid.trim().toUpperCase(), p);
     });
-    this.peopleMap = map;
+    this.peopleStore.setMap(map);
     // 4. 同步配偶反向引用（对方向本人的记录）
     this.syncSpouseBackRefs(person, oldObj, prevUid);
     // 5. 重建谱系树并发布新版本
-    this.roots = TreeBuilder.build(this.people);
+    this.peopleStore.rebuildRoots();
     this.bump();
   }
 
@@ -824,7 +822,7 @@ export class GenealogyService {
         if (partnerUid.length === 0 || partnerUid === self) {
           return;
         }
-        const partner: Person | undefined = this.peopleMap.get(partnerUid);
+        const partner: Person | undefined = this.peopleStore.getMap().get(partnerUid);
         if (partner === undefined) {
           return;
         }
@@ -860,7 +858,7 @@ export class GenealogyService {
       if (partnerUid.length === 0 || partnerUid === self) {
         return;
       }
-      const partner: Person | undefined = this.peopleMap.get(partnerUid);
+      const partner: Person | undefined = this.peopleStore.getMap().get(partnerUid);
       if (partner === undefined) {
         return;
       }
@@ -949,7 +947,7 @@ export class GenealogyService {
           batchUsed.add(p.uid);
         }
       }
-      const exist: Person | undefined = this.peopleMap.get(p.uid);
+      const exist: Person | undefined = this.peopleStore.getMap().get(p.uid);
       if (exist !== undefined) {
         if (mergeStrategy === 'skip') {
           continue;
@@ -1000,7 +998,7 @@ export class GenealogyService {
     } else {
       opt.conflictPolicy = 'auto';
     }
-    return ImportPlanner.plan(list, asNewBook ? [] : this.people,
+    return ImportPlanner.plan(list, asNewBook ? [] : this.peopleStore.getAll(),
       asNewBook ? new Map<string, string>() : this.retiredUids, opt);
   }
 
@@ -1051,7 +1049,7 @@ export class GenealogyService {
         const p: Person = clonePerson(plan.people[i]);
         p.uid = p.uid.trim().toUpperCase();
         normalizeSpouseRelations(p);
-        const exist: Person | undefined = this.peopleMap.get(p.uid);
+        const exist: Person | undefined = this.peopleStore.getMap().get(p.uid);
         if (exist !== undefined) {
           p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
           p.updatedAt = Date.now();
@@ -1094,7 +1092,7 @@ export class GenealogyService {
         await store.batchInsert(TABLE_SPOUSE, spouseBatch);
       }
       // 先提交、再重读：ArkTS 的异步 SQL 走独立连接，事务内 SELECT 读不到未提交数据。
-      // 旧实现把 reload 放在事务里，首次建谱导入后 this.people 会被重读成空数组 ——
+      // 旧实现把 reload 放在事务里，首次建谱导入后人员列表会被重读成空数组 ——
       // 库里其实已有几万人，界面却显示 0 人，用户只能再导入一次才「看得见」。
       store.commit();
       committed = true;
@@ -1107,14 +1105,12 @@ export class GenealogyService {
       plan.remaps = [];
       plan.warnings = [];
       plan.errors = [];
-      this.people = [];
-      this.peopleMap = new Map<string, Person>();
-      this.roots = [];
+      this.peopleStore.reset();
       await this.reload();
       // 关系图修复：断链清理 + 配偶双向补齐（世代默认只统计，不改史料）
-      const repaired: RepairReport = RelationGraph.repair(this.people, false);
+      const repaired: RepairReport = RelationGraph.repair(this.peopleStore.getAll(), false);
       for (let i: number = 0; i < repaired.touched.length; i++) {
-        const target: Person | undefined = this.peopleMap.get(repaired.touched[i]);
+        const target: Person | undefined = this.peopleStore.getMap().get(repaired.touched[i]);
         if (target === undefined) {
           continue;
         }
@@ -1274,8 +1270,8 @@ export class GenealogyService {
 
     // 一次建父/母→子女索引，避免 5 万人谱反复线性扫描
     const childIndex: Map<string, string[]> = new Map<string, string[]>();
-    for (let i: number = 0; i < this.people.length; i = i + 1) {
-      const p: Person = this.people[i];
+    for (let i: number = 0; i < this.peopleStore.getAll().length; i = i + 1) {
+      const p: Person = this.peopleStore.getAll()[i];
       const f: string = p.fatherId.trim().toUpperCase();
       const m: string = p.motherId.trim().toUpperCase();
       if (f.length > 0) {
@@ -1864,7 +1860,7 @@ export class GenealogyService {
       if (id.length === 0 || id === u) {
         continue;
       }
-      const partner: Person | undefined = this.peopleMap.get(id);
+      const partner: Person | undefined = this.peopleStore.getMap().get(id);
       if (partner === undefined) {
         continue;
       }
@@ -1959,7 +1955,7 @@ export class GenealogyService {
         if (!GenealogyService.isSpouseIdentity(rel)) {
           continue;
         }
-        const partner: Person | undefined = this.peopleMap.get(person.spouses[i].uid.trim().toUpperCase());
+        const partner: Person | undefined = this.peopleStore.getMap().get(person.spouses[i].uid.trim().toUpperCase());
         if (partner === undefined || partner.gender !== '女') {
           continue;
         }
@@ -1978,7 +1974,7 @@ export class GenealogyService {
     const own: string = normalizeSpouseRelation(person.childStatus);
     if (person.gender === '女' && GenealogyService.isSpouseIdentity(own)) {
       for (let i: number = 0; i < person.spouses.length; i = i + 1) {
-        const husband: Person | undefined = this.peopleMap.get(person.spouses[i].uid.trim().toUpperCase());
+        const husband: Person | undefined = this.peopleStore.getMap().get(person.spouses[i].uid.trim().toUpperCase());
         if (husband === undefined || husband.gender !== '男') {
           continue;
         }
@@ -2095,17 +2091,17 @@ export class GenealogyService {
     const t0: number = Date.now();
     const list: Person[] = await this.queryPeople(this.currentBookId);
     const t1: number = Date.now();
-    this.people = list;
+    this.peopleStore.setList(list);
     const map: Map<string, Person> = new Map<string, Person>();
     list.forEach((p: Person): void => {
       map.set(p.uid.trim().toUpperCase(), p);
     });
-    this.peopleMap = map;
+    this.peopleStore.setMap(map);
     await this.attachSpouses(this.currentBookId, list);
     const t2: number = Date.now();
     this.retiredUids = await this.loadRetired(this.currentBookId);
     const t3: number = Date.now();
-    this.roots = TreeBuilder.build(this.people);
+    this.peopleStore.rebuildRoots();
     const t4: number = Date.now();
     // 诊断：无父母孤儿 / 父母引用指向不存在 uid 的人数，用于判断谱系断链来源
     let orphan: number = 0;
@@ -2127,8 +2123,8 @@ export class GenealogyService {
     // 诊断：从根节点出发（子女 + 配偶）能到达多少人，与总人数对比可判断谱系是否漏人
     const reached: Set<string> = new Set<string>();
     const stack: PersonNode[] = [];
-    for (let i: number = 0; i < this.roots.length; i++) {
-      stack.push(this.roots[i]);
+    for (let i: number = 0; i < this.peopleStore.getRoots().length; i++) {
+      stack.push(this.peopleStore.getRoots()[i]);
     }
     while (stack.length > 0) {
       const n: PersonNode = stack.pop() as PersonNode;
@@ -2147,7 +2143,7 @@ export class GenealogyService {
     const unreachable: number = list.length - reached.size;
     hilog.info(0x0000, TAG,
       'reload people=%{public}d roots=%{public}d reachable=%{public}d unreachable=%{public}d orphan=%{public}d dangling=%{public}d query=%{public}dms spouse=%{public}dms retired=%{public}dms tree=%{public}dms',
-      list.length, this.roots.length, reached.size, unreachable, orphan, dangling,
+      list.length, this.peopleStore.getRoots().length, reached.size, unreachable, orphan, dangling,
       t1 - t0, t2 - t1, t3 - t2, t4 - t3);
     // 构建人员索引：加速搜索和跳转
     const t5: number = Date.now();
@@ -2365,7 +2361,7 @@ export class GenealogyService {
   }
 
   private bump(): void {
-    this.version++;
+    this.peopleStore.bump();
   }
 
   // ---------------------------------------------------------------- 协作
@@ -2482,7 +2478,7 @@ export class GenealogyService {
 
   /** 墓碑查询：某人是否已被删除 */
   isDeleted(uid: string): boolean {
-    const p: Person | undefined = this.peopleMap.get(uid.trim().toUpperCase());
+    const p: Person | undefined = this.peopleStore.getMap().get(uid.trim().toUpperCase());
     return p !== undefined && p.deletedAt > 0;
   }
 
