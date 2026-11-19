@@ -16,6 +16,7 @@ import { PersonQuery } from './PersonQuery';
 import { PersonEditor } from './PersonEditor';
 import { PersonRepository } from './PersonRepository';
 import { CloudReplay } from './CloudReplay';
+import { CloudCollaboration } from './CloudCollaboration';
 
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -24,7 +25,6 @@ import { IntegrityService } from './IntegrityService';
 import { IntegrityReport, IntegrityIssue } from 'common_base';
 import { ImportPlan, ImportOptions, ImportPlanner, ImportResult } from './ImportPlanner';
 import { RelationGraph, RepairReport } from 'common_base';
-import { buildPersonPatch } from 'common_base';
 import { DatabaseSchema, TABLE_BOOK, TABLE_META, TABLE_PERSON, TABLE_SPOUSE } from './db/DatabaseSchema';
 import { PersonRowMapper } from './db/PersonRowMapper';
 import { BookRowMapper } from './BookRowMapper';
@@ -114,6 +114,12 @@ export class GenealogyService {
     this.personRepository,
     (uid: string, name: string): Promise<void> => this.recordRetired(uid, name),
     (): Promise<void> => this.reload());
+  /** 协作通知域：云端同步触发、编辑前快照与脏标记 */
+  private cloudCollaboration: CloudCollaboration = new CloudCollaboration(
+    this.peopleStore,
+    (): Genealogy => this.book,
+    (): relationalStore.RdbStore | null => this.store,
+    (): number => this.currentBookId);
   private book: Genealogy = createEmptyGenealogy();
   /** 全部族谱元信息（支持多族谱管理） */
   private books: Genealogy[] = [];
@@ -121,8 +127,6 @@ export class GenealogyService {
   private currentBookId: number = 0;
   /** 当前族谱中已删除人员的编号（uid → 原姓名），新增人员时不得复用 */
   private retiredUids: Map<string, string> = new Map<string, string>();
-  /** 编辑前快照（uid → Person），用于生成字段级 diff */
-  private beforeSnapshots: Map<string, Person> = new Map<string, Person>();
   /** 全量统计缓存：概览页 build 内会多次调用 computeStats，8 万人单次需数百毫秒，按版本号复用 */
   private statsCache: GenealogyStats | null = null;
   private statsCacheVersion: number = -1;
@@ -603,7 +607,7 @@ export class GenealogyService {
     // 配偶名分 ↔ 对方身份：丈夫给妻妾设“侧室”等名分后，对方身份自动同步
     await this.syncSpouseIdentities(person);
     // 协作：本机先落库（唯一真相源），再按在线/离线走「云函数 / outbox」
-    await this.notifyPersonChange('ADD', person, null);
+    await this.cloudCollaboration.notifyPersonChange('ADD', person, null);
     return person;
   }
 
@@ -641,7 +645,7 @@ export class GenealogyService {
     // 配偶名分 ↔ 对方身份：女方身份改为“侧室”等名分时，丈夫配偶表里的称谓同步更新
     await this.syncSpouseIdentities(person);
     // 协作：同一人物的多次本地修改合并成一条 outbox（diff 相对编辑前快照）
-    await this.notifyPersonChange('UPDATE', person, originalUid);
+    await this.cloudCollaboration.notifyPersonChange('UPDATE', person, originalUid);
     return person;
   }
 
@@ -657,7 +661,7 @@ export class GenealogyService {
     }
     await this.reload();
     if (cloud && deleted !== null) {
-      await this.notifyPersonChange('DELETE', deleted, null);
+      await this.cloudCollaboration.notifyPersonChange('DELETE', deleted, null);
     }
   }
 
@@ -1940,25 +1944,12 @@ export class GenealogyService {
 
   // ---------------------------------------------------------------- 协作
 
-  /** 标记某人物本地有未上传修改 */
-  private async markDirty(uid: string): Promise<void> {
-    if (this.store === null) {
-      return;
-    }
-    await this.store.executeSql(
-      `UPDATE ${TABLE_PERSON} SET dirty = 1 WHERE book_id = ? AND UPPER(uid) = ?`,
-      [this.currentBookId, uid.trim().toUpperCase()]);
-  }
-
   /**
    * 记录「编辑前的快照」，供字段级 diff 生成 patch（§五.5 patchJson）。
    * 由编辑页在保存前调用。
    */
   captureBefore(uid: string): void {
-    const p: Person | null = this.getPerson(uid);
-    if (p !== null) {
-      this.beforeSnapshots.set(uid.trim().toUpperCase(), clonePerson(p));
-    }
+    this.cloudCollaboration.captureBefore(uid);
   }
 
   getStore(): relationalStore.RdbStore | null {
@@ -1999,31 +1990,7 @@ export class GenealogyService {
 
   /** 墓碑查询：某人是否已被删除 */
   isDeleted(uid: string): boolean {
-    const p: Person | undefined = this.peopleStore.getMap().get(uid.trim().toUpperCase());
-    return p !== undefined && p.deletedAt > 0;
-  }
-
-  /** 本地写入后把变更推给协作层（在线→云函数，离线→outbox） */
-  private async notifyPersonChange(op: string, changed: Person, originalUid: string | null): Promise<void> {
-    if (this.book.familyId.length === 0) {
-      return;
-    }
-    let before: Person | null = null;
-    if (originalUid !== null) {
-      const snap: Person | undefined = this.beforeSnapshots.get(originalUid.trim().toUpperCase());
-      before = snap !== undefined ? snap : null;
-    }
-    const patchJson: string = buildPersonPatch(before, changed, op);
-    const baseRev: number = changed.baseRev > 0 ? changed.baseRev : this.book.cloudRev;
-    try {
-      const result: string = await FamilyService.getInstance()
-        .afterPersonSaved(op, changed.uid, changed.name, patchJson, baseRev);
-      if (result === 'queued') {
-        await this.markDirty(changed.uid);
-      }
-    } catch (err) {
-      hilog.warn(0x0000, TAG, 'notify cloud change failed: %{public}s', JSON.stringify(err));
-    }
+    return this.cloudCollaboration.isDeleted(uid);
   }
 }
 
