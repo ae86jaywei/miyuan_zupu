@@ -179,23 +179,12 @@ export class FamilySyncService {
       const baseRev: number = item.baseRev <= 0 ? book.cloudRev : item.baseRev;
       try {
         if (item.scope === 'book' || FamilyService.getInstance().isOwnerCurrent()) {
-          // 谱主（或谱元信息）走直写
-          await CloudFunctionClient.getInstance().call('member-direct-write', {
-            'familyId': familyId,
-            'uid': item.scope === 'book' ? '' : item.target,
-            'op': item.op === 'DELETE' ? 'DELETE_REQ' : item.op,
-            'patchJson': item.payload,
-            'baseRev': baseRev
-          });
+          // 谱主（或谱元信息）走直写：参数规则与在线路径共用
+          await FamilyService.getInstance().directWrite(familyId, item.op,
+            item.scope === 'book' ? '' : item.target, item.payload, baseRev);
         } else {
-          await CloudFunctionClient.getInstance().call('change-submit', {
-            'familyId': familyId,
-            'op': item.op === 'DELETE' ? 'DELETE_REQ' : item.op,
-            'targetUid': item.target,
-            'patchJson': item.payload,
-            'baseRev': baseRev,
-            'evidence': item.targetName
-          });
+          await FamilyService.getInstance().submitChange(familyId, item.op, item.target,
+            item.payload, baseRev, item.targetName);
         }
         await OutboxService.getInstance().markDone(store, item.id);
       } catch (err) {

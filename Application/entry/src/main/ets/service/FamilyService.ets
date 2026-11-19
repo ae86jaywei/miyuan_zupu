@@ -376,8 +376,8 @@ export class FamilyService {
     return 'queued';
   }
 
-  /** 谱主直写（member-direct-write，字段级 LWW） */
-  private async directWrite(familyId: string, op: string, uid: string, patchJson: string,
+  /** 谱主直写（member-direct-write，字段级 LWW）；离线上传队列复用同一参数规则 */
+  async directWrite(familyId: string, op: string, uid: string, patchJson: string,
     baseRev: number): Promise<void> {
     await CloudFunctionClient.getInstance().call('member-direct-write', {
       'familyId': familyId,
@@ -388,8 +388,8 @@ export class FamilyService {
     });
   }
 
-  /** 编辑者提交审核（change-submit） */
-  private async submitChange(familyId: string, op: string, uid: string, patchJson: string, baseRev: number,
+  /** 编辑者提交审核（change-submit）；离线上传队列复用同一参数规则 */
+  async submitChange(familyId: string, op: string, uid: string, patchJson: string, baseRev: number,
     evidence: string): Promise<void> {
     await CloudFunctionClient.getInstance().call('change-submit', {
       'familyId': familyId,
