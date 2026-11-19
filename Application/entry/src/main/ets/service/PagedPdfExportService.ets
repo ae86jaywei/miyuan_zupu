@@ -5,7 +5,7 @@ import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
 import { Font, LengthMetricsUnit } from '@kit.ArkUI';
 import { taskpool } from '@kit.ArkTS';
-import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
+import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB, PAGED_PDF_SOFT_LIMIT_KB } from './pdf/PdfMemory';
 import { MM_TO_PT, PDF_MUTED, PDF_TEXT, PDF_TEXT_2, PDF_HEADER, PDF_FOOTER } from './pdf/PdfCommon';
 import { Genealogy } from 'common_base';
 import { generationLabel } from 'common_base';
@@ -49,8 +49,6 @@ const MEASURE_H: number = 256;
  * 关键不在卷大小，而在每页渲染完立即删除临时图（见导出循环）。
  */
 const PAGED_MAX_PAGES_PER_VOLUME: number = 30;
-/** 分页导出软上限：超过只记日志并继续，不再主动中止导出 */
-const PAGED_MEMORY_SOFT_LIMIT_KB: number = 2400 * 1024;
 /** 导出过程允许的内存增长（KB）：超过只告警 */
 const PAGED_MEMORY_GROWTH_LIMIT_KB: number = 1200 * 1024;
 /** 每渲染多少页检查一次 PSS */
@@ -701,7 +699,7 @@ export class PagedPdfExportService {
           if (globalPage > 0 && globalPage % PAGED_MEMORY_CHECK_PAGES === 0) {
             const pssKb: number = currentPssKb();
             const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
-            if (pssKb > 0 && (pssKb > PAGED_MEMORY_SOFT_LIMIT_KB ||
+            if (pssKb > 0 && (pssKb > PAGED_PDF_SOFT_LIMIT_KB ||
               growthKb > PAGED_MEMORY_GROWTH_LIMIT_KB)) {
               console.warn('[PagedPdf] memory high, pss=' + Math.round(pssKb / 1024).toString() +
                 'MB base=' + Math.round(basePssKb / 1024).toString() + 'MB growth=' +

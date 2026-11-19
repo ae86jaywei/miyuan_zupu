@@ -2,7 +2,7 @@
 import { T } from 'common_base';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
+import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB, PDF_SOFT_LIMIT_KB } from './pdf/PdfMemory';
 import { A4_W_PT, A4_H_PT, PDF_INK, PDF_INK_2, PDF_MUTED, PDF_GOLD, PDF_FEMALE, PDF_BG } from './pdf/PdfCommon';
 import { Person, SpouseRelation } from 'common_base';
 import { PersonNode } from 'common_base';
@@ -77,7 +77,6 @@ const CANVAS_H: number = 1684;
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
 // 软上限按设备内存可调；设为 0 表示关闭监控。
 // 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
-const MEMORY_SOFT_LIMIT_KB: number = 2200 * 1024;
 const MEMORY_CHECK_EVERY_PAGES: number = 16;
 /** 导出过程允许的内存增长（KB）：超过只告警 */
 const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
@@ -2134,7 +2133,7 @@ export class PdfExportService {
         if (i > 0 && i % MEMORY_CHECK_EVERY_PAGES === 0) {
           const pssKb: number = currentPssKb();
           const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
-          if (pssKb > 0 && (pssKb > MEMORY_SOFT_LIMIT_KB ||
+          if (pssKb > 0 && (pssKb > PDF_SOFT_LIMIT_KB ||
             growthKb > MEMORY_GROWTH_LIMIT_KB)) {
             console.info('[PdfExport] memory high, pss=' + Math.round(pssKb / 1024) +
               'MB base=' + Math.round(basePssKb / 1024) + 'MB growth=' +
