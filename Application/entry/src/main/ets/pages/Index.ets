@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from 'common_base';
+﻿import { T, uiFontFamily, ScriptService } from 'common_base';
 import { SR } from '../service/ServiceRegistry';
 
 import { font, uiMaterial } from '@kit.ArkUI';
@@ -44,11 +44,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'home', title: T('概览'), icon: '🏠' },
-  { key: 'tree', title: T('谱系'), icon: '🌳' },
-  { key: 'catalog', title: T('名录'), icon: '📖' },
-  { key: 'stats', title: T('统计'), icon: '📊' },
-  { key: 'settings', title: T('设置'), icon: '⚙️' }
+  { key: 'home', title: '概览', icon: '🏠' },
+  { key: 'tree', title: '谱系', icon: '🌳' },
+  { key: 'catalog', title: '名录', icon: '📖' },
+  { key: 'stats', title: '统计', icon: '📊' },
+  { key: 'settings', title: '设置', icon: '⚙️' }
 ];
 
 /**
@@ -102,6 +102,15 @@ struct Index {
 
   onDarkModeChange(): void {
     Theme.use(this.darkMode);
+  }
+
+  /**
+   * 本页简繁文案：显式读取 this.script 建立 ArkUI 刷新依赖。
+   * 直接用 T() 时该元素没有状态依赖，切换文字后底部导航等文案不刷新。
+   */
+  private tr(text: string): string {
+    return this.script === ScriptService.HANT ? ScriptService.getInstance().toTraditional(text)
+      : ScriptService.getInstance().toSimplified(text);
   }
 
   /** 回到前台 / 页面显示时同步一次系统配色 */
@@ -302,7 +311,7 @@ struct Index {
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'bootstrap failed %{public}s', err.message);
-      this.getUIContext().getPromptAction().showToast({ message: T('数据初始化失败：') + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('数据初始化失败：') + err.message });
     }
   }
 
@@ -372,7 +381,7 @@ struct Index {
       Scroll() {
         Column() {
           Row() {
-            Text(T('谱')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor(Theme.onPrimary)
+            Text(this.tr('谱')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 18 : (collapsed ? 22 : 20)).fontWeight(FontWeight.Bold).fontColor(Theme.onPrimary)
           }
           .width(this.navCompact() ? 32 : (collapsed ? 36 : '100%'))
           .height(this.navCompact() ? 32 : 40)
@@ -383,8 +392,8 @@ struct Index {
 
           ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
             Column() {
-              Text(T(item.icon)).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 14 : (collapsed ? 16 : 17))
-              Text(T(item.title)).fontFamily(uiFontFamily())
+              Text(this.tr(item.icon)).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 14 : (collapsed ? 16 : 17))
+              Text(this.tr(item.title)).fontFamily(uiFontFamily())
                 .fontSize(this.navCompact() ? 8 : (collapsed ? 9 : 14))
                 .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
                 .maxLines(1)
@@ -413,7 +422,7 @@ struct Index {
       .edgeEffect(EdgeEffect.None)
       .align(Alignment.Top)
 
-      Text(T('＋')).fontFamily(uiFontFamily())
+      Text(this.tr('＋')).fontFamily(uiFontFamily())
         .fontSize(this.navCompact() ? 16 : 20)
         .fontColor(Theme.onPrimary)
         .width(this.navCompact() ? 30 : (collapsed ? 36 : 44))
@@ -429,12 +438,12 @@ struct Index {
           RouterUtil.editPerson(this.getUIContext(), '', 'create', '');
         })
 
-      Text(T('人 ' + this.peopleCount().toString())).fontFamily(uiFontFamily())
+      Text(this.tr('人 ' + this.peopleCount().toString())).fontFamily(uiFontFamily())
         .fontSize(this.navCompact() ? 9 : 11)
         .fontColor(Theme.inkTertiary)
         .margin({ top: this.navCompact() ? 2 : Spacing.S })
 
-      Text(T('v1.0.0')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
+      Text(this.tr('v1.0.0')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
         .margin({ top: 1 })
       Column().height(this.navCompact() ? 4 : Spacing.M)
     }
@@ -454,10 +463,10 @@ struct Index {
   NavItems() {
     ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
       Column() {
-        Text(T(item.icon)).fontFamily(uiFontFamily())
+        Text(this.tr(item.icon)).fontFamily(uiFontFamily())
           .fontSize(this.currentTab === idx ? 20 : 19)
           .opacity(this.currentTab === idx ? 1 : 0.6)
-        Text(T(item.title)).fontFamily(uiFontFamily())
+        Text(this.tr(item.title)).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkTertiary)
           .margin({ top: 2 })
@@ -518,7 +527,7 @@ struct Index {
     Column() {
       // 多族谱切换入口：显示当前族谱，点击可切换或新建
       Row() {
-        Text(T('谱')).fontFamily(uiFontFamily())
+        Text(this.tr('谱')).fontFamily(uiFontFamily())
           .fontSize(9)
           .fontColor(Theme.onPrimary)
           .width(16)
@@ -526,7 +535,7 @@ struct Index {
           .textAlign(TextAlign.Center)
           .backgroundColor(Theme.primary)
           .borderRadius(4)
-        Text(T(this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱')).fontFamily(uiFontFamily())
+        Text(this.tr(this.bookTitle.length > 0 ? this.bookTitle : '未命名族谱')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -534,11 +543,11 @@ struct Index {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
-        Text(T(this.bookCount > 1 ? '共 ' + this.bookCount.toString() + ' 部' : '')).fontFamily(uiFontFamily())
+        Text(this.tr(this.bookCount > 1 ? '共 ' + this.bookCount.toString() + ' 部' : '')).fontFamily(uiFontFamily())
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 6 })
-        Text(T('切换 ⌄')).fontFamily(uiFontFamily())
+        Text(this.tr('切换 ⌄')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.primary)
           .padding({ left: 7, right: 7, top: 3, bottom: 3 })
@@ -581,7 +590,7 @@ struct Index {
         Row() {
           // 横屏手机可用高度小：这一行提示让位给树画布，只保留操作按钮
           if (this.styleName !== TreeStyle.DIE && this.windowHeight >= 560) {
-            Text(T('📐 双指缩放 · 拖动平移 · 点击人物查看详情')).fontFamily(uiFontFamily())
+            Text(this.tr('📐 双指缩放 · 拖动平移 · 点击人物查看详情')).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .maxLines(1)
@@ -590,7 +599,7 @@ struct Index {
           }
           // 详情收起后给出恢复入口，避免用户找不到右侧卡片
           if (this.isTriplePane() && this.treeDetailCollapsed) {
-            Text(T('详情 ›')).fontFamily(uiFontFamily())
+            Text(this.tr('详情 ›')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.primary)
               .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -601,7 +610,7 @@ struct Index {
                 this.treeDetailCollapsed = false;
               })
           }
-          Text(T('新增族人')).fontFamily(uiFontFamily())
+          Text(this.tr('新增族人')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.primary)
             .padding({ left: 10, right: 10, top: 5, bottom: 5 })
@@ -683,7 +692,7 @@ struct Index {
       })
       // 三栏时允许收起详情，树区可占满整行宽度
       if (this.isTriplePane() && !this.treeDetailCollapsed) {
-        Text(T('收起 ›')).fontFamily(uiFontFamily())
+        Text(this.tr('收起 ›')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.primary)
           .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -731,10 +740,10 @@ struct Index {
       // 创建后直接进入族谱信息编辑态
       AppStorage.setOrCreate<boolean>(GenealogyStore.KEY_EDITING_BOOK, true);
       AppStorage.setOrCreate<number>('gpTab', 4);
-      this.getUIContext().getPromptAction().showToast({ message: T('已创建族谱，请填写族谱信息') });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('已创建族谱，请填写族谱信息') });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: T('创建族谱失败：') + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('创建族谱失败：') + err.message });
     }
   }
 
@@ -759,11 +768,11 @@ struct Index {
       AppStorage.setOrCreate<string>('gpSelection', '');
       this.showDetailSheet = false;
       this.getUIContext().getPromptAction().showToast({
-        message: T('已切换到《') + SR.genealogy().getBook().title + '》'
+        message: this.tr('已切换到《') + SR.genealogy().getBook().title + '》'
       });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: T('切换族谱失败：') + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('切换族谱失败：') + err.message });
     }
   }
 
@@ -774,16 +783,16 @@ struct Index {
       return;
     }
     this.getUIContext().showAlertDialog({
-      title: T('创建分支'),
-      message: T('将以「' + p.name + '（' + p.uid + '）」为第一世（始祖）另立分支族谱，'
+      title: this.tr('创建分支'),
+      message: this.tr('将以「' + p.name + '（' + p.uid + '）」为第一世（始祖）另立分支族谱，'
         + '并复制其配偶与全部后代。分支数据独立，原族谱不受影响。确认创建？'),
       primaryButton: {
-        value: T('取消'),
+        value: this.tr('取消'),
         action: (): void => {
         }
       },
       secondaryButton: {
-        value: T('创建'),
+        value: this.tr('创建'),
         action: (): void => {
           SR.genealogy().createBranchFromPerson(uid)
             .then((book: Genealogy): void => {
@@ -792,11 +801,11 @@ struct Index {
               this.showDetailSheet = false;
               this.showBookPicker = false;
               this.getUIContext().getPromptAction().showToast({
-                message: T('已创建分支《') + book.title + '》，可继续录入族人'
+                message: this.tr('已创建分支《') + book.title + '》，可继续录入族人'
               });
             })
             .catch((err: BusinessError): void => {
-              this.getUIContext().getPromptAction().showToast({ message: T('创建分支失败：') + err.message });
+              this.getUIContext().getPromptAction().showToast({ message: this.tr('创建分支失败：') + err.message });
             });
         }
       }
@@ -832,7 +841,7 @@ struct Index {
   EmptyTreePane() {
     Column() {
       Column() {
-        Text(T('＋')).fontFamily(uiFontFamily())
+        Text(this.tr('＋')).fontFamily(uiFontFamily())
           .fontSize(40)
           .fontColor(Theme.onPrimary)
           .width(76)
@@ -844,7 +853,7 @@ struct Index {
           .onClick((): void => {
             this.createGenealogy();
           })
-        Text(T('新增族谱')).fontFamily(uiFontFamily())
+        Text(this.tr('新增族谱')).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
@@ -852,7 +861,7 @@ struct Index {
           .onClick((): void => {
             this.createGenealogy();
           })
-        Text(T('当前没有族谱，点击上方 + 号新建一部族谱')).fontFamily(uiFontFamily())
+        Text(this.tr('当前没有族谱，点击上方 + 号新建一部族谱')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(Theme.inkTertiary)
           .margin({ top: 6 })
@@ -873,19 +882,19 @@ struct Index {
   @Builder
   NoBookGuide() {
     Column() {
-      Text(T('📜')).fontFamily(uiFontFamily()).fontSize(46).opacity(0.65)
-      Text(T('尚未创建族谱')).fontFamily(uiFontFamily())
+      Text(this.tr('📜')).fontFamily(uiFontFamily()).fontSize(46).opacity(0.65)
+      Text(this.tr('尚未创建族谱')).fontFamily(uiFontFamily())
         .fontSize(16)
         .fontWeight(FontWeight.Medium)
         .fontColor(Theme.ink)
         .margin({ top: Spacing.L })
-      Text(T(this.noBookDesc())).fontFamily(uiFontFamily())
+      Text(this.tr(this.noBookDesc())).fontFamily(uiFontFamily())
         .fontSize(12.5)
         .fontColor(Theme.inkTertiary)
         .margin({ top: 8 })
         .textAlign(TextAlign.Center)
         .padding({ left: Spacing.XL, right: Spacing.XL })
-      Button(T('前往「谱系」新增族谱')).fontFamily(uiFontFamily())
+      Button(this.tr('前往「谱系」新增族谱')).fontFamily(uiFontFamily())
         .fontSize(14)
         .height(38)
         .backgroundColor(Theme.primary)
@@ -915,12 +924,12 @@ struct Index {
 
       Column() {
         Row() {
-          Text(T('切换族谱')).fontFamily(uiFontFamily())
+          Text(this.tr('切换族谱')).fontFamily(uiFontFamily())
             .fontSize(16)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
           Blank()
-          Text(T('＋ 新建族谱')).fontFamily(uiFontFamily())
+          Text(this.tr('＋ 新建族谱')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.primary)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
@@ -939,13 +948,13 @@ struct Index {
             ForEach(SR.genealogy().getBooks(), (book: Genealogy) => {
               Row() {
                 Column() {
-                  Text(T(book.title.length > 0 ? book.title : '未命名族谱')).fontFamily(uiFontFamily())
+                  Text(this.tr(book.title.length > 0 ? book.title : '未命名族谱')).fontFamily(uiFontFamily())
                     .fontSize(14)
                     .fontWeight(book.key === this.bookId ? FontWeight.Medium : FontWeight.Normal)
                     .fontColor(Theme.ink)
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
-                  Text(T(book.parentBookId > 0
+                  Text(this.tr(book.parentBookId > 0
                     ? '分支 · 出自《' + this.parentBookTitle(book) + '》'
                     : (book.hallName.length > 0 ? book.hallName : '未填写堂号'))).fontFamily(uiFontFamily())
                     .fontSize(11)
@@ -957,7 +966,7 @@ struct Index {
                 .layoutWeight(1)
 
                 if (book.key === this.bookId) {
-                  Text(T('当前')).fontFamily(uiFontFamily())
+                  Text(this.tr('当前')).fontFamily(uiFontFamily())
                     .fontSize(11)
                     .fontColor(Theme.primary)
                     .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -978,7 +987,7 @@ struct Index {
         .constraintSize({ maxHeight: 380 })
         .scrollBar(BarState.Off)
 
-        Button(T('关闭')).fontFamily(uiFontFamily())
+        Button(this.tr('关闭')).fontFamily(uiFontFamily())
           .fontSize(14)
           .height(38)
           .width('100%')
@@ -1004,7 +1013,7 @@ struct Index {
     if (!this.localReady && !this.ready) {
       Column() {
         LoadingProgress().width(40).height(40).color(Theme.primary)
-        Text(T('正在展开族谱…')).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
+        Text(this.tr('正在展开族谱…')).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkTertiary).margin({ top: Spacing.M })
       }
       .width('100%')
       .height('100%')
@@ -1272,22 +1281,22 @@ struct Index {
       Column() {
         // 顶部品牌栏（大屏显示完整标题，小屏显示精简标题）
         Row() {
-          Text(this.hasBook ? (this.bookTitle.length > 0 ? T(this.bookTitle) : T('未命名族谱')) : T('尚未创建族谱')).fontFamily(uiFontFamily())
+          Text(this.hasBook ? (this.bookTitle.length > 0 ? this.tr(this.bookTitle) : this.tr('未命名族谱')) : this.tr('尚未创建族谱')).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
           if (this.hasBook && SR.genealogy().getBook().hallName.length > 0) {
-            Text(T('· ' + SR.genealogy().getBook().hallName)).fontFamily(uiFontFamily())
+            Text(this.tr('· ' + SR.genealogy().getBook().hallName)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.gold)
               .margin({ left: 6 })
               .maxLines(1)
           }
           Blank()
-          Text(T(!this.isPhone() && this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')).fontFamily(uiFontFamily())
+          Text(this.tr(!this.isPhone() && this.showSidebar() ? Layout.deviceLabel(this.windowWidth) : '')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
-          Text(T(this.familyBadge())).fontFamily(uiFontFamily())
+          Text(this.tr(this.familyBadge())).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(this.syncMode !== 'LOCAL' ? Theme.alive : Theme.inkTertiary)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -1301,7 +1310,7 @@ struct Index {
                 RouterUtil.login(this.getUIContext());
               }
             })
-          Text(T(this.loggedIn ? '已登录' : '登录')).fontFamily(uiFontFamily())
+          Text(this.tr(this.loggedIn ? '已登录' : '登录')).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(this.loggedIn ? Theme.gold : Theme.primary)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
@@ -1315,7 +1324,7 @@ struct Index {
                 RouterUtil.login(this.getUIContext());
               }
             })
-          Text(T('⚙')).fontFamily(uiFontFamily())
+          Text(this.tr('⚙')).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontColor(Theme.inkSecondary)
             .width(26)

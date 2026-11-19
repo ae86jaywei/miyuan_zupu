@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from 'common_base';
+﻿import { T, uiFontFamily, ScriptService } from 'common_base';
 import { SR } from '../service/ServiceRegistry';
 
 import { Theme, Spacing } from 'common_base';
@@ -13,7 +13,7 @@ import { RouterUtil } from 'common_base';
  */
 @Component
 export struct AccountCard {
-  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  /** 订阅简繁设置：切换后重绘（this.tr() 依赖全局状态，需显式订阅） */
   @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') darkMode: boolean = false;
   @StorageProp('gpLogin') loggedIn: boolean = false;
@@ -28,21 +28,27 @@ export struct AccountCard {
     Theme.use(this.darkMode);
   }
 
+  /** 本卡片简繁文案：显式读取 this.script 建立刷新依赖，切换文字后即时更新 */
+  private tr(text: string): string {
+    return this.script === ScriptService.HANT ? ScriptService.getInstance().toTraditional(text)
+      : ScriptService.getInstance().toSimplified(text);
+  }
+
   private toast(message: string): void {
-    this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
+    this.getUIContext().getPromptAction().showToast({ message: this.tr(message), duration: 2500 });
   }
 
   private async doLogout(): Promise<void> {
     this.getUIContext().showAlertDialog({
-      title: T('退出登录'),
-      message: T('退出后本地族谱仍保留，云端数据不会删除，可随时重新登录。'),
+      title: this.tr('退出登录'),
+      message: this.tr('退出后本地族谱仍保留，云端数据不会删除，可随时重新登录。'),
       primaryButton: {
-        value: T('取消'),
+        value: this.tr('取消'),
         action: () => {
         }
       },
       secondaryButton: {
-        value: T('退出'),
+        value: this.tr('退出'),
         fontColor: Theme.primary,
         action: async () => {
           await SR.account().logout();
@@ -54,16 +60,16 @@ export struct AccountCard {
 
   build() {
     Column() {
-      TS({ title: T('账号与云同步'), subtitle: '华为账号登录 · 云服务状态', icon: '☁️' })
+      TS({ title: this.tr('账号与云同步'), subtitle: '华为账号登录 · 云服务状态', icon: '☁️' })
       Column() {
         Row() {
-          Text(T(this.loggedIn ? '已登录' : '未登录')).fontFamily(uiFontFamily())
+          Text(this.tr(this.loggedIn ? '已登录' : '未登录')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(this.loggedIn ? Theme.primary : Theme.inkTertiary)
             .backgroundColor(this.loggedIn ? Theme.field : Theme.paperDeep)
             .borderRadius(10)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-          Text(T(this.loggedIn ? '华为账号 ' + SR.account().getDisplayId() : '登录后可加入家族协作、共享族谱')).fontFamily(uiFontFamily())
+          Text(this.tr(this.loggedIn ? '华为账号 ' + SR.account().getDisplayId() : '登录后可加入家族协作、共享族谱')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.ink)
             .layoutWeight(1)
@@ -73,7 +79,7 @@ export struct AccountCard {
         }
         .width('100%')
 
-        Text(T('UnionID 映射账号：' + (this.userId.length > 0 ? this.userId : '未登录'))).fontFamily(uiFontFamily())
+        Text(this.tr('UnionID 映射账号：' + (this.userId.length > 0 ? this.userId : '未登录'))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.inkTertiary)
           .width('100%')
@@ -83,7 +89,7 @@ export struct AccountCard {
 
         Row() {
           if (!this.loggedIn) {
-            Button(T('华为账号登录')).fontFamily(uiFontFamily())
+            Button(this.tr('华为账号登录')).fontFamily(uiFontFamily())
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.primary)
@@ -94,7 +100,7 @@ export struct AccountCard {
                 RouterUtil.login(this.getUIContext());
               })
           } else {
-            Button(T('退出登录')).fontFamily(uiFontFamily())
+            Button(this.tr('退出登录')).fontFamily(uiFontFamily())
               .height(38)
               .fontSize(14)
               .backgroundColor(Theme.field)
@@ -109,7 +115,7 @@ export struct AccountCard {
         .width('100%')
         .margin({ top: Spacing.M })
 
-        Text(T('云服务：' + (this.cloudMsg.length > 0 ? this.cloudMsg : '未初始化'))).fontFamily(uiFontFamily())
+        Text(this.tr('云服务：' + (this.cloudMsg.length > 0 ? this.cloudMsg : '未初始化'))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(this.cloudReady ? Theme.gold : Theme.inkTertiary)
           .width('100%')
@@ -117,7 +123,7 @@ export struct AccountCard {
           .maxLines(2)
 
         if (this.progressText.length > 0) {
-          Text(T(this.progressText)).fontFamily(uiFontFamily())
+          Text(this.tr(this.progressText)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkSecondary)
             .width('100%')

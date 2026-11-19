@@ -1,4 +1,4 @@
-﻿import { T, uiFontFamily } from 'common_base';
+﻿import { T, uiFontFamily, ScriptService } from 'common_base';
 import { Theme, Spacing } from 'common_base';
 
 /**
@@ -18,25 +18,31 @@ import { Theme, Spacing } from 'common_base';
  */
 @Component
 export struct TS {
-  /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
+  /** 订阅简繁设置：切换后重绘（this.tr() 依赖全局状态，需显式订阅） */
   @StorageProp('gpScript') script: string = 'hans';
   @Prop title: string = '';
   @Prop subtitle: string = '';
   @Prop icon: string = '';
 
+  /** 标题/副标题简繁：显式读取 script 建立刷新依赖，切换文字后即时更新 */
+  private tr(text: string): string {
+    return this.script === ScriptService.HANT ? ScriptService.getInstance().toTraditional(text)
+      : ScriptService.getInstance().toSimplified(text);
+  }
+
   build() {
     Row() {
       if (this.icon.length > 0) {
-        Text(T(this.icon)).fontFamily(uiFontFamily()).fontSize(15).margin({ right: Spacing.S })
+        Text(this.tr(this.icon)).fontFamily(uiFontFamily()).fontSize(15).margin({ right: Spacing.S })
       }
       if (this.title.length > 0) {
         Column() {
-          Text(T(this.title)).fontFamily(uiFontFamily())
+          Text(this.tr(this.title)).fontFamily(uiFontFamily())
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
             .fontColor(Theme.ink)
           if (this.subtitle.length > 0) {
-            Text(T(this.subtitle)).fontFamily(uiFontFamily())
+            Text(this.tr(this.subtitle)).fontFamily(uiFontFamily())
               .fontSize(11)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 2 })
