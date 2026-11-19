@@ -125,6 +125,16 @@ export default class EntryAbility extends UIAbility {
     hilog.info(0x0000, TAG, 'darkMode updated: %{public}s', String(dark));
   }
 
+  /** 读取颜色资源并转为 #RRGGBB（系统栏只接受字符串色值） */
+  private hexOf(colorId: number): string {
+    const argb: number = this.context.resourceManager.getColorSync(colorId);
+    let hex: string = (argb & 0xFFFFFF).toString(16);
+    while (hex.length < 6) {
+      hex = '0' + hex;
+    }
+    return '#' + hex;
+  }
+
   /**
    * 系统状态栏 / 导航栏配色。
    * 状态栏与页面顶部栏同色（Theme.card），导航栏与页面底色同色（Theme.paper），
@@ -136,10 +146,13 @@ export default class EntryAbility extends UIAbility {
     }
     try {
       Theme.use(isDark);
+      // 系统栏接口只接受字符串色值：从资源读取后转成 #RRGGBB，保持与 Theme 同源
+      const cardId: number = isDark ? $r('app.color.theme_card_dark').id : $r('app.color.theme_card').id;
+      const paperId: number = isDark ? $r('app.color.theme_paper_dark').id : $r('app.color.theme_paper').id;
       this.mainWindow.setWindowSystemBarProperties({
-        statusBarColor: Theme.card,
+        statusBarColor: this.hexOf(cardId),
         statusBarContentColor: isDark ? '#FFFFFF' : '#000000',
-        navigationBarColor: Theme.paper,
+        navigationBarColor: this.hexOf(paperId),
         navigationBarContentColor: isDark ? '#FFFFFF' : '#000000'
       });
     } catch (e) {

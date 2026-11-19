@@ -8,7 +8,7 @@ export struct InfoRow {
   @StorageProp('gpScript') script: string = 'hans';
   @Prop label: string;
   @Prop value: string;
-  @Prop valueColor: string = Theme.ink;
+  @Prop valueColor: ResourceColor = Theme.ink;
   @Prop labelWidth: number = 76;
   @Prop privacy: boolean = false;
 

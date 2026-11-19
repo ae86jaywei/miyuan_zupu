@@ -3,8 +3,8 @@
 @Component
 export struct Tag {
   @Prop text: string;
-  @Prop color: string;
-  @Prop bg: string;
+  @Prop color: ResourceColor;
+  @Prop bg: ResourceColor;
   @Prop dense: boolean = false;
 
   build() {

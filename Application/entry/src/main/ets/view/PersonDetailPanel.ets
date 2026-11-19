@@ -385,7 +385,7 @@ export struct PersonDetailPanel {
   }
 
   @Builder
-  ActionButton(label: string, color: string, action: () => void) {
+  ActionButton(label: string, color: ResourceColor, action: () => void) {
     Text(T(label)).fontFamily(uiFontFamily())
       .fontSize(12)
       .fontColor(color)

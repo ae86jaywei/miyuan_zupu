@@ -67,7 +67,7 @@ export struct GenealogyStatsPanel {
   }
 
   @Builder
-  RatioRow(label: string, value: number, total: number, color: string) {
+  RatioRow(label: string, value: number, total: number, color: ResourceColor) {
     Row() {
       Text(T(label)).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkSecondary).width(56)
       Stack({ alignContent: Alignment.Start }) {

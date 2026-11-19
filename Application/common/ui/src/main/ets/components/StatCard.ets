@@ -7,7 +7,7 @@ export struct StatCard {
   @Prop label: string;
   @Prop value: string;
   @Prop unit: string = '';
-  @Prop accent: string = Theme.primary;
+  @Prop accent: ResourceColor = Theme.primary;
   @Prop icon: string = '';
   @Prop compact: boolean = false;
 
