@@ -443,7 +443,7 @@ struct Index {
         .fontColor(Theme.inkTertiary)
         .margin({ top: this.navCompact() ? 2 : Spacing.S })
 
-      Text(this.tr('v1.0.0')).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
+      Text(this.tr(DeviceUtil.appVersionLabel())).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 8 : 10).fontColor(Theme.inkTertiary)
         .margin({ top: 1 })
       Column().height(this.navCompact() ? 4 : Spacing.M)
     }

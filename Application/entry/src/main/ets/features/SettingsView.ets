@@ -8,6 +8,7 @@ import { TS } from 'common_ui';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { RouterUtil } from 'common_base';
 import { AGREEMENT_URL, PRIVACY_URL } from 'common_base';
+import { DeviceUtil } from 'common_base';
 import { AccountCard } from './AccountCard';
 
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -695,7 +696,7 @@ export struct SettingsView {
 
         TS({ title: this.tr('关于'), icon: 'ℹ️' })
         Column() {
-          this.InfoLine('应用名称', '觅源 v1.0.0（com.zupu.ae86jay）')
+          this.InfoLine('应用名称', '觅源 ' + DeviceUtil.appVersionLabel() + '（com.zupu.ae86jay）')
           this.InfoLine('支持谱式', '欧式 · 苏式 · 宝塔式 · 牒记式 · 现代创新式')
           this.InfoLine('内置字库', 'BabelStone Han · Arphic Public License（简繁 + 生僻字）')
           this.InfoLine('简繁词典', 'OpenCC（s2t / t2s 离线词典）')
@@ -710,11 +711,11 @@ export struct SettingsView {
           })
           Divider().color(Theme.line).strokeWidth(0.5)
           this.NavRow('在线查看用户协议', 'www.fengg.net.cn/miyuan-agreement', (): void => {
-            RouterUtil.openUrl(AGREEMENT_URL);
+            RouterUtil.onlineDoc(this.getUIContext(), '用户协议', AGREEMENT_URL);
           })
           Divider().color(Theme.line).strokeWidth(0.5)
           this.NavRow('在线查看隐私声明', 'www.fengg.net.cn/miyuan-privacy', (): void => {
-            RouterUtil.openUrl(PRIVACY_URL);
+            RouterUtil.onlineDoc(this.getUIContext(), '隐私声明', PRIVACY_URL);
           })
         }
         .width('100%')

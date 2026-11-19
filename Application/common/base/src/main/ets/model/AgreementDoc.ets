@@ -25,6 +25,12 @@ export class AgreementParams {
   type: string = 'privacy';
 }
 
+/** 在线协议页路由参数（应用内 Web 打开服务器上的协议） */
+export class OnlineDocParams {
+  title: string = '';
+  url: string = '';
+}
+
 /** 协议中的一个章节 */
 export class AgreementSection {
   heading: string = '';

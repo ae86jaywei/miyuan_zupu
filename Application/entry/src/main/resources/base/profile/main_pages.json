@@ -13,6 +13,7 @@
     "pages/GraveMap",
     "pages/ChangeReview",
     "pages/CalendarPage",
-    "pages/Agreement"
+    "pages/Agreement",
+    "pages/OnlineDoc"
   ]
 }

@@ -1,7 +1,7 @@
 import { UIContext } from '@kit.ArkUI';
-import { common, OpenLinkOptions, Want } from '@kit.AbilityKit';
+import { common, Want } from '@kit.AbilityKit';
 import { AccessParams, EditParams, GenealogyScope } from '../model/Scope';
-import { AgreementParams } from '../model/AgreementDoc';
+import { AgreementParams, OnlineDocParams } from '../model/AgreementDoc';
 import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
@@ -125,17 +125,14 @@ export class RouterUtil {
       });
   }
 
-  /** 打开外部网页（在线用户协议 / 隐私声明），由系统浏览器接管 */
-  static openUrl(url: string): void {
-    const context: common.UIAbilityContext | null = GenealogyScope.context();
-    if (context === null || context === undefined) {
-      return;
-    }
-    // appLinkingOnly=false：没有匹配的 App Linking 时交给系统浏览器打开
-    const options: OpenLinkOptions = { appLinkingOnly: false };
-    context.openLink(url, options)
+  /** 应用内打开在线协议（Web 页），避免跳转系统浏览器 */
+  static onlineDoc(ui: UIContext, title: string, url: string): void {
+    const params: OnlineDocParams = new OnlineDocParams();
+    params.title = title;
+    params.url = url;
+    ui.getRouter().pushUrl({ url: 'pages/OnlineDoc', params: params })
       .catch((err: BusinessError): void => {
-        console.error('open url failed: ' + err.message);
+        console.error('push OnlineDoc failed: ' + err.message);
       });
   }
 

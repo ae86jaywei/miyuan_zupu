@@ -1,4 +1,5 @@
 import { mediaquery, display } from '@kit.ArkUI';
+import { bundleManager } from '@kit.AbilityKit';
 import { deviceInfo } from '@kit.BasicServicesKit';
 import { Breakpoint, DeviceForm } from '../common/Constants';
 
@@ -152,6 +153,23 @@ export class DeviceUtil {
       default:
         return '手机';
     }
+  }
+
+  /** 应用版本名（读取 AppScope/app.json5，避免界面硬编码版本号） */
+  static appVersionName(): string {
+    try {
+      const info: bundleManager.BundleInfo = bundleManager.getBundleInfoForSelfSync(
+        bundleManager.BundleFlag.GET_BUNDLE_INFO_DEFAULT);
+      return info.versionName;
+    } catch (err) {
+      return '';
+    }
+  }
+
+  /** 应用版本文案：如 v1.0.1 */
+  static appVersionLabel(): string {
+    const name: string = DeviceUtil.appVersionName();
+    return name.length > 0 ? 'v' + name : '';
   }
 
   /** 系统 deviceType */

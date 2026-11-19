@@ -2,7 +2,7 @@
   "app": {
     "signingConfigs": [
       {
-        "name": "default",
+        "name": "debug",
         "type": "HarmonyOS",
         "material": {
           "storeFile": "./zhengshu/miyuan.p12",
@@ -13,12 +13,38 @@
           "profile": "./zhengshu/miyuanDebug.p7b",
           "certpath": "./zhengshu/miyuan.cer"
         }
+      },
+      {
+        "name": "release",
+        "type": "HarmonyOS",
+        "material": {
+          "storeFile": "E:/HarmonyOS/miyuan_yunkaifa/.sign/miyuan.p12",
+          "storePassword": "0000001E2271A0DBC624DA80FA4984A598032BD211D3152959DF62D6D75D2F48D405ED23521A3821F7DE0F6D3AD8",
+          "keyAlias": "miyuan",
+          "keyPassword": "0000001E52A448E2F2B4C285BAFB266DE8FC1235CA795EB6D16E75BA4529A6062248D0AB8AAEF87580D89E89AAF4",
+          "signAlg": "SHA256withECDSA",
+          "profile": "E:/HarmonyOS/miyuan_yunkaifa/.sign/miyuangRelease.p7b",
+          "certpath": "E:/HarmonyOS/miyuan_yunkaifa/.sign/miyuanRelease.cer"
+        }
       }
     ],
     "products": [
       {
         "name": "default",
-        "signingConfig": "default",
+        "signingConfig": "debug",
+        "compatibleSdkVersion": "6.1.1(24)",
+        "targetSdkVersion": "26.0.0",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      },
+      {
+        "name": "production",
+        "signingConfig": "release",
         "compatibleSdkVersion": "6.1.1(24)",
         "targetSdkVersion": "26.0.0",
         "runtimeOS": "HarmonyOS",
@@ -45,30 +71,31 @@
       }
     ]
   },
-    "modules": [
-      {
-        "name": "entry",
-        "srcPath": "./entry",
-        "targets": [
-          {
-            "name": "default",
-            "applyToProducts": [
-              "default"
-            ]
-          }
-        ]
-      },
-      {
-        "name": "common_dateutil",
-        "srcPath": "./common/DateUtil"
-      },
-      {
-        "name": "common_base",
-        "srcPath": "./common/base"
-      },
-      {
-        "name": "common_ui",
-        "srcPath": "./common/ui"
-      }
-    ]
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default",
+            "production"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "common_dateutil",
+      "srcPath": "./common/DateUtil"
+    },
+    {
+      "name": "common_base",
+      "srcPath": "./common/base"
+    },
+    {
+      "name": "common_ui",
+      "srcPath": "./common/ui"
+    }
+  ]
 }
