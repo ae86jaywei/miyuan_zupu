@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { Person, SpouseRelation, spouseRelationLabel, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
 import { PersonAvatar } from 'common_ui';
 import { Tag } from 'common_ui';
@@ -27,7 +29,7 @@ export struct PersonDetailPanel {
   onCreateBranch: (uid: string) => void = (uid: string): void => {};
 
   private person(): Person | null {
-    return GenealogyService.getInstance().getPerson(this.uid);
+    return SR.genealogy().getPerson(this.uid);
   }
 
   private avatarSize(): number {
@@ -402,7 +404,7 @@ export struct PersonDetailPanel {
     if (id === undefined || id.trim().length === 0) {
       return '未录入';
     }
-    const p: Person | null = GenealogyService.getInstance().getPerson(id);
+    const p: Person | null = SR.genealogy().getPerson(id);
     if (p === null) {
       return id + '（该ID未录入）';
     }
@@ -459,7 +461,7 @@ export struct PersonDetailPanel {
 
   /** 全部配偶及名分，如：“元配（正妻）：林氏（M001，子女 2）” */
   private spouseInfoText(): string {
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     const parts: string[] = [];
     svc.spousesOf(this.uid).forEach((r: SpouseRelation): void => {
       const sp: Person | null = svc.getPerson(r.uid);
@@ -489,7 +491,7 @@ export struct PersonDetailPanel {
 
   private relativeChips(): RelationChipData[] {
     const list: RelationChipData[] = [];
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     const father: Person | null = svc.getPerson((this.person() as Person).fatherId);
     const mother: Person | null = svc.getPerson((this.person() as Person).motherId);
     if (father !== null) {

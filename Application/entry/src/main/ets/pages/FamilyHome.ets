@@ -1,15 +1,17 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from 'common_ui';
 import { PageNavBar } from 'common_ui';
 import { AccountService } from '../service/AccountService';
-import { FamilyService } from '../service/FamilyService';
-import { FamilyBootstrapService } from '../service/FamilyBootstrapService';
-import { FamilySyncService } from '../service/FamilySyncService';
-import { PrivacyService } from '../service/PrivacyService';
-import { GenealogyService } from '../service/GenealogyService';
+
+
+
+
+
 import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilySummary, Role, SyncMode, SyncResult, roleLabel } from 'common_base';
 import { Genealogy } from 'common_base';
@@ -74,7 +76,7 @@ struct FamilyHome {
   }
 
   private refreshHeader(): void {
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     this.bookTitle = book.title;
     this.familyId = book.familyId;
     if (this.createTitle.length === 0) {
@@ -92,7 +94,7 @@ struct FamilyHome {
       return;
     }
     try {
-      this.myFamilies = await FamilyService.getInstance().listMine();
+      this.myFamilies = await SR.family().listMine();
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.progressText = '读取我的家族失败：' + be.message;
@@ -119,7 +121,7 @@ struct FamilyHome {
       RouterUtil.login(this.getUIContext());
       return;
     }
-    const bookKey: number = GenealogyService.getInstance().getCurrentBookId();
+    const bookKey: number = SR.genealogy().getCurrentBookId();
     if (bookKey <= 0) {
       this.toast('请先在「谱系」中创建族谱后再分享');
       return;
@@ -128,7 +130,7 @@ struct FamilyHome {
     if (ctx === null) {
       return;
     }
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     if (book.familyId.length > 0) {
       await this.openShare(ctx, bookKey);
       return;
@@ -137,7 +139,7 @@ struct FamilyHome {
     let cloudCount: number = 0;
     let queryFailed: boolean = false;
     try {
-      cloudCount = await CloudSyncService.getInstance().countBookMembers(this.userId, bookKey);
+      cloudCount = await SR.cloudSync().countBookMembers(this.userId, bookKey);
     } catch (err) {
       queryFailed = true;
     }
@@ -175,7 +177,7 @@ struct FamilyHome {
     this.busy = true;
     this.progressText = '准备上传…';
     try {
-      const result: BackupResult = await CloudSyncService.getInstance().backupAll(
+      const result: BackupResult = await SR.cloudSync().backupAll(
         (message: string, done: number, total: number): void => {
           this.progressText = message + ' ' + done.toString() + '/' + total.toString();
         });
@@ -191,7 +193,7 @@ struct FamilyHome {
     }
     let count: number = 0;
     try {
-      count = await CloudSyncService.getInstance().countBookMembers(this.userId, bookKey);
+      count = await SR.cloudSync().countBookMembers(this.userId, bookKey);
     } catch (err) {
       count = 0;
     }
@@ -204,7 +206,7 @@ struct FamilyHome {
 
   /** 拉起系统分享面板：云家族分享加入码，未接入时走旧只读分享 */
   private async openShare(ctx: common.UIAbilityContext, bookKey: number): Promise<void> {
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     try {
       if (book.familyId.length > 0) {
         const code: string = await this.resolveInviteCode(book.familyId);
@@ -216,7 +218,7 @@ struct FamilyHome {
         return;
       }
       await ShareService.shareGenealogy(ctx, book.title,
-        AccountService.getInstance().getFamilyId(), this.userId, bookKey);
+        SR.account().getFamilyId(), this.userId, bookKey);
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.toast('分享未完成：' + (be.message !== undefined ? be.message : '用户取消'));
@@ -225,11 +227,11 @@ struct FamilyHome {
 
   /** 取当前家族的加入码（仅谱主可读） */
   private async resolveInviteCode(familyId: string): Promise<string> {
-    if (!FamilyService.getInstance().isOwnerCurrent()) {
+    if (!SR.family().isOwnerCurrent()) {
       return '';
     }
     try {
-      const list: FamilySummary[] = await FamilyService.getInstance().listMine();
+      const list: FamilySummary[] = await SR.family().listMine();
       for (let i: number = 0; i < list.length; i++) {
         if (list[i].familyId === familyId && list[i].inviteCode.length > 0) {
           return list[i].inviteCode;
@@ -264,8 +266,8 @@ struct FamilyHome {
     this.busy = true;
     this.progressText = '正在创建云家族…';
     try {
-      const summary: FamilySummary = await FamilyService.getInstance().createFamily(title,
-        AccountService.getInstance().getDisplayId());
+      const summary: FamilySummary = await SR.family().createFamily(title,
+        SR.account().getDisplayId());
       this.familyId = summary.familyId;
       this.refreshHeader();
       this.progressText = '已创建云家族，加入码：' + summary.inviteCode;
@@ -287,7 +289,7 @@ struct FamilyHome {
    */
   private askDirectory(): void {
     const ui = this.getUIContext();
-    const title: string = GenealogyService.getInstance().getBook().title;
+    const title: string = SR.genealogy().getBook().title;
     ui.showAlertDialog({
       title: T('是否让族人通过搜索找到这部谱？'),
       message: T('开启后，其他人可以在「族谱黄页」按谱名/姓氏/地域搜到《' + title +
@@ -314,7 +316,7 @@ struct FamilyHome {
     }
     if (!force) {
       // 发布前体检：错乱的编号/关系一旦上传，其他成员同步后都会看到重复宗支
-      const report = GenealogyService.getInstance().checkIntegrity();
+      const report = SR.genealogy().checkIntegrity();
       if (report.hasError()) {
         this.getUIContext().showAlertDialog({
           title: T('发布前数据体检'),
@@ -337,20 +339,20 @@ struct FamilyHome {
       }
     }
     this.busy = true;
-    const publishingBookKey: number = GenealogyService.getInstance().getBook().key;
+    const publishingBookKey: number = SR.genealogy().getBook().key;
     this.progressText = '正在发布到云端…';
     try {
-      const result: SyncResult = await FamilyBootstrapService.getInstance().publishCurrent(
+      const result: SyncResult = await SR.familyBootstrap().publishCurrent(
         (message: string, done: number, total: number): void => {
           this.progressText = message + ' ' + done.toString() + '/' + total.toString();
         });
       this.progressText = result.message;
       this.toast(result.message);
-      const currentBook: Genealogy = GenealogyService.getInstance().getBook();
+      const currentBook: Genealogy = SR.genealogy().getBook();
       if (result.ok && currentBook.key === publishingBookKey && currentBook.familyId === result.familyId) {
         this.progressText = '发布完成，正在同步云端数据…';
         try {
-          const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-bootstrap');
+          const synced: SyncResult = await SR.familySync().syncCurrent('after-bootstrap');
           this.progressText = synced.ok ?
             (synced.message.length > 0 ? synced.message : '发布并同步完成') :
             (synced.message.length > 0 ? synced.message : '发布成功，但后续同步未完成');
@@ -386,17 +388,17 @@ struct FamilyHome {
     this.busy = true;
     this.progressText = '正在加入…';
     try {
-      const summary: FamilySummary = await FamilyService.getInstance().joinFamily(code,
-        AccountService.getInstance().getDisplayId());
-      const localBookId: number = FamilyService.getInstance().findLocalBook(summary.familyId);
+      const summary: FamilySummary = await SR.family().joinFamily(code,
+        SR.account().getDisplayId());
+      const localBookId: number = SR.family().findLocalBook(summary.familyId);
       if (localBookId > 0) {
-        await GenealogyService.getInstance().switchGenealogy(localBookId);
+        await SR.genealogy().switchGenealogy(localBookId);
       } else {
-        await FamilyService.getInstance().createLocalBookForFamily(summary);
+        await SR.family().createLocalBookForFamily(summary);
       }
       GenealogyStore.notifyChanged();
       this.refreshHeader();
-      const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-join');
+      const synced: SyncResult = await SR.familySync().syncCurrent('after-join');
       this.progressText = '已加入《' + summary.title + '》，角色：' + roleLabel(summary.role);
       this.toast(this.progressText);
       this.showIntegrity(synced);
@@ -417,7 +419,7 @@ struct FamilyHome {
     this.busy = true;
     this.startSyncProgress('正在准备同步…');
     try {
-      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('manual',
+      const result: SyncResult = await SR.familySync().syncCurrent('manual',
         (message: string, percent: number): void => {
           this.syncText = message;
           this.syncPercent = percent;
@@ -441,7 +443,7 @@ struct FamilyHome {
     this.busy = true;
     this.startSyncProgress('正在准备全量拉取…');
     try {
-      const result: SyncResult = await FamilySyncService.getInstance().fullResync(
+      const result: SyncResult = await SR.familySync().fullResync(
         (message: string, percent: number): void => {
           this.syncText = message;
           this.syncPercent = percent;
@@ -498,7 +500,7 @@ struct FamilyHome {
     }
     this.busy = true;
     try {
-      const n: number = await PrivacyService.getInstance().loadAll(this.familyId);
+      const n: number = await SR.privacy().loadAll(this.familyId);
       this.privateCount = n;
       this.progressText = '已读取 ' + n.toString() + ' 位族人的隐私字段（仅谱主可见）';
       this.toast(this.progressText);
@@ -914,7 +916,7 @@ struct FamilyHome {
     this.busy = true;
     this.progressText = '正在删除《' + f.title + '》…';
     try {
-      await FamilyService.getInstance().deleteCloudFamily(f.familyId, f.title);
+      await SR.family().deleteCloudFamily(f.familyId, f.title);
       this.progressText = '已删除《' + f.title + '》';
       this.toast('已删除云家族');
       await this.loadMine();
@@ -932,10 +934,10 @@ struct FamilyHome {
   private async importFamily(f: FamilySummary): Promise<void> {
     this.busy = true;
     try {
-      await FamilyService.getInstance().createLocalBookForFamily(f);
+      await SR.family().createLocalBookForFamily(f);
       GenealogyStore.notifyChanged();
       this.refreshHeader();
-      const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('import');
+      const synced: SyncResult = await SR.familySync().syncCurrent('import');
       await this.loadMine();
       this.toast('已导入《' + f.title + '》');
       this.showIntegrity(synced);

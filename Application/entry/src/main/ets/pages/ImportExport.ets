@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from 'common_ui';
@@ -94,7 +96,7 @@ struct ImportExport {
   @State peopleCount: number = 0;
 
   private svc(): GenealogyService {
-    return GenealogyService.getInstance();
+    return SR.genealogy();
   }
 
   /** 从建议列表建立分支谱（移动式：原谱保留始祖占位，后代迁入分支谱） */

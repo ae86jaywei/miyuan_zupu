@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { font, uiMaterial } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
 import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
@@ -24,8 +26,8 @@ import { GenealogyStatsPanel } from '../features/GenealogyStatsPanel';
 import { RouterUtil } from 'common_base';
 import { DeviceUtil } from 'common_base';
 import { AccountService } from '../service/AccountService';
-import { ConsentService } from '../service/ConsentService';
-import { PageCacheService } from '../service/PageCacheService';
+
+
 import { PrivacyConsentDialog } from '../features/PrivacyConsentDialog';
 import { resourceManager } from '@kit.LocalizationKit';
 
@@ -106,15 +108,15 @@ struct Index {
   onPageShow(): void {
     this.syncDarkMode();
     // 回到前台后按「小谱 + 空闲」条件低优先级预热分页缓存；大谱不触发
-    PageCacheService.getInstance().scheduleWarmup();
+    SR.pageCache().scheduleWarmup();
     // 从协议页返回后，若仍未同意则重新弹出确认框
-    if (this.consentChecked && !ConsentService.getInstance().hasAgreed()) {
+    if (this.consentChecked && !SR.consent().hasAgreed()) {
       this.showPrivacyConsent();
     }
   }
 
   aboutToDisappear(): void {
-    PageCacheService.getInstance().cancelWarmup();
+    SR.pageCache().cancelWarmup();
   }
 
 
@@ -151,10 +153,10 @@ struct Index {
   private async bootstrapAfterConsent(): Promise<void> {
     const ctx: Context | undefined = this.getUIContext().getHostContext();
     if (ctx !== undefined && ctx !== null) {
-      await ConsentService.getInstance().init(ctx as common.UIAbilityContext);
+      await SR.consent().init(ctx as common.UIAbilityContext);
     }
     this.consentChecked = true;
-    if (!ConsentService.getInstance().hasAgreed()) {
+    if (!SR.consent().hasAgreed()) {
       this.showPrivacyConsent();
       return;
     }
@@ -170,7 +172,7 @@ struct Index {
 
   /** 首次启动 / 未同意协议时的隐私确认弹窗 */
   private showPrivacyConsent(): void {
-    if (!this.consentChecked || ConsentService.getInstance().hasAgreed() || this.consentDialogOpen) {
+    if (!this.consentChecked || SR.consent().hasAgreed() || this.consentDialogOpen) {
       return;
     }
     this.consentDialogOpen = true;
@@ -194,7 +196,7 @@ struct Index {
 
   private async handleConsentAgree(): Promise<void> {
     this.consentDialogOpen = false;
-    await ConsentService.getInstance().accept();
+    await SR.consent().accept();
     this.startNormalFlow();
   }
 
@@ -222,9 +224,9 @@ struct Index {
     if (ctx === undefined || ctx === null) {
       return;
     }
-    await AccountService.getInstance().init(ctx as common.UIAbilityContext);
-    if (AccountService.getInstance().getUnionId().length > 0) {
-      await AccountService.getInstance().trySilentLogin();
+    await SR.account().init(ctx as common.UIAbilityContext);
+    if (SR.account().getUnionId().length > 0) {
+      await SR.account().trySilentLogin();
     }
   }
 
@@ -284,19 +286,19 @@ struct Index {
     try {
       const ctx: Context | undefined = this.getUIContext().getHostContext();
       if (ctx !== undefined && ctx !== null) {
-        await PageCacheService.getInstance().init(ctx);
+        await SR.pageCache().init(ctx);
       }
-      if (GenealogyScope.isReady() && GenealogyService.getInstance().isReady()) {
+      if (GenealogyScope.isReady() && SR.genealogy().isReady()) {
         GenealogyStore.notifyChanged();
         this.localReady = true;
-        PageCacheService.getInstance().scheduleWarmup();
+        SR.pageCache().scheduleWarmup();
         return;
       }
       await GenealogyStore.bootstrap();
       this.localReady = true;
-      PageCacheService.getInstance().scheduleWarmup();
+      SR.pageCache().scheduleWarmup();
       hilog.info(0x0000, TAG, 'data ready, people=%{public}d',
-        GenealogyService.getInstance().getPeople().length);
+        SR.genealogy().getPeople().length);
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'bootstrap failed %{public}s', err.message);
@@ -724,7 +726,7 @@ struct Index {
   /** 新增一部空族谱，并引导用户完善族谱信息 */
   private async createGenealogy(): Promise<void> {
     try {
-      await GenealogyService.getInstance().createGenealogy('');
+      await SR.genealogy().createGenealogy('');
       GenealogyStore.notifyChanged();
       // 创建后直接进入族谱信息编辑态
       AppStorage.setOrCreate<boolean>(GenealogyStore.KEY_EDITING_BOOK, true);
@@ -752,12 +754,12 @@ struct Index {
       return;
     }
     try {
-      await GenealogyService.getInstance().switchGenealogy(bookKey);
+      await SR.genealogy().switchGenealogy(bookKey);
       GenealogyStore.notifyChanged();
       AppStorage.setOrCreate<string>('gpSelection', '');
       this.showDetailSheet = false;
       this.getUIContext().getPromptAction().showToast({
-        message: T('已切换到《') + GenealogyService.getInstance().getBook().title + '》'
+        message: T('已切换到《') + SR.genealogy().getBook().title + '》'
       });
     } catch (e) {
       const err = e as BusinessError;
@@ -767,7 +769,7 @@ struct Index {
 
   /** 以某位族人为始祖另立分支族谱（复制其本人、配偶与全部后代，原族谱不受影响） */
   private createBranch(uid: string): void {
-    const p: Person | null = GenealogyService.getInstance().getPerson(uid);
+    const p: Person | null = SR.genealogy().getPerson(uid);
     if (p === null) {
       return;
     }
@@ -783,7 +785,7 @@ struct Index {
       secondaryButton: {
         value: T('创建'),
         action: (): void => {
-          GenealogyService.getInstance().createBranchFromPerson(uid)
+          SR.genealogy().createBranchFromPerson(uid)
             .then((book: Genealogy): void => {
               GenealogyStore.notifyChanged();
               AppStorage.setOrCreate<string>('gpSelection', '');
@@ -806,7 +808,7 @@ struct Index {
     if (book.parentBookId <= 0) {
       return '';
     }
-    const books: Genealogy[] = GenealogyService.getInstance().getBooks();
+    const books: Genealogy[] = SR.genealogy().getBooks();
     for (let i: number = 0; i < books.length; i++) {
       if (books[i].key === book.parentBookId) {
         return books[i].title.length > 0 ? books[i].title : '未命名族谱';
@@ -934,7 +936,7 @@ struct Index {
 
         Scroll() {
           Column() {
-            ForEach(GenealogyService.getInstance().getBooks(), (book: Genealogy) => {
+            ForEach(SR.genealogy().getBooks(), (book: Genealogy) => {
               Row() {
                 Column() {
                   Text(T(book.title.length > 0 ? book.title : '未命名族谱')).fontFamily(uiFontFamily())
@@ -1106,7 +1108,7 @@ struct Index {
   }
 
   private peopleCount(): number {
-    return GenealogyService.getInstance().getPeople().length;
+    return SR.genealogy().getPeople().length;
   }
 
   /** 手机（含横屏）不按大屏处理：横屏时仍用窄屏布局，避免侧栏把内容整体右移 */
@@ -1274,8 +1276,8 @@ struct Index {
             .fontSize(15)
             .fontWeight(FontWeight.Bold)
             .fontColor(Theme.ink)
-          if (this.hasBook && GenealogyService.getInstance().getBook().hallName.length > 0) {
-            Text(T('· ' + GenealogyService.getInstance().getBook().hallName)).fontFamily(uiFontFamily())
+          if (this.hasBook && SR.genealogy().getBook().hallName.length > 0) {
+            Text(T('· ' + SR.genealogy().getBook().hallName)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.gold)
               .margin({ left: 6 })

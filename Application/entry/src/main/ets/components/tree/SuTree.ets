@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../../service/ServiceRegistry';
+
 import { PersonNode } from 'common_base';
 import { LineSeg, SuBox, SuCanvas } from 'common_base';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
@@ -92,7 +94,7 @@ export struct SuTree {
     }
     const r: PersonNode | null = this.root();
     const roots: PersonNode[] = r === null ? [] : [r];
-    const canvas: SuCanvas = TreeLayoutCache.getInstance().su(this.rootUid, roots, this.cardWidth,
+    const canvas: SuCanvas = SR.treeCache().su(this.rootUid, roots, this.cardWidth,
       this.dense, this.showSpouse);
     this.cachedCanvas = canvas;
     this.cachedCanvasKey = key;

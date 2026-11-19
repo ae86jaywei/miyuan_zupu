@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { PersonNode } from 'common_base';
 import { Person } from 'common_base';
 import { TreeStyle, generationLabel } from 'common_base';
@@ -15,7 +17,7 @@ import { Theme, Spacing } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { compactUid } from 'common_base';
 import { TreeLayoutCache } from '../service/TreeLayoutCache';
-import { PaginationService, PrintBook } from '../service/PaginationService';
+import { PrintBook } from '../service/PaginationService';
 import { EuBox, EuCanvas, SuBox, SuCanvas } from 'common_base';
 import { ViewportMath } from 'common_base';
 import { Breakpoint } from 'common_base';
@@ -296,8 +298,8 @@ export struct TreeCanvas {
 
   /** 族人数据变化：丢弃旧布局，重建宗支索引与世代索引 */
   onDataVersionChanged(): void {
-    TreeLayoutCache.getInstance().invalidate();
-    PaginationService.getInstance().invalidate();
+    SR.treeCache().invalidate();
+    SR.pagination().invalidate();
     this.pageNo = 1;
     this.refreshData();
     this.offsetX = 0;
@@ -323,7 +325,7 @@ export struct TreeCanvas {
   private refreshData(): void {
     this.syncPagedMode();
     TreePerf.begin('tree_groups');
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     const roots: PersonNode[] = svc.getRoots();
     this.rootUids = roots.map((r: PersonNode): string => r.uid);
     this.branchNames = roots.map((r: PersonNode): string => r.person.name.length > 0 ? r.person.name : r.uid);
@@ -364,7 +366,7 @@ export struct TreeCanvas {
     if (this.style !== TreeStyle.EU && this.style !== TreeStyle.SU) {
       return;
     }
-    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const roots: PersonNode[] = SR.genealogy().getRoots();
     if (roots.length === 0) {
       this.canvasW = 0;
       this.canvasH = 0;
@@ -375,7 +377,7 @@ export struct TreeCanvas {
     }
     const idx: number = this.clampBranchIndex();
     const headerBlock: number = roots.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
-    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    const cache: TreeLayoutCache = SR.treeCache();
     let cw: number = 0;
     let ch: number = 0;
     if (this.style === TreeStyle.SU) {
@@ -548,7 +550,7 @@ export struct TreeCanvas {
     if (target === undefined) {
       return [];
     }
-    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const roots: PersonNode[] = SR.genealogy().getRoots();
     if (roots.length === 0) {
       return [];
     }
@@ -558,7 +560,7 @@ export struct TreeCanvas {
     if (root === undefined) {
       return [];
     }
-    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    const cache: TreeLayoutCache = SR.treeCache();
     if (this.style === TreeStyle.SU) {
       const c: SuCanvas = cache.su(root.uid, [root], this.cardWidth(), this.isNarrow(), true);
       for (let i: number = 0; i < c.boxes.length; i = i + 1) {
@@ -630,12 +632,12 @@ export struct TreeCanvas {
     if (rootIdx >= 0 && rootIdx !== this.clampBranchIndex()) {
       this.activeBranch = rootIdx;
     }
-    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const roots: PersonNode[] = SR.genealogy().getRoots();
     if (roots.length === 0) {
       return;
     }
     const root: PersonNode = roots[this.clampBranchIndex()];
-    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    const cache: TreeLayoutCache = SR.treeCache();
     let bx: number = -1;
     let by: number = 0;
     let bw: number = 0;
@@ -693,7 +695,7 @@ export struct TreeCanvas {
     }
     let page: number = 1;
     try {
-      const book: PrintBook = await PaginationService.getInstance().book(rootUid, this.style,
+      const book: PrintBook = await SR.pagination().book(rootUid, this.style,
         this.dataVersion, 'standard');
       const found: number = book.pageOf(uid);
       if (found > 0) {
@@ -799,7 +801,7 @@ export struct TreeCanvas {
 
   /** 沿父/母/配偶链上溯，找到该族人所属宗支索引 */
   private branchIndexOf(uid: string): number {
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     const roots: PersonNode[] = svc.getRoots();
     const seen: Set<string> = new Set<string>();
     let cur: Person | null = svc.getPerson(uid);
@@ -863,13 +865,13 @@ export struct TreeCanvas {
     if (this.viewW <= 0 || this.viewH <= 0 || this.rootUids.length === 0) {
       return;
     }
-    const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+    const roots: PersonNode[] = SR.genealogy().getRoots();
     if (roots.length === 0) {
       return;
     }
     const idx: number = this.clampBranchIndex();
     const rootUid: string = roots[idx].uid;
-    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    const cache: TreeLayoutCache = SR.treeCache();
     let bx: number = -1;
     let by: number = 0;
     let bw: number = 0;
@@ -1039,7 +1041,7 @@ export struct TreeCanvas {
       return;
     }
     const keyUpper: string = key.toUpperCase();
-    const people: Person[] = GenealogyService.getInstance().getPeople();
+    const people: Person[] = SR.genealogy().getPeople();
     const out: Person[] = [];
     for (let i: number = 0; i < people.length; i = i + 1) {
       const p: Person = people[i];
@@ -1059,7 +1061,7 @@ export struct TreeCanvas {
    * 布局全部来自 TreeLayoutCache（渲染时已算好），只做线性查找，不会在大谱上重算整树。
    */
   private async focusOnUid(uid: string): Promise<void> {
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     const target: string = uid.toUpperCase();
     // 牒记式：按世代排序列表，直接滚动到目标条目
     if (this.style === TreeStyle.DIE) {
@@ -1098,7 +1100,7 @@ export struct TreeCanvas {
     // 分页视图：直接按「人 → 页」索引跳页，页内卡片会高亮
     if (this.pagedMode) {
       const idxP: number = this.clampBranchIndex();
-      const book: PrintBook = await PaginationService.getInstance()
+      const book: PrintBook = await SR.pagination()
         .book(roots[idxP].uid, this.style, this.dataVersion, 'standard');
       const p: number = book.pageOf(uid);
       if (p <= 0) {
@@ -1111,7 +1113,7 @@ export struct TreeCanvas {
     }
     this.rebuildCanvasSize(false);
     const idx: number = this.clampBranchIndex();
-    const cache: TreeLayoutCache = TreeLayoutCache.getInstance();
+    const cache: TreeLayoutCache = SR.treeCache();
     let bx: number = 0;
     let by: number = 0;
     let bw: number = 0;

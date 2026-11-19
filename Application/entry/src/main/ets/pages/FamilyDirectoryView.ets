@@ -1,12 +1,14 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 
 import { PageNavBar } from 'common_ui';
 import { SearchField } from 'common_ui';
 import { DirectoryForm, DirectoryService, MEMBER_COUNT_BANDS } from '../service/DirectoryService';
-import { FamilyService } from '../service/FamilyService';
-import { GenealogyService } from '../service/GenealogyService';
+
+
 import { DirectoryEntry } from 'common_base';
 import { Genealogy } from 'common_base';
 import { RouterUtil } from 'common_base';
@@ -41,7 +43,7 @@ struct FamilyDirectoryView {
 
   aboutToAppear(): void {
     Theme.use(this.darkMode);
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     this.form = DirectoryService.defaultForm(book);
     this.search();
   }
@@ -57,7 +59,7 @@ struct FamilyDirectoryView {
     }
     this.searching = true;
     try {
-      this.results = await DirectoryService.getInstance().search(this.keyword);
+      this.results = await SR.directory().search(this.keyword);
       if (this.results.length === 0) {
         this.message = '没有搜到已上架的族谱。多数家庭默认不上架黄页，可让谱主把加入码或分享链接发给你。';
       } else {
@@ -73,12 +75,12 @@ struct FamilyDirectoryView {
 
   /** 上架：先确认告知，再写入黄页并在 Family.directoryEnabled 置 true */
   private publish(enable: boolean): void {
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     if (book.familyId.length === 0) {
       this.toast('本谱尚未接入云家族');
       return;
     }
-    if (!FamilyService.getInstance().canEditCurrent()) {
+    if (!SR.family().canEditCurrent()) {
       this.toast('只有谱主或编辑者可以修改黄页信息');
       return;
     }
@@ -107,12 +109,12 @@ struct FamilyDirectoryView {
   }
 
   private async doPublish(enable: boolean): Promise<void> {
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     this.busy = true;
     try {
       const f: DirectoryForm = this.form;
       f.directoryEnabled = enable;
-      await DirectoryService.getInstance().upsert(book.familyId, f);
+      await SR.directory().upsert(book.familyId, f);
       this.form = f;
       this.toast(enable ? '已上架，族人现在可以搜到这部谱' : '已下架，该谱已从黄页移除（不是隐藏）');
       await this.search();
@@ -297,7 +299,7 @@ struct FamilyDirectoryView {
       PageNavBar({
         title: T('族谱黄页'),
         subtitle: '只含索引信息 · 不含任何人物数据',
-        actionText: FamilyService.getInstance().canEditCurrent() ? '管理' : '',
+        actionText: SR.family().canEditCurrent() ? '管理' : '',
         busy: this.busy,
         onBack: (): void => {
           this.getUIContext().getRouter().back();

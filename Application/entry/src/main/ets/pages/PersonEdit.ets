@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { common } from '@kit.AbilityKit';
 import { resourceManager } from '@kit.LocalizationKit';
 import { BusinessError } from '@kit.BasicServicesKit';
@@ -189,7 +191,7 @@ struct PersonEdit {
   }
 
   private svc(): GenealogyService {
-    return GenealogyService.getInstance();
+    return SR.genealogy();
   }
 
   private loadPerson(params: EditParams): void {
@@ -605,17 +607,17 @@ struct PersonEdit {
 
   /** 保存后的去向提示（方案 §十 P1 提交—审核 / §十三 三条门槛） */
   private saveHint(): string {
-    const mode: string = FamilyService.getInstance().syncMode();
+    const mode: string = SR.family().syncMode();
     if (mode === 'LOCAL') {
       return '已保存（本谱仅在本机）';
     }
     if (mode === 'CLOUD_PENDING') {
       return '已保存；本谱尚未发布到云端，稍后在「我的家族」发布';
     }
-    if (!FamilyService.getInstance().canEditCurrent()) {
+    if (!SR.family().canEditCurrent()) {
       return '已保存到本机；当前角色为只读，未提交云端';
     }
-    if (FamilyService.getInstance().isOwnerCurrent()) {
+    if (SR.family().isOwnerCurrent()) {
       return '已保存并同步到云端';
     }
     return '已提交，等谱主审核后合入';
@@ -1928,8 +1930,8 @@ struct PersonEdit {
                 onValue: (v: string): void => {
                   this.updateSpouse(idx, v, rel.relation);
                 },
-                onSearch: (k: string): Person[] => GenealogyService.getInstance().search(k),
-                onResolve: (uid: string): Person | null => GenealogyService.getInstance().getPerson(uid)
+                onSearch: (k: string): Person[] => SR.genealogy().search(k),
+                onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
               })
               SelectField({
                 label: '名分',
@@ -2353,8 +2355,8 @@ struct PersonEdit {
         onValue: (v: string): void => {
           this.fFatherId = v;
         },
-        onSearch: (k: string): Person[] => GenealogyService.getInstance().search(k),
-        onResolve: (uid: string): Person | null => GenealogyService.getInstance().getPerson(uid)
+        onSearch: (k: string): Person[] => SR.genealogy().search(k),
+        onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
       })
       PersonPickerField({
         label: '母亲ID',
@@ -2366,8 +2368,8 @@ struct PersonEdit {
         onValue: (v: string): void => {
           this.fMotherId = v;
         },
-        onSearch: (k: string): Person[] => GenealogyService.getInstance().search(k),
-        onResolve: (uid: string): Person | null => GenealogyService.getInstance().getPerson(uid)
+        onSearch: (k: string): Person[] => SR.genealogy().search(k),
+        onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
       })
       // 父母未录入族谱时的兜底姓名：妻子的父亲/母亲即丈夫条目中的岳父/岳母
       Row() {

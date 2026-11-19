@@ -1,11 +1,13 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from 'common_ui';
 import { PageNavBar } from 'common_ui';
 import { SearchField } from 'common_ui';
 import { GraveService } from '../service/GraveService';
-import { GenealogyService } from '../service/GenealogyService';
+
 import { Person } from 'common_base';
 import { GraveCardView } from '../features/GraveCardView';
 import { GraveEntry, Role } from 'common_base';
@@ -58,9 +60,9 @@ struct GraveMap {
 
   aboutToAppear(): void {
     Theme.use(this.darkMode);
-    this.familyId = GenealogyService.getInstance().getBook().familyId;
+    this.familyId = SR.genealogy().getBook().familyId;
     // 只持有引用，不拷贝、不创建 UI；展开选择器时再由 LazyForEach 按需渲染
-    this.peopleSource.setData(GenealogyService.getInstance().getPeople());
+    this.peopleSource.setData(SR.genealogy().getPeople());
     this.load();
   }
 
@@ -73,7 +75,7 @@ struct GraveMap {
     this.message = '';
     try {
       const scope: string = this.onlyMine && this.familyId.length > 0 ? this.familyId : '';
-      this.graves = await GraveService.getInstance().loadPublic(scope, this.keyword);
+      this.graves = await SR.grave().loadPublic(scope, this.keyword);
       this.graveSource.setData(this.graves);
       if (this.graves.length === 0) {
         this.message = this.onlyMine
@@ -94,7 +96,7 @@ struct GraveMap {
 
   /** 选中一位族人后，先做知情确认，再进入录入表单 */
   private startEdit(uid: string): void {
-    const p: Person | null = GenealogyService.getInstance().getPerson(uid);
+    const p: Person | null = SR.genealogy().getPerson(uid);
     if (p === null) {
       this.toast('本机没有该族人');
       return;
@@ -147,7 +149,7 @@ struct GraveMap {
       grave['graveName'] = this.editName;
       grave['facing'] = this.editFacing;
       grave['routeNote'] = this.editRoute;
-      await GraveService.getInstance().updateGrave(this.familyId, this.editingUid, grave, this.editVisibility,
+      await SR.grave().updateGrave(this.familyId, this.editingUid, grave, this.editVisibility,
         this.editPrecision, this.editEvidence);
       this.toast('墓葬位置已保存');
       this.editingUid = '';

@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../../service/ServiceRegistry';
+
 import { Person } from 'common_base';
 import { Theme, Spacing } from 'common_base';
 import { PersonAvatar } from 'common_ui';
@@ -101,7 +103,7 @@ export struct ModernTree {
 
   private rebuildRows(): void {
     TreePerf.begin('modern_rows');
-    const map: Map<number, Person[]> = GenealogyService.getInstance().groupByGeneration();
+    const map: Map<number, Person[]> = SR.genealogy().groupByGeneration();
     const generations: number[] = Array.from(map.keys()).sort((a: number, b: number): number => a - b);
     const columns: number = this.columnCount();
     this.currentColumns = columns;
@@ -125,7 +127,7 @@ export struct ModernTree {
   }
 
   private spouseText(p: Person): string {
-    return GenealogyService.getInstance().spouseTextOf(p.uid);
+    return SR.genealogy().spouseTextOf(p.uid);
   }
 
   @Builder

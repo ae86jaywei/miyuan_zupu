@@ -1,4 +1,6 @@
 ﻿import { ScriptService } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { AbilityConstant, Configuration, ConfigurationConstant, UIAbility, Want } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -6,7 +8,7 @@ import { BusinessError } from '@kit.BasicServicesKit';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyScope } from 'common_base';
 import { AccountService } from '../service/AccountService';
-import { CloudSyncService } from '../service/CloudSyncService';
+
 import { DisplayService } from '../service/DisplayService';
 import { PdfFontUtil } from '../service/PdfFontUtil';
 import { Theme } from 'common_base';
@@ -24,7 +26,7 @@ export default class EntryAbility extends UIAbility {
 
   onCreate(want: Want, launchParam: AbilityConstant.LaunchParam): void {
     // 屏幕方向偏好：读取用户设置并广播到 AppStorage（电脑/折叠屏固定跟随系统）
-    DisplayService.getInstance().init(this.context);
+    SR.display().init(this.context);
     // 注入 context：PDF 导出首次排版时读取 rawfile 内置大字库（简繁 + 生僻字）
     PdfFontUtil.init(this.context);
     // 简繁文字：加载 OpenCC 词典并恢复用户偏好（AppStorage.gpScript）
@@ -43,7 +45,7 @@ export default class EntryAbility extends UIAbility {
       AppStorage.setOrCreate<boolean>('darkMode', false);
     }
     GenealogyScope.set(this.context);
-    GenealogyService.getInstance().init(this.context)
+    SR.genealogy().init(this.context)
       .then((): void => {
         hilog.info(0x0000, TAG, 'database initialised');
       })
@@ -52,8 +54,8 @@ export default class EntryAbility extends UIAbility {
       });
 
     // 账号与云同步服务（幂等）：读取缓存登录态、初始化 AGC 与云开发服务
-    CloudSyncService.getInstance().init(this.context);
-    AccountService.getInstance().init(this.context)
+    SR.cloudSync().init(this.context);
+    SR.account().init(this.context)
       .catch((err: BusinessError): void => {
         hilog.warn(0x0000, TAG, 'account init failed: %{public}s', err.message);
       });
@@ -173,7 +175,7 @@ export default class EntryAbility extends UIAbility {
         this.applySystemBarStyle(dark);
         // 主窗口就绪后下发屏幕方向：手机/平板按用户设置生效，
         // 折叠屏跟随桌面，电脑由系统统一调度（服务内部自动判断）
-        const displaySvc: DisplayService = DisplayService.getInstance();
+        const displaySvc: DisplayService = SR.display();
         displaySvc.setMainWindow(mainWindow);
         displaySvc.apply();
       })

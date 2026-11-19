@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { Person } from 'common_base';
 import { Genealogy } from 'common_base';
 import { GenealogyStats, GenerationStat } from 'common_base';
@@ -79,7 +81,7 @@ export struct HomeView {
   onOpenPerson: (uid: string) => void = (uid: string): void => {};
 
   private svc(): GenealogyService {
-    return GenealogyService.getInstance();
+    return SR.genealogy();
   }
 
   private book(): Genealogy {

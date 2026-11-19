@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../../service/ServiceRegistry';
+
 import { PersonNode } from 'common_base';
 import { TreeStyle, generationLabel } from 'common_base';
 import { Theme } from 'common_base';
@@ -190,7 +192,7 @@ export struct PagedTree {
 
   private async refresh(): Promise<void> {
     this.clearTapHint();
-    const svc: PaginationService = PaginationService.getInstance();
+    const svc: PaginationService = SR.pagination();
     this.planning = true;
     this.planningPct = 0;
     const book: PrintBook = await svc.book(this.rootUid, this.style, this.layoutVersion,

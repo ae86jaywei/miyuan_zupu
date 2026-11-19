@@ -1,4 +1,6 @@
 ﻿import { PersonNode } from 'common_base';
+import { SR } from '../../service/ServiceRegistry';
+
 import { GenealogyService } from '../../service/GenealogyService';
 import { EuBox, LineSeg, SuBox } from 'common_base';
 import { ViewRect, ViewportMath } from 'common_base';
@@ -48,7 +50,7 @@ export function treeViewKey(input: TreeViewportKeyInput): string {
 
 /** 按 uid 在全部宗支根节点中查找对应节点（找不到返回 null） */
 export function findRootNode(uid: string): PersonNode | null {
-  const roots: PersonNode[] = GenealogyService.getInstance().getRoots();
+  const roots: PersonNode[] = SR.genealogy().getRoots();
   for (let i: number = 0; i < roots.length; i = i + 1) {
     if (roots[i].uid === uid) {
       return roots[i];

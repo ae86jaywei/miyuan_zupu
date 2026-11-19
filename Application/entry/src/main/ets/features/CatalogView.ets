@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { Person } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { Theme, Spacing, Radius } from 'common_base';
@@ -77,7 +79,7 @@ export struct CatalogView {
   }
 
   private svc(): GenealogyService {
-    return GenealogyService.getInstance();
+    return SR.genealogy();
   }
 
   private isWide(): boolean {

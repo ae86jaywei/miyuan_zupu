@@ -1,4 +1,6 @@
 ﻿import { GenealogyService } from '../service/GenealogyService';
+import { SR } from '../service/ServiceRegistry';
+
 import { GenealogyScope } from 'common_base';
 
 /**
@@ -33,7 +35,7 @@ export class GenealogyStore {
 
   /** 初始化（在 UI 启动时调用一次） */
   static async bootstrap(): Promise<void> {
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     await svc.init(GenealogyScope.context());
     GenealogyStore.put<number>(GenealogyStore.KEY_VERSION, svc.getVersion());
     GenealogyStore.put<number>(GenealogyStore.KEY_PEOPLE, svc.getPeople().length);
@@ -47,7 +49,7 @@ export class GenealogyStore {
 
   /** 通知界面数据已变化 */
   static notifyChanged(): void {
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     GenealogyStore.put<number>(GenealogyStore.KEY_VERSION, svc.getVersion());
     GenealogyStore.put<number>(GenealogyStore.KEY_PEOPLE, svc.getPeople().length);
     GenealogyStore.put<boolean>(GenealogyStore.KEY_HAS_BOOK, svc.hasBook());

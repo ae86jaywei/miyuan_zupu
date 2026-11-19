@@ -1,10 +1,12 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from 'common_ui';
 import { PageNavBar } from 'common_ui';
 import { AccountService } from '../service/AccountService';
-import { FamilyService } from '../service/FamilyService';
+
 import {
   AccessKind, AccessRequestInfo, AccessStatus,
   accessKindLabel, accessStatusLabel
@@ -49,7 +51,7 @@ struct AccessApply {
       this.familyId = params.familyId !== undefined ? params.familyId : '';
       this.kind = params.kind !== undefined && params.kind.length > 0 ? params.kind : AccessKind.VIEW_APPLY;
     }
-    this.applicantName = AccountService.getInstance().getDisplayId();
+    this.applicantName = SR.account().getDisplayId();
     this.loadMyApplications();
   }
 
@@ -58,11 +60,11 @@ struct AccessApply {
   }
 
   private async loadMyApplications(): Promise<void> {
-    if (!AccountService.getInstance().isCloudReady()) {
+    if (!SR.account().isCloudReady()) {
       return;
     }
     try {
-      this.myApplications = await FamilyService.getInstance().listMyAccess();
+      this.myApplications = await SR.family().listMyAccess();
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.message = '读取我的申请失败：' + be.message;
@@ -77,7 +79,7 @@ struct AccessApply {
       this.toast('请先从族谱黄页选择一部族谱');
       return;
     }
-    if (!AccountService.getInstance().isLoggedIn()) {
+    if (!SR.account().isLoggedIn()) {
       this.toast('请先登录华为账号');
       return;
     }
@@ -88,7 +90,7 @@ struct AccessApply {
     this.busy = true;
     this.message = '';
     try {
-      const result: string = await FamilyService.getInstance().requestAccess(this.familyId, this.kind,
+      const result: string = await SR.family().requestAccess(this.familyId, this.kind,
         this.relationText, this.branchUid.trim().toUpperCase(), this.evidenceText, this.applicantName);
       if (result === 'ALREADY_MEMBER') {
         this.message = '你已是该谱成员，无需重复申请。';

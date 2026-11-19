@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../../service/ServiceRegistry';
+
 import { PersonNode } from 'common_base';
 import { Theme } from 'common_base';
 import { PersonAvatar } from 'common_ui';
@@ -115,7 +117,7 @@ export struct PagodaTree {
     this.rootUids.forEach((uid: string): void => {
       rootUidSet.add(uid);
     });
-    GenealogyService.getInstance().getRoots().forEach((root: PersonNode): void => {
+    SR.genealogy().getRoots().forEach((root: PersonNode): void => {
       if (rootUidSet.has(root.uid)) {
         walk(root);
       }

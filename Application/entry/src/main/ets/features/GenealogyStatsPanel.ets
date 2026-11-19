@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { Person } from 'common_base';
 import { GenealogyStats, GenerationStat } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
@@ -36,7 +38,7 @@ export struct GenealogyStatsPanel {
     if (this.cachedStats !== null && this.statsVersion === this.version) {
       return this.cachedStats;
     }
-    const computed: GenealogyStats = GenealogyService.getInstance().computeStats();
+    const computed: GenealogyStats = SR.genealogy().computeStats();
     this.cachedStats = computed;
     this.statsVersion = this.version;
     return computed;
@@ -46,7 +48,7 @@ export struct GenealogyStatsPanel {
     if (this.charsVersion === this.version) {
       return this.cachedChars;
     }
-    const svc: GenealogyService = GenealogyService.getInstance();
+    const svc: GenealogyService = SR.genealogy();
     const map: Map<string, number> = new Map<string, number>();
     svc.getPeople().forEach((p: Person): void => {
       if (p.generationChar.trim().length === 0) {

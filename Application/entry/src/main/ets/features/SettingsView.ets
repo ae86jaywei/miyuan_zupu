@@ -1,4 +1,6 @@
 ﻿import { ScriptService, T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { GenealogyService } from '../service/GenealogyService';
 import { Genealogy } from 'common_base';
 import { Theme, Spacing } from 'common_base';
@@ -10,7 +12,7 @@ import { AccountCard } from './AccountCard';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { DisplayService, ORIENTATION_OPTIONS, OrientationMeta } from '../service/DisplayService';
 
-import { FamilySyncService } from '../service/FamilySyncService';
+
 import { SyncMode, SyncResult, roleLabel } from 'common_base';
 import { SyncProgressOverlay } from 'common_ui';
 
@@ -95,7 +97,7 @@ export struct SettingsView {
     this.syncPercent = 0;
     this.syncText = '正在准备同步…';
     try {
-      const result: SyncResult = await FamilySyncService.getInstance().syncCurrent('settings',
+      const result: SyncResult = await SR.familySync().syncCurrent('settings',
         (message: string, percent: number): void => {
           this.syncText = message;
           this.syncPercent = percent;
@@ -128,11 +130,11 @@ export struct SettingsView {
     if (this.orientationBySystem) {
       return;
     }
-    DisplayService.getInstance().setMode(mode);
+    SR.display().setMode(mode);
   }
 
   private loadBook(): void {
-    const b: Genealogy = GenealogyService.getInstance().getBook();
+    const b: Genealogy = SR.genealogy().getBook();
     this.bookTitle = b.title;
     this.bookSurname = b.surname;
     this.bookHall = b.hallName;
@@ -145,7 +147,7 @@ export struct SettingsView {
   }
 
   private async saveBook(): Promise<void> {
-    const b: Genealogy = GenealogyService.getInstance().getBook();
+    const b: Genealogy = SR.genealogy().getBook();
     b.title = this.bookTitle;
     b.surname = this.bookSurname;
     b.hallName = this.bookHall;
@@ -155,7 +157,7 @@ export struct SettingsView {
     b.preface = this.bookPreface;
     b.familyRules = this.bookRules;
     b.editingNotes = this.bookNotes;
-    await GenealogyService.getInstance().saveBook(b);
+    await SR.genealogy().saveBook(b);
     GenealogyStore.notifyChanged();
     this.editingBook = false;
   }
@@ -165,7 +167,7 @@ export struct SettingsView {
 
   /** 打开删除确认弹窗（需输入谱名二次确认） */
   private openDeleteDialog(): void {
-    const title: string = GenealogyService.getInstance().getBook().title;
+    const title: string = SR.genealogy().getBook().title;
     if (title.length === 0) {
       return;
     }
@@ -184,13 +186,13 @@ export struct SettingsView {
 
   /** 执行删除族谱 */
   private async confirmDelete(input: string): Promise<void> {
-    const title: string = GenealogyService.getInstance().getBook().title;
+    const title: string = SR.genealogy().getBook().title;
     if (input.trim() !== title) {
       this.getUIContext().getPromptAction().showToast({ message: T('族谱名称输入不一致，已取消删除') });
       return;
     }
     try {
-      await GenealogyService.getInstance().deleteGenealogy();
+      await SR.genealogy().deleteGenealogy();
       GenealogyStore.notifyChanged();
       AppStorage.setOrCreate<string>('gpSelection', '');
       AppStorage.setOrCreate<number>('gpTab', 1);
@@ -204,7 +206,7 @@ export struct SettingsView {
   /** 无族谱状态下创建一部空族谱 */
   private async createBook(): Promise<void> {
     try {
-      await GenealogyService.getInstance().createGenealogy('');
+      await SR.genealogy().createGenealogy('');
       GenealogyStore.notifyChanged();
       this.loadBook();
       // 创建后立即进入编辑态，填写谱名、堂号等信息
@@ -379,17 +381,17 @@ export struct SettingsView {
       } else {
         Row() {
           Column() {
-            Text(T(GenealogyService.getInstance().getBook().title)).fontFamily(uiFontFamily())
+            Text(T(SR.genealogy().getBook().title)).fontFamily(uiFontFamily())
               .fontSize(17)
               .fontWeight(FontWeight.Bold)
               .fontColor(Theme.ink)
-            Text(T((GenealogyService.getInstance().getBook().hallName.length > 0 ?
-              GenealogyService.getInstance().getBook().hallName + ' · ' : '') +
-              '始迁祖 ' + GenealogyService.getInstance().getBook().ancestorName)).fontFamily(uiFontFamily())
+            Text(T((SR.genealogy().getBook().hallName.length > 0 ?
+              SR.genealogy().getBook().hallName + ' · ' : '') +
+              '始迁祖 ' + SR.genealogy().getBook().ancestorName)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 3 })
-            Text(T('字派：' + GenealogyService.getInstance().getBook().generationPoem)).fontFamily(uiFontFamily())
+            Text(T('字派：' + SR.genealogy().getBook().generationPoem)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.gold)
               .margin({ top: 3 })

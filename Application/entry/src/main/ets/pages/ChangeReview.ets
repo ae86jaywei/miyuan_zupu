@@ -1,11 +1,13 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from 'common_ui';
 import { PageNavBar } from 'common_ui';
 import { FamilyService } from '../service/FamilyService';
-import { FamilySyncService } from '../service/FamilySyncService';
-import { GenealogyService } from '../service/GenealogyService';
+
+
 import { GenealogyStore } from '../store/GenealogyStore';
 import { ChangeRequestInfo, Role, SyncResult, opLabel, roleLabel } from 'common_base';
 import { FieldChange, displayValue, fieldLabel, parsePatchJson } from 'common_base';
@@ -39,7 +41,7 @@ struct ChangeReview {
 
   aboutToAppear(): void {
     Theme.use(this.darkMode);
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     this.familyId = book.familyId;
     this.load();
   }
@@ -55,7 +57,7 @@ struct ChangeReview {
     this.busy = true;
     this.message = '';
     try {
-      this.requests = await FamilyService.getInstance().listPendingChanges(this.familyId);
+      this.requests = await SR.family().listPendingChanges(this.familyId);
       if (this.requests.length === 0) {
         this.message = this.role === Role.OWNER
           ? '没有待审的变更。亲戚提交补录后会出现在这里。'
@@ -75,13 +77,13 @@ struct ChangeReview {
     }
     this.busy = true;
     try {
-      await FamilyService.getInstance().reviewChange(r.requestId, approve, this.noteText);
+      await SR.family().reviewChange(r.requestId, approve, this.noteText);
       this.toast(approve ? '已合入，新的修订号已生成' : '已退回提交者');
       this.noteText = '';
       this.expandedId = '';
       await this.load();
       if (approve) {
-        const synced: SyncResult = await FamilySyncService.getInstance().syncCurrent('after-review');
+        const synced: SyncResult = await SR.familySync().syncCurrent('after-review');
         GenealogyStore.notifyChanged();
         if (synced.integrityIssues.length > 0) {
           const shown: string[] = synced.integrityIssues.slice(0, 5);
@@ -109,7 +111,7 @@ struct ChangeReview {
   }
 
   private targetName(r: ChangeRequestInfo): string {
-    const p = GenealogyService.getInstance().getPerson(r.targetUid);
+    const p = SR.genealogy().getPerson(r.targetUid);
     return p !== null ? p.name : (r.targetName.length > 0 ? r.targetName : r.targetUid);
   }
 

@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { Theme, Spacing } from 'common_base';
 import { TS } from 'common_ui';
 import { AccountService } from '../service/AccountService';
@@ -43,7 +45,7 @@ export struct AccountCard {
         value: T('退出'),
         fontColor: Theme.primary,
         action: async () => {
-          await AccountService.getInstance().logout();
+          await SR.account().logout();
           this.toast('已退出登录');
         }
       }
@@ -61,7 +63,7 @@ export struct AccountCard {
             .backgroundColor(this.loggedIn ? Theme.field : Theme.paperDeep)
             .borderRadius(10)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
-          Text(T(this.loggedIn ? '华为账号 ' + AccountService.getInstance().getDisplayId() : '登录后可加入家族协作、共享族谱')).fontFamily(uiFontFamily())
+          Text(T(this.loggedIn ? '华为账号 ' + SR.account().getDisplayId() : '登录后可加入家族协作、共享族谱')).fontFamily(uiFontFamily())
             .fontSize(13)
             .fontColor(Theme.ink)
             .layoutWeight(1)

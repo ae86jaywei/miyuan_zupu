@@ -1,4 +1,6 @@
 ﻿import { T } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { loginComponentManager, LoginPanel } from '@kit.AccountKit';
@@ -63,7 +65,7 @@ struct Login {
   aboutToAppear(): void {
     const ctx = this.getUIContext().getHostContext();
     if (ctx !== undefined && ctx !== null) {
-      AccountService.getInstance().init(ctx as common.UIAbilityContext);
+      SR.account().init(ctx as common.UIAbilityContext);
     }
     // 协议状态每次重置为未同意，确保每次登录都需用户主动确认
     this.controller.setAgreementStatus(loginComponentManager.AgreementStatus.NOT_ACCEPTED);
@@ -112,7 +114,7 @@ struct Login {
       this.toast('未能获取华为账号标识，请重试');
       return;
     }
-    const outcome: LoginOutcome = await AccountService.getInstance().loginWithUnionId(unionId);
+    const outcome: LoginOutcome = await SR.account().loginWithUnionId(unionId);
     if (outcome.success) {
       this.showPanel = false;
       this.toast('华为账号登录成功');

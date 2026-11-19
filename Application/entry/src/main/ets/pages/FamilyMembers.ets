@@ -1,11 +1,13 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Theme, Spacing, Radius } from 'common_base';
 import { TS } from 'common_ui';
 import { PageNavBar } from 'common_ui';
 import { AccountService } from '../service/AccountService';
-import { FamilyService } from '../service/FamilyService';
-import { GenealogyService } from '../service/GenealogyService';
+
+
 import {
   AccessKind, AccessRequestInfo, MemberInfo, Role,
   accessKindLabel, membershipStatusLabel, roleLabel
@@ -46,9 +48,9 @@ struct FamilyMembers {
 
   aboutToAppear(): void {
     Theme.use(this.darkMode);
-    const book: Genealogy = GenealogyService.getInstance().getBook();
+    const book: Genealogy = SR.genealogy().getBook();
     this.familyId = book.familyId;
-    this.applicantName = AccountService.getInstance().getDisplayId();
+    this.applicantName = SR.account().getDisplayId();
     this.reload();
   }
 
@@ -68,8 +70,8 @@ struct FamilyMembers {
     this.errorText = '';
     try {
       if (this.isOwner()) {
-        this.members = await FamilyService.getInstance().listMembers(this.familyId);
-        this.applications = await FamilyService.getInstance().listPendingAccess(this.familyId);
+        this.members = await SR.family().listMembers(this.familyId);
+        this.applications = await SR.family().listPendingAccess(this.familyId);
       }
     } catch (err) {
       const be: BusinessError = err as BusinessError;
@@ -86,7 +88,7 @@ struct FamilyMembers {
     }
     this.busy = true;
     try {
-      this.inviteCode = await FamilyService.getInstance().rotateInvite(this.familyId, 0, this.inviteRole);
+      this.inviteCode = await SR.family().rotateInvite(this.familyId, 0, this.inviteRole);
       this.toast('已生成新的加入码，旧码立即失效');
     } catch (err) {
       const be: BusinessError = err as BusinessError;
@@ -102,7 +104,7 @@ struct FamilyMembers {
     }
     this.busy = true;
     try {
-      await FamilyService.getInstance().updateMember(this.familyId, m.userId, role, m.branchRootUid, m.expireAt,
+      await SR.family().updateMember(this.familyId, m.userId, role, m.branchRootUid, m.expireAt,
         m.status);
       this.toast('已设置为' + roleLabel(role));
       await this.reload();
@@ -120,7 +122,7 @@ struct FamilyMembers {
     }
     this.busy = true;
     try {
-      await FamilyService.getInstance().updateMember(this.familyId, m.userId, m.role, m.branchRootUid, m.expireAt,
+      await SR.family().updateMember(this.familyId, m.userId, m.role, m.branchRootUid, m.expireAt,
         'REVOKED');
       this.toast('已撤销该成员的授权');
       await this.reload();
@@ -143,7 +145,7 @@ struct FamilyMembers {
       : Date.now() + days * 24 * 3600 * 1000;
     this.busy = true;
     try {
-      await FamilyService.getInstance().reviewAccess(a.requestId, true,
+      await SR.family().reviewAccess(a.requestId, true,
         a.kind === AccessKind.JOIN_CLAIM ? '同意成为族人' : '同意查看', a.grantedRole, expireAt);
       this.toast('已通过，申请人的授权立即生效');
       await this.reload();
@@ -161,7 +163,7 @@ struct FamilyMembers {
     }
     this.busy = true;
     try {
-      await FamilyService.getInstance().reviewAccess(a.requestId, false, '谱主未通过', '', 0);
+      await SR.family().reviewAccess(a.requestId, false, '谱主未通过', '', 0);
       this.toast('已拒绝');
       await this.reload();
     } catch (err) {
@@ -187,7 +189,7 @@ struct FamilyMembers {
     }
     this.busy = true;
     try {
-      const result: string = await FamilyService.getInstance().requestAccess(this.familyId, kind, this.relationText, '',
+      const result: string = await SR.family().requestAccess(this.familyId, kind, this.relationText, '',
         this.evidenceText, this.applicantName);
       if (result === 'ALREADY_MEMBER') {
         this.toast('你已是该谱成员，无需重复申请');

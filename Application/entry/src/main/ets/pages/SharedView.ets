@@ -1,9 +1,11 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../service/ServiceRegistry';
+
 import { Theme, Spacing } from 'common_base';
 import { PageHeader } from 'common_ui';
 import { Person, generationLabel } from 'common_base';
 import { CloudSyncService } from '../service/CloudSyncService';
-import { AccountService } from '../service/AccountService';
+
 import { InviteInfo, ShareService } from '../service/ShareService';
 import { RouterUtil } from 'common_base';
 import { FamilyService } from '../service/FamilyService';
@@ -85,8 +87,8 @@ struct SharedView {
     this.loading = true;
     this.errorText = '';
     try {
-      const summary: FamilySummary = await FamilyService.getInstance().joinFamily(code,
-        AccountService.getInstance().getDisplayId());
+      const summary: FamilySummary = await SR.family().joinFamily(code,
+        SR.account().getDisplayId());
       this.getUIContext().getPromptAction().showToast({
         message: T('已加入《' + summary.title + '》，正在打开…')
       });
@@ -130,13 +132,13 @@ struct SharedView {
       return;
     }
     if (!this.cloudReady) {
-      this.errorText = AccountService.getInstance().getCloudMessage();
+      this.errorText = SR.account().getCloudMessage();
       return;
     }
     this.loading = true;
     this.errorText = '';
     try {
-      this.people = await CloudSyncService.getInstance().loadSharedMembers(this.ownerUserId, this.bookKey);
+      this.people = await SR.cloudSync().loadSharedMembers(this.ownerUserId, this.bookKey);
       if (this.people.length === 0) {
         this.errorText = '该族谱暂无公开的成员数据';
       }

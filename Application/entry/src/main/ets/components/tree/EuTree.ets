@@ -1,4 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
+import { SR } from '../../service/ServiceRegistry';
+
 import { PersonNode } from 'common_base';
 import { EuBox, EuCanvas, LineSeg } from 'common_base';
 import { TreeLayoutCache } from '../../service/TreeLayoutCache';
@@ -95,7 +97,7 @@ export struct EuTree {
     }
     const r: PersonNode | null = this.root();
     const roots: PersonNode[] = r === null ? [] : [r];
-    const canvas: EuCanvas = TreeLayoutCache.getInstance().eu(this.rootUid, roots, this.cardWidth,
+    const canvas: EuCanvas = SR.treeCache().eu(this.rootUid, roots, this.cardWidth,
       this.rowHeight(), this.showSpouse, 6);
     this.cachedCanvas = canvas;
     this.cachedCanvasKey = key;
