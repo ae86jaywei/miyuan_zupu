@@ -26,6 +26,7 @@ import { BranchHost } from './BranchManager';
 import { RestoreManager } from './RestoreManager';
 import { RestoreHost } from './RestoreManager';
 import { BookGroup } from './RestoreManager';
+import { PersonSearch } from './PersonSearch';
 
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -143,6 +144,8 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
   private initPromise: Promise<void> | null = null;
   /** 人员索引：加速搜索和跳转 */
   private index: PersonIndex = new PersonIndex();
+  /** 搜索与跳转索引域：访问门面 */
+  private personSearch: PersonSearch = new PersonSearch(this.index, (): Person[] => this.peopleStore.getAll());
 
   private constructor() {
     // 布局缓存位于公共层，数据身份（族谱ID#数据版本）由本服务注入，避免公共层反向依赖业务服务
@@ -497,42 +500,37 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
 
   /** 模糊搜索：谱名 / 曾用名 / 唯一ID / 辈分字 / 出生地 / 职业（使用索引加速） */
   search(keyword: string): Person[] {
-    const k: string = keyword.trim();
-    if (k.length === 0) {
-      return this.peopleStore.getAll();
-    }
-    // 使用索引搜索，避免同步遍历全表
-    return this.index.search(k);
+    return this.personSearch.search(keyword);
   }
 
   /** 按 UID 快速查找（使用索引，O(1) 复杂度） */
   getByUid(uid: string): Person | null {
-    return this.index.getByUid(uid);
+    return this.personSearch.getByUid(uid);
   }
 
   /** 设置跳转索引（行号） */
   setJumpRow(uid: string, row: number): void {
-    this.index.setRow(uid, row);
+    this.personSearch.setJumpRow(uid, row);
   }
 
   /** 获取跳转索引（行号） */
   getJumpRow(uid: string): number {
-    return this.index.getRow(uid);
+    return this.personSearch.getJumpRow(uid);
   }
 
   /** 设置牒记式页码 */
   setDiePage(uid: string, page: number): void {
-    this.index.setDiePage(uid, page);
+    this.personSearch.setDiePage(uid, page);
   }
 
   /** 获取牒记式页码 */
   getDiePage(uid: string): number {
-    return this.index.getDiePage(uid);
+    return this.personSearch.getDiePage(uid);
   }
 
   /** 清空跳转索引（谱式切换时调用） */
   clearJumpIndex(): void {
-    this.index.clearJumpIndex();
+    this.personSearch.clearJumpIndex();
   }
 
   /** 子女 */
