@@ -1442,7 +1442,7 @@ export struct TreeCanvas {
               ctx: this.dieIndex,
               index: 0,
               showPrivate: this.showPrivate,
-              highlight: person.uid === this.highlightUid,
+              highlight: person.uid === this.selectionUid(),
               onTapPerson: (uid: string): void => {
                 this.onTapPerson(uid);
               }
@@ -1451,7 +1451,7 @@ export struct TreeCanvas {
           .width('100%')
         }
       }, (person: Person) => 'die_' + this.dataVersion.toString() + '_' + person.uid +
-        (person.uid === this.highlightUid ? '_hl' : ''))
+        (person.uid === this.selectionUid() ? '_hl' : ''))
     }
     .width('100%')
     .layoutWeight(1)
@@ -1528,7 +1528,7 @@ export struct TreeCanvas {
           PagodaTree({
             rootUids: this.rootUids,
             layoutVersion: this.dataVersion,
-            highlightUid: this.highlightUid,
+            highlightUid: this.selectionUid(),
             focusUid: this.focusUid,
             compact: this.isNarrow(),
             onTapPerson: (uid: string): void => {
@@ -1541,7 +1541,7 @@ export struct TreeCanvas {
           ModernTree({
             layoutVersion: this.dataVersion,
             windowWidth: this.windowWidth,
-            highlightUid: this.highlightUid,
+            highlightUid: this.selectionUid(),
             focusUid: this.focusUid,
             minCardWidth: this.windowWidth >= Breakpoint.MD ? 220 : (this.isNarrow() ? 150 : 180),
             onTapPerson: (uid: string): void => {
