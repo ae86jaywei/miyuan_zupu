@@ -14,9 +14,9 @@ export const A4_H_PT: number = 841.89;
 export const PDF_INK: string = '#1a1a1a';
 export const PDF_INK_2: string = '#444444';
 /** 弱化文字（祖先/注释/三级信息） */
-export const PDF_MUTED: string = '#888888';
+export const PDF_MUTED: string = '#767676';
 /** 谱牒金色（始祖/卷名/强调） */
-export const PDF_GOLD: string = '#9c7c2e';
+export const PDF_GOLD: string = '#90722A';
 
 /** 女性姓名 */
 export const PDF_FEMALE: string = '#a0527a';

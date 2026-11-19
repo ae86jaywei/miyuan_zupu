@@ -25,13 +25,13 @@ export const LIFE_STATUS_OPTIONS: string[] = [LifeStatus.ALIVE, LifeStatus.DECEA
 export function lifeStatusColor(status: string): string {
   switch (status) {
     case LifeStatus.DECEASED:
-      return '#8A7A66';
+      return '#796B5A';
     case LifeStatus.LOST:
-      return '#C08A2E';
+      return '#8D6622';
     case LifeStatus.UNKNOWN:
-      return '#9A8C7A';
+      return '#766B5E';
     default:
-      return '#2E7D5B';
+      return '#2D7A59';
   }
 }
 
