@@ -70,13 +70,17 @@ export class PersonNode {
     if (this.spouses.length === 0) {
       return this.spouse === null ? '' : '配 ' + this.spouse.person.name;
     }
-    const parts: string[] = [];
-    this.spouses.forEach((sp: PersonNode, i: number): void => {
+    // 卡片渲染高频调用：用字符串累加，避免每次分配数组与 join
+    let text: string = '';
+    for (let i: number = 0; i < this.spouses.length; i++) {
       const rel: string = i < this.spouseRelations.length ? this.spouseRelations[i] : '';
       const prefix: string = (rel === '元配' || rel === '未记' || rel === '配偶' || rel.length === 0) ?
         '配' : rel;
-      parts.push(prefix + ' ' + sp.person.name);
-    });
-    return parts.join('、');
+      if (text.length > 0) {
+        text += '、';
+      }
+      text += prefix + ' ' + this.spouses[i].person.name;
+    }
+    return text;
   }
 }
