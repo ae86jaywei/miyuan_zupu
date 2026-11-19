@@ -302,7 +302,14 @@ export class GenealogyService {
   }
 
   getPerson(uid: string): Person | null {
-    const p: Person | undefined = this.peopleMap.get(uid.trim().toUpperCase());
+    if (uid.length === 0) {
+      return null;
+    }
+    // 库内 uid 统一为大写：常见路径直接命中，省去 trim + toUpperCase 的临时字符串
+    let p: Person | undefined = this.peopleMap.get(uid);
+    if (p === undefined) {
+      p = this.peopleMap.get(uid.trim().toUpperCase());
+    }
     return p === undefined ? null : p;
   }
 
@@ -539,18 +546,22 @@ export class GenealogyService {
     if (p === null || p.spouses.length === 0) {
       return '';
     }
-    const parts: string[] = [];
-    p.spouses.forEach((r: SpouseRelation): void => {
-      const sp: Person | null = this.getPerson(r.uid);
+    // 卡片渲染高频调用：字符串累加替代数组 + join
+    let text: string = '';
+    for (let i: number = 0; i < p.spouses.length; i++) {
+      const sp: Person | null = this.getPerson(p.spouses[i].uid);
       if (sp === null) {
-        return;
+        continue;
       }
-      const rel: string = normalizeSpouseRelation(r.relation);
+      const rel: string = normalizeSpouseRelation(p.spouses[i].relation);
       const prefix: string = (rel === '元配' || rel === '未记' || rel === '配偶') ?
         '配' : rel;
-      parts.push(prefix + ' ' + sp.name);
-    });
-    return parts.join('、');
+      if (text.length > 0) {
+        text += '、';
+      }
+      text += prefix + ' ' + sp.name;
+    }
+    return text;
   }
 
   /** 上下三代（含自身），用于详情页关系链 */
