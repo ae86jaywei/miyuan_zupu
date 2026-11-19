@@ -89,6 +89,15 @@ export struct SettingsView {
       (this.pendingCount > 0 ? ' · 离线待传 ' + this.pendingCount.toString() + ' 条' : '');
   }
 
+  /**
+   * 本页简繁文案：显式读取 this.script 建立 ArkUI 刷新依赖。
+   * 直接用 T() 时该元素没有状态依赖，切换文字后本页文案要等重新进入才刷新。
+   */
+  private tr(text: string): string {
+    return this.script === ScriptService.HANT ? ScriptService.getInstance().toTraditional(text)
+      : ScriptService.getInstance().toSimplified(text);
+  }
+
   private async doSyncNow(): Promise<void> {
     if (this.syncing) {
       return;
@@ -102,7 +111,7 @@ export struct SettingsView {
           this.syncText = message;
           this.syncPercent = percent;
         });
-      this.getUIContext().getPromptAction().showToast({ message: T(result.message) });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr(result.message) });
       if (result.integrityIssues.length > 0) {
         const shown: string[] = result.integrityIssues.slice(0, 5);
         let text: string = shown.join('\n');
@@ -110,10 +119,10 @@ export struct SettingsView {
           text = text + '\n……另有 ' + (result.integrityIssues.length - shown.length).toString() + ' 项';
         }
         this.getUIContext().showAlertDialog({
-          title: T('数据一致性提示'),
-          message: T(text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。'),
+          title: this.tr('数据一致性提示'),
+          message: this.tr(text + '\n\n请到「名录」核对相关人员的编号、父母与配偶关系。'),
           confirm: {
-            value: T('知道了'),
+            value: this.tr('知道了'),
             action: (): void => {
             }
           }
@@ -188,7 +197,7 @@ export struct SettingsView {
   private async confirmDelete(input: string): Promise<void> {
     const title: string = SR.genealogy().getBook().title;
     if (input.trim() !== title) {
-      this.getUIContext().getPromptAction().showToast({ message: T('族谱名称输入不一致，已取消删除') });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('族谱名称输入不一致，已取消删除') });
       return;
     }
     try {
@@ -196,10 +205,10 @@ export struct SettingsView {
       GenealogyStore.notifyChanged();
       AppStorage.setOrCreate<string>('gpSelection', '');
       AppStorage.setOrCreate<number>('gpTab', 1);
-      this.getUIContext().getPromptAction().showToast({ message: T('族谱已删除') });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('族谱已删除') });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: T('删除失败：') + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('删除失败：') + err.message });
     }
   }
 
@@ -211,17 +220,17 @@ export struct SettingsView {
       this.loadBook();
       // 创建后立即进入编辑态，填写谱名、堂号等信息
       this.editingBook = true;
-      this.getUIContext().getPromptAction().showToast({ message: T('已创建族谱，请填写族谱信息') });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('已创建族谱，请填写族谱信息') });
     } catch (e) {
       const err = e as BusinessError;
-      this.getUIContext().getPromptAction().showToast({ message: T('创建失败：') + err.message });
+      this.getUIContext().getPromptAction().showToast({ message: this.tr('创建失败：') + err.message });
     }
   }
 
   @Builder
   FieldRow(label: string, value: string, onChange: (v: string) => void) {
     Column() {
-      Text(T(label)).fontFamily(uiFontFamily())
+      Text(this.tr(label)).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -243,11 +252,11 @@ export struct SettingsView {
   SwitchRow(label: string, tip: string, value: boolean, onChange: (v: boolean) => void) {
     Row() {
       Column() {
-        Text(T(label)).fontFamily(uiFontFamily())
+        Text(this.tr(label)).fontFamily(uiFontFamily())
           .fontSize(14)
           .fontColor(Theme.ink)
         if (tip.length > 0) {
-          Text(T(tip)).fontFamily(uiFontFamily())
+          Text(this.tr(tip)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 2 })
@@ -288,7 +297,7 @@ export struct SettingsView {
       this.FieldRow('字派谱（字辈诗）', this.bookPoem, (v: string): void => {
         this.bookPoem = v;
       })
-      Text(T('谱序')).fontFamily(uiFontFamily())
+      Text(this.tr('谱序')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -301,7 +310,7 @@ export struct SettingsView {
         .onChange((v: string): void => {
           this.bookPreface = v;
         })
-      Text(T('家训')).fontFamily(uiFontFamily())
+      Text(this.tr('家训')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -314,7 +323,7 @@ export struct SettingsView {
         .onChange((v: string): void => {
           this.bookRules = v;
         })
-      Text(T('凡例 / 修谱说明')).fontFamily(uiFontFamily())
+      Text(this.tr('凡例 / 修谱说明')).fontFamily(uiFontFamily())
         .fontSize(12)
         .fontColor(Theme.inkTertiary)
         .width('100%')
@@ -329,7 +338,7 @@ export struct SettingsView {
         })
 
       Row() {
-        Button(T('取消')).fontFamily(uiFontFamily())
+        Button(this.tr('取消')).fontFamily(uiFontFamily())
           .fontColor(Theme.inkSecondary)
           .backgroundColor(Theme.field)
           .layoutWeight(1)
@@ -338,7 +347,7 @@ export struct SettingsView {
             this.loadBook();
             this.editingBook = false;
           })
-        Button(T('保存')).fontFamily(uiFontFamily())
+        Button(this.tr('保存')).fontFamily(uiFontFamily())
           .backgroundColor(Theme.primary)
           .layoutWeight(1)
           .height(38)
@@ -358,15 +367,15 @@ export struct SettingsView {
     Column() {
       if (!this.hasBook) {
         Column() {
-          Text(T('尚未创建族谱')).fontFamily(uiFontFamily())
+          Text(this.tr('尚未创建族谱')).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontColor(Theme.ink)
-          Text(T('可在此创建新族谱，或到「谱系」页通过 + 号新增族谱')).fontFamily(uiFontFamily())
+          Text(this.tr('可在此创建新族谱，或到「谱系」页通过 + 号新增族谱')).fontFamily(uiFontFamily())
             .fontSize(11.5)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 4 })
             .maxLines(2)
-          Button(T('创建族谱')).fontFamily(uiFontFamily())
+          Button(this.tr('创建族谱')).fontFamily(uiFontFamily())
             .fontSize(13)
             .height(34)
             .backgroundColor(Theme.primary)
@@ -381,24 +390,24 @@ export struct SettingsView {
       } else {
         Row() {
           Column() {
-            Text(T(SR.genealogy().getBook().title)).fontFamily(uiFontFamily())
+            Text(this.tr(SR.genealogy().getBook().title)).fontFamily(uiFontFamily())
               .fontSize(17)
               .fontWeight(FontWeight.Bold)
               .fontColor(Theme.ink)
-            Text(T((SR.genealogy().getBook().hallName.length > 0 ?
+            Text(this.tr((SR.genealogy().getBook().hallName.length > 0 ?
               SR.genealogy().getBook().hallName + ' · ' : '') +
               '始迁祖 ' + SR.genealogy().getBook().ancestorName)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkTertiary)
               .margin({ top: 3 })
-            Text(T('字派：' + SR.genealogy().getBook().generationPoem)).fontFamily(uiFontFamily())
+            Text(this.tr('字派：' + SR.genealogy().getBook().generationPoem)).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.gold)
               .margin({ top: 3 })
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Button(T('编辑')).fontFamily(uiFontFamily())
+          Button(this.tr('编辑')).fontFamily(uiFontFamily())
             .fontSize(13)
             .height(32)
             .backgroundColor(Theme.field)
@@ -406,7 +415,7 @@ export struct SettingsView {
             .onClick((): void => {
               this.editingBook = true;
             })
-          Button(T('删除')).fontFamily(uiFontFamily())
+          Button(this.tr('删除')).fontFamily(uiFontFamily())
             .fontSize(13)
             .height(32)
             .backgroundColor(Theme.field)
@@ -427,10 +436,10 @@ export struct SettingsView {
     Column() {
       Row() {
         Column() {
-          Text(T(meta.name)).fontFamily(uiFontFamily())
+          Text(this.tr(meta.name)).fontFamily(uiFontFamily())
             .fontSize(14)
             .fontColor(enabled ? Theme.ink : Theme.inkTertiary)
-          Text(T(meta.desc)).fontFamily(uiFontFamily())
+          Text(this.tr(meta.desc)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 2 })
@@ -466,10 +475,10 @@ export struct SettingsView {
     Column() {
       Row() {
         Column() {
-          Text(T(label)).fontFamily(uiFontFamily())
+          Text(this.tr(label)).fontFamily(uiFontFamily())
             .fontSize(14)
             .fontColor(Theme.ink)
-          Text(T(desc)).fontFamily(uiFontFamily())
+          Text(this.tr(desc)).fontFamily(uiFontFamily())
             .fontSize(11)
             .fontColor(Theme.inkTertiary)
             .margin({ top: 2 })
@@ -503,7 +512,7 @@ export struct SettingsView {
       Column() {
         AccountCard()
 
-        TS({ title: T('家族协作'), subtitle: this.familyModeText, icon: '👨‍👩‍👧' })
+        TS({ title: this.tr('家族协作'), subtitle: this.familyModeText, icon: '👨‍👩‍👧' })
         Column() {
           this.NavRow('我的家族', '创建云家族 / 加入码加入 / 分享邀请 / 发布本谱 / 同步', (): void => {
             RouterUtil.familyHome(this.getUIContext());
@@ -525,7 +534,7 @@ export struct SettingsView {
             RouterUtil.graveMap(this.getUIContext());
           })
           if (this.syncMode !== SyncMode.LOCAL) {
-            Button(T(this.syncing ? '同步中…' : '立即同步')).fontFamily(uiFontFamily())
+            Button(this.tr(this.syncing ? '同步中…' : '立即同步')).fontFamily(uiFontFamily())
               .height(36)
               .width('100%')
               .fontSize(13)
@@ -537,7 +546,7 @@ export struct SettingsView {
                 this.doSyncNow();
               })
             if (this.syncStatus.length > 0) {
-              Text(T(this.syncStatus)).fontFamily(uiFontFamily())
+              Text(this.tr(this.syncStatus)).fontFamily(uiFontFamily())
                 .fontSize(10.5)
                 .fontColor(Theme.inkTertiary)
                 .margin({ top: 6 })
@@ -553,7 +562,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: T('族谱信息'), subtitle: '谱名 · 堂号 · 郡望 · 字派 · 谱序 · 家训', icon: '📕' })
+        TS({ title: this.tr('族谱信息'), subtitle: '谱名 · 堂号 · 郡望 · 字派 · 谱序 · 家训', icon: '📕' })
         Column() {
           if (this.editingBook) {
             this.BookForm()
@@ -570,19 +579,19 @@ export struct SettingsView {
         .clip(true)
 
         TS({
-          title: T('文字与语言'),
+          title: this.tr('文字与语言'),
           subtitle: '当前：' + (this.script === 'hant' ? '繁體中文' : '简体中文'),
           icon: '🌐'
         })
         Column() {
-          Text(T('界面、预览与导出文字')).fontFamily(uiFontFamily())
+          Text(this.tr('界面、预览与导出文字')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .width('100%')
             .margin({ bottom: 6 })
           this.ScriptRow('简体中文', '常用简体字，适配大陆阅读习惯', 'hans', true)
           this.ScriptRow('繁體中文', 'OpenCC 繁體轉換，不改動已保存的資料', 'hant', false)
-          Text(T('切换只影响界面、预览与导出，数据库中的原文保持不变。')).fontFamily(uiFontFamily())
+          Text(this.tr('切换只影响界面、预览与导出，数据库中的原文保持不变。')).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
             .lineHeight(16)
@@ -598,18 +607,18 @@ export struct SettingsView {
         .clip(true)
 
         TS({
-          title: T('显示设置'),
+          title: this.tr('显示设置'),
           subtitle: '当前：' + DisplayService.labelOf(this.orientationMode),
           icon: '🖥️'
         })
         Column() {
-          Text(T('屏幕方向')).fontFamily(uiFontFamily())
+          Text(this.tr('屏幕方向')).fontFamily(uiFontFamily())
             .fontSize(12)
             .fontColor(Theme.inkTertiary)
             .width('100%')
             .margin({ bottom: 6 })
           if (this.orientationBySystem) {
-            Text(T(DisplayService.isPc() ?
+            Text(this.tr(DisplayService.isPc() ?
               '当前设备为电脑，窗口方向由系统统一调度，应用侧配置不生效，故以下选项不可设置。' :
               '当前设备为折叠屏，方向跟随桌面并在折叠态切换时由系统自动更新，故以下选项不可设置。')).fontFamily(uiFontFamily())
               .fontSize(11)
@@ -630,7 +639,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: T('隐私与展示'), icon: '🔒' })
+        TS({ title: this.tr('隐私与展示'), icon: '🔒' })
         Column() {
           this.SwitchRow('显示隐私字段', '手机号、微信号默认加星号显示，关闭后完全隐藏', this.showPrivate, (v: boolean): void => {
             this.showPrivate = v;
@@ -639,7 +648,7 @@ export struct SettingsView {
           this.SwitchRow('公开模式', '公开模式下所有隐私字段不显示，适用于分享/展示', this.publicMode, (v: boolean): void => {
             this.publicMode = v;
           })
-          Text(T('协作说明：接入云家族后，手机号/微信/现居地只保存在云端「仅谱主可读」的隐私表中，' +
+          Text(this.tr('协作说明：接入云家族后，手机号/微信/现居地只保存在云端「仅谱主可读」的隐私表中，' +
             '编辑者与只读成员都拿不到明文；被记录的活人可请谱主删除或更正（操作会留审计流水）。')).fontFamily(uiFontFamily())
             .fontSize(10.5)
             .fontColor(Theme.inkTertiary)
@@ -655,7 +664,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: T('历法与工具'), subtitle: '公历 / 农历 / 干支 / 年号互查', icon: '📅' })
+        TS({ title: this.tr('历法与工具'), subtitle: '公历 / 农历 / 干支 / 年号互查', icon: '📅' })
         Column() {
           this.NavRow('万年历', '936~2100 年公历与农历对照，含干支、节气与历代年号', (): void => {
             RouterUtil.calendar(this.getUIContext());
@@ -669,7 +678,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: T('数据管理'), icon: '💾' })
+        TS({ title: this.tr('数据管理'), icon: '💾' })
         Column() {
           this.NavRow('导入 / 导出', 'JSON 备份、CSV 表格、Markdown 谱文', (): void => {
             RouterUtil.importExport(this.getUIContext());
@@ -683,7 +692,7 @@ export struct SettingsView {
         .margin({ bottom: Spacing.M })
         .clip(true)
 
-        TS({ title: T('关于'), icon: 'ℹ️' })
+        TS({ title: this.tr('关于'), icon: 'ℹ️' })
         Column() {
           this.InfoLine('应用名称', '觅源 v1.0.0（com.zupu.ae86jay）')
           this.InfoLine('支持谱式', '欧式 · 苏式 · 宝塔式 · 牒记式 · 现代创新式')
@@ -730,12 +739,12 @@ export struct SettingsView {
   NavRow(title: string, subtitle: string, action: () => void) {
         Row() {
           Column() {
-            Text(T(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
-            Text(T(subtitle)).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).margin({ top: 2 })
+            Text(this.tr(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
+            Text(this.tr(subtitle)).fontFamily(uiFontFamily()).fontSize(11).fontColor(Theme.inkTertiary).margin({ top: 2 })
           }
           .alignItems(HorizontalAlign.Start)
           .layoutWeight(1)
-          Text(T('›')).fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
+          Text(this.tr('›')).fontFamily(uiFontFamily()).fontSize(18).fontColor(Theme.inkTertiary)
         }
         .width('100%')
         .padding({ top: 8, bottom: 8 })
@@ -747,8 +756,8 @@ export struct SettingsView {
   @Builder
   InfoLine(label: string, value: string) {
         Row() {
-          Text(T(label)).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkTertiary).width(72)
-          Text(T(value)).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.inkSecondary).layoutWeight(1)
+          Text(this.tr(label)).fontFamily(uiFontFamily()).fontSize(12).fontColor(Theme.inkTertiary).width(72)
+          Text(this.tr(value)).fontFamily(uiFontFamily()).fontSize(12.5).fontColor(Theme.inkSecondary).layoutWeight(1)
         }
         .width('100%')
         .alignItems(VerticalAlign.Top)
