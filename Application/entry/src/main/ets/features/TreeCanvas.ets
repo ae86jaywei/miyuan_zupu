@@ -17,7 +17,7 @@ import { EmptyHint } from 'common_ui';
 import { Theme, Spacing } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { compactUid } from 'common_base';
-import { TreeLayoutCache } from '../service/TreeLayoutCache';
+import { TreeLayoutCache } from 'common_base';
 import { PrintBook } from '../service/PaginationService';
 import { EuBox, EuCanvas, SuBox, SuCanvas } from 'common_base';
 import { ViewportMath } from 'common_base';

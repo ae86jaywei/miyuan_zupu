@@ -23,7 +23,7 @@ import { OutboxService } from './OutboxService';
 import { PageCacheService } from './PageCacheService';
 import { PaginationService } from './PaginationService';
 import { PrivacyService } from './PrivacyService';
-import { TreeLayoutCache } from './TreeLayoutCache';
+import { TreeLayoutCache } from 'common_base';
 
 export class SR {
   static genealogy(): GenealogyService { return GenealogyService.getInstance(); }

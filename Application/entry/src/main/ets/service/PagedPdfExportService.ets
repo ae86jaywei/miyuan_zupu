@@ -20,7 +20,7 @@ import { paintRasterTile, C_FOOT, C_GOLD, C_INK, C_INK2, INNER_Y_MM,
   TILE_COLS, TILE_H, TILE_ROWS, TILE_W } from './PdfRasterJob';
 import { renderTileJob } from './PdfTileTask';
 import { PageCacheService } from './PageCacheService';
-import { TreeLayoutCache } from './TreeLayoutCache';
+import { TreeLayoutCache } from 'common_base';
 import { RawPdfWriter, PdfTextRun, PdfInfo } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';

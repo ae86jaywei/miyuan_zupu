@@ -32,6 +32,7 @@ export * from './src/main/ets/util/TreeScrollMemory';
 export * from './src/main/ets/tree/TreeLayout';
 export * from './src/main/ets/tree/TreeBuilder';
 export * from './src/main/ets/tree/TreeCuller';
+export * from './src/main/ets/tree/TreeLayoutCache';
 export * from './src/main/ets/tree/TreeViewport';
 export * from './src/main/ets/tree/RelationGraph';
 export * from './src/main/ets/theme/PrintTheme';

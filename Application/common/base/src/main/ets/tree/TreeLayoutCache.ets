@@ -1,8 +1,7 @@
-﻿import { PersonNode } from 'common_base';
-import { EuCanvas, EuLayout, SuCanvas, SuLayout } from 'common_base';
-import { TreeCuller } from 'common_base';
-import { GenealogyService } from './GenealogyService';
-import { TreePerf } from 'common_base';
+import { PersonNode } from '../model/PersonNode';
+import { EuCanvas, EuLayout, SuCanvas, SuLayout } from './TreeLayout';
+import { TreeCuller } from './TreeCuller';
+import { TreePerf } from '../util/TreePerf';
 
 /**
  * 布局缓存：同一宗支 + 同一显示参数只计算一次。
@@ -13,6 +12,9 @@ import { TreePerf } from 'common_base';
  * [PERF] 单支布局包含数万到数十万个 Box/LineSeg 对象，缓存容量按内存预算收敛；
  * 超限时只淘汰最早插入的一项（LRU），不再整体清空——原先 clear() 会让
  * “刚算好的支”在切到第 N 支时全部失效，切回任何旧支都要重新全量布局。
+ *
+ * 数据身份（族谱ID#数据版本）由宿主通过 setScopeProvider 注入，
+ * 使本类不依赖业务服务，可直接留在公共层。
  */
 export class TreeLayoutCache {
   private static instance: TreeLayoutCache | null = null;
@@ -20,6 +22,8 @@ export class TreeLayoutCache {
   private euMap: Map<string, EuCanvas> = new Map<string, EuCanvas>();
   private suMap: Map<string, SuCanvas> = new Map<string, SuCanvas>();
   private revision: number = 0;
+  /** 数据身份提供者：由业务层注入（族谱ID#数据版本） */
+  private scopeProvider: (() => string) | null = null;
   /**
    * 上次使用缓存时的数据身份（族谱ID#数据版本）。
    * 不能只靠 invalidate()：删除族谱后画布组件可能已经销毁，@Watch 不会触发；
@@ -35,6 +39,11 @@ export class TreeLayoutCache {
     return TreeLayoutCache.instance;
   }
 
+  /** 注入数据身份提供者；返回空串表示不区分身份 */
+  setScopeProvider(provider: () => string): void {
+    this.scopeProvider = provider;
+  }
+
   /** 族人数据变化时调用，丢弃全部旧布局 */
   invalidate(): void {
     this.revision = this.revision + 1;
@@ -48,8 +57,7 @@ export class TreeLayoutCache {
    * 既避免命中旧谱布局，也及时释放旧布局占用的内存。
    */
   private ensureScope(): string {
-    const svc: GenealogyService = GenealogyService.getInstance();
-    const next: string = svc.getCurrentBookId().toString() + '#' + svc.getVersion().toString();
+    const next: string = this.scopeProvider === null ? '' : this.scopeProvider();
     if (next !== this.scope) {
       this.scope = next;
       this.revision = this.revision + 1;

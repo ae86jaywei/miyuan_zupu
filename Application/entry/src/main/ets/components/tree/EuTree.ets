@@ -3,7 +3,7 @@ import { SR } from '../../service/ServiceRegistry';
 
 import { PersonNode } from 'common_base';
 import { EuBox, EuCanvas, LineSeg } from 'common_base';
-import { TreeLayoutCache } from '../../service/TreeLayoutCache';
+import { TreeLayoutCache } from 'common_base';
 import { TreeCuller } from 'common_base';
 import { ViewRect } from 'common_base';
 import { TreeMiniCard } from './TreeMiniCard';

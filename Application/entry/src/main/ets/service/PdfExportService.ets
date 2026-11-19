@@ -9,7 +9,7 @@ import { PersonNode } from 'common_base';
 import { Genealogy } from 'common_base';
 import { generationLabel } from 'common_base';
 import { GenealogyService } from './GenealogyService';
-import { TreeLayoutCache } from './TreeLayoutCache';
+import { TreeLayoutCache } from 'common_base';
 import { RawPdfWriter, PdfTextLine, PdfInfo, PdfRule } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';

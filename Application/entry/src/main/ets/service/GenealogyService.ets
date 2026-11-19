@@ -4,6 +4,7 @@ import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, normalizeSpouseRelations, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from 'common_base';
 import { PersonIndex } from 'common_base';
+import { TreeLayoutCache } from 'common_base';
 import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { PersonNode } from 'common_base';
 import { GenealogyStats } from 'common_base';
@@ -107,6 +108,13 @@ export class GenealogyService {
   private initPromise: Promise<void> | null = null;
   /** 人员索引：加速搜索和跳转 */
   private index: PersonIndex = new PersonIndex();
+
+  private constructor() {
+    // 布局缓存位于公共层，数据身份（族谱ID#数据版本）由本服务注入，避免公共层反向依赖业务服务
+    TreeLayoutCache.getInstance().setScopeProvider((): string => {
+      return this.currentBookId.toString() + '#' + this.version.toString();
+    });
+  }
 
   static getInstance(): GenealogyService {
     if (GenealogyService.instance === null) {
