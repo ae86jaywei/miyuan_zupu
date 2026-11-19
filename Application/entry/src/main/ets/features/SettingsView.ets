@@ -702,20 +702,12 @@ export struct SettingsView {
           this.InfoLine('简繁词典', 'OpenCC（s2t / t2s 离线词典）')
           this.InfoLine('适配设备', '手机 · 平板 · 电脑(2in1) · 双折叠 · 三折叠 · 阔屏 · 阔折叠')
           Divider().color(Theme.line).strokeWidth(0.5).margin({ top: 6 })
-          this.NavRow('用户协议', '服务内容、用户行为规范与责任说明', (): void => {
-            RouterUtil.agreement(this.getUIContext(), 'user');
-          })
-          Divider().color(Theme.line).strokeWidth(0.5)
-          this.NavRow('隐私政策', '我们如何收集、使用、存储与保护个人信息', (): void => {
-            RouterUtil.agreement(this.getUIContext(), 'privacy');
-          })
-          Divider().color(Theme.line).strokeWidth(0.5)
-          this.NavRow('在线查看用户协议', 'www.fengg.net.cn/miyuan-agreement', (): void => {
+          this.NavRow('用户协议', '在线查看 · www.fengg.net.cn/miyuan-agreement', (): void => {
             RouterUtil.onlineDoc(this.getUIContext(), '用户协议', AGREEMENT_URL);
           })
           Divider().color(Theme.line).strokeWidth(0.5)
-          this.NavRow('在线查看隐私声明', 'www.fengg.net.cn/miyuan-privacy', (): void => {
-            RouterUtil.onlineDoc(this.getUIContext(), '隐私声明', PRIVACY_URL);
+          this.NavRow('隐私政策', '在线查看 · www.fengg.net.cn/miyuan-privacy', (): void => {
+            RouterUtil.onlineDoc(this.getUIContext(), '隐私政策', PRIVACY_URL);
           })
         }
         .width('100%')
