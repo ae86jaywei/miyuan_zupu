@@ -12,6 +12,7 @@ import { IdGenerator } from 'common_base';
 import { StatsCalculator } from './StatsCalculator';
 import { PeopleStore } from './PeopleStore';
 import { SpouseRelations } from './SpouseRelations';
+import { PersonQuery } from './PersonQuery';
 
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -93,6 +94,8 @@ export class GenealogyService {
   private peopleStore: PeopleStore = new PeopleStore();
   /** 配偶关系域：查询、文案与内存态反向引用 */
   private spouseRelations: SpouseRelations = new SpouseRelations(this.peopleStore);
+  /** 人员关系查询域：子女、兄弟姊妹、上下三代 */
+  private personQuery: PersonQuery = new PersonQuery(this.peopleStore);
   private book: Genealogy = createEmptyGenealogy();
   /** 全部族谱元信息（支持多族谱管理） */
   private books: Genealogy[] = [];
@@ -503,47 +506,17 @@ export class GenealogyService {
 
   /** 子女 */
   childrenOf(uid: string): Person[] {
-    const u: string = uid.trim().toUpperCase();
-    return this.peopleStore.getAll().filter((p: Person): boolean => {
-      return p.fatherId.trim().toUpperCase() === u || p.motherId.trim().toUpperCase() === u;
-    });
+    return this.personQuery.childrenOf(uid);
   }
 
   /** 某人与指定配偶共同生育的子女（父母双方均匹配） */
   childrenWithSpouse(uid: string, spouseUid: string): Person[] {
-    const a: string = uid.trim().toUpperCase();
-    const b: string = spouseUid.trim().toUpperCase();
-    if (a.length === 0 || b.length === 0) {
-      return [];
-    }
-    return this.peopleStore.getAll().filter((p: Person): boolean => {
-      const f: string = p.fatherId.trim().toUpperCase();
-      const m: string = p.motherId.trim().toUpperCase();
-      return (f === a && m === b) || (f === b && m === a);
-    });
+    return this.personQuery.childrenWithSpouse(uid, spouseUid);
   }
 
-  /** 兄弟姊妹（不含本人），按排行排序 */
+  /** 兄弟姊妹（不含本人） */
   siblingsOf(uid: string): Person[] {
-    const p: Person | null = this.getPerson(uid);
-    if (p === null) {
-      return [];
-    }
-    const u: string = p.uid.toUpperCase();
-    const f: string = p.fatherId.trim().toUpperCase();
-    const m: string = p.motherId.trim().toUpperCase();
-    if (f.length === 0 && m.length === 0) {
-      return [];
-    }
-    return this.peopleStore.getAll().filter((x: Person): boolean => {
-      const xu: string = x.uid.toUpperCase();
-      if (xu === u) {
-        return false;
-      }
-      const xf: string = x.fatherId.trim().toUpperCase();
-      const xm: string = x.motherId.trim().toUpperCase();
-      return (f.length > 0 && xf === f) || (m.length > 0 && xm === m);
-    });
+    return this.personQuery.siblingsOf(uid);
   }
 
   /** 当前人物的全部配偶关系（含元配/继室/妾等名分，按顺序排列） */
@@ -563,32 +536,7 @@ export class GenealogyService {
 
   /** 上下三代（含自身），用于详情页关系链 */
   relativesOf(uid: string): Person[] {
-    const p: Person | null = this.getPerson(uid);
-    const result: Person[] = [];
-    if (p === null) {
-      return result;
-    }
-    const f: Person | null = this.getPerson(p.fatherId);
-    const m: Person | null = this.getPerson(p.motherId);
-    if (f !== null) {
-      result.push(f);
-    }
-    if (m !== null && m.uid !== (f === null ? '' : f.uid)) {
-      result.push(m);
-    }
-    p.spouses.forEach((r: SpouseRelation): void => {
-      const s: Person | null = this.getPerson(r.uid);
-      if (s !== null) {
-        result.push(s);
-      }
-    });
-    this.childrenOf(uid).forEach((c: Person): void => {
-      result.push(c);
-    });
-    this.siblingsOf(uid).forEach((c: Person): void => {
-      result.push(c);
-    });
-    return result;
+    return this.personQuery.relativesOf(uid);
   }
 
   /** 按世代分组 */
