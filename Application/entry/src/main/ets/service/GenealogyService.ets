@@ -2,7 +2,7 @@
 import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
-import { Person, SpouseRelation, clonePerson, copyPersonInto, createEmptyPerson, normalizeSpouseRelations, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from 'common_base';
+import { Person, SpouseRelation, clonePerson, createEmptyPerson, normalizeSpouseRelations, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from 'common_base';
 import { PersonIndex } from 'common_base';
 import { TreeLayoutCache } from 'common_base';
 import { Genealogy, createEmptyGenealogy } from 'common_base';
@@ -13,6 +13,7 @@ import { StatsCalculator } from './StatsCalculator';
 import { PeopleStore } from './PeopleStore';
 import { SpouseRelations } from './SpouseRelations';
 import { PersonQuery } from './PersonQuery';
+import { PersonEditor } from './PersonEditor';
 
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -96,6 +97,8 @@ export class GenealogyService {
   private spouseRelations: SpouseRelations = new SpouseRelations(this.peopleStore);
   /** 人员关系查询域：子女、兄弟姊妹、上下三代 */
   private personQuery: PersonQuery = new PersonQuery(this.peopleStore);
+  /** 编辑事务内存态刷新域：保存后的增量更新 */
+  private personEditor: PersonEditor = new PersonEditor(this.peopleStore, this.spouseRelations);
   private book: Genealogy = createEmptyGenealogy();
   /** 全部族谱元信息（支持多族谱管理） */
   private books: Genealogy[] = [];
@@ -581,7 +584,7 @@ export class GenealogyService {
     normalizeSpouseRelations(person);
     await this.upsertRow(person);
     await this.saveSpouses(person.uid, person.spouses);
-    this.applySavedPerson(person, '');
+    this.personEditor.applySaved(person, '');
     // 配偶名分 ↔ 对方身份：丈夫给妻妾设“侧室”等名分后，对方身份自动同步
     await this.syncSpouseIdentities(person);
     // 协作：本机先落库（唯一真相源），再按在线/离线走「云函数 / outbox」
@@ -619,87 +622,12 @@ export class GenealogyService {
         [person.uid, this.currentBookId, originalUid.trim().toUpperCase()]);
     }
     await this.saveSpouses(person.uid, person.spouses);
-    this.applySavedPerson(person, originalUid);
+    this.personEditor.applySaved(person, originalUid);
     // 配偶名分 ↔ 对方身份：女方身份改为“侧室”等名分时，丈夫配偶表里的称谓同步更新
     await this.syncSpouseIdentities(person);
     // 协作：同一人物的多次本地修改合并成一条 outbox（diff 相对编辑前快照）
     await this.notifyPersonChange('UPDATE', person, originalUid);
     return person;
-  }
-
-  /**
-   * 保存后的内存增量刷新。
-   *
-   * 早先实现是 `await this.reload()`：每次保存都全表回读（5 万族人 + 8 万配偶关系）
-   * 并重建整棵谱系树，真机上要数秒，主线程阻塞超过 6 秒会被系统看门狗强杀。
-   * 这里按变化性质分两类处理：
-   *  - 仅普通字段变化：原地改写 Person 对象（谱系节点持有同一引用），只递增版本号；
-   *  - 编号 / 父母 / 配偶关系变化：在内存数组上打补丁，重建索引与谱系树。
-   */
-  private applySavedPerson(person: Person, originalUid: string): void {
-    const prevUid: string = originalUid.trim().toUpperCase();
-    const nextUid: string = person.uid.trim().toUpperCase();
-    const old: Person | undefined = this.peopleStore.getMap().get(prevUid.length > 0 ? prevUid : nextUid);
-    const structural: boolean = old === undefined
-      || prevUid !== nextUid
-      || old.fatherId.trim().toUpperCase() !== person.fatherId.trim().toUpperCase()
-      || old.motherId.trim().toUpperCase() !== person.motherId.trim().toUpperCase()
-      || this.spouseRelations.linksChanged(old.spouses, person.spouses);
-    if (!structural && old !== undefined) {
-      // 普通字段：原地改写，谱系节点持有的对象引用不变，无需重建树
-      copyPersonInto(old, person);
-      this.bump();
-      return;
-    }
-    const oldObj: Person | null = old === undefined ? null : old;
-    // 1. 在内存列表中定位并替换（新增时追加）
-    let index: number = -1;
-    for (let i: number = 0; i < this.peopleStore.getAll().length; i++) {
-      const u: string = this.peopleStore.getAll()[i].uid.trim().toUpperCase();
-      if (u === prevUid || u === nextUid) {
-        index = i;
-        break;
-      }
-    }
-    if (index >= 0) {
-      this.peopleStore.setAt(index, person);
-    } else {
-      this.peopleStore.push(person);
-    }
-    // 2. 编号变更：同步其他族人的父母ID / 配偶ID
-    if (prevUid.length > 0 && prevUid !== nextUid) {
-      for (let i: number = 0; i < this.peopleStore.getAll().length; i++) {
-        const p: Person = this.peopleStore.getAll()[i];
-        if (p.uid.trim().toUpperCase() === nextUid) {
-          continue;
-        }
-        if (p.fatherId.trim().toUpperCase() === prevUid) {
-          p.fatherId = nextUid;
-        }
-        if (p.motherId.trim().toUpperCase() === prevUid) {
-          p.motherId = nextUid;
-        }
-        if (p.spouseId.trim().toUpperCase() === prevUid) {
-          p.spouseId = nextUid;
-        }
-        for (let j: number = 0; j < p.spouses.length; j++) {
-          if (p.spouses[j].uid.trim().toUpperCase() === prevUid) {
-            p.spouses[j].uid = nextUid;
-          }
-        }
-      }
-    }
-    // 3. 重建索引
-    const map: Map<string, Person> = new Map<string, Person>();
-    this.peopleStore.getAll().forEach((p: Person): void => {
-      map.set(p.uid.trim().toUpperCase(), p);
-    });
-    this.peopleStore.setMap(map);
-    // 4. 同步配偶反向引用（对方向本人的记录）
-    this.spouseRelations.syncBackRefs(person, oldObj, prevUid);
-    // 5. 重建谱系树并发布新版本
-    this.peopleStore.rebuildRoots();
-    this.bump();
   }
 
   /** 删除人物（其子女自动上提为无父/无母，不删除其他人物） */
