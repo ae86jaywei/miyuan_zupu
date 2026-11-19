@@ -17,6 +17,8 @@ import { PersonEditor } from './PersonEditor';
 import { PersonRepository } from './PersonRepository';
 import { CloudReplay } from './CloudReplay';
 import { CloudCollaboration } from './CloudCollaboration';
+import { BookManager } from './BookManager';
+import { BookHost } from './BookManager';
 
 import { SeedData } from './SeedData';
 import { OutboxService } from './OutboxService';
@@ -89,7 +91,7 @@ export class BranchSuggestion {
   descendants: number = 0;
 }
 
-export class GenealogyService {
+export class GenealogyService implements BookHost {
   private static instance: GenealogyService | null = null;
 
   private store: relationalStore.RdbStore | null = null;
@@ -120,6 +122,8 @@ export class GenealogyService {
     (): Genealogy => this.book,
     (): relationalStore.RdbStore | null => this.store,
     (): number => this.currentBookId);
+  /** 族谱管理域：保存、新建、切换、删除 */
+  private bookManager: BookManager = new BookManager(this);
   private book: Genealogy = createEmptyGenealogy();
   /** 全部族谱元信息（支持多族谱管理） */
   private books: Genealogy[] = [];
@@ -312,7 +316,7 @@ export class GenealogyService {
   }
 
   /** 根据元数据确定当前族谱；记录失效时回落到第一部族谱 */
-  private async ensureCurrentBook(): Promise<void> {
+  async ensureCurrentBook(): Promise<void> {
     const ids: number[] = await this.listBookIds();
     if (ids.length === 0) {
       this.currentBookId = 0;
@@ -918,48 +922,22 @@ export class GenealogyService {
   }
 
   async saveBook(book: Genealogy): Promise<void> {
-    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
-    book.updatedAt = Date.now();
-    if (book.key > 0) {
-      const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_BOOK);
-      predicates.equalTo('id', book.key);
-      await store.update(PersonRowMapper.bookValues(book), predicates);
-    } else {
-      const rowId: number = await store.insert(TABLE_BOOK, PersonRowMapper.bookValues(book));
-      book.key = rowId;
-    }
-    this.book = book;
-    // 同步族谱列表中的对应项，供切换入口实时展示
-    for (let i: number = 0; i < this.books.length; i++) {
-      if (this.books[i].key === book.key) {
-        this.books[i] = book;
-        break;
-      }
-    }
-    this.bump();
-    // 切换/保存族谱后同步协作态（familyId / 角色 / 同步模式）
-    FamilyService.getInstance().applyBookFamilyState();
+    await this.bookManager.saveBook(book);
   }
 
   /** 新建一部空族谱（无族人），创建后自动切换为当前族谱 */
   async createGenealogy(title: string): Promise<Genealogy> {
-    const store: relationalStore.RdbStore = this.store as relationalStore.RdbStore;
-    const book: Genealogy = createEmptyGenealogy();
-    const base: string = title.trim().length > 0 ? title.trim() : '我的族谱';
-    // 多族谱下自动去重命名，避免出现多个同名族谱难以区分
-    let name: string = base;
-    let serial: number = 2;
-    while (this.hasBookTitle(name)) {
-      name = base + ' ' + serial.toString();
-      serial++;
+    return this.bookManager.createGenealogy(title);
+  }
+
+  /** 是否已存在同名族谱（分支谱命名去重使用） */
+  private hasBookTitle(title: string): boolean {
+    for (let i: number = 0; i < this.books.length; i++) {
+      if (this.books[i].title === title) {
+        return true;
+      }
     }
-    book.title = name;
-    const rowId: number = await store.insert(TABLE_BOOK, PersonRowMapper.bookValues(book));
-    book.key = rowId;
-    this.currentBookId = rowId;
-    await this.setMeta(META_CURRENT_BOOK, rowId.toString());
-    await this.reload();
-    return this.book;
+    return false;
   }
 
   /**
@@ -979,16 +957,6 @@ export class GenealogyService {
     created.editingNotes = meta.editingNotes;
     await this.saveBook(created);
     return this.applyImportPlan(plan, onProgress);
-  }
-
-  /** 是否已存在同名族谱 */
-  private hasBookTitle(title: string): boolean {
-    for (let i: number = 0; i < this.books.length; i++) {
-      if (this.books[i].title === title) {
-        return true;
-      }
-    }
-    return false;
   }
 
   /**
@@ -1384,30 +1352,7 @@ export class GenealogyService {
 
   /** 切换当前族谱，其他页面会跟随刷新 */
   async switchGenealogy(bookId: number): Promise<void> {
-    if (bookId <= 0 || bookId === this.currentBookId) {
-      return;
-    }
-    if (AppStorage.get<boolean>('gpCloudBusy') === true) {
-      throw new Error('云发布或同步进行中，请完成后再切换族谱');
-    }
-    let exists: boolean = false;
-    for (let i: number = 0; i < this.books.length; i++) {
-      if (this.books[i].key === bookId) {
-        exists = true;
-        break;
-      }
-    }
-    if (!exists) {
-      return;
-    }
-    AppStorage.setOrCreate<boolean>('gpCloudBusy', true);
-    try {
-      this.currentBookId = bookId;
-      await this.setMeta(META_CURRENT_BOOK, bookId.toString());
-      await this.reload();
-    } finally {
-      AppStorage.setOrCreate<boolean>('gpCloudBusy', false);
-    }
+    await this.bookManager.switchGenealogy(bookId);
   }
 
   /**
@@ -1415,23 +1360,7 @@ export class GenealogyService {
    * 若删除的是当前族谱，自动切换到剩余族谱；全部删除后进入“无族谱”状态。
    */
   async deleteGenealogy(bookId: number = 0): Promise<void> {
-    if (this.store === null) {
-      return;
-    }
-    const target: number = bookId > 0 ? bookId : this.currentBookId;
-    if (target <= 0) {
-      return;
-    }
-    const store: relationalStore.RdbStore = this.store;
-    await store.executeSql(`DELETE FROM ${TABLE_PERSON} WHERE book_id = ?`, [target]);
-    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ?`, [target]);
-    await store.executeSql(`DELETE FROM ${TABLE_BOOK} WHERE id = ?`, [target]);
-    await store.executeSql(`DELETE FROM ${TABLE_META} WHERE key = ?`,
-      [META_RETIRED_PREFIX + target.toString()]);
-    // 重新选定当前族谱：优先保留原来的，不存在则取第一部，全部删除则为 0
-    await this.ensureCurrentBook();
-    await this.setMeta(META_CURRENT_BOOK, this.currentBookId.toString());
-    await this.reload();
+    await this.bookManager.deleteGenealogy(bookId);
   }
 
   /**
@@ -1954,6 +1883,57 @@ export class GenealogyService {
 
   getStore(): relationalStore.RdbStore | null {
     return this.store;
+  }
+
+  // ---------------------------------------------------------------- 族谱管理宿主
+
+  storeRef(): relationalStore.RdbStore | null {
+    return this.store;
+  }
+
+  booksRef(): Genealogy[] {
+    return this.books;
+  }
+
+  currentBookIdValue(): number {
+    return this.currentBookId;
+  }
+
+  currentBookValue(): Genealogy {
+    return this.book;
+  }
+
+  setCurrentBookId(id: number): void {
+    this.currentBookId = id;
+  }
+
+  setCurrentBook(book: Genealogy): void {
+    this.book = book;
+  }
+
+  syncBookInList(book: Genealogy): void {
+    for (let i: number = 0; i < this.books.length; i++) {
+      if (this.books[i].key === book.key) {
+        this.books[i] = book;
+        break;
+      }
+    }
+  }
+
+  setMetaValue(key: string, value: string): Promise<void> {
+    return this.setMeta(key, value);
+  }
+
+  reloadData(): Promise<void> {
+    return this.reload();
+  }
+
+  bumpVersion(): void {
+    this.bump();
+  }
+
+  applyBookFamilyState(): void {
+    FamilyService.getInstance().applyBookFamilyState();
   }
 
   /**
