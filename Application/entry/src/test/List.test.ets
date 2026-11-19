@@ -3,6 +3,7 @@ import spouseRelationsTest from './SpouseRelations.test';
 import queryAndSearchTest from './QueryAndSearch.test';
 import personEditorTest from './PersonEditor.test';
 import personIndexTest from './PersonIndex.test';
+import cloudSyncTest from './CloudSync.test';
 
 export default function testsuite() {
   peopleStoreTest();
@@ -10,4 +11,5 @@ export default function testsuite() {
   queryAndSearchTest();
   personEditorTest();
   personIndexTest();
+  cloudSyncTest();
 }
