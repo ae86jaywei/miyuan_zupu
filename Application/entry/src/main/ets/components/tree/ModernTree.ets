@@ -1,5 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { SR } from '../../service/ServiceRegistry';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 import { Person } from 'common_base';
 import { Theme, Spacing } from 'common_base';
@@ -55,6 +56,10 @@ export struct ModernTree {
   private currentColumns: number = 0;
   private rowSource: FlatListSource<ModernRow> = new FlatListSource<ModernRow>();
   private scroller: Scroller = new Scroller();
+  /** 跳转索引：uid -> 行号，避免跳转时线性搜索 */
+  private uidToRow: Map<string, number> = new Map<string, number>();
+  /** 上一次高亮人物：只刷新新旧两行，避免整表重载 */
+  private lastHighlightUid: string = '';
 
   aboutToAppear(): void {
     this.rebuildRows();
@@ -64,25 +69,57 @@ export struct ModernTree {
     this.rebuildRows();
   }
 
+  /** 只刷新新旧高亮所在行；整表 setData 会让 LazyForEach 重载并丢失滚动测量，跳转明显变慢 */
   onHighlightChanged(): void {
-    this.rowSource.setData(this.rows);
+    const prev: string = this.lastHighlightUid.length === 0
+      ? '' : this.lastHighlightUid.toUpperCase();
+    const cur: string = this.highlightUid.length === 0 ? '' : this.highlightUid.toUpperCase();
+    this.lastHighlightUid = this.highlightUid;
+    if (prev.length > 0 && prev !== cur) {
+      const prevRow: number = this.uidToRow.get(prev) ?? -1;
+      if (prevRow >= 0) {
+        this.rowSource.notifyItemChanged(prevRow);
+      }
+    }
+    if (cur.length > 0) {
+      const curRow: number = this.uidToRow.get(cur) ?? -1;
+      if (curRow >= 0) {
+        this.rowSource.notifyItemChanged(curRow);
+      }
+    }
   }
 
-  /** 定位到目标族人：找到包含它的行并居中滚动 */
+  /** 定位到目标族人：找到包含它的行并居中滚动（使用索引加速） */
   onFocusChanged(): void {
     if (this.focusUid.length === 0) {
       return;
     }
+    const t0: number = Date.now();
     const target: string = this.focusUid.toUpperCase();
+    // 使用索引查找
+    const row: number = this.uidToRow.get(target) ?? -1;
+    if (row >= 0 && row < this.rows.length) {
+      // smooth=false：跨数千行做平滑动画会逐项加载中间行，是跳转卡顿的主因
+      this.scroller.scrollToIndex(row, false, ScrollAlign.CENTER);
+      hilog.info(0x0000, 'TreeJump', 'modern jump row=%{public}d sync=%{public}dms',
+        row, Date.now() - t0);
+      return;
+    }
+    // 索引未命中，回退到线性搜索并更新索引
     for (let i: number = 0; i < this.rows.length; i = i + 1) {
       const row: ModernRow = this.rows[i];
       for (let k: number = row.start; k < row.start + row.count; k = k + 1) {
         if (row.people[k].uid.toUpperCase() === target) {
-          this.scroller.scrollToIndex(i, true, ScrollAlign.CENTER);
+          this.uidToRow.set(target, i);
+          this.scroller.scrollToIndex(i, false, ScrollAlign.CENTER);
+          hilog.info(0x0000, 'TreeJump', 'modern jump fallback row=%{public}d sync=%{public}dms',
+            i, Date.now() - t0);
           return;
         }
       }
     }
+    hilog.warn(0x0000, 'TreeJump', 'modern jump miss %{public}s sync=%{public}dms',
+      target, Date.now() - t0);
   }
 
   onLayoutChanged(): void {
@@ -122,8 +159,22 @@ export struct ModernTree {
     }
     this.rows = rows;
     this.rowSource.setData(rows);
+    // 构建跳转索引：uid -> 行号
+    this.buildUidIndex();
+    this.lastHighlightUid = this.highlightUid;
     TreePerf.end('modern_rows', 'generations=' + generations.length.toString() +
       ' rows=' + rows.length.toString());
+  }
+
+  /** 构建跳转索引：uid -> 行号 */
+  private buildUidIndex(): void {
+    this.uidToRow.clear();
+    for (let i: number = 0; i < this.rows.length; i = i + 1) {
+      const row: ModernRow = this.rows[i];
+      for (let k: number = row.start; k < row.start + row.count; k = k + 1) {
+        this.uidToRow.set(row.people[k].uid.toUpperCase(), i);
+      }
+    }
   }
 
   private spouseText(p: Person): string {

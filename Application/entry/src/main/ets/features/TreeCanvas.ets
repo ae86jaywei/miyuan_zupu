@@ -1,5 +1,6 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { SR } from '../service/ServiceRegistry';
+import { hilog } from '@kit.PerformanceAnalysisKit';
 
 import { PersonNode } from 'common_base';
 import { Person } from 'common_base';
@@ -163,6 +164,10 @@ export struct TreeCanvas {
   /** 牒记正文关系索引：随列表数据一次重建，卡片逐条复用 */
   private dieIndex: DieJiIndex | null = null;
   private dieScroller: Scroller = new Scroller();
+  /** 跳转索引：uid -> 牒记条目序号，避免跳转时线性扫描 */
+  private dieUidToIndex: Map<string, number> = new Map<string, number>();
+  /** 上一次高亮人物：只刷新新旧两行，避免整表重载 */
+  private lastHighlightUid: string = '';
   /** 宗支下拉列表的数据源：只用 LazyForEach 创建可见行，宗支多时打开面板不再一次性建满 */
   private branchSource: FlatListSource<string> = new FlatListSource<string>();
 
@@ -292,7 +297,23 @@ export struct TreeCanvas {
     this.hintVisible = false;
     this.rebuildTrail();
     if (this.style === TreeStyle.DIE) {
-      this.dieSource.setData(this.diePeople);
+      // 只刷新新旧高亮条目：整表 setData 会让 LazyForEach 重载并丢失行高测量，跳转明显变慢
+      const prev: string = this.lastHighlightUid.length === 0
+        ? '' : this.lastHighlightUid.toUpperCase();
+      const cur: string = this.highlightUid.length === 0 ? '' : this.highlightUid.toUpperCase();
+      this.lastHighlightUid = this.highlightUid;
+      if (prev.length > 0 && prev !== cur) {
+        const prevIndex: number = this.dieUidToIndex.get(prev) ?? -1;
+        if (prevIndex >= 0) {
+          this.dieSource.notifyItemChanged(prevIndex);
+        }
+      }
+      if (cur.length > 0) {
+        const curIndex: number = this.dieUidToIndex.get(cur) ?? -1;
+        if (curIndex >= 0) {
+          this.dieSource.notifyItemChanged(curIndex);
+        }
+      }
     }
   }
 
@@ -358,6 +379,15 @@ export struct TreeCanvas {
     });
     this.diePeople = people;
     this.dieIndex = new DieJiIndex(people);
+    // 一次性建好 uid -> 条目序号索引，搜索跳转时不再线性扫描整部族谱
+    this.dieUidToIndex.clear();
+    const svc: GenealogyService = SR.genealogy();
+    for (let i: number = 0; i < people.length; i = i + 1) {
+      const key: string = people[i].uid.toUpperCase();
+      this.dieUidToIndex.set(key, i);
+      svc.setDiePage(people[i].uid, i);
+    }
+    this.lastHighlightUid = this.highlightUid;
     this.dieSource.setData(people);
   }
 
@@ -1032,7 +1062,7 @@ export struct TreeCanvas {
     this.offsetY = this.clampY(this.viewH / 2 - contentY * this.scaleValue - contentTop);
   }
 
-  /** 按关键词在内存族谱中检索（姓名 / 曾用名 / 唯一ID / 字派），最多返回 40 条 */
+  /** 按关键词在内存族谱中检索（姓名 / 曾用名 / 唯一ID / 字派），最多返回 40 条（使用索引加速） */
   private runSearch(q: string): void {
     this.searchQuery = q;
     const key: string = q.trim();
@@ -1040,20 +1070,8 @@ export struct TreeCanvas {
       this.searchResults = [];
       return;
     }
-    const keyUpper: string = key.toUpperCase();
-    const people: Person[] = SR.genealogy().getPeople();
-    const out: Person[] = [];
-    for (let i: number = 0; i < people.length; i = i + 1) {
-      const p: Person = people[i];
-      if (p.name.includes(key) || p.alias.includes(key) || p.generationChar.includes(key) ||
-        p.uid.toUpperCase().includes(keyUpper)) {
-        out.push(p);
-        if (out.length >= 40) {
-          break;
-        }
-      }
-    }
-    this.searchResults = out;
+    // 使用索引搜索，避免同步遍历全表
+    this.searchResults = SR.genealogy().search(key);
   }
 
   /**
@@ -1063,18 +1081,36 @@ export struct TreeCanvas {
   private async focusOnUid(uid: string): Promise<void> {
     const svc: GenealogyService = SR.genealogy();
     const target: string = uid.toUpperCase();
-    // 牒记式：按世代排序列表，直接滚动到目标条目
+    // 牒记式：使用索引加速跳转
     if (this.style === TreeStyle.DIE) {
       if (this.diePeople.length === 0) {
         this.rebuildDieSource();
       }
+      const t0: number = Date.now();
+      // 使用索引查找
+      const page: number = this.dieUidToIndex.get(target) ?? svc.getDiePage(uid);
+      if (page >= 0 && page < this.diePeople.length) {
+        this.onFocusPerson(uid);
+        // smooth=false：跨数千条做平滑动画会逐条加载中间条目，是跳转卡顿的主因
+        this.dieScroller.scrollToIndex(page, false, ScrollAlign.CENTER);
+        hilog.info(0x0000, 'TreeJump', 'die jump page=%{public}d sync=%{public}dms',
+          page, Date.now() - t0);
+        return;
+      }
+      // 索引未命中，回退到线性搜索并更新索引
       for (let i: number = 0; i < this.diePeople.length; i = i + 1) {
         if (this.diePeople[i].uid.toUpperCase() === target) {
+          this.dieUidToIndex.set(target, i);
+          svc.setDiePage(uid, i);
           this.onFocusPerson(uid);
-          this.dieScroller.scrollToIndex(i, true, ScrollAlign.CENTER);
+          this.dieScroller.scrollToIndex(i, false, ScrollAlign.CENTER);
+          hilog.info(0x0000, 'TreeJump', 'die jump fallback page=%{public}d sync=%{public}dms',
+            i, Date.now() - t0);
           return;
         }
       }
+      hilog.warn(0x0000, 'TreeJump', 'die jump miss %{public}s sync=%{public}dms',
+        target, Date.now() - t0);
       this.getUIContext().getPromptAction().showToast({ message: T('未找到该族人') });
       return;
     }

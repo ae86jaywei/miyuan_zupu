@@ -12,6 +12,7 @@ export * from './src/main/ets/model/FieldEditorSpec';
 export * from './src/main/ets/model/Genealogy';
 export * from './src/main/ets/model/Integrity';
 export * from './src/main/ets/model/Person';
+export * from './src/main/ets/model/PersonIndex';
 export * from './src/main/ets/model/PersonNode';
 export * from './src/main/ets/model/Scope';
 export * from './src/main/ets/model/SpouseRules';

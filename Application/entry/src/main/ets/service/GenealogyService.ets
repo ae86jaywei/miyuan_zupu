@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { Person, SpouseRelation, clonePerson, cloneSpouseRelation, copyPersonInto, createEmptyPerson, normalizeSpouseRelations, spouseRelationLevel, normalizeSpouseRelation, SPOUSE_RELATIONS } from 'common_base';
+import { PersonIndex } from 'common_base';
 import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { PersonNode } from 'common_base';
 import { GenealogyStats } from 'common_base';
@@ -104,6 +105,8 @@ export class GenealogyService {
   private statsCacheVersion: number = -1;
   private ready: boolean = false;
   private initPromise: Promise<void> | null = null;
+  /** 人员索引：加速搜索和跳转 */
+  private index: PersonIndex = new PersonIndex();
 
   static getInstance(): GenealogyService {
     if (GenealogyService.instance === null) {
@@ -457,23 +460,44 @@ export class GenealogyService {
     return list;
   }
 
-  /** 模糊搜索：谱名 / 曾用名 / 唯一ID / 辈分字 / 出生地 / 职业 */
+  /** 模糊搜索：谱名 / 曾用名 / 唯一ID / 辈分字 / 出生地 / 职业（使用索引加速） */
   search(keyword: string): Person[] {
-    const k: string = keyword.trim().toLowerCase();
+    const k: string = keyword.trim();
     if (k.length === 0) {
       return this.people;
     }
-    return this.people.filter((p: Person): boolean => {
-      return p.name.toLowerCase().indexOf(k) >= 0
-        || p.alias.toLowerCase().indexOf(k) >= 0
-        || p.uid.toLowerCase().indexOf(k) >= 0
-        || p.generationChar.toLowerCase().indexOf(k) >= 0
-|| p.courtesyName.toLowerCase().indexOf(k) >= 0
-|| p.artName.toLowerCase().indexOf(k) >= 0
-        || p.birthPlace.toLowerCase().indexOf(k) >= 0
-        || p.residence.toLowerCase().indexOf(k) >= 0
-        || p.occupation.toLowerCase().indexOf(k) >= 0;
-    });
+    // 使用索引搜索，避免同步遍历全表
+    return this.index.search(k);
+  }
+
+  /** 按 UID 快速查找（使用索引，O(1) 复杂度） */
+  getByUid(uid: string): Person | null {
+    return this.index.getByUid(uid);
+  }
+
+  /** 设置跳转索引（行号） */
+  setJumpRow(uid: string, row: number): void {
+    this.index.setRow(uid, row);
+  }
+
+  /** 获取跳转索引（行号） */
+  getJumpRow(uid: string): number {
+    return this.index.getRow(uid);
+  }
+
+  /** 设置牒记式页码 */
+  setDiePage(uid: string, page: number): void {
+    this.index.setDiePage(uid, page);
+  }
+
+  /** 获取牒记式页码 */
+  getDiePage(uid: string): number {
+    return this.index.getDiePage(uid);
+  }
+
+  /** 清空跳转索引（谱式切换时调用） */
+  clearJumpIndex(): void {
+    this.index.clearJumpIndex();
   }
 
   /** 子女 */
@@ -2117,6 +2141,10 @@ export class GenealogyService {
       'reload people=%{public}d roots=%{public}d reachable=%{public}d unreachable=%{public}d orphan=%{public}d dangling=%{public}d query=%{public}dms spouse=%{public}dms retired=%{public}dms tree=%{public}dms',
       list.length, this.roots.length, reached.size, unreachable, orphan, dangling,
       t1 - t0, t2 - t1, t3 - t2, t4 - t3);
+    // 构建人员索引：加速搜索和跳转
+    const t5: number = Date.now();
+    this.index.build(list);
+    hilog.info(0x0000, TAG, 'index built=%{public}dms', Date.now() - t5);
     // 切换/加载族谱后同步协作态（familyId / 角色 / 同步模式）
     FamilyService.getInstance().applyBookFamilyState();
     this.bump();
