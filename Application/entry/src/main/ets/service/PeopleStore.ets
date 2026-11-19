@@ -33,6 +33,18 @@ export class PeopleStore {
     return this.ver;
   }
 
+  /** 按 uid 查人：先按原样命中（库内统一大写），再 trim + 大写回退 */
+  getPerson(uid: string): Person | null {
+    if (uid.length === 0) {
+      return null;
+    }
+    let p: Person | undefined = this.map.get(uid);
+    if (p === undefined) {
+      p = this.map.get(uid.trim().toUpperCase());
+    }
+    return p === undefined ? null : p;
+  }
+
   setList(list: Person[]): void {
     this.list = list;
   }
