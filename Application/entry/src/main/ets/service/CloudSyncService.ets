@@ -2,7 +2,6 @@
 import { common } from '@kit.AbilityKit';
 import { BusinessError, request } from '@kit.BasicServicesKit';
 import { fileIo } from '@kit.CoreFileKit';
-import { image } from '@kit.ImageKit';
 import { util } from '@kit.ArkTS';
 import { preferences } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
@@ -13,6 +12,7 @@ import { GenealogyService } from './GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { AccountService } from './AccountService';
 import { IntegrityService } from './IntegrityService';
+import { CloudMedia, MediaJob, PreparedFile } from './cloud/CloudMedia';
 import { IntegrityCode, IntegrityReport } from 'common_base';
 import {
   BackupResult,
@@ -38,39 +38,11 @@ const MAX_LIST: number = 1000;
 /** 同步进度回调 */
 export type SyncProgress = (message: string, done: number, total: number) => void;
 
-/** 待上传媒体 */
-class MediaJob {
-  /** 云端成员ID（含族谱前缀） */
-  memberId: string = '';
-  /** 人物唯一ID（用于生成本地缓存文件名） */
-  uid: string = '';
-  bookKey: number = 0;
-  uri: string = '';
-  kind: string = 'photo';
-  index: number = 0;
-  isVideo: boolean = false;
-}
-
 /** 备份时按族谱收集的人物 */
 class BookPeople {
   bookKey: number = 0;
   bookTitle: string = '';
   people: Person[] = [];
-}
-
-/** 已准备好的本地缓存文件 */
-class PreparedFile {
-  relName: string = '';
-  size: number = 0;
-  isVideo: boolean = false;
-  temporary: boolean = false;
-
-  constructor(relName: string, size: number, isVideo: boolean, temporary: boolean) {
-    this.relName = relName;
-    this.size = size;
-    this.isVideo = isVideo;
-    this.temporary = temporary;
-  }
 }
 
 /**
@@ -218,7 +190,10 @@ export class CloudSyncService {
 
     const jobs: MediaJob[] = [];
     for (let g: number = 0; g < groups.length; g++) {
-      this.collectMediaJobs(groups[g].people, groups[g].bookKey, jobs);
+      const part: MediaJob[] = CloudMedia.collect(groups[g].people, groups[g].bookKey);
+      for (let p: number = 0; p < part.length; p++) {
+        jobs.push(part[p]);
+      }
     }
     progress('正在上传照片与视频', 0, jobs.length);
     for (let i: number = 0; i < jobs.length; i++) {
@@ -229,13 +204,13 @@ export class CloudSyncService {
         progress('正在上传照片与视频', i + 1, jobs.length);
         continue;
       }
-      const localName: string = this.fileNameOf(job.uri);
+      const localName: string = CloudMedia.fileNameOf(job.uri);
       if (localName.length > 0 && existingNames.has(job.memberId + '|' + localName)) {
         result.mediaSkipped++;
         progress('正在上传照片与视频', i + 1, jobs.length);
         continue;
       }
-      const prepared: PreparedFile | null = await this.prepareMedia(job);
+      const prepared: PreparedFile | null = await CloudMedia.prepare(job);
       if (prepared === null) {
         result.mediaSkipped++;
         result.warnings.push('已跳过无法读取的媒体：' + localName);
@@ -243,7 +218,7 @@ export class CloudSyncService {
         continue;
       }
       if (prepared.size > MAX_VIDEO_BYTES) {
-        this.removeCacheFile(prepared);
+        CloudMedia.removeCacheFile(prepared);
         result.mediaSkipped++;
         result.warnings.push('视频超过 500MB 限制，已跳过：' + localName);
         progress('正在上传照片与视频', i + 1, jobs.length);
@@ -274,7 +249,7 @@ export class CloudSyncService {
         result.warnings.push('上传失败：' + localName + '（' + (be.message !== undefined ? be.message : '网络异常') + '）');
         hilog.error(0x0000, TAG, 'upload media failed: %{public}s', JSON.stringify(err));
       } finally {
-        this.removeCacheFile(prepared);
+        CloudMedia.removeCacheFile(prepared);
       }
       progress('正在上传照片与视频', i + 1, jobs.length);
     }
@@ -285,274 +260,6 @@ export class CloudSyncService {
     this.saveUriMap();
     progress('备份完成', docs.length + 1, docs.length + 1);
     return result;
-  }
-
-  private collectMediaJobs(people: Person[], bookKey: number, jobs: MediaJob[]): void {
-    const seen: Set<string> = new Set<string>();
-    for (let i: number = 0; i < people.length; i++) {
-      const person: Person = people[i];
-      const memberId: string = cloudMemberKey(bookKey, person.uid);
-      const avatar: string = person.avatar !== undefined ? person.avatar : '';
-      if (avatar.length > 0 && !avatar.startsWith('cloud://')) {
-        const key: string = memberId + '|' + avatar;
-        if (!seen.has(key)) {
-          seen.add(key);
-          const job: MediaJob = new MediaJob();
-          job.memberId = memberId;
-          job.uid = person.uid;
-          job.bookKey = bookKey;
-          job.uri = avatar;
-          job.kind = 'avatar';
-          job.index = 0;
-          job.isVideo = false;
-          jobs.push(job);
-        }
-      }
-      const photos: string[] = this.splitUris(person.photos);
-      for (let p: number = 0; p < photos.length; p++) {
-        const uri: string = photos[p];
-        if (uri.length === 0 || uri.startsWith('cloud://')) {
-          continue;
-        }
-        const key: string = memberId + '|' + uri;
-        if (seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        const job: MediaJob = new MediaJob();
-        job.memberId = memberId;
-        job.uid = person.uid;
-        job.bookKey = bookKey;
-        job.uri = uri;
-        job.kind = 'photo';
-        job.index = p;
-        job.isVideo = this.isVideoUri(uri);
-        jobs.push(job);
-      }
-      const videos: string[] = this.splitUris(person.videos);
-      for (let v: number = 0; v < videos.length; v++) {
-        const uri: string = videos[v];
-        if (uri.length === 0 || uri.startsWith('cloud://')) {
-          continue;
-        }
-        const key: string = memberId + '|' + uri;
-        if (seen.has(key)) {
-          continue;
-        }
-        seen.add(key);
-        const job: MediaJob = new MediaJob();
-        job.memberId = memberId;
-        job.uid = person.uid;
-        job.bookKey = bookKey;
-        job.uri = uri;
-        job.kind = 'video';
-        job.index = v;
-        job.isVideo = true;
-        jobs.push(job);
-      }
-    }
-  }
-
-  private splitUris(value: string): string[] {
-    const list: string[] = [];
-    if (value === undefined || value.length === 0) {
-      return list;
-    }
-    const parts: string[] = value.split(';');
-    for (let i: number = 0; i < parts.length; i++) {
-      if (parts[i].length > 0) {
-        list.push(parts[i]);
-      }
-    }
-    return list;
-  }
-
-  private fileNameOf(uri: string): string {
-    let name: string = uri;
-    const queryIndex: number = name.indexOf('?');
-    if (queryIndex >= 0) {
-      name = name.substring(0, queryIndex);
-    }
-    const slash: number = name.lastIndexOf('/');
-    if (slash >= 0) {
-      name = name.substring(slash + 1);
-    }
-    return name;
-  }
-
-  private extensionOf(uri: string): string {
-    const name: string = this.fileNameOf(uri);
-    const dot: number = name.lastIndexOf('.');
-    if (dot >= 0 && dot < name.length - 1) {
-      return name.substring(dot + 1).toLowerCase();
-    }
-    return '';
-  }
-
-  private isVideoUri(uri: string): boolean {
-    const ext: string = this.extensionOf(uri);
-    return ext === 'mp4' || ext === 'mov' || ext === 'm4v' || ext === 'avi'
-      || ext === 'mkv' || ext === '3gp' || ext === 'webm';
-  }
-
-  /** 把图库 URI 复制/压缩到 cacheDir，返回可上传的相对路径 */
-  private async prepareMedia(job: MediaJob): Promise<PreparedFile | null> {
-    const context: common.UIAbilityContext | null = AccountService.getInstance().getContext();
-    if (context === null) {
-      return null;
-    }
-    const cacheDir: string = context.cacheDir;
-    if (job.uri.startsWith(cacheDir + '/')) {
-      try {
-        const stat: fileIo.Stat = fileIo.statSync(job.uri);
-        return new PreparedFile(job.uri.substring(cacheDir.length + 1), stat.size, job.isVideo, false);
-      } catch (err) {
-        return null;
-      }
-    }
-    const ext: string = this.extensionOf(job.uri);
-    const stamp: number = Date.now();
-    const prefix: string = job.kind === 'avatar' ? 'avatar' : 'media';
-    // 缓存文件名中不能使用 #（云端成员ID分隔符），改用族谱前缀区隔
-    const fileId: string = job.bookKey > 0
-      ? 'b' + job.bookKey.toString() + '_' + job.uid
-      : job.uid;
-    const base: string = fileId + '_' + prefix + '_' + job.index + '_' + stamp;
-    if (!job.isVideo) {
-      const jpegName: string = base + '.jpg';
-      const jpegPath: string = cacheDir + '/' + jpegName;
-      const compressed: boolean = await this.compressImage(job.uri, jpegPath);
-      if (compressed) {
-        try {
-          const st: fileIo.Stat = fileIo.statSync(jpegPath);
-          return new PreparedFile(jpegName, st.size, false, true);
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'stat compressed file failed');
-        }
-      }
-    }
-    const rawName: string = base + (ext.length > 0 ? '.' + ext : '');
-    const rawPath: string = cacheDir + '/' + rawName;
-    let srcFile: fileIo.File | null = null;
-    let dstFile: fileIo.File | null = null;
-    try {
-      srcFile = fileIo.openSync(job.uri, fileIo.OpenMode.READ_ONLY);
-      dstFile = fileIo.openSync(rawPath,
-        fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.copyFileSync(srcFile.fd, dstFile.fd);
-      const st: fileIo.Stat = fileIo.statSync(rawPath);
-      return new PreparedFile(rawName, st.size, job.isVideo, true);
-    } catch (err) {
-      hilog.warn(0x0000, TAG, 'copy media failed: %{public}s', JSON.stringify(err));
-      return null;
-    } finally {
-      if (srcFile !== null) {
-        try {
-          fileIo.closeSync(srcFile);
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'close src failed');
-        }
-      }
-      if (dstFile !== null) {
-        try {
-          fileIo.closeSync(dstFile);
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'close dst failed');
-        }
-      }
-    }
-  }
-
-  /** 端侧图片压缩：长边不超过 1920px，JPEG 质量 80 */
-  private async compressImage(uri: string, dstPath: string): Promise<boolean> {
-    let srcFile: fileIo.File | null = null;
-    let source: image.ImageSource | null = null;
-    let pixelMap: image.PixelMap | null = null;
-    let packer: image.ImagePacker | null = null;
-    let dstFile: fileIo.File | null = null;
-    try {
-      srcFile = fileIo.openSync(uri, fileIo.OpenMode.READ_ONLY);
-      source = image.createImageSource(srcFile.fd);
-      const info: image.ImageInfo = await source.getImageInfo();
-      const width: number = info.size.width;
-      const height: number = info.size.height;
-      if (width <= 0 || height <= 0) {
-        return false;
-      }
-      const maxSide: number = Math.max(width, height);
-      let targetWidth: number = width;
-      let targetHeight: number = height;
-      if (maxSide > 1920) {
-        const scale: number = 1920 / maxSide;
-        targetWidth = Math.max(1, Math.round(width * scale));
-        targetHeight = Math.max(1, Math.round(height * scale));
-      }
-      const decodeOptions: image.DecodingOptions = {
-        desiredSize: { width: targetWidth, height: targetHeight }
-      };
-      pixelMap = await source.createPixelMap(decodeOptions);
-      packer = image.createImagePacker();
-      const packOptions: image.PackingOption = { format: 'image/jpeg', quality: 80 };
-      const data: ArrayBuffer = await packer.packing(pixelMap, packOptions);
-      dstFile = fileIo.openSync(dstPath,
-        fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
-      fileIo.writeSync(dstFile.fd, data);
-      return true;
-    } catch (err) {
-      hilog.warn(0x0000, TAG, 'compress image failed: %{public}s', JSON.stringify(err));
-      return false;
-    } finally {
-      if (dstFile !== null) {
-        try {
-          fileIo.closeSync(dstFile);
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'close compressed file failed');
-        }
-      }
-      if (packer !== null) {
-        try {
-          await packer.release();
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'release packer failed');
-        }
-      }
-      if (pixelMap !== null) {
-        try {
-          await pixelMap.release();
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'release pixelMap failed');
-        }
-      }
-      if (source !== null) {
-        try {
-          await source.release();
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'release image source failed');
-        }
-      }
-      if (srcFile !== null) {
-        try {
-          fileIo.closeSync(srcFile);
-        } catch (err) {
-          hilog.warn(0x0000, TAG, 'close image src failed');
-        }
-      }
-    }
-  }
-
-  private removeCacheFile(prepared: PreparedFile): void {
-    if (!prepared.temporary) {
-      return;
-    }
-    const context: common.UIAbilityContext | null = AccountService.getInstance().getContext();
-    if (context === null) {
-      return;
-    }
-    try {
-      fileIo.unlinkSync(context.cacheDir + '/' + prepared.relName);
-    } catch (err) {
-      hilog.warn(0x0000, TAG, 'remove cache file failed');
-    }
   }
 
   private uploadCacheFile(relName: string, cloudPath: string): Promise<void> {

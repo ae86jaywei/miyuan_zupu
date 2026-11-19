@@ -24,6 +24,7 @@ import { ViewportMath } from 'common_base';
 import { Breakpoint } from 'common_base';
 import { FlatListSource } from 'common_base';
 import { TreePerf } from 'common_base';
+import { MiniViewRect, TreeZoomMath } from './tree/TreeZoomMath';
 
 /** 多宗支时每支标题的固定高度（16 行高 + 8 底部间距），用于精确计算裁剪起点 */
 const BRANCH_HEADER_H: number = 24;
@@ -741,34 +742,25 @@ export struct TreeCanvas {
   }
 
   /** 小地图视口左上角/尺寸（映射到 MINI_W × MINI_H） */
+  private miniRect(): MiniViewRect {
+    return TreeZoomMath.miniRect(this.offsetX, this.offsetY, this.currentContentTop(),
+      this.canvasW, this.canvasH, this.viewW, this.viewH, MINI_W, MINI_H);
+  }
+
   private miniMapX(): number {
-    if (this.canvasW <= 0) {
-      return 0;
-    }
-    const v: number = (-this.offsetX) / this.canvasW * MINI_W;
-    return Math.max(0, Math.min(MINI_W - this.miniMapW(), v));
+    return this.miniRect().x;
   }
 
   private miniMapW(): number {
-    if (this.canvasW <= 0) {
-      return MINI_W;
-    }
-    return Math.max(8, Math.min(MINI_W, this.viewW / this.canvasW * MINI_W));
+    return this.miniRect().w;
   }
 
   private miniMapY(): number {
-    if (this.canvasH <= 0) {
-      return 0;
-    }
-    const v: number = (-this.offsetY - this.currentContentTop()) / this.canvasH * MINI_H;
-    return Math.max(0, Math.min(MINI_H - this.miniMapH(), v));
+    return this.miniRect().y;
   }
 
   private miniMapH(): number {
-    if (this.canvasH <= 0) {
-      return MINI_H;
-    }
-    return Math.max(8, Math.min(MINI_H, this.viewH / this.canvasH * MINI_H));
+    return this.miniRect().h;
   }
 
   /** 点小地图：把该位置的内容点居中到视口 */
@@ -944,17 +936,7 @@ export struct TreeCanvas {
 
   /** 双指中心：用两指相对应用窗口的 globalX/globalY 减去画布窗口位置，得到确定的画布坐标 */
   private pinchCenterOf(event: GestureEvent): number[] {
-    const fingers: FingerInfo[] = event.fingerList;
-    if (fingers !== undefined && fingers.length >= 2 &&
-      fingers[0].globalX !== undefined && fingers[1].globalX !== undefined) {
-      const gx: number = (fingers[0].globalX + fingers[1].globalX) / 2;
-      const gy: number = (fingers[0].globalY + fingers[1].globalY) / 2;
-      return [gx - this.viewGlobalX, gy - this.viewGlobalY];
-    }
-    if (event.pinchCenterX > 0 || event.pinchCenterY > 0) {
-      return [event.pinchCenterX, event.pinchCenterY];
-    }
-    return [-1, -1];
+    return TreeZoomMath.pinchCenter(event, this.viewGlobalX, this.viewGlobalY);
   }
 
   /**
@@ -962,25 +944,7 @@ export struct TreeCanvas {
    * 否则缩放会把内容带向第一支。
    */
   private anchorIndexAt(centerY: number, offsetY: number, zoom: number): number {
-    if (this.branchTops.length === 0) {
-      return 0;
-    }
-    const y: number = centerY - offsetY;
-    let nearestIdx: number = 0;
-    let nearestDist: number = Number.MAX_VALUE;
-    for (let i: number = 0; i < this.branchTops.length; i = i + 1) {
-      const top: number = this.branchTops[i];
-      const bottom: number = top + (i < this.branchH.length ? this.branchH[i] : 0) * zoom;
-      if (y >= top && y <= bottom) {
-        return i;
-      }
-      const dist: number = y < top ? top - y : y - bottom;
-      if (dist < nearestDist) {
-        nearestDist = dist;
-        nearestIdx = i;
-      }
-    }
-    return nearestIdx;
+    return TreeZoomMath.anchorIndexAt(this.branchTops, this.branchH, centerY, offsetY, zoom);
   }
 
   /**
@@ -988,16 +952,9 @@ export struct TreeCanvas {
    * 缩放时前一宗支的高度会变化，所以这个值必须按目标 zoom 重算，不能沿用起点快照。
    */
   private branchTopAt(index: number, zoom: number): number {
-    if (this.branchTops.length === 0) {
-      return 0;
-    }
     const headerBlock: number = this.rootUids.length > 1 ? BRANCH_HEADER_H + Spacing.S : 0;
-    let cursor: number = 0;
-    for (let i: number = 0; i < index; i = i + 1) {
-      const h: number = i < this.branchH.length ? this.branchH[i] : 0;
-      cursor = cursor + headerBlock + h * zoom + Spacing.XXL;
-    }
-    return cursor + headerBlock;
+    return TreeZoomMath.branchTopAt(this.branchTops, this.branchH, headerBlock, Spacing.XXL,
+      index, zoom);
   }
 
   /** 锁定手指下的内容点：后续所有缩放都以它为中心，避免任何一帧重新取中心造成漂移 */
@@ -1012,13 +969,7 @@ export struct TreeCanvas {
   }
 
   private clampZoom(v: number): number {
-    if (v < MIN_ZOOM) {
-      return MIN_ZOOM;
-    }
-    if (v > MAX_ZOOM) {
-      return MAX_ZOOM;
-    }
-    return v;
+    return TreeZoomMath.clampZoom(v, MIN_ZOOM, MAX_ZOOM);
   }
 
   /** 一键全览：按内容尺寸取最合适的缩放，并把整谱居中 */

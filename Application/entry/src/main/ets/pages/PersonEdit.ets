@@ -28,6 +28,7 @@ import { fieldMetaOf, PARENT_LIFE_STATUS_OPTIONS } from 'common_base';
 import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraLabel, eraYearCount } from 'common_dateutil';
 import { cnYearText, huangLiText, HuangLi, julianDay, LunarMonthOption, lunarMonthsOfYear, lunarMonthDays, lunarToSolar, SolarDate } from 'common_dateutil';
 import { eraYearText, lunarDayName, lunarMonthName, solarToLunar, LunarDate } from 'common_dateutil';
+import { CoordParseResult, DateMath, GraveCoordParser, NumTextUtil, PersonMediaUtil } from './personedit/PersonEditUtils';
 
 /** 第一世（始祖）的排行称谓 */
 const ANCESTOR_RANK: string = '第一世（始祖）';
@@ -737,33 +738,19 @@ struct PersonEdit {
 
   /** 照片/视频列表（photos 字段以“;”分隔存储图片与视频 URI） */
   private photoList(): string[] {
-    if (this.fPhotos.length === 0) {
-      return [];
-    }
-    return this.fPhotos.split(';').filter((s: string): boolean => s.length > 0);
+    return PersonMediaUtil.listOf(this.fPhotos);
   }
 
   private isVideoUri(uri: string): boolean {
-    const lower: string = uri.toLowerCase();
-    return lower.endsWith('.mp4') || lower.endsWith('.mov') || lower.endsWith('.m4v') ||
-      lower.endsWith('.3gp') || lower.endsWith('.avi') || lower.endsWith('.mkv') || lower.endsWith('.webm');
+    return PersonMediaUtil.isVideoUri(uri);
   }
 
   private appendPhotos(uris: string[]): void {
-    if (uris.length === 0) {
-      return;
-    }
-    const joined: string = uris.join(';');
-    this.fPhotos = this.fPhotos.length > 0 ? this.fPhotos + ';' + joined : joined;
+    this.fPhotos = PersonMediaUtil.append(this.fPhotos, uris);
   }
 
   private removePhotoAt(index: number): void {
-    const list: string[] = this.photoList();
-    if (index < 0 || index >= list.length) {
-      return;
-    }
-    list.splice(index, 1);
-    this.fPhotos = list.join(';');
+    this.fPhotos = PersonMediaUtil.removeAt(this.fPhotos, index);
   }
 
   /** “+” 添加来源选择：系统图库 / 文件管理器 */
@@ -975,67 +962,16 @@ struct PersonEdit {
   }
 
   private parseCoordinateText(text: string): string {
-    const t: string = text.trim();
-    if (t.length === 0) {
-      return '';
+    const result: CoordParseResult = GraveCoordParser.parse(text);
+    if (!result.ok) {
+      return result.hint;
     }
-    let lat: number = NaN;
-    let lng: number = NaN;
-    let alt: number = NaN;
-
-    const altMatch: RegExpMatchArray | null =
-      t.match(/(?:海拔|海拔高度|altitude|elevation|alt)\D*(-?\d+(?:\.\d+)?)/i);
-    if (altMatch !== null) {
-      alt = Number(altMatch[1]);
+    this.fGraveLat = result.lat;
+    this.fGraveLng = result.lng;
+    if (!isNaN(result.alt) && result.alt !== 0) {
+      this.fGraveAltitude = result.alt;
     }
-
-    const latMatch: RegExpMatchArray | null = t.match(/(?:纬度|latitude|lat)\D*(-?\d+(?:\.\d+)?)/i);
-    const lngMatch: RegExpMatchArray | null =
-      t.match(/(?:经度|longitude|lng|lon|long)\D*(-?\d+(?:\.\d+)?)/i);
-    if (latMatch !== null && lngMatch !== null) {
-      lat = Number(latMatch[1]);
-      lng = Number(lngMatch[1]);
-    } else {
-      let x: number = NaN;
-      let y: number = NaN;
-      const pair: RegExpMatchArray | null = t.match(
-        /[?&](?:position|location|ll|q|center|destination|dest|point|latlng|coordinate|coordinates)=(-?\d+(?:\.\d+)?)[,;:]\s*(-?\d+(?:\.\d+)?)/i);
-      if (pair !== null) {
-        x = Number(pair[1]);
-        y = Number(pair[2]);
-      } else {
-        const nums: RegExpMatchArray | null = t.match(/-?\d+\.\d{3,}/g);
-        if (nums !== null && nums.length >= 2) {
-          x = Number(nums[0]);
-          y = Number(nums[1]);
-        }
-      }
-      if (!isNaN(x) && !isNaN(y)) {
-        // 国内地图多为“经度,纬度”；苹果/谷歌多为“纬度,经度”，按量级判断
-        if (Math.abs(x) <= 90 && Math.abs(y) > 90) {
-          lat = x;
-          lng = y;
-        } else {
-          lng = x;
-          lat = y;
-        }
-      }
-    }
-
-    if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0) ||
-      Math.abs(lat) > 90 || Math.abs(lng) > 180) {
-      return '未识别到经纬度，可粘贴含坐标的分享链接或“经度,纬度”';
-    }
-    this.fGraveLat = lat;
-    this.fGraveLng = lng;
-    let hint: string = '已解析：经度 ' + lng.toFixed(6) + '，纬度 ' + lat.toFixed(6);
-    if (!isNaN(alt) && alt !== 0) {
-      this.fGraveAltitude = alt;
-      hint += '，海拔 ' + alt.toFixed(1) + ' 米';
-    } else {
-      hint += '（链接不含海拔，可手工填写）';
-    }
-    return hint;
+    return result.hint;
   }
 
   /** 拉起系统“地图应用选择器”，由用户在已安装的地图应用中选择 */
@@ -1356,16 +1292,7 @@ struct PersonEdit {
 
   /** 阿拉伯数字转中文（1~99） */
   private numToCn(n: number): string {
-    const digits: string = '零一二三四五六七八九';
-    if (n <= 10) {
-      return n === 10 ? '十' : digits.charAt(n);
-    }
-    if (n < 20) {
-      return '十' + digits.charAt(n % 10);
-    }
-    const tens: string = digits.charAt(Math.floor(n / 10));
-    const ones: number = n % 10;
-    return tens + '十' + (ones === 0 ? '' : digits.charAt(ones));
+    return NumTextUtil.toCn(n);
   }
 
   private refreshDateOptions(): void {
@@ -1386,21 +1313,7 @@ struct PersonEdit {
   }
 
   private daysInMonth(year: number, month: number, isLeap: boolean): number {
-    if (this.dateCalendar === '农历') {
-      return lunarMonthDays(year, month, isLeap);
-    }
-    if (year <= 0) {
-      return 30;
-    }
-    // 1582 年 10 月 5~14 日不存在（儒略历改格里高利历），仍按 31 天给出日号，
-    // 避免把 15~31 日这些真实存在的日期排除在外
-    if (year === 1582 && month === 10) {
-      return 31;
-    }
-    // 用儒略日差值取月长：new Date 会把 0~99 年当成 19xx 年，且对 1582 年前按格里高利历处理
-    const nextYear: number = month === 12 ? year + 1 : year;
-    const nextMonth: number = month === 12 ? 1 : month + 1;
-    return julianDay(nextYear, nextMonth, 1) - julianDay(year, month, 1);
+    return DateMath.daysInMonth(year, month, isLeap, this.dateCalendar === '农历');
   }
 
   /** 按公历/农历生成月份选项（农历含闰月） */
