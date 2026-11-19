@@ -6,7 +6,7 @@ import { PageNavBar } from 'common_ui';
 import { SearchField } from 'common_ui';
 import { GraveService } from '../service/GraveService';
 import { GenealogyService } from '../service/GenealogyService';
-import { Person } from 'common_base';
+import { Person, generationLabel } from 'common_base';
 import { GraveEntry, Role } from 'common_base';
 import { RouterUtil } from 'common_base';
 import { FlatListSource } from 'common_base';
@@ -168,7 +168,7 @@ struct GraveMap {
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)
           .layoutWeight(1)
-        Text(T(g.generation > 0 ? '第 ' + g.generation.toString() + ' 世' : '')).fontFamily(uiFontFamily())
+        Text(T(g.generation > 0 ? generationLabel(g.generation) : '')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }

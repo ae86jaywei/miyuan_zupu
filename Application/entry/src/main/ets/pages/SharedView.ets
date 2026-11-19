@@ -1,7 +1,7 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { Theme, Spacing } from 'common_base';
 import { PageHeader } from 'common_ui';
-import { Person } from 'common_base';
+import { Person, generationLabel } from 'common_base';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { AccountService } from '../service/AccountService';
 import { InviteInfo, ShareService } from '../service/ShareService';
@@ -148,11 +148,11 @@ struct SharedView {
     }
   }
 
-  private generationLabel(person: Person): string {
+  private genText(person: Person): string {
     if (person.generationChar.length > 0) {
-      return '第 ' + person.generation.toString() + ' 世 · ' + person.generationChar;
+      return generationLabel(person.generation) + ' · ' + person.generationChar;
     }
-    return '第 ' + person.generation.toString() + ' 世';
+    return generationLabel(person.generation);
   }
 
   @Builder
@@ -166,7 +166,7 @@ struct SharedView {
           .layoutWeight(1)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
-        Text(T(this.generationLabel(person))).fontFamily(uiFontFamily())
+        Text(T(this.genText(person))).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.gold)
       }
