@@ -9,6 +9,19 @@
  */
 const S = require('./shared');
 
+/** CloudDB 的 in 条件一次不宜太多：按 100 个一批取回，避免逐条 query 的 N+1 */
+const IN_CHUNK = 100;
+
+async function queryByIds(typeName, field, ids) {
+  const out = [];
+  for (let start = 0; start < ids.length; start += IN_CHUNK) {
+    const chunk = ids.slice(start, start + IN_CHUNK);
+    const rows = await S.query(typeName, [[field, 'in', chunk]], { limit: chunk.length });
+    rows.forEach((r) => out.push(r));
+  }
+  return out;
+}
+
 module.exports.handler = S.createHandler('sync-pull', async (params, event, log, context) => {
   const userId = await S.requireUserId(event, params);
   const familyId = S.str(params, 'familyId');
@@ -31,10 +44,13 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
     all.forEach((m) => {
       members[m.memberId] = m;
     });
-    const graveRows = await S.query(S.T.GRAVE, [['familyId', '=', familyId]], { limit: 1000 });
-    graveRows.forEach((g) => {
-      graves[g.graveId] = g;
-    });
+    // 墓穴只在第一页随基线下发：分页时每页都重查整表会让流量与耗时成倍放大
+    if (offset === 0) {
+      const graveRows = await S.query(S.T.GRAVE, [['familyId', '=', familyId]], { limit: 1000 });
+      graveRows.forEach((g) => {
+        graves[g.graveId] = g;
+      });
+    }
   } else {
     const logs = await S.query(S.T.CHANGE_LOG, [['familyId', '=', familyId], ['rev', '>', sinceRev]],
       { limit: limit, orderBy: [['rev', 'ASC']] });
@@ -50,16 +66,16 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
       }
     });
     const ids = Object.keys(latestByTarget);
-    for (let i = 0; i < ids.length; i++) {
-      const row = await S.queryOne(S.T.MEMBER, [['memberId', '=', ids[i]]]);
-      if (row === null) {
-        continue;
-      }
-      members[row.memberId] = row;
-      const g = await S.queryOne(S.T.GRAVE, [['graveId', '=', ids[i]]]);
-      if (g !== null) {
+    if (ids.length > 0) {
+      // 批量按主键取回，避免每个变更对象两次 queryOne（N+1）
+      const memberRows = await queryByIds(S.T.MEMBER, 'memberId', ids);
+      memberRows.forEach((row) => {
+        members[row.memberId] = row;
+      });
+      const graveRows = await queryByIds(S.T.GRAVE, 'graveId', ids);
+      graveRows.forEach((g) => {
         graves[g.graveId] = g;
-      }
+      });
     }
     logs.forEach((l) => {
       changes.push({
@@ -71,16 +87,18 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
 
   // 隐私字段只回流给 OWNER（§八.6：读权限收窄到 OWNER，VIEWER/EDITOR 默认拿不到明文）
   if (isOwner) {
-    const ids = Object.keys(members);
-    for (let i = 0; i < ids.length; i++) {
-      if (!members[ids[i]].privateRef) {
-        continue;
+    // 逐个成员 queryOne 隐私表在 6 万人时是 6 万次串行查询，改为按 privateId 批量取回
+    const refs = [];
+    const seen = {};
+    Object.keys(members).forEach((k) => {
+      const ref = members[k].privateRef;
+      if (ref && !seen[ref]) {
+        seen[ref] = true;
+        refs.push(ref);
       }
-      const p = await S.queryOne(S.T.PRIVATE, [['privateId', '=', members[ids[i]].privateRef]]);
-      if (p !== null) {
-        privates.push(p);
-      }
-    }
+    });
+    const rows = await queryByIds(S.T.PRIVATE, 'privateId', refs);
+    rows.forEach((p) => privates.push(p));
   }
 
   const book = await S.queryOne(S.T.BOOK, [['bookId', '=', familyId + '#' + String(family.bookKey || 0)]]);

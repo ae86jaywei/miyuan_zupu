@@ -14,7 +14,9 @@ import { IntegrityIssue, IntegrityReport } from 'common_base';
 import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][FamilySync]';
-const PAGE_SIZE: number = 200;
+const PAGE_SIZE: number = 500;
+/** 单次同步最多拉取的页数：500 × 200 = 10 万人，避免大型族谱一轮拉不完 */
+const MAX_PAGES: number = 200;
 const BOOK_CHANGED: string = 'SYNC_BOOK_CHANGED';
 
 /** 同步进度回调：message 为当前阶段文案，percent 为 0~100 的整数 */
@@ -218,7 +220,7 @@ export class FamilySyncService {
     result.fromRev = since;
     let guard: number = 0;
     FamilySyncService.report(onProgress, '正在读取云端更新…', 38);
-    while (guard < 20) {
+    while (guard < MAX_PAGES) {
       guard++;
       const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('sync-pull', {
         'familyId': familyId, 'sinceRev': since, 'limit': PAGE_SIZE, 'offset': offset
@@ -232,18 +234,41 @@ export class FamilySyncService {
       const members: Record<string, Object>[] = objectList(data, 'members');
       const graves: Record<string, Object>[] = objectList(data, 'graves');
       const fullSnapshot: boolean = bool(data, 'fullSnapshot');
-      for (let i: number = 0; i < members.length; i++) {
-        this.ensureSameBook(bookKey, familyId);
-        const changed: boolean = await this.replayMember(members[i], result);
-        if (changed) {
-          result.applied++;
+      // 整页写入放进一个事务：逐条自动提交会为每条 SQL 做一次 fsync，
+      // 数万人的回放会因此慢一个数量级（导入路径同理）。
+      const store: relationalStore.RdbStore | null = svc.getStore();
+      let inTx: boolean = false;
+      if (store !== null) {
+        store.beginTransaction();
+        inTx = true;
+      }
+      try {
+        for (let i: number = 0; i < members.length; i++) {
+          this.ensureSameBook(bookKey, familyId);
+          const changed: boolean = await this.replayMember(members[i], result);
+          if (changed) {
+            result.applied++;
+          }
         }
+        if (inTx && store !== null) {
+          store.commit();
+          inTx = false;
+        }
+      } catch (err) {
+        if (inTx && store !== null) {
+          try {
+            store.rollBack();
+          } catch (rollbackErr) {
+            hilog.warn(0x0000, TAG, 'replay rollback failed');
+          }
+        }
+        throw new Error(FamilySyncService.describe(err));
       }
       this.ensureSameBook(bookKey, familyId);
       offset = num(data, 'nextOffset');
       FamilySyncService.report(onProgress,
         '正在拉取云端更新（第 ' + guard.toString() + ' 批，已应用 ' + result.applied.toString() + ' 条）…',
-        38 + Math.min(42, guard * 4));
+        38 + Math.min(42, guard));
       await GraveService.getInstance().cacheRows(graves);
       this.ensureSameBook(bookKey, familyId);
       result.graves += graves.length;

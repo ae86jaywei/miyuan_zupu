@@ -84,6 +84,11 @@ export class DatabaseSchema {
       await DatabaseSchema.ensureColumn(store, TABLE_PERSON, col.column, col.type);
     }
     await DatabaseSchema.ensureColumn(store, TABLE_SPOUSE, 'level', 'TEXT');
+    // 同步回放按 book_id + uid 逐条定位族人。没有索引时每条 SQL 都是全表扫描，
+    // 数万人的协作谱会退化成 O(n²)（实测 6 万人同步约 10 分钟）。
+    await store.executeSql(`CREATE INDEX IF NOT EXISTS idx_person_book_uid ON ${TABLE_PERSON}(book_id, uid)`);
+    await store.executeSql(`CREATE INDEX IF NOT EXISTS idx_spouse_book_uid ON ${TABLE_SPOUSE}(book_id, uid)`);
+    await store.executeSql(`CREATE INDEX IF NOT EXISTS idx_spouse_book_spouse ON ${TABLE_SPOUSE}(book_id, spouse_uid)`);
     await store.executeSql(`CREATE TABLE IF NOT EXISTS ${TABLE_BOOK} (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT,

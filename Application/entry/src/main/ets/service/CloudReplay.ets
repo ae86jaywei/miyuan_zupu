@@ -51,7 +51,7 @@ export class CloudReplay {
     if (deleted) {
       const tomb: Person | null = this.peopleStore.getPerson(u);
       await store.executeSql(
-        `UPDATE ${TABLE_PERSON} SET deleted_at = ?, rev = ?, base_rev = ?, dirty = 0 WHERE book_id = ? AND UPPER(uid) = ?`,
+        `UPDATE ${TABLE_PERSON} SET deleted_at = ?, rev = ?, base_rev = ?, dirty = 0 WHERE book_id = ? AND uid = ?`,
         [Date.now(), rev, rev, bookId, u]);
       // 墓碑同样要断开引用：否则其他族人的父亲/配偶仍指向这个已删除编号，
       // 一旦该编号被新族人复用，旧关系就会挂到新人身上。
@@ -62,7 +62,7 @@ export class CloudReplay {
       await store.executeSql(`UPDATE ${TABLE_PERSON} SET spouse_id = '' WHERE book_id = ? AND UPPER(spouse_id) = ?`,
         [bookId, u]);
       await store.executeSql(
-        `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) = ? OR UPPER(spouse_uid) = ?)`,
+        `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (uid = ? OR spouse_uid = ?)`,
         [bookId, u, u]);
       // 云端墓碑的编号同样封存，后续新增不得复用
       await this.retiredRecorder(u, tomb === null ? '' : tomb.name);
@@ -86,9 +86,13 @@ export class CloudReplay {
     }
     normalizeSpouseRelations(p);
     await this.repository.upsert(p, bookId);
-    await this.repository.saveSpouses(p.uid, p.spouses, bookId);
+    // 双方都无配偶关系时无需再查/删/插配偶表：多数族人属于这种情况，
+    // 省下的 SELECT + DELETE 在 6 万人规模下很可观。
+    if (p.spouses.length > 0 || (exist !== null && exist.spouses.length > 0)) {
+      await this.repository.saveSpouses(p.uid, p.spouses, bookId);
+    }
     await store.executeSql(
-      `UPDATE ${TABLE_PERSON} SET rev = ?, base_rev = ?, dirty = 0, deleted_at = 0 WHERE book_id = ? AND UPPER(uid) = ?`,
+      `UPDATE ${TABLE_PERSON} SET rev = ?, base_rev = ?, dirty = 0, deleted_at = 0 WHERE book_id = ? AND uid = ?`,
       [rev, rev, bookId, u]);
     return true;
   }

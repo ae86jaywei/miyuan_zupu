@@ -82,7 +82,7 @@ export class PersonRepository {
     });
     const oldSet: Set<string> = new Set<string>();
     const rs: relationalStore.ResultSet = await store.querySql(
-      `SELECT uid, spouse_uid FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (UPPER(uid) = ? OR UPPER(spouse_uid) = ?)`,
+      `SELECT uid, spouse_uid FROM ${TABLE_SPOUSE} WHERE book_id = ? AND (uid = ? OR spouse_uid = ?)`,
       [owner, u, u]);
     try {
       while (rs.goToNextRow()) {
@@ -103,7 +103,7 @@ export class PersonRepository {
       affected.add(o);
       if (!newSet.has(o)) {
         await store.executeSql(
-          `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND ((UPPER(uid) = ? AND UPPER(spouse_uid) = ?) OR (UPPER(uid) = ? AND UPPER(spouse_uid) = ?))`,
+          `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND ((uid = ? AND spouse_uid = ?) OR (uid = ? AND spouse_uid = ?))`,
           [owner, u, o, o, u]);
       }
     }
@@ -111,7 +111,7 @@ export class PersonRepository {
     news.forEach((n: string): void => {
       affected.add(n);
     });
-    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ?`, [owner, u]);
+    await store.executeSql(`DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND uid = ?`, [owner, u]);
     for (let i: number = 0; i < list.length; i++) {
       const id: string = list[i].uid.trim().toUpperCase();
       if (id.length === 0 || id === u) {
@@ -158,7 +158,7 @@ export class PersonRepository {
         continue;
       }
       await store.executeSql(
-        `UPDATE ${TABLE_PERSON} SET spouse_id = COALESCE((SELECT spouse_uid FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ? ORDER BY ord LIMIT 1), '') WHERE book_id = ? AND UPPER(uid) = ?`,
+        `UPDATE ${TABLE_PERSON} SET spouse_id = COALESCE((SELECT spouse_uid FROM ${TABLE_SPOUSE} WHERE book_id = ? AND uid = ? ORDER BY ord LIMIT 1), '') WHERE book_id = ? AND uid = ?`,
         [owner, o, owner, o]);
     }
   }
@@ -173,7 +173,7 @@ export class PersonRepository {
     const store: relationalStore.RdbStore = this.requireStore();
     if (cloud) {
       await store.executeSql(
-        `UPDATE ${TABLE_PERSON} SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE book_id = ? AND UPPER(uid) = ?`,
+        `UPDATE ${TABLE_PERSON} SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE book_id = ? AND uid = ?`,
         [Date.now(), Date.now(), bookId, u]);
     } else {
       const predicates: relationalStore.RdbPredicates = new relationalStore.RdbPredicates(TABLE_PERSON);
@@ -196,7 +196,7 @@ export class PersonRepository {
   async spouseRowRelation(bookId: number, ownerUid: string, spouseUid: string): Promise<string> {
     const store: relationalStore.RdbStore = this.requireStore();
     const rs: relationalStore.ResultSet = await store.querySql(
-      `SELECT relation FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ? AND UPPER(spouse_uid) = ?`,
+      `SELECT relation FROM ${TABLE_SPOUSE} WHERE book_id = ? AND uid = ? AND spouse_uid = ?`,
       [bookId, ownerUid.trim().toUpperCase(), spouseUid.trim().toUpperCase()]);
     let relation: string = '';
     try {
@@ -214,7 +214,7 @@ export class PersonRepository {
   async nextSpouseOrd(bookId: number, ownerUid: string): Promise<number> {
     const store: relationalStore.RdbStore = this.requireStore();
     const rs: relationalStore.ResultSet = await store.querySql(
-      `SELECT COALESCE(MAX(ord), 0) AS m FROM ${TABLE_SPOUSE} WHERE book_id = ? AND UPPER(uid) = ?`,
+      `SELECT COALESCE(MAX(ord), 0) AS m FROM ${TABLE_SPOUSE} WHERE book_id = ? AND uid = ?`,
       [bookId, ownerUid.trim().toUpperCase()]);
     let ord: number = 1;
     try {
