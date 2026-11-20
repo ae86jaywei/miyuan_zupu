@@ -12,10 +12,11 @@ import { SyncMode, SyncResult, bool, num, objectList, str } from 'common_base';
 import { IntegrityService } from './IntegrityService';
 import { IntegrityIssue, IntegrityReport } from 'common_base';
 import { CloudFunctionClient } from './CloudFunctionClient';
+import { RemoteWrite } from './CloudReplay';
 
 const TAG: string = '[Genealogy][FamilySync]';
-const PAGE_SIZE: number = 500;
-/** 单次同步最多拉取的页数：500 × 200 = 10 万人，避免大型族谱一轮拉不完 */
+const PAGE_SIZE: number = 1000;
+/** 单次同步最多拉取的页数：1000 × 200 = 20 万人，避免大型族谱一轮拉不完 */
 const MAX_PAGES: number = 200;
 const BOOK_CHANGED: string = 'SYNC_BOOK_CHANGED';
 
@@ -234,35 +235,17 @@ export class FamilySyncService {
       const members: Record<string, Object>[] = objectList(data, 'members');
       const graves: Record<string, Object>[] = objectList(data, 'graves');
       const fullSnapshot: boolean = bool(data, 'fullSnapshot');
-      // 整页写入放进一个事务：逐条自动提交会为每条 SQL 做一次 fsync，
-      // 数万人的回放会因此慢一个数量级（导入路径同理）。
-      const store: relationalStore.RdbStore | null = svc.getStore();
-      let inTx: boolean = false;
-      if (store !== null) {
-        store.beginTransaction();
-        inTx = true;
+      // 整页一次事务批量写入：逐人 SQL 的跨线程开销是同步耗时的主因
+      const batch: RemoteWrite[] = [];
+      for (let i: number = 0; i < members.length; i++) {
+        this.ensureSameBook(bookKey, familyId);
+        const prepared: RemoteWrite | null = this.prepareMember(members[i], result);
+        if (prepared !== null) {
+          batch.push(prepared);
+        }
       }
-      try {
-        for (let i: number = 0; i < members.length; i++) {
-          this.ensureSameBook(bookKey, familyId);
-          const changed: boolean = await this.replayMember(members[i], result);
-          if (changed) {
-            result.applied++;
-          }
-        }
-        if (inTx && store !== null) {
-          store.commit();
-          inTx = false;
-        }
-      } catch (err) {
-        if (inTx && store !== null) {
-          try {
-            store.rollBack();
-          } catch (rollbackErr) {
-            hilog.warn(0x0000, TAG, 'replay rollback failed');
-          }
-        }
-        throw new Error(FamilySyncService.describe(err));
+      if (batch.length > 0) {
+        result.applied += await svc.applyRemoteBatch(batch);
       }
       this.ensureSameBook(bookKey, familyId);
       offset = num(data, 'nextOffset');
@@ -300,51 +283,52 @@ export class FamilySyncService {
     result.headRev = since;
   }
 
-  /** 回放单个人物 */
-  private async replayMember(raw: Record<string, Object>, result: SyncResult): Promise<boolean> {
-    const svc: GenealogyService = GenealogyService.getInstance();
+  /** 校验单条云端成员，产出待批量回放的写入；返回 null 表示无效或被拦下 */
+  private prepareMember(raw: Record<string, Object>, result: SyncResult): RemoteWrite | null {
     const uid: string = str(raw, 'uid').trim().toUpperCase();
     if (uid.length === 0) {
-      return false;
+      return null;
     }
     const deleted: boolean = bool(raw, 'deleted');
     const rev: number = num(raw, 'rev');
     if (deleted) {
-      await svc.applyRemoteChange(uid, null, rev, true);
-      return true;
+      const tomb: RemoteWrite = new RemoteWrite();
+      tomb.uid = uid;
+      tomb.rev = rev;
+      tomb.deleted = true;
+      return tomb;
     }
     const person: Person = FamilySyncService.personFromRow(raw);
     const personName: string = person.name.trim();
 
     // 1. 本地已明确记录该编号属于某个已删除族人：同名视为删后恢复，异名视为编号被复用
-    const retiredName: string = svc.retiredNameOf(uid);
+    const retiredName: string = GenealogyService.getInstance().retiredNameOf(uid);
     if (retiredName.length > 0 && personName.length > 0 && personName !== retiredName) {
       result.integrityBlocked++;
       result.integrityIssues.push('云端编号 ' + uid + ' 曾用于已删除族人“' + retiredName +
         '”，现对应“' + personName + '”，已暂缓合入，避免旧关系挂错人');
-      return false;
+      return null;
     }
 
     // 2. 同编号在本机与云端代表不同人物：暂缓覆盖，保留本地关系不被冲掉
-    const exist: Person | null = svc.getPerson(uid);
+    const exist: Person | null = GenealogyService.getInstance().getPerson(uid);
     if (exist !== null) {
       const report: IntegrityReport = IntegrityService.compare([exist], [person], '本机', '云端');
-      let fatal: boolean = false;
       for (let i: number = 0; i < report.issues.length; i++) {
         const issue: IntegrityIssue = report.issues[i];
         if (issue.level !== 'error') {
           continue;
         }
-        fatal = true;
-        result.integrityIssues.push('编号 ' + uid + '：' + issue.message);
-      }
-      if (fatal) {
         result.integrityBlocked++;
-        return false;
+        result.integrityIssues.push('编号 ' + uid + '：' + issue.message);
+        return null;
       }
     }
-    await svc.applyRemoteChange(uid, person, rev, false);
-    return true;
+    const write: RemoteWrite = new RemoteWrite();
+    write.uid = uid;
+    write.person = person;
+    write.rev = rev;
+    return write;
   }
 
   /** 同步结束后做一次ID/亲属关系体检，把严重问题交给界面弹窗 */

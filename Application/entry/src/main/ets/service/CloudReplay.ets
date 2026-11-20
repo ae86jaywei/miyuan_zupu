@@ -5,6 +5,16 @@ import { PeopleStore } from './PeopleStore';
 import { PersonRepository } from './PersonRepository';
 
 /**
+ * 一条待回放的云端成员写入（整页批量回放用）。
+ */
+export class RemoteWrite {
+  uid: string = '';
+  person: Person | null = null;
+  rev: number = 0;
+  deleted: boolean = false;
+}
+
+/**
  * 云回放域：把云侧成员行写回本地 RDB，并在回放结束后刷新内存。
  *
  * 从 `GenealogyService` 拆出，只负责回放语义：
@@ -95,6 +105,71 @@ export class CloudReplay {
       `UPDATE ${TABLE_PERSON} SET rev = ?, base_rev = ?, dirty = 0, deleted_at = 0 WHERE book_id = ? AND uid = ?`,
       [rev, rev, bookId, u]);
     return true;
+  }
+
+  /**
+   * 整页批量回放：同页人物合并成一次批量写（人物行 + 配偶关系），
+   * 把每人 6~8 条 SQL 压到整页几十条；墓碑仍走单条路径（数量极少）。
+   * 返回实际写入的人物数。
+   */
+  async applyRemoteBatch(items: RemoteWrite[]): Promise<number> {
+    const store: relationalStore.RdbStore | null = this.storeProvider();
+    if (store === null) {
+      return 0;
+    }
+    const bookId: number = this.bookIdProvider();
+    const alive: Person[] = [];
+    let tombstones: number = 0;
+    for (let i: number = 0; i < items.length; i++) {
+      const item: RemoteWrite = items[i];
+      if (item.deleted) {
+        await this.applyRemoteChange(item.uid, null, item.rev, true);
+        tombstones++;
+        continue;
+      }
+      const u: string = item.uid.trim().toUpperCase();
+      if (u.length === 0) {
+        continue;
+      }
+      const exist: Person | null = this.peopleStore.getPerson(u);
+      const p: Person = item.person !== null ? clonePerson(item.person) : createEmptyPerson();
+      p.uid = u;
+      if (exist !== null) {
+        if (p.phone.length === 0) {
+          p.phone = exist.phone;
+        }
+        if (p.wechat.length === 0) {
+          p.wechat = exist.wechat;
+        }
+        if (p.residence.length === 0) {
+          p.residence = exist.residence;
+        }
+        p.key = exist.key;
+        p.createdAt = exist.createdAt > 0 ? exist.createdAt : p.createdAt;
+      }
+      p.rev = item.rev;
+      p.baseRev = item.rev;
+      p.dirty = false;
+      p.deletedAt = 0;
+      normalizeSpouseRelations(p);
+      alive.push(p);
+    }
+    if (alive.length === 0) {
+      return tombstones;
+    }
+    store.beginTransaction();
+    let committed: boolean = false;
+    try {
+      await this.repository.upsertMany(alive, bookId);
+      await this.repository.saveSpousesMany(alive, bookId);
+      store.commit();
+      committed = true;
+    } finally {
+      if (!committed) {
+        store.rollBack();
+      }
+    }
+    return alive.length + tombstones;
   }
 
   /** 回放完成后刷新内存与界面 */

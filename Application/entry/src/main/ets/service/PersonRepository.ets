@@ -164,6 +164,204 @@ export class PersonRepository {
   }
 
   /**
+   * 批量写人物行：同一页数据用多行 INSERT OR REPLACE 一次提交，
+   * 把逐人数千次 SQL IPC 压到几十次（云回放整页写入用）。
+   */
+  async upsertMany(persons: Person[], bookId: number = 0): Promise<void> {
+    const store: relationalStore.RdbStore = this.requireStore();
+    const owner: number = this.resolveBook(bookId);
+    const withId: relationalStore.ValuesBucket[] = [];
+    const withoutId: relationalStore.ValuesBucket[] = [];
+    for (let i: number = 0; i < persons.length; i++) {
+      const p: Person = persons[i];
+      const v: relationalStore.ValuesBucket = PersonRowMapper.toValues(p, owner);
+      if (p.key > 0) {
+        v['id'] = p.key;
+        withId.push(v);
+      } else {
+        withoutId.push(v);
+      }
+    }
+    await this.insertOrReplaceRows(store, TABLE_PERSON, withoutId);
+    await this.insertOrReplaceRows(store, TABLE_PERSON, withId);
+  }
+
+  /**
+   * 批量重建同页人物的配偶关系。
+   *
+   * 先按页清空双向记录，再按各自配偶列表整页回写（含反向记录），
+   * 逐人 6~8 条 SQL 变成每页十余条；对方已写下的明确名分从预取结果中保留。
+   */
+  async saveSpousesMany(persons: Person[], bookId: number = 0): Promise<void> {
+    const store: relationalStore.RdbStore = this.requireStore();
+    const owner: number = this.resolveBook(bookId);
+    const ownUids: string[] = [];
+    const partnerUids: string[] = [];
+    const seen: Set<string> = new Set<string>();
+    for (let i: number = 0; i < persons.length; i++) {
+      const u: string = persons[i].uid.trim().toUpperCase();
+      if (u.length === 0) {
+        continue;
+      }
+      ownUids.push(u);
+      const sps: SpouseRelation[] = persons[i].spouses;
+      for (let j: number = 0; j < sps.length; j++) {
+        const sid: string = sps[j].uid.trim().toUpperCase();
+        if (sid.length === 0 || sid === u || seen.has(sid)) {
+          continue;
+        }
+        seen.add(sid);
+        partnerUids.push(sid);
+      }
+    }
+    if (ownUids.length === 0) {
+      return;
+    }
+    const relationOf: Map<string, string> = new Map<string, string>();
+    await this.collectSpouseRelations(store, owner, 'uid', ownUids, relationOf);
+    await this.collectSpouseRelations(store, owner, 'uid', partnerUids, relationOf);
+    await this.deleteSpouseRows(store, owner, 'uid', ownUids);
+    await this.deleteSpouseRows(store, owner, 'spouse_uid', ownUids);
+    const rows: relationalStore.ValuesBucket[] = [];
+    for (let i: number = 0; i < persons.length; i++) {
+      const p: Person = persons[i];
+      const u: string = p.uid.trim().toUpperCase();
+      if (u.length === 0) {
+        continue;
+      }
+      for (let j: number = 0; j < p.spouses.length; j++) {
+        const sid: string = p.spouses[j].uid.trim().toUpperCase();
+        if (sid.length === 0 || sid === u) {
+          continue;
+        }
+        const rel: string = p.spouses[j].relation.trim().length > 0
+          ? p.spouses[j].relation.trim() : '未记';
+        rows.push(this.spouseValues(owner, u, sid, rel, j + 1));
+        // 反向记录：对方本地存在时才补，双方重载后都能看到彼此
+        const partner: Person | undefined = this.peopleStore.getMap().get(sid);
+        if (partner === undefined) {
+          continue;
+        }
+        const existingRel: string | undefined = relationOf.get(sid + '|' + u);
+        const existing: string = existingRel === undefined ? '' : existingRel;
+        let reverseRel: string = rel;
+        if (existing.length > 0 && existing !== '未记') {
+          reverseRel = existing;
+        } else if (partner.gender === '女') {
+          reverseRel = '夫';
+        } else if (rel === '夫') {
+          reverseRel = '未记';
+        }
+        rows.push(this.spouseValues(owner, sid, u, reverseRel, j + 1));
+      }
+    }
+    await this.insertOrReplaceRows(store, TABLE_SPOUSE, rows);
+    await this.refreshSpouseIds(store, owner, partnerUids);
+  }
+
+  private spouseValues(bookId: number, uid: string, spouseUid: string, relation: string,
+    ord: number): relationalStore.ValuesBucket {
+    const v: relationalStore.ValuesBucket = {};
+    v['book_id'] = bookId;
+    v['uid'] = uid;
+    v['spouse_uid'] = spouseUid;
+    v['relation'] = relation;
+    v['level'] = spouseRelationLevel(relation);
+    v['ord'] = ord;
+    return v;
+  }
+
+  /** 多行 INSERT OR REPLACE；按参数上限分批，避免单条 SQL 参数过多 */
+  private async insertOrReplaceRows(store: relationalStore.RdbStore, table: string,
+    rows: relationalStore.ValuesBucket[]): Promise<void> {
+    if (rows.length === 0) {
+      return;
+    }
+    const cols: string[] = Object.keys(rows[0]);
+    const perRow: number = cols.length;
+    const maxRows: number = Math.max(1, Math.floor(800 / perRow));
+    const one: string = this.placeholders(perRow);
+    for (let start: number = 0; start < rows.length; start += maxRows) {
+      const end: number = Math.min(start + maxRows, rows.length);
+      const groups: string[] = [];
+      const args: relationalStore.ValueType[] = [];
+      for (let r: number = start; r < end; r++) {
+        groups.push(one);
+        for (let c: number = 0; c < perRow; c++) {
+          args.push(rows[r][cols[c]] as relationalStore.ValueType);
+        }
+      }
+      await store.executeSql(
+        `INSERT OR REPLACE INTO ${table} (${cols.join(', ')}) VALUES ${groups.join(', ')}`, args);
+    }
+  }
+
+  private placeholders(n: number): string {
+    let s: string = '?';
+    for (let i: number = 1; i < n; i++) {
+      s = s + ',?';
+    }
+    return '(' + s + ')';
+  }
+
+  private async collectSpouseRelations(store: relationalStore.RdbStore, bookId: number,
+    column: string, uids: string[], out: Map<string, string>): Promise<void> {
+    const chunk: number = 400;
+    for (let start: number = 0; start < uids.length; start += chunk) {
+      const end: number = Math.min(start + chunk, uids.length);
+      const args: relationalStore.ValueType[] = [bookId];
+      for (let i: number = start; i < end; i++) {
+        args.push(uids[i]);
+      }
+      const rs: relationalStore.ResultSet = await store.querySql(
+        `SELECT uid, spouse_uid, relation FROM ${TABLE_SPOUSE} WHERE book_id = ? AND ${column} IN (${this.placeholders(end - start).slice(1, -1)})`,
+        args);
+      try {
+        while (rs.goToNextRow()) {
+          const a: string = rs.getString(rs.getColumnIndex('uid')).trim().toUpperCase();
+          const b: string = rs.getString(rs.getColumnIndex('spouse_uid')).trim().toUpperCase();
+          out.set(a + '|' + b, rs.getString(rs.getColumnIndex('relation')));
+        }
+      } finally {
+        rs.close();
+      }
+    }
+  }
+
+  private async deleteSpouseRows(store: relationalStore.RdbStore, bookId: number,
+    column: string, uids: string[]): Promise<void> {
+    const chunk: number = 400;
+    for (let start: number = 0; start < uids.length; start += chunk) {
+      const end: number = Math.min(start + chunk, uids.length);
+      const args: relationalStore.ValueType[] = [bookId];
+      for (let i: number = start; i < end; i++) {
+        args.push(uids[i]);
+      }
+      await store.executeSql(
+        `DELETE FROM ${TABLE_SPOUSE} WHERE book_id = ? AND ${column} IN (${this.placeholders(end - start).slice(1, -1)})`,
+        args);
+    }
+  }
+
+  /** 一条 SQL 回填整页相关人物的 spouse_id（兼容旧字段） */
+  private async refreshSpouseIds(store: relationalStore.RdbStore, bookId: number,
+    uids: string[]): Promise<void> {
+    const chunk: number = 400;
+    for (let start: number = 0; start < uids.length; start += chunk) {
+      const end: number = Math.min(start + chunk, uids.length);
+      const args: relationalStore.ValueType[] = [bookId, bookId];
+      for (let i: number = start; i < end; i++) {
+        args.push(uids[i]);
+      }
+      await store.executeSql(
+        `UPDATE ${TABLE_PERSON} SET spouse_id = COALESCE((SELECT s.spouse_uid FROM ${TABLE_SPOUSE} s ` +
+        `WHERE s.book_id = ? AND s.uid = ${TABLE_PERSON}.uid ORDER BY s.ord LIMIT 1), '') ` +
+        `WHERE book_id = ? AND uid IN (${this.placeholders(end - start).slice(1, -1)})`,
+        args);
+    }
+  }
+
+  /**
    * 删除人员行及其相关引用（父母/配偶外键、配偶关系表）。
    * 协作态走墓碑软删，查询时统一过滤。
    */

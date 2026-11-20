@@ -15,7 +15,7 @@ import { SpouseRelations } from './SpouseRelations';
 import { PersonQuery } from './PersonQuery';
 import { PersonEditor } from './PersonEditor';
 import { PersonRepository } from './PersonRepository';
-import { CloudReplay } from './CloudReplay';
+import { CloudReplay, RemoteWrite } from './CloudReplay';
 import { CloudCollaboration } from './CloudCollaboration';
 import { BookManager } from './BookManager';
 import { BookHost } from './BookManager';
@@ -1298,6 +1298,11 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
    */
   async applyRemoteChange(uid: string, person: Person | null, rev: number, deleted: boolean): Promise<boolean> {
     return this.cloudReplay.applyRemoteChange(uid, person, rev, deleted);
+  }
+
+  /** 整页批量回放（同步快路径）：一次事务内批量写入本页全部成员 */
+  async applyRemoteBatch(items: RemoteWrite[]): Promise<number> {
+    return this.cloudReplay.applyRemoteBatch(items);
   }
 
   /** 回放完成后刷新内存与界面 */
