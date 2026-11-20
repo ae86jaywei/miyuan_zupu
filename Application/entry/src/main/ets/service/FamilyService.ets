@@ -211,6 +211,35 @@ export class FamilyService {
     return out;
   }
 
+  /**
+   * 从云端刷新「我在当前家族的角色」。
+   *
+   * 谱主在「成员与访问申请」里给成员提权/降权后，成员端的可写判定只依赖本地缓存的
+   * book.familyRole（发布为 gpFamilyRole）。若不主动刷新，成员端会一直停在旧的「只读」。
+   * 返回刷新后的角色（未接入云家族 / 未登录 / 失败时返回当前缓存值）。
+   */
+  async refreshMyRole(): Promise<string> {
+    const familyId: string = this.currentFamilyId();
+    if (familyId.length === 0 || !this.isCloudFamily()) {
+      return this.currentRole();
+    }
+    const account: AccountService = AccountService.getInstance();
+    if (!account.isLoggedIn() || !account.isCloudReady()) {
+      return this.currentRole();
+    }
+    try {
+      const list: FamilySummary[] = await this.listMine();
+      for (let i: number = 0; i < list.length; i++) {
+        if (list[i].familyId === familyId && list[i].role.length > 0) {
+          return list[i].role;
+        }
+      }
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'refreshMyRole failed: %{public}s', JSON.stringify(err));
+    }
+    return this.currentRole();
+  }
+
   /** 创建家族：服务端生成 familyId 与加入码，然后绑定到当前本地族谱 */
   async createFamily(title: string, nickName: string): Promise<FamilySummary> {
     const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-create', {
@@ -265,13 +294,21 @@ export class FamilyService {
     return out;
   }
 
-  /** 调整成员角色 / 分支 / 期限 / 状态 */
+  /**
+   * 调整成员角色 / 分支 / 期限 / 状态。
+   * 返回云端实际生效的角色：与请求不一致时抛错，避免「提示已设置、实际没变」。
+   */
   async updateMember(familyId: string, userId: string, role: string, branchRootUid: string,
-    expireAt: number, status: string): Promise<void> {
-    await CloudFunctionClient.getInstance().call('family-acl-set', {
+    expireAt: number, status: string): Promise<string> {
+    const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-acl-set', {
       'familyId': familyId, 'action': 'UPDATE', 'targetUserId': userId, 'role': role,
       'branchRootUid': branchRootUid, 'expireAt': expireAt, 'status': status
     });
+    const applied: string = str(data, 'role');
+    if (role.length > 0 && applied.length > 0 && applied !== role) {
+      throw new Error('角色未能保存（云端当前为 ' + applied + '）');
+    }
+    return applied.length > 0 ? applied : role;
   }
 
   /** 轮换加入码（旧码立即失效，对应方案 §八.3 邀请码治理） */
@@ -295,6 +332,10 @@ export class FamilyService {
     const familyId: string = svc.getBook().familyId;
     if (this.syncMode() === SyncMode.LOCAL || familyId.length === 0) {
       return 'local';
+    }
+    if (!this.canEditCurrent()) {
+      // 谱主可能刚把本账号提升为编辑者：先拉一次云端角色，避免仍按旧的「只读」处理
+      await this.refreshMyRole();
     }
     if (!this.canEditCurrent()) {
       return 'readonly';
@@ -328,6 +369,10 @@ export class FamilyService {
     const familyId: string = book.familyId;
     if (this.syncMode() === SyncMode.LOCAL || familyId.length === 0) {
       return 'local';
+    }
+    if (!this.canEditCurrent()) {
+      // 谱主可能刚把本账号提升为编辑者：先拉一次云端角色，避免仍按旧的「只读」处理
+      await this.refreshMyRole();
     }
     if (!this.canEditCurrent()) {
       return 'readonly';

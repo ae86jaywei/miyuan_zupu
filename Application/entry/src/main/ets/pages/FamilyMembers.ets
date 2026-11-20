@@ -51,7 +51,13 @@ struct FamilyMembers {
     const book: Genealogy = SR.genealogy().getBook();
     this.familyId = book.familyId;
     this.applicantName = SR.account().getDisplayId();
-    this.reload();
+    this.refreshAndReload();
+  }
+
+  /** 先拉云端角色（谱主可能刚调整过我的权限），再加载成员/申请 */
+  private async refreshAndReload(): Promise<void> {
+    await SR.family().refreshMyRole();
+    await this.reload();
   }
 
   private toast(message: string): void {

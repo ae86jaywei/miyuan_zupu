@@ -34,6 +34,11 @@ export struct SettingsView {
   onSyncModeChange(): void {
     this.familyModeText = this.computeFamilyModeText();
   }
+
+  /** 角色被谱主调整后（或本地刷新到新角色）立即刷新说明文字 */
+  onRoleChange(): void {
+    this.familyModeText = this.computeFamilyModeText();
+  }
   @StorageProp('gpShowPrivate') showPrivate: boolean = true;
   @StorageProp('gpPublicMode') publicMode: boolean = false;
   @StorageProp('gpOrientation') orientationMode: string = 'follow_system';
@@ -41,7 +46,7 @@ export struct SettingsView {
   @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('gpHasBook') hasBook: boolean = true;
   @StorageProp('gpSyncMode') @Watch('onSyncModeChange') syncMode: string = SyncMode.LOCAL;
-  @StorageProp('gpFamilyRole') familyRole: string = '';
+  @StorageProp('gpFamilyRole') @Watch('onRoleChange') familyRole: string = '';
   @StorageProp('gpSyncStatus') syncStatus: string = '';
   @StorageProp('gpPendingCount') pendingCount: number = 0;
   /** 电脑 / 折叠屏：方向由系统统一管理，四个开关不下发 */
@@ -76,6 +81,16 @@ export struct SettingsView {
       this.windowWidth = w;
     }
     this.orientationBySystem = DisplayService.isSystemManaged();
+    this.familyModeText = this.computeFamilyModeText();
+    this.refreshRole();
+  }
+
+  /** 进入设置页时从云端拉一次我的角色：谱主刚提权/降权后这里能立刻显示新角色 */
+  private async refreshRole(): Promise<void> {
+    if (this.syncMode === SyncMode.LOCAL) {
+      return;
+    }
+    await SR.family().refreshMyRole();
     this.familyModeText = this.computeFamilyModeText();
   }
 
