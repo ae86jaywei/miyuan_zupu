@@ -1,7 +1,5 @@
 import { relationalStore } from '@kit.ArkData';
-import { hilog } from '@kit.PerformanceAnalysisKit';
 
-const TAG: string = '[Genealogy][Outbox]';
 const TABLE_OUTBOX: string = 'outbox';
 
 /**
@@ -84,7 +82,6 @@ export class OutboxService {
       'retry_count': item.retryCount
     };
     const id: number = await store.insert(TABLE_OUTBOX, values);
-    hilog.info(0x0000, TAG, 'enqueue %{public}s %{public}s/%{public}s', item.op, item.familyId, item.target);
     return id;
   }
 

@@ -316,7 +316,6 @@ struct ImportExport {
           });
         donePaths.push(path);
         doneNames.push(path.substring(path.lastIndexOf('/') + 1));
-        console.info('[PdfExport] volume ' + (i + 1).toString() + '/' + jobs.length.toString() + ' done');
       }
       this.setProgress('正在保存 ' + doneNames.length + ' 个文件…', 98);
       const saved: number = await ExportService.saveBinariesAsFiles(ctx, donePaths, doneNames);

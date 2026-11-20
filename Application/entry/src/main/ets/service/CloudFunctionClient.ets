@@ -50,7 +50,6 @@ export class CloudFunctionClient {
       });
       this.cloudInited = true;
       this.setCloudState(true, '云端已就绪');
-      hilog.info(0x0000, TAG, 'cloudCommon init success');
     } catch (err) {
       const be: BusinessError = err as BusinessError;
       this.setCloudState(false, '云服务初始化失败：' + (be.message !== undefined ? be.message : String(be.code)));
@@ -163,20 +162,20 @@ export class CloudFunctionClient {
     AppStorage.setOrCreate<string>(KEY_CLOUD_MSG, message);
   }
 
-  /** 把云函数调用错误翻译成用户能看懂的提示（含 AGC 已知错误码） */
+  /** 把云函数调用错误翻译成用户能看懂的提示 */
   private static describeFunctionError(be: BusinessError): string {
     const msg: string = be.message !== undefined ? be.message : String(be.code);
     if (msg.indexOf('mismatched authType') >= 0) {
-      return '云函数认证类型不正确：请在 function-config.json 中把 authType 设为 cloudgw-client';
+      return '云服务认证失败，请稍后重试';
     }
     if (msg.indexOf("doesn't have permission") >= 0 || msg.indexOf('does not have permission') >= 0) {
-      return '云函数调用被拒绝：多为签名配置问题，请确认调试/发布证书指纹已在 AGC 关联';
+      return '服务访问被拒绝，请稍后重试';
     }
     if (msg.indexOf('not found') >= 0 || msg.indexOf('NOT_FOUND') >= 0) {
-      return '云函数不存在：请在 AGC 控制台或 DevEco 云侧工程中部署该函数';
+      return '服务暂不可用，请稍后重试';
     }
     const hasCode: boolean = be.code !== undefined && be.code !== 0;
     const code: string = hasCode ? '（' + String(be.code) + '）' : '';
-    return '云函数调用失败' + code + '：' + msg;
+    return '云服务调用失败' + code + '，请稍后重试';
   }
 }

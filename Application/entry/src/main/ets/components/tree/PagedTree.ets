@@ -256,9 +256,6 @@ export struct PagedTree {
     if (this.viewW > 0) {
       this.resetPan();
     }
-    console.info('[PGBOX] p=' + idx.toString() + ' boxes=' + this.euBoxes.length.toString() +
-      ' su=' + this.suBoxes.length.toString() + ' lines=' + this.lines.length.toString() +
-      ' roots=' + page.roots.length.toString());
   }
 
   /** 页面适配窗口：k = 每毫米多少 vp（含用户缩放）；横竖屏切换也要按屏幕宽度重新收口 */
@@ -274,8 +271,6 @@ export struct PagedTree {
     const availH: number = Math.max(80, this.viewH - 40);
     const fit: number = Math.min(availW / this.spec.trimW, availH / this.spec.trimH) * 0.96;
     this.k = Math.max(0.2, fit) * this.zoom;
-    console.info('[PGSIZE] viewW=' + this.viewW.toFixed(1) + ' viewH=' + this.viewH.toFixed(1) +
-      ' screenW=' + screenW.toFixed(1) + ' k=' + this.k.toFixed(2));
   }
 
   private goto(n: number): void {

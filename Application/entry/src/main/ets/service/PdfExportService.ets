@@ -2,7 +2,7 @@
 import { T } from 'common_base';
 import { fileIo } from '@kit.CoreFileKit';
 import { common } from '@kit.AbilityKit';
-import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB, PDF_SOFT_LIMIT_KB } from './pdf/PdfMemory';
+import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB } from './pdf/PdfMemory';
 import { Person, SpouseRelation } from 'common_base';
 import { PersonNode } from 'common_base';
 import { Genealogy } from 'common_base';
@@ -72,13 +72,10 @@ const CANVAS_W: number = 1191;
 const CANVAS_H: number = 1684;
 
 // ─── 导出内存看门狗常量 ───────────────────────────────────
-// 逐页写 PDF 时监控进程 PSS，超过软上限就主动抛可捕获错误并提示分卷，
+// 逐页写 PDF 时监控进程 PSS，超过硬上限就主动抛可捕获错误并提示分卷，
 // 避免 PDFKit 在 native 层耗尽内存被系统直接杀死（进程级崩溃，HiLog 无记录）。
-// 软上限按设备内存可调；设为 0 表示关闭监控。
-// 绝对软上限保护异常增长；同时用「导出增量」判断，避免大谱基础占用高被误判。
+// 硬上限保护异常增长，避免大谱基础占用高被误判。
 const MEMORY_CHECK_EVERY_PAGES: number = 16;
-/** 导出过程允许的内存增长（KB）：超过只告警 */
-const MEMORY_GROWTH_LIMIT_KB: number = 1000 * 1024;
 
 // ─── 颜色（打印固定浅色） ─────────────────────────────────
 
@@ -1431,10 +1428,7 @@ export class PdfExportService {
       ? '_' + options.volumeTitle : '';
     const outPath: string = outDir + '/' + book.title + vol + '_' + stamp + '.pdf';
 
-    const fontPath: string = pdfFontInfo().fontPath ?? '';
     const rawFont: RawPdfFont | null = PdfFontUtil.rawFont();
-    console.info('[PdfExport] raw text pdf font=' +
-      (rawFont === null ? 'fallback:STSong-Light' : fontPath) + ', pages=' + total.toString());
     const info: PdfInfo = new PdfInfo(book.title +
       (options.volumeTitle !== undefined && options.volumeTitle.length > 0
         ? ' ' + options.volumeTitle : ''));
@@ -1728,13 +1722,11 @@ export class PdfExportService {
     // 2. 排版（需要一个离屏 ctx 做 measureText）
     const measureCanvas: OffscreenCanvas = new OffscreenCanvas(CANVAS_W, CANVAS_H);
     const ctx: OffscreenCanvasRenderingContext2D = measureCanvas.getContext('2d');
-    const ts: number = Date.now();
     // 分卷导出时用全量人物建索引，本卷只负责排版
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = new KinshipIndex(kinPeople);
     const dieIndex: DieJiIndex = new DieJiIndex(kinPeople);
-    console.info('[PdfExport] index ' + (Date.now() - ts) + 'ms, kin=' + kinPeople.length + ', volume=' + people.length);
 
     const coverPages: PageSpec[] = options.includeCover
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0) : [];
@@ -1744,13 +1736,11 @@ export class PdfExportService {
     const ancestorForBody: string = (options.volumeTitle ?? '').length === 0 ? book.ancestorName : '';
 
     // 第一遍：用等宽页码占位排版，确定「每人落在第几页」
-    const tA: number = Date.now();
     // 先让进度条跑完一帧，再进入耗时的同步断行与分页
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, CONTENT_W,
       ancestorForBody, dieIndex);
     const firstPass: PaginateResult = await paginateEntries(entries1, offset);
-    console.info('[PdfExport] pass1 ' + (Date.now() - tA) + 'ms, pages=' + firstPass.pages.length);
     // 第一遍整页排版仅用于页码映射与行数校验，取出 uidPage 后即可释放，
     // 避免其与第二遍数据同时常驻，降低大数据导出时的内存峰值
     const uidPageMap: Map<string, number> = firstPass.uidPage;
@@ -1758,8 +1748,6 @@ export class PdfExportService {
     gCrossRef = (options.crossRef !== undefined) ? options.crossRef : null;
     // 第二遍：回填真实页码。占位串比真实页码长，折行数可能变少，
     // 用空行补齐到第一遍的行数，保证分页结果与页码互引完全一致
-    const tB: number = Date.now();
-    
     const heights: Map<string, number> = new Map<string, number>();
     for (let i: number = 0; i < entries1.length; i++) {
       heights.set(entries1[i].uid, entries1[i].lines.length);
@@ -1779,7 +1767,6 @@ export class PdfExportService {
       }
     }
     let genealogyPages: PageSpec[] = (await paginateEntries(entries2, offset)).pages;
-    console.info('[PdfExport] pass2 ' + (Date.now() - tB) + 'ms, pages=' + genealogyPages.length);
     gCrossRef = null;
     
     const backPages: PageSpec[] = paginateLines(ctx, buildBack(ctx, book), '家 训', 36);
@@ -1816,7 +1803,6 @@ export class PdfExportService {
       if (doc.getPageCount() === 1) {
         doc.deletePage(0, 1);
       }
-      const t0: number = Date.now();
       // 大谱基础 PSS 可能已有几百 MB，用「导出增量」比绝对阈值更准确
       const basePssKb: number = currentPssKb();
       for (let i: number = 0; i < total; i++) {
@@ -1824,20 +1810,10 @@ export class PdfExportService {
         if (onProgress && (i % 5 === 0 || i === total - 1)) {
           onProgress({ current: i + 1, total: total, message: T('排版第 ') + (i + 1) + '/' + total + ' 页' });
         }
-        if (i % 50 === 0) {
-          console.info('[PdfExport] page ' + i + '/' + total + ' pss=' + Math.round(currentPssKb() / 1024)
-            + 'MB cost ' + (Date.now() - t0) + 'ms');
-        }
-        // 内存监控：软上限只告警并继续，硬上限才中止，避免大谱基础占用高被误判
+        // 内存监控：超过硬上限才中止，避免大谱基础占用高被误判
         if (i > 0 && i % MEMORY_CHECK_EVERY_PAGES === 0) {
           const pssKb: number = currentPssKb();
           const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
-          if (pssKb > 0 && (pssKb > PDF_SOFT_LIMIT_KB ||
-            growthKb > MEMORY_GROWTH_LIMIT_KB)) {
-            console.info('[PdfExport] memory high, pss=' + Math.round(pssKb / 1024) +
-              'MB base=' + Math.round(basePssKb / 1024) + 'MB growth=' +
-              Math.round(growthKb / 1024) + 'MB, page=' + i + '/' + total);
-          }
           if (pssKb > PDF_MEMORY_HARD_LIMIT_KB) {
             throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024) +
               'MB，较导出开始增长 ' + Math.round(growthKb / 1024) +
@@ -1846,7 +1822,6 @@ export class PdfExportService {
         }
         await yieldToUi(); // 每页让出一个时间片，避免主线程被看门狗判定无响应
       }
-      const t1: number = Date.now();
       // 保存是同步 Native 调用，先让最后一页进度渲染出来
       await yieldToUi();
       saved = doc.saveDocument(outPath);
@@ -1856,8 +1831,6 @@ export class PdfExportService {
       } catch (_e) {
         savedSize = -1;
       }
-      console.info('[PdfExport] save ' + saved + ' cost ' + (Date.now() - t1) + 'ms, pages=' + total
-        + ', size=' + savedSize);
     } finally {
       // 无论正常结束、抛错还是内存中止，都释放 native 文档，避免 native 内存泄漏累积
       doc.releaseDocument();

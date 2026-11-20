@@ -375,9 +375,7 @@ export class BranchManager {
         retired = retired.slice(retired.length - 5000);
       }
       await this.host.setMetaValue(retireKey, JSON.stringify(retired));
-      console.info('[Branch] cleanup done, moved=' + Math.max(0, lineUids.length - 1).toString());
     } catch (e) {
-      console.info('[Branch] cleanup failed: ' + String(e));
     }
   }
 }

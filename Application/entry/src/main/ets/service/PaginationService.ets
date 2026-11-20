@@ -632,10 +632,6 @@ export class PaginationService {
     for (let pi: number = 0; pi < pages.length; pi = pi + 1) {
       totalUids = totalUids + pages[pi].uids.size;
     }
-    console.info('[PGPLAN] pages=' + pages.length.toString() + ' uids=' + totalUids.toString() +
-      ' avg=' + (pages.length > 0 ? Math.round(totalUids / pages.length).toString() : '0') +
-      ' trunc=' + (book.truncated ? '1' : '0') + ' p1=' + (pages.length > 0 ? pages[0].uids.size.toString() : '0') +
-      ' roots=' + (pages.length > 0 ? pages[0].rootNodes.length.toString() : '0'));
   }
 
   /**
@@ -719,13 +715,6 @@ export class PaginationService {
           i = i + take;
           step = 16;
         } else if (take === 1) {
-          if (cur.index <= 2) {
-            console.info('[PGFITFAIL] p=' + cur.index.toString() +
-              ' n=' + cur.uids.size.toString() + ' w=' + c.width.toFixed(1) +
-              ' h=' + c.height.toFixed(1) +
-              ' limitW=' + spec.contentWidth().toString() +
-              ' limitH=' + spec.contentHeight().toString());
-          }
           break;
         } else {
           // 这一批装不下：缩小批量再试，逐个找到真正的边界
@@ -860,12 +849,6 @@ export class PaginationService {
     page.genFrom = lo;
     page.genTo = hi;
     page.recto = (page.index % 2) === 1;
-    // 碎片页自检：整页只有承接卡/页根一两张卡时记一条，便于定位容量判定异常
-    if (page.uids.size <= 2) {
-      console.info('[PGTHIN] p=' + page.index.toString() + ' uids=' + page.uids.size.toString() +
-        ' roots=' + page.rootNodes.length.toString() +
-        ' cuts=' + page.cuts.length.toString());
-    }
     pages.push(page);
     return page.uids.size;
   }
@@ -1065,7 +1048,6 @@ export class PaginationService {
       // 单页只有一个页根时，右侧会留下大量空白，正是「几个人一页」的主因。
       const merged: EuCanvas = new EuCanvas();
       const limitW: number = spec.contentWidth();
-      const limitH: number = spec.contentHeight();
       const gap: number = 4;
       let cursorX: number = 0;
       let cursorY: number = 0;

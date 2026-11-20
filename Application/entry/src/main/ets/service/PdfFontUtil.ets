@@ -73,12 +73,9 @@ export class PdfFontUtil {
           PdfFontUtil.builtin = true;
           PdfFontUtil.cached = f;
           PdfFontUtil.resolved = true;
-          console.info('[PdfFont] embed=' + PdfFontUtil.label + ', bytes=' + data.length.toString());
           return;
         }
-        console.warn('[PdfFont] builtin font loaded but CJK coverage check failed');
       } catch (e) {
-        console.warn('[PdfFont] builtin font unavailable: ' + String(e));
       }
     }
     // 2. 系统字体兜底
@@ -92,7 +89,6 @@ export class PdfFontUtil {
         PdfFontUtil.builtin = false;
         PdfFontUtil.cached = direct;
         PdfFontUtil.resolved = true;
-        console.info('[PdfFont] embed=' + PdfFontUtil.FALLBACK);
         return;
       }
     }
@@ -127,11 +123,9 @@ export class PdfFontUtil {
         PdfFontUtil.builtin = false;
         PdfFontUtil.cached = f;
         PdfFontUtil.resolved = true;
-        console.info('[PdfFont] embed=' + p);
         return;
       }
     }
-    console.info('[PdfFont] no usable CJK font, fallback STSong-Light');
   }
 
   /** 是否含 CJK 字形（用文件大小判断：拉丁字体只有几百 KB） */

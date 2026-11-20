@@ -150,7 +150,6 @@ struct Index {
     try {
       font.registerFont({ familyName: 'MiyuanHan', familySrc: $rawfile('fonts/BabelStoneHan.ttf') });
     } catch (e) {
-      console.warn('[Font] register MiyuanHan failed: ' + String(e));
     }
     this.ensureStorage();
     this.syncDarkMode();
@@ -306,8 +305,6 @@ struct Index {
       await GenealogyStore.bootstrap();
       this.localReady = true;
       SR.pageCache().scheduleWarmup();
-      hilog.info(0x0000, TAG, 'data ready, people=%{public}d',
-        SR.genealogy().getPeople().length);
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'bootstrap failed %{public}s', err.message);
@@ -1366,10 +1363,6 @@ struct Index {
               top: 0,
               bottom: 0
             })
-            .onAreaChange((oldValue: Area, newValue: Area): void => {
-              hilog.info(0x0000, TAG, 'content column h=%{public}d w=%{public}d sidebar=true',
-                Number(newValue.height), Number(newValue.width));
-            })
           }
           .layoutWeight(1)
           .width('100%')
@@ -1391,10 +1384,6 @@ struct Index {
             right: this.contentRightPadding(),
             top: 0,
             bottom: 0
-          })
-          .onAreaChange((oldValue: Area, newValue: Area): void => {
-            hilog.info(0x0000, TAG, 'content column h=%{public}d w=%{public}d sidebar=false',
-              Number(newValue.height), Number(newValue.width));
           })
 
           // 竖屏始终保留底部 tab：分页状态下也要能直接切回其它页面，

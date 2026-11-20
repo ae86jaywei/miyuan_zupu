@@ -120,8 +120,6 @@ export class RawPdfWriter {
   private usedChars: Set<number> = new Set<number>();
   /** GID → Unicode（F3 嵌入 TTF 时生成 ToUnicode） */
   private usedGids: Map<number, number> = new Map<number, number>();
-  /** 字体未覆盖的字符（码点），导出结束用于告警 */
-  private missingChars: Set<number> = new Set<number>();
   /** 嵌入字体；为 null 时退回 STSong-Light（不嵌入） */
   private font: RawPdfFont | null = null;
   /** 文档元信息；为 null 时不写 /Info */
@@ -530,10 +528,6 @@ export class RawPdfWriter {
     }
     trailer = trailer + ' >>\nstartxref\n' + xrefStart.toString() + '\n%%EOF\n';
     this.writeAscii(trailer);
-    if (this.missingChars.size > 0) {
-      console.warn('[Pdf] font missing glyphs=' + this.missingChars.size.toString() +
-        ', sample=' + this.missingSample());
-    }
     if (this.fd !== null) {
       fileIo.closeSync(this.fd);
       this.fd = null;
@@ -555,38 +549,11 @@ export class RawPdfWriter {
       const gid: number = this.font.gidOf(code);
       if (gid > 0) {
         this.usedGids.set(gid, code);
-      } else if (!RawPdfWriter.isBlankCode(code)) {
-        this.missingChars.add(code);
       }
       out = out + RawPdfWriter.hex4(gid);
       i = i + (code > 0xffff ? 2 : 1);
     }
     return out;
-  }
-
-  /** 字体未覆盖的字符数 */
-  missingCount(): number {
-    return this.missingChars.size;
-  }
-
-  /** 缺字样例，形如 U+20BB7 U+9FEA，便于日志定位 */
-  missingSample(limit: number = 12): string {
-    const arr: number[] = [];
-    this.missingChars.forEach((c: number): void => {
-      if (arr.length < limit) {
-        arr.push(c);
-      }
-    });
-    let out: string = '';
-    for (let i: number = 0; i < arr.length; i = i + 1) {
-      out = out + (i > 0 ? ' ' : '') + 'U+' + arr[i].toString(16).toUpperCase();
-    }
-    return out;
-  }
-
-  private static isBlankCode(code: number): boolean {
-    return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0d ||
-      code === 0x00a0 || code === 0x3000;
   }
 
   /** 文本转 UTF-16BE 十六进制（UniGB-UCS2-H 编码，非 BMP 用代理对） */

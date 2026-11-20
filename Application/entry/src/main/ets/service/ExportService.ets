@@ -277,7 +277,6 @@ export class ExportService {
     } catch (_e) {
       uris = [];
     }
-    console.info('[PdfExport] picker files=' + srcPaths.length + ', uris=' + uris.length);
     if (uris.length === 0) {
       return 0; // 用户取消
     }
@@ -286,10 +285,8 @@ export class ExportService {
     for (let i: number = 0; i < paired; i++) {
       try {
         ExportService.copyToUri(srcPaths[i], uris[i]);
-        console.info('[PdfExport] saved ' + names[i] + ' -> ' + uris[i]);
       } catch (e) {
         const err = e as BusinessError;
-        console.error('[PdfExport] save failed ' + names[i] + ' -> ' + uris[i] + ' : ' + err.message);
         throw new Error('保存文件失败：' + names[i] + '：' + err.message);
       }
       done++;
@@ -688,7 +685,6 @@ export class ExportService {
 
     } catch (e) {
       const err = e as BusinessError;
-      console.error('toast failed ' + err.message);
     }
   }
 }

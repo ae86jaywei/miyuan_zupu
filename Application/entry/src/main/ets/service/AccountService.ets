@@ -105,7 +105,6 @@ export class AccountService {
       const json: string = decoder.decodeToString(bytes);
       auth.init(this.context, json);
       this.agcReady = true;
-      hilog.info(0x0000, TAG, 'AGC auth init success');
     } catch (err) {
       this.agcReady = false;
       this.setCloudState(false, '未配置 AGC 云服务（缺少 agconnect-services.json）');
@@ -313,7 +312,7 @@ export class AccountService {
         outcome.cancelled = true;
         outcome.message = '已取消登录';
       } else if (be.code === 1001500001) {
-        outcome.message = '应用指纹校验失败，请检查 AGC 调试/发布证书指纹配置';
+        outcome.message = '登录校验失败，请稍后重试';
       } else {
         outcome.message = '登录失败：' + (be.message !== undefined ? be.message : String(be.code));
       }

@@ -1,6 +1,5 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { SR } from '../../service/ServiceRegistry';
-import { hilog } from '@kit.PerformanceAnalysisKit';
 
 import { Person } from 'common_base';
 import { Theme, Spacing } from 'common_base';
@@ -94,15 +93,12 @@ export struct ModernTree {
     if (this.focusUid.length === 0) {
       return;
     }
-    const t0: number = Date.now();
     const target: string = this.focusUid.toUpperCase();
     // 使用索引查找
     const row: number = this.uidToRow.get(target) ?? -1;
     if (row >= 0 && row < this.rows.length) {
       // smooth=false：跨数千行做平滑动画会逐项加载中间行，是跳转卡顿的主因
       this.scroller.scrollToIndex(row, false, ScrollAlign.CENTER);
-      hilog.info(0x0000, 'TreeJump', 'modern jump row=%{public}d sync=%{public}dms',
-        row, Date.now() - t0);
       return;
     }
     // 索引未命中，回退到线性搜索并更新索引
@@ -112,14 +108,10 @@ export struct ModernTree {
         if (row.people[k].uid.toUpperCase() === target) {
           this.uidToRow.set(target, i);
           this.scroller.scrollToIndex(i, false, ScrollAlign.CENTER);
-          hilog.info(0x0000, 'TreeJump', 'modern jump fallback row=%{public}d sync=%{public}dms',
-            i, Date.now() - t0);
           return;
         }
       }
     }
-    hilog.warn(0x0000, 'TreeJump', 'modern jump miss %{public}s sync=%{public}dms',
-      target, Date.now() - t0);
   }
 
   onLayoutChanged(): void {

@@ -167,7 +167,6 @@ export class DisplayService {
     }
     if (DisplayService.isSystemManaged()) {
       AppStorage.setOrCreate<string>(DisplayService.KEY_ORIENTATION, OrientationMode.FOLLOW_SYSTEM);
-      hilog.info(0x0000, TAG, 'orientation managed by system on this device');
       return;
     }
     AppStorage.setOrCreate<string>(DisplayService.KEY_ORIENTATION, this.readSaved());
@@ -216,7 +215,6 @@ export class DisplayService {
     const target: string = mode !== undefined ? mode : DisplayService.mode();
     const orientation: window.Orientation | undefined = DisplayService.resolveOrientation(target);
     if (orientation === undefined) {
-      hilog.info(0x0000, TAG, 'skip setPreferredOrientation: pc device');
       return;
     }
     if (this.mainWindow !== null) {
@@ -244,13 +242,11 @@ export class DisplayService {
     const target: string = mode !== undefined ? mode : DisplayService.mode();
     const orientation: window.Orientation | undefined = DisplayService.resolveOrientation(target);
     if (orientation === undefined) {
-      hilog.info(0x0000, TAG, 'skip setPreferredOrientation: pc device');
       return;
     }
     this.mainWindow = win;
     try {
       await win.setPreferredOrientation(orientation);
-      hilog.info(0x0000, TAG, 'orientation applied: mode=%{public}s', target);
     } catch (err) {
       hilog.warn(0x0000, TAG, 'setPreferredOrientation failed: %{public}s', JSON.stringify(err));
     }

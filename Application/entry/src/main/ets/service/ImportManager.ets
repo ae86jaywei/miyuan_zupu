@@ -254,7 +254,6 @@ export class ImportManager {
           result.integrityErrors = result.integrityErrors + 1;
         }
       });
-      hilog.info(0x0000, TAG, 'import applied, saved=%{public}d', result.saved);
       return result;
     } catch (e) {
       const err = e as BusinessError;

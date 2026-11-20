@@ -46,9 +46,6 @@ export default class EntryAbility extends UIAbility {
     }
     GenealogyScope.set(this.context);
     SR.genealogy().init(this.context)
-      .then((): void => {
-        hilog.info(0x0000, TAG, 'database initialised');
-      })
       .catch((err: BusinessError): void => {
         hilog.error(0x0000, TAG, 'database init failed: %{public}d %{public}s', err.code, err.message);
       });
@@ -112,7 +109,6 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<string>('gpSharedFamilyId', familyId);
     AppStorage.setOrCreate<number>('gpSharedBookKey', bookKey);
     AppStorage.setOrCreate<boolean>('gpPendingShare', true);
-    hilog.info(0x0000, TAG, 'share link received, owner=%{public}s', owner);
   }
 
   /**
@@ -124,7 +120,6 @@ export default class EntryAbility extends UIAbility {
     AppStorage.setOrCreate<boolean>('darkMode', dark);
     // 系统栏图标与底色同步切换，避免深色模式下状态栏文字看不清
     this.applySystemBarStyle(dark);
-    hilog.info(0x0000, TAG, 'darkMode updated: %{public}s', String(dark));
   }
 
   /** 读取颜色资源并转为 #RRGGBB（系统栏只接受字符串色值） */
@@ -188,7 +183,6 @@ export default class EntryAbility extends UIAbility {
         hilog.error(0x0000, TAG, 'loadContent failed %{public}s', JSON.stringify(err));
         return;
       }
-      hilog.info(0x0000, TAG, 'content loaded');
     });
   }
 }

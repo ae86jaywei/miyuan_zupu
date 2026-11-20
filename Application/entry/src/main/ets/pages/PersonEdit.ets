@@ -928,7 +928,6 @@ struct PersonEdit {
       const standardPressure: number = 1013.25;
       return 44330 * (1 - Math.pow(hPa / standardPressure, 1 / 5.255));
     } catch (e) {
-      console.error('气压计换算海拔失败：' + (e as BusinessError).message);
       return NaN;
     }
   }
@@ -949,7 +948,6 @@ struct PersonEdit {
           finish(data.pressure);
         });
       } catch (e) {
-        console.error('订阅气压计失败：' + (e as BusinessError).message);
         finish(NaN);
         return;
       }
@@ -998,7 +996,6 @@ struct PersonEdit {
     };
     const startCallback: common.AbilityStartCallback = {
       onError: (code: number, name: string, message: string): void => {
-        console.error('startAbilityByType 失败：' + code.toString() + ' ' + name + ' ' + message);
         this.getUIContext().getPromptAction().showToast({ message: T('打开地图失败：') + message });
       }
     };

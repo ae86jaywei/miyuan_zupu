@@ -1,6 +1,5 @@
 ﻿import { T, uiFontFamily } from 'common_base';
 import { SR } from '../service/ServiceRegistry';
-import { hilog } from '@kit.PerformanceAnalysisKit';
 
 import { PersonNode } from 'common_base';
 import { Person } from 'common_base';
@@ -1025,15 +1024,12 @@ export struct TreeCanvas {
       if (this.diePeople.length === 0) {
         this.rebuildDieSource();
       }
-      const t0: number = Date.now();
       // 使用索引查找
       const page: number = this.dieUidToIndex.get(target) ?? svc.getDiePage(uid);
       if (page >= 0 && page < this.diePeople.length) {
         this.onFocusPerson(uid);
         // smooth=false：跨数千条做平滑动画会逐条加载中间条目，是跳转卡顿的主因
         this.dieScroller.scrollToIndex(page, false, ScrollAlign.CENTER);
-        hilog.info(0x0000, 'TreeJump', 'die jump page=%{public}d sync=%{public}dms',
-          page, Date.now() - t0);
         return;
       }
       // 索引未命中，回退到线性搜索并更新索引
@@ -1043,13 +1039,9 @@ export struct TreeCanvas {
           svc.setDiePage(uid, i);
           this.onFocusPerson(uid);
           this.dieScroller.scrollToIndex(i, false, ScrollAlign.CENTER);
-          hilog.info(0x0000, 'TreeJump', 'die jump fallback page=%{public}d sync=%{public}dms',
-            i, Date.now() - t0);
           return;
         }
       }
-      hilog.warn(0x0000, 'TreeJump', 'die jump miss %{public}s sync=%{public}dms',
-        target, Date.now() - t0);
       this.getUIContext().getPromptAction().showToast({ message: T('未找到该族人') });
       return;
     }

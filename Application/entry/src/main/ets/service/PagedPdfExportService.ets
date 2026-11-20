@@ -281,7 +281,6 @@ export class PagedPdfExportService {
     const peopleCount: number = GenealogyService.getInstance().getPeople().length;
     const profileName: string = peopleCount > 15000 ? 'compact' : 'standard';
     // F3：嵌入系统 HarmonyOS Sans；读取失败时 RawPdfWriter 自动回退 STSong-Light
-    const fontPath: string = PdfFontUtil.fontPath();
     const rawFont: RawPdfFont | null = PdfFontUtil.rawFont();
     const version: number = Date.now();
     const books: PrintBook[] = [];
@@ -701,10 +700,6 @@ export class PagedPdfExportService {
             const growthKb: number = basePssKb > 0 && pssKb > 0 ? pssKb - basePssKb : -1;
             if (pssKb > 0 && (pssKb > PAGED_PDF_SOFT_LIMIT_KB ||
               growthKb > PAGED_MEMORY_GROWTH_LIMIT_KB)) {
-              console.warn('[PagedPdf] memory high, pss=' + Math.round(pssKb / 1024).toString() +
-                'MB base=' + Math.round(basePssKb / 1024).toString() + 'MB growth=' +
-                Math.round(growthKb / 1024).toString() + 'MB page=' + globalPage.toString() +
-                '/' + total.toString());
             }
             if (pssKb > PDF_MEMORY_HARD_LIMIT_KB) {
               throw new Error('导出内存占用过高（PSS ' + Math.round(pssKb / 1024).toString() +

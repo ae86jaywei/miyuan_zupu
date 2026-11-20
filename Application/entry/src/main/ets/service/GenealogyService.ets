@@ -193,7 +193,6 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
       // 注意：ResultSet.rowCount 是“游标当前行号”（初始 -1），并非行数，
       // 必须真正游标读取一次才能拿到 COUNT(*) 的值。
       const count: number = await this.countRows();
-      hilog.info(0x0000, TAG, 'existing rows=%{public}d', count);
       const initialized: boolean = (await this.getMeta(META_INITIALIZED)) === '1';
       if (!initialized) {
         // 仅首次初始化时写入演示数据；已有旧库（有族人）时只补标记，不重复写入
@@ -236,7 +235,6 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
       }
       await this.reload();
       this.ready = true;
-      hilog.info(0x0000, TAG, 'ready, people=%{public}d', this.peopleStore.getAll().length);
     } catch (e) {
       const err = e as BusinessError;
       hilog.error(0x0000, TAG, 'init failed %{public}d %{public}s', err.code, err.message);
@@ -981,9 +979,7 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
     }
 
     // 2. 当前族谱的族人（按 book_id 隔离，墓碑不参与展示）
-    const t0: number = Date.now();
     const list: Person[] = await this.queryPeople(this.currentBookId);
-    const t1: number = Date.now();
     this.peopleStore.setList(list);
     const map: Map<string, Person> = new Map<string, Person>();
     list.forEach((p: Person): void => {
@@ -991,57 +987,10 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
     });
     this.peopleStore.setMap(map);
     await this.attachSpouses(this.currentBookId, list);
-    const t2: number = Date.now();
     this.retiredUids = await this.loadRetired(this.currentBookId);
-    const t3: number = Date.now();
     this.peopleStore.rebuildRoots();
-    const t4: number = Date.now();
-    // 诊断：无父母孤儿 / 父母引用指向不存在 uid 的人数，用于判断谱系断链来源
-    let orphan: number = 0;
-    let dangling: number = 0;
-    for (let i: number = 0; i < list.length; i++) {
-      const p: Person = list[i];
-      const f: string = p.fatherId.trim().toUpperCase();
-      const m: string = p.motherId.trim().toUpperCase();
-      if (f.length === 0 && m.length === 0) {
-        orphan = orphan + 1;
-      }
-      if (f.length > 0 && !map.has(f)) {
-        dangling = dangling + 1;
-      }
-      if (m.length > 0 && !map.has(m)) {
-        dangling = dangling + 1;
-      }
-    }
-    // 诊断：从根节点出发（子女 + 配偶）能到达多少人，与总人数对比可判断谱系是否漏人
-    const reached: Set<string> = new Set<string>();
-    const stack: PersonNode[] = [];
-    for (let i: number = 0; i < this.peopleStore.getRoots().length; i++) {
-      stack.push(this.peopleStore.getRoots()[i]);
-    }
-    while (stack.length > 0) {
-      const n: PersonNode = stack.pop() as PersonNode;
-      const u: string = n.uid.trim().toUpperCase();
-      if (reached.has(u)) {
-        continue;
-      }
-      reached.add(u);
-      for (let i: number = 0; i < n.children.length; i++) {
-        stack.push(n.children[i]);
-      }
-      for (let i: number = 0; i < n.spouses.length; i++) {
-        stack.push(n.spouses[i]);
-      }
-    }
-    const unreachable: number = list.length - reached.size;
-    hilog.info(0x0000, TAG,
-      'reload people=%{public}d roots=%{public}d reachable=%{public}d unreachable=%{public}d orphan=%{public}d dangling=%{public}d query=%{public}dms spouse=%{public}dms retired=%{public}dms tree=%{public}dms',
-      list.length, this.peopleStore.getRoots().length, reached.size, unreachable, orphan, dangling,
-      t1 - t0, t2 - t1, t3 - t2, t4 - t3);
     // 构建人员索引：加速搜索和跳转
-    const t5: number = Date.now();
     this.index.build(list);
-    hilog.info(0x0000, TAG, 'index built=%{public}dms', Date.now() - t5);
     // 切换/加载族谱后同步协作态（familyId / 角色 / 同步模式）
     FamilyService.getInstance().applyBookFamilyState();
     this.bump();
@@ -1250,7 +1199,6 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
       await this.personRepository.upsert(p, this.currentBookId);
       await this.personRepository.saveSpouses(p.uid, p.spouses, this.currentBookId);
     }
-    hilog.info(0x0000, TAG, 'seed inserted: %{public}s %{public}d people', book.title, people.length);
   }
 
   private bump(): void {

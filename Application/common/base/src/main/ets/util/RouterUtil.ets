@@ -2,7 +2,6 @@ import { UIContext } from '@kit.ArkUI';
 import { common, Want } from '@kit.AbilityKit';
 import { AccessParams, EditParams, GenealogyScope } from '../model/Scope';
 import { AgreementParams, OnlineDocParams } from '../model/AgreementDoc';
-import { BusinessError } from '@kit.BasicServicesKit';
 
 /**
  * 路由封装（基于 UIContext.getRouter，替代已废弃的全局 router）。
@@ -11,58 +10,42 @@ export class RouterUtil {
   static editPerson(ui: UIContext, uid: string, mode: string, presetParent: string): void {
     const params: EditParams = { mode: mode, uid: uid, presetParent: presetParent };
     ui.getRouter().pushUrl({ url: 'pages/PersonEdit', params: params })
-      .catch((err: BusinessError): void => {
-        console.error('push PersonEdit failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static settings(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/Settings' })
-      .catch((err: BusinessError): void => {
-        console.error('push Settings failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static importExport(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/ImportExport' })
-      .catch((err: BusinessError): void => {
-        console.error('push ImportExport failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static login(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/Login' })
-      .catch((err: BusinessError): void => {
-        console.error('push Login failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static sharedView(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/SharedView' })
-      .catch((err: BusinessError): void => {
-        console.error('push SharedView failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static familyHome(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/FamilyHome' })
-      .catch((err: BusinessError): void => {
-        console.error('push FamilyHome failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static familyMembers(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/FamilyMembers' })
-      .catch((err: BusinessError): void => {
-        console.error('push FamilyMembers failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static familyDirectory(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/FamilyDirectoryView' })
-      .catch((err: BusinessError): void => {
-        console.error('push FamilyDirectoryView failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   /** 申请页：familyId 为空表示从「我的申请」进入（不带具体谱） */
@@ -70,31 +53,23 @@ export class RouterUtil {
     const params: AccessParams = new AccessParams();
     params.familyId = familyId;
     ui.getRouter().pushUrl({ url: 'pages/AccessApply', params: params })
-      .catch((err: BusinessError): void => {
-        console.error('push AccessApply failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static graveMap(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/GraveMap' })
-      .catch((err: BusinessError): void => {
-        console.error('push GraveMap failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static changeReview(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/ChangeReview' })
-      .catch((err: BusinessError): void => {
-        console.error('push ChangeReview failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   /** 万年历：公历/农历/干支/年号互查 */
   static calendar(ui: UIContext): void {
     ui.getRouter().pushUrl({ url: 'pages/CalendarPage' })
-      .catch((err: BusinessError): void => {
-        console.error('push CalendarPage failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   /** 打开协议页：type 为 user（用户协议）或 privacy（隐私政策） */
@@ -102,9 +77,7 @@ export class RouterUtil {
     const params: AgreementParams = new AgreementParams();
     params.type = type;
     ui.getRouter().pushUrl({ url: 'pages/Agreement', params: params })
-      .catch((err: BusinessError): void => {
-        console.error('push Agreement failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   /**
@@ -120,9 +93,7 @@ export class RouterUtil {
       encodeURIComponent(label) + '&z=16';
     const options: Want = { action: 'ohos.want.action.viewData', uri: uri };
     context.openLink(uri, options)
-      .catch((err: BusinessError): void => {
-        console.error('open geo link failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   /** 应用内打开在线协议（Web 页），避免跳转系统浏览器 */
@@ -131,9 +102,7 @@ export class RouterUtil {
     params.title = title;
     params.url = url;
     ui.getRouter().pushUrl({ url: 'pages/OnlineDoc', params: params })
-      .catch((err: BusinessError): void => {
-        console.error('push OnlineDoc failed: ' + err.message);
-      });
+      .catch((): void => {});
   }
 
   static back(ui: UIContext): void {

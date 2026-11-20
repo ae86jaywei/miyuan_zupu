@@ -54,8 +54,6 @@ export class ScriptService {
     }
     this.loaded = true;
     AppStorage.setOrCreate<string>(ScriptService.APP_KEY, this.script);
-    hilog.info(0x0000, TAG, 'script=%{public}s, s2t=%{public}d, t2s=%{public}d',
-      this.script, this.s2t.size, this.t2s.size);
   }
 
   /** 当前文字：hans / hant */
