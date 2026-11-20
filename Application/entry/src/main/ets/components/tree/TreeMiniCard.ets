@@ -73,7 +73,8 @@ export struct TreeMiniCard {
         Text(T(this.person.name)).fontFamily(uiFontFamily())
           .fontSize(this.dense ? 13 : 14)
           .fontWeight(FontWeight.Medium)
-          .fontColor(this.person.gender === '女' ? Theme.female : Theme.ink)
+          .fontColor(this.person.gender === '女' ?
+            (this.highlight ? Theme.highlightFemale : Theme.female) : Theme.ink)
           .lineHeight(this.nameLineHeight())
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -82,7 +83,7 @@ export struct TreeMiniCard {
           Text(T(this.genChar())).fontFamily(uiFontFamily())
             .fontSize(9)
             .lineHeight(this.infoLineHeight())
-            .fontColor(Theme.gold)
+            .fontColor(this.highlight ? Theme.highlightAccent : Theme.gold)
             .margin({ left: 2 })
             .maxLines(1)
             .flexShrink(0)
@@ -91,8 +92,10 @@ export struct TreeMiniCard {
           Text(T(this.statusText())).fontFamily(uiFontFamily())
             .fontSize(9)
             .lineHeight(this.infoLineHeight())
-            .fontColor(this.person.lifeStatus === '已故' ? Theme.deceased : Theme.lost)
-            .backgroundColor(this.person.lifeStatus === '已故' ? Theme.field : Color.Transparent)
+            .fontColor(this.highlight ? Theme.highlightMuted :
+              (this.person.lifeStatus === '已故' ? Theme.deceased : Theme.lost))
+            .backgroundColor(this.highlight ? Color.Transparent :
+              (this.person.lifeStatus === '已故' ? Theme.field : Color.Transparent))
             .borderRadius(3)
             .padding({ left: this.person.lifeStatus === '已故' ? 3 : 0, right: 3 })
             .margin({ left: 2 })
@@ -115,7 +118,7 @@ export struct TreeMiniCard {
         Text(T(compactUid(this.person.uid))).fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
-          .fontColor(Theme.inkTertiary)
+          .fontColor(this.highlight ? Theme.highlightMuted : Theme.inkTertiary)
           .margin({ left: 4 })
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -145,7 +148,7 @@ export struct TreeMiniCard {
         Text(T(this.childCount.toString() + '子 · 后代' + this.descendants.toString() + '人')).fontFamily(uiFontFamily())
           .fontSize(9)
           .lineHeight(this.infoLineHeight())
-          .fontColor(Theme.inkTertiary)
+          .fontColor(this.highlight ? Theme.highlightMuted : Theme.inkTertiary)
           .margin({ top: 1 })
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -155,7 +158,7 @@ export struct TreeMiniCard {
     .width(this.cardWidth)
     .height(this.cardHeight > 0 ? this.cardHeight : undefined)
     .padding({ left: 8, right: 8, top: 4, bottom: 4 })
-    .backgroundColor(this.highlight ? Theme.highlightBg : Theme.card)
+    .backgroundColor(this.highlight ? Theme.selectedBg : Theme.card)
     .borderRadius(10)
     .border({
       width: this.highlight ? 2 : 1,

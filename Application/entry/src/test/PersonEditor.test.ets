@@ -1,5 +1,5 @@
 import { describe, it, expect } from '@ohos/hypium';
-import { Person, createEmptyPerson } from 'common_base';
+import { Person, PersonIndex, createEmptyPerson } from 'common_base';
 import { PeopleStore } from '../main/ets/service/PeopleStore';
 import { SpouseRelations } from '../main/ets/service/SpouseRelations';
 import { PersonEditor } from '../main/ets/service/PersonEditor';
@@ -12,7 +12,9 @@ function person(uid: string, name: string): Person {
 }
 
 function editorOf(store: PeopleStore): PersonEditor {
-  return new PersonEditor(store, new SpouseRelations(store));
+  const index: PersonIndex = new PersonIndex();
+  index.build(store.getAll());
+  return new PersonEditor(store, new SpouseRelations(store), index);
 }
 
 export default function personEditorTest() {

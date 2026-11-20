@@ -216,7 +216,7 @@ export struct HomeView {
         Row() {
           Text(T(item[0].toUpperCase())).fontFamily(uiFontFamily())
             .fontSize(11)
-            .fontColor(Theme.primary)
+            .fontColor(Theme.highlightAccent)
             .width(26)
             .height(26)
             .textAlign(TextAlign.Center)

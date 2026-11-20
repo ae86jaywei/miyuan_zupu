@@ -67,7 +67,7 @@ struct PrintCard {
     .padding({ left: this.cardW * 0.06, right: this.cardW * 0.06, top: this.cardH * 0.08, bottom: 0 })
     .backgroundColor(this.highlight ? PrintTheme.highlight : PrintTheme.white)
     .border({
-      width: this.highlight ? 1.2 : 0.35,
+      width: this.highlight ? 1.8 : 0.35,
       color: this.highlight ? PrintTheme.gold : PrintTheme.line
     })
     .clip(true)

@@ -40,15 +40,17 @@ export struct CatalogPersonRow {
           Text(T(this.person.name)).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(this.person.gender === '女' ? Theme.female : Theme.ink)
+            .fontColor(this.person.gender === '女' ?
+              (this.selected ? Theme.highlightFemale : Theme.female) : Theme.ink)
           if (this.person.rank.length > 0) {
             Text(T(this.person.rank)).fontFamily(uiFontFamily())
               .fontSize(10)
-              .fontColor(Theme.gold)
+              .fontColor(this.selected ? Theme.highlightAccent : Theme.gold)
               .margin({ left: 4 })
           }
           if (this.person.lifeStatus === '已故') {
-            Text(T('已故')).fontFamily(uiFontFamily()).fontSize(9).fontColor(Theme.deceased).margin({ left: 4 })
+            Text(T('已故')).fontFamily(uiFontFamily()).fontSize(9)
+              .fontColor(this.selected ? Theme.highlightMuted : Theme.deceased).margin({ left: 4 })
           }
         }
         Row() {
@@ -56,7 +58,7 @@ export struct CatalogPersonRow {
             + (this.person.generationChar.length > 0 ? ' · ' + this.person.generationChar + '字' : '')))
             .fontFamily(uiFontFamily())
             .fontSize(10.5)
-            .fontColor(Theme.inkTertiary)
+            .fontColor(this.selected ? Theme.highlightMuted : Theme.inkTertiary)
         }
         .margin({ top: 2 })
         if (this.wide && (this.person.occupation.length > 0 || this.person.birthPlace.length > 0)) {
@@ -76,12 +78,12 @@ export struct CatalogPersonRow {
       if (this.showArrow) {
         Text(T(this.selected ? '●' : '›')).fontFamily(uiFontFamily())
           .fontSize(this.selected ? 12 : 18)
-          .fontColor(this.selected ? Theme.primary : Theme.inkTertiary)
+          .fontColor(this.selected ? Theme.highlightAccent : Theme.inkTertiary)
       }
     }
     .width('100%')
     .padding({ top: 10, bottom: 10, left: 4, right: 4 })
-    .backgroundColor(this.selected ? Theme.highlightBg : Color.Transparent)
+    .backgroundColor(this.selected ? Theme.selectedBg : Color.Transparent)
     .borderRadius(8)
     .onClick((): void => {
       this.onOpen(this.person.uid);

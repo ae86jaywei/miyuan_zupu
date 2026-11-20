@@ -225,17 +225,19 @@ export struct EuTree {
                 Text(T(this.shortName(box.node.person.name))).fontFamily(uiFontFamily())
                   .fontSize(11 / this.safeZoom())
                   .fontWeight(FontWeight.Medium)
-                  .fontColor(box.node.person.gender === '女' ? Theme.female : Theme.ink)
+                  .fontColor(box.node.person.gender === '女' ?
+                    (box.node.uid === this.highlightUid ? Theme.highlightFemale : Theme.female) : Theme.ink)
                   .maxLines(1)
                   .textOverflow({ overflow: TextOverflow.Ellipsis })
               }
               .width(box.w)
               .height(box.h)
-              .backgroundColor(box.node.uid === this.highlightUid ? Theme.highlightBg : Theme.card)
+              .backgroundColor(box.node.uid === this.highlightUid ? Theme.selectedBg : Theme.card)
               .borderRadius(8)
               .border({
-                width: 1 / this.safeZoom(),
-                color: box.node.person.gender === '女' ? Theme.femaleLine : Theme.maleLine
+                width: box.node.uid === this.highlightUid ? 1.5 / this.safeZoom() : 1 / this.safeZoom(),
+                color: box.node.uid === this.highlightUid ? Theme.gold :
+                  (box.node.person.gender === '女' ? Theme.femaleLine : Theme.maleLine)
               })
               .position({ x: box.x, y: box.y })
               .onClick((): void => {

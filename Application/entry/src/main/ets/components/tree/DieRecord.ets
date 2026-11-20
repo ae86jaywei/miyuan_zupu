@@ -124,7 +124,7 @@ export struct DieRecord {
       Row() {
         Text(T(generationLabel(this.person.generation))).fontFamily(uiFontFamily())
           .fontSize(11.5)
-          .fontColor(Theme.gold)
+          .fontColor(this.highlight ? Theme.highlightAccent : Theme.gold)
         Blank()
         Tag({
           text: this.person.lifeStatus,
@@ -144,8 +144,10 @@ export struct DieRecord {
             .fontWeight(s.name ? FontWeight.Bold : FontWeight.Normal)
             .fontColor(s.name ?
               (s.relative ? Theme.ink :
-                (this.person.gender === '女' ? Theme.female : Theme.primary)) :
-              (s.ref ? Theme.inkTertiary : Theme.ink))
+                (this.person.gender === '女' ?
+                  (this.highlight ? Theme.highlightFemale : Theme.female) :
+                  (this.highlight ? Theme.highlightAccent : Theme.primary))) :
+              (s.ref ? (this.highlight ? Theme.highlightMuted : Theme.inkTertiary) : Theme.ink))
         }, (s: DieJiSpan, idx: number) => idx.toString() + '_' + s.text)
       }
       .fontFamily(uiFontFamily())
@@ -157,9 +159,13 @@ export struct DieRecord {
     }
     .width('100%')
     .padding(Spacing.L)
-    .backgroundColor(this.highlight ? Theme.highlightBg : Theme.card)
+    .backgroundColor(this.highlight ? Theme.selectedBg : Theme.card)
     .borderRadius(12)
-    .border({ width: 0.5, color: Theme.line, style: BorderStyle.Dashed })
+    .border({
+      width: this.highlight ? 1.5 : 0.5,
+      color: this.highlight ? Theme.gold : Theme.line,
+      style: BorderStyle.Dashed
+    })
     .alignItems(HorizontalAlign.Start)
     .onClick((): void => {
       this.onTapPerson(this.person.uid);

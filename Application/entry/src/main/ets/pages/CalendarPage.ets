@@ -354,11 +354,11 @@ struct CalendarPage {
         Text(cell.day.toString()).fontFamily(uiFontFamily())
           .fontSize(15)
           .fontWeight(this.selectedDay === cell.day ? FontWeight.Bold : FontWeight.Normal)
-          .fontColor(this.selectedDay === cell.day ? Theme.primary :
+          .fontColor(this.selectedDay === cell.day ? Theme.highlightAccent :
             (cell.today ? Theme.gold : (cell.weekend ? Theme.inkSecondary : Theme.ink)))
         Text(T(cell.small)).fontFamily(uiFontFamily())
           .fontSize(9.5)
-          .fontColor(this.selectedDay === cell.day ? Theme.primary : Theme.inkTertiary)
+          .fontColor(this.selectedDay === cell.day ? Theme.highlightAccent : Theme.inkTertiary)
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ top: 2 })
@@ -368,7 +368,7 @@ struct CalendarPage {
     .height(52)
     .justifyContent(FlexAlign.Center)
     .borderRadius(Radius.S)
-    .backgroundColor(this.selectedDay === cell.day && !cell.blank ? Theme.highlightBg : Color.Transparent)
+    .backgroundColor(this.selectedDay === cell.day && !cell.blank ? Theme.selectedBg : Color.Transparent)
     .border({
       width: cell.today && this.selectedDay !== cell.day ? 0.5 : 0,
       color: Theme.gold
@@ -487,11 +487,11 @@ struct CalendarPage {
             Text(T(m.toString() + '月')).fontFamily(uiFontFamily())
               .fontSize(14)
               .fontWeight(this.viewMonth === m ? FontWeight.Bold : FontWeight.Normal)
-              .fontColor(this.viewMonth === m ? Theme.primary : Theme.ink)
+              .fontColor(this.viewMonth === m ? Theme.highlightAccent : Theme.ink)
               .width('100%')
               .height(40)
               .textAlign(TextAlign.Center)
-              .backgroundColor(this.viewMonth === m ? Theme.highlightBg : Color.Transparent)
+              .backgroundColor(this.viewMonth === m ? Theme.selectedBg : Color.Transparent)
               .borderRadius(Radius.S)
               .onClick((): void => {
                 this.selectMonth(m);

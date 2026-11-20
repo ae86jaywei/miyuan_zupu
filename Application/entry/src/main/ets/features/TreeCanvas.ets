@@ -1145,7 +1145,7 @@ export struct TreeCanvas {
         ForEach(this.genLabels, (label: string, idx: number) => {
           Text(T(label + ' · ' + this.genCounts[idx].toString() + '人')).fontFamily(uiFontFamily())
             .fontSize(11)
-            .fontColor(Theme.primary)
+            .fontColor(Theme.highlightAccent)
             .backgroundColor(Theme.highlightBg)
             .borderRadius(10)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })

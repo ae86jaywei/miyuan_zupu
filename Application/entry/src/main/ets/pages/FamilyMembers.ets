@@ -308,7 +308,7 @@ struct FamilyMembers {
           .maxLines(1)
         Text(T(accessKindLabel(a.kind))).fontFamily(uiFontFamily())
           .fontSize(10.5)
-          .fontColor(Theme.primary)
+          .fontColor(Theme.highlightAccent)
           .padding({ left: 6, right: 6, top: 2, bottom: 2 })
           .borderRadius(8)
           .backgroundColor(Theme.highlightBg)

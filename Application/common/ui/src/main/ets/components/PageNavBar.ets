@@ -45,7 +45,7 @@ export struct PageNavBar {
       } else if (this.actionText.length > 0) {
         Text(T(this.actionText)).fontFamily(uiFontFamily())
           .fontSize(12.5)
-          .fontColor(Theme.primary)
+          .fontColor(Theme.highlightAccent)
           .padding({ left: 8, right: 8, top: 4, bottom: 4 })
           .borderRadius(10)
           .backgroundColor(Theme.highlightBg)

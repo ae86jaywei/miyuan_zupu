@@ -392,7 +392,7 @@ struct Index {
               Text(this.tr(item.icon)).fontFamily(uiFontFamily()).fontSize(this.navCompact() ? 14 : (collapsed ? 16 : 17))
               Text(this.tr(item.title)).fontFamily(uiFontFamily())
                 .fontSize(this.navCompact() ? 8 : (collapsed ? 9 : 14))
-                .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkSecondary)
+                .fontColor(this.currentTab === idx ? Theme.highlightAccent : Theme.inkSecondary)
                 .maxLines(1)
                 .margin(collapsed ? { top: 2 } : { left: Spacing.S })
                 .layoutWeight(collapsed ? 0 : 1)
@@ -400,7 +400,7 @@ struct Index {
             .height(this.navCompact() ? 34 : 42)
             .width(this.navCompact() ? 32 : (collapsed ? 38 : '100%'))
             .borderRadius(10)
-            .backgroundColor(this.currentTab === idx ? Theme.highlightBg : Color.Transparent)
+            .backgroundColor(this.currentTab === idx ? Theme.selectedBg : Color.Transparent)
             .justifyContent(FlexAlign.Center)
             .alignItems(collapsed ? HorizontalAlign.Center : HorizontalAlign.Start)
             .padding(collapsed || this.navCompact() ? 0 : { left: Spacing.M })
@@ -465,14 +465,14 @@ struct Index {
           .opacity(this.currentTab === idx ? 1 : 0.6)
         Text(this.tr(item.title)).fontFamily(uiFontFamily())
           .fontSize(10)
-          .fontColor(this.currentTab === idx ? Theme.primary : Theme.inkTertiary)
+          .fontColor(this.currentTab === idx ? Theme.highlightAccent : Theme.inkTertiary)
           .margin({ top: 2 })
       }
       .layoutWeight(1)
       .height(46)
       .justifyContent(FlexAlign.Center)
       .borderRadius(16)
-      .backgroundColor(this.currentTab === idx ? Theme.highlightBg : Color.Transparent)
+      .backgroundColor(this.currentTab === idx ? Theme.selectedBg : Color.Transparent)
       .onClick((): void => {
         this.switchTab(idx, true);
       })
@@ -546,7 +546,7 @@ struct Index {
           .margin({ left: 6 })
         Text(this.tr('切换 ⌄')).fontFamily(uiFontFamily())
           .fontSize(11)
-          .fontColor(Theme.primary)
+          .fontColor(Theme.highlightAccent)
           .padding({ left: 7, right: 7, top: 3, bottom: 3 })
           .borderRadius(9)
           .backgroundColor(Theme.highlightBg)
@@ -928,7 +928,7 @@ struct Index {
           Blank()
           Text(this.tr('＋ 新建族谱')).fontFamily(uiFontFamily())
             .fontSize(12)
-            .fontColor(Theme.primary)
+            .fontColor(Theme.highlightAccent)
             .padding({ left: 8, right: 8, top: 4, bottom: 4 })
             .borderRadius(10)
             .backgroundColor(Theme.highlightBg)
@@ -965,7 +965,7 @@ struct Index {
                 if (book.key === this.bookId) {
                   Text(this.tr('当前')).fontFamily(uiFontFamily())
                     .fontSize(11)
-                    .fontColor(Theme.primary)
+                    .fontColor(Theme.highlightAccent)
                     .padding({ left: 8, right: 8, top: 3, bottom: 3 })
                     .borderRadius(9)
                     .backgroundColor(Theme.highlightBg)
@@ -1309,7 +1309,7 @@ struct Index {
             })
           Text(this.tr(this.loggedIn ? '已登录' : '登录')).fontFamily(uiFontFamily())
             .fontSize(11)
-            .fontColor(this.loggedIn ? Theme.gold : Theme.primary)
+            .fontColor(this.loggedIn ? Theme.gold : Theme.highlightAccent)
             .padding({ left: 8, right: 8, top: 3, bottom: 3 })
             .borderRadius(10)
             .backgroundColor(this.loggedIn ? Theme.field : Theme.highlightBg)
@@ -1413,12 +1413,12 @@ struct Index {
     .bindSheet($$this.showDetailSheet, this.detailSheet(), {
       height: SheetSize.LARGE,
       // 背板透明：宽度由内部卡片控制（系统居中弹窗的背板宽度随机型变化，
-      // 直接铺底色会让详情右侧空出一大片）。拖拽条/阴影/模糊一并关掉，
-      // 避免透明背板上残留系统装饰。
+      // 直接铺底色会让详情右侧空出一大片）。拖拽条/模糊一并关掉，
+      // 避免透明背板上残留系统装饰。阴影不可在 SheetOptions 里控制，
+      // 如需关闭请在 detailSheet() Builder 内部卡片上加 .shadow({ radius: 0 })。
       dragBar: false,
       backgroundColor: Color.Transparent,
       blurStyle: BlurStyle.NONE,
-      shadow: { radius: 0 },
       showClose: false,
       preferType: SheetType.CENTER
     })

@@ -37,18 +37,18 @@ export struct EraPickerPanel {
             Row() {
               Text(T(label)).fontFamily(uiFontFamily())
                 .fontSize(14)
-                .fontColor(idx === this.selected ? Theme.primary : Theme.ink)
+                .fontColor(idx === this.selected ? Theme.highlightAccent : Theme.ink)
                 .fontWeight(idx === this.selected ? FontWeight.Medium : FontWeight.Normal)
                 .layoutWeight(1)
               if (idx === this.selected) {
                 Text('✓').fontFamily(uiFontFamily())
                   .fontSize(15)
-                  .fontColor(Theme.primary)
+                  .fontColor(Theme.highlightAccent)
               }
             }
             .width('100%')
             .padding({ left: Spacing.L, right: Spacing.L, top: 13, bottom: 13 })
-            .backgroundColor(idx === this.selected ? Theme.highlightBg : Color.Transparent)
+            .backgroundColor(idx === this.selected ? Theme.selectedBg : Color.Transparent)
           }
           .onClick((): void => {
             this.onSelect(idx);

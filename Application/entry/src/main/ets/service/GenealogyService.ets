@@ -101,8 +101,10 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
   private spouseRelations: SpouseRelations = new SpouseRelations(this.peopleStore);
   /** 人员关系查询域：子女、兄弟姊妹、上下三代 */
   private personQuery: PersonQuery = new PersonQuery(this.peopleStore);
+  /** 人员索引：加速搜索和跳转 */
+  private index: PersonIndex = new PersonIndex();
   /** 编辑事务内存态刷新域：保存后的增量更新 */
-  private personEditor: PersonEditor = new PersonEditor(this.peopleStore, this.spouseRelations);
+  private personEditor: PersonEditor = new PersonEditor(this.peopleStore, this.spouseRelations, this.index);
   /** 人员仓储域：人员行与配偶关系的数据库读写 */
   private personRepository: PersonRepository = new PersonRepository(
     (): relationalStore.RdbStore | null => this.store,
@@ -142,8 +144,6 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
   private statsCacheVersion: number = -1;
   private ready: boolean = false;
   private initPromise: Promise<void> | null = null;
-  /** 人员索引：加速搜索和跳转 */
-  private index: PersonIndex = new PersonIndex();
   /** 搜索与跳转索引域：访问门面 */
   private personSearch: PersonSearch = new PersonSearch(this.index, (): Person[] => this.peopleStore.getAll());
 
@@ -609,8 +609,11 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
     await this.personRepository.upsert(person);
     await this.personRepository.saveSpouses(person.uid, person.spouses);
     this.personEditor.applySaved(person, '');
-    // 配偶名分 ↔ 对方身份：丈夫给妻妾设“侧室”等名分后，对方身份自动同步
-    await this.syncSpouseIdentities(person);
+    try {
+      await this.syncSpouseIdentities(person);
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'syncSpouseIdentities failed on add: %{public}s', JSON.stringify(err));
+    }
     // 协作：本机先落库（唯一真相源），再按在线/离线走「云函数 / outbox」
     await this.cloudCollaboration.notifyPersonChange('ADD', person, null);
     return person;
@@ -647,8 +650,11 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
     }
     await this.personRepository.saveSpouses(person.uid, person.spouses);
     this.personEditor.applySaved(person, originalUid);
-    // 配偶名分 ↔ 对方身份：女方身份改为“侧室”等名分时，丈夫配偶表里的称谓同步更新
-    await this.syncSpouseIdentities(person);
+    try {
+      await this.syncSpouseIdentities(person);
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'syncSpouseIdentities failed on update: %{public}s', JSON.stringify(err));
+    }
     // 协作：同一人物的多次本地修改合并成一条 outbox（diff 相对编辑前快照）
     await this.cloudCollaboration.notifyPersonChange('UPDATE', person, originalUid);
     return person;

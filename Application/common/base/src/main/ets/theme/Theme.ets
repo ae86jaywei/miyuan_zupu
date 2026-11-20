@@ -121,6 +121,31 @@ export class Theme {
     return Theme.dark ? $r('app.color.theme_highlight_bg_dark') : $r('app.color.theme_highlight_bg');
   }
 
+  /**
+   * 选中态底色（谱系卡、名录行、导航项）。
+   *
+   * 比 `highlightBg`（浅色装饰底）明显更浓，保证选中项与白色卡片/米色纸面一眼可分；
+   * 浅色 #F3D28C 对白卡 1.46:1、对纸面 1.32:1；深色 #4A3A16 对深卡 1.47:1。
+   */
+  static get selectedBg(): ResourceColor {
+    return Theme.dark ? $r('app.color.theme_selected_bg_dark') : $r('app.color.theme_selected_bg');
+  }
+
+  /** 选中底上的强调文字：浅色用朱砂（5.67:1）、深色用鎏金（5.9:1），均达 WCAG AA */
+  static get highlightAccent(): ResourceColor {
+    return Theme.dark ? $r('app.color.theme_gold_dark') : $r('app.color.theme_primary');
+  }
+
+  /** 选中底上的次要文字：次级墨色（浅色 5.39:1 / 深色 6.67:1） */
+  static get highlightMuted(): ResourceColor {
+    return Theme.dark ? $r('app.color.theme_ink_secondary_dark') : $r('app.color.theme_ink_secondary');
+  }
+
+  /** 选中底上的女性姓名：浅色深玫瑰（4.79:1）、深色沿用深色主题玫瑰（4.52:1） */
+  static get highlightFemale(): ResourceColor {
+    return Theme.dark ? $r('app.color.theme_female_dark') : $r('app.color.theme_highlight_female');
+  }
+
   /** 主色底上的文字 / 图标 */
   static get onPrimary(): ResourceColor {
     return $r('app.color.theme_on_primary');

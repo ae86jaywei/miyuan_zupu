@@ -207,7 +207,7 @@ export struct PagodaTree {
               Row() {
                 Text(T(generationLabel(row.generation) + ' · ' + row.nodes.length.toString() + '人')).fontFamily(uiFontFamily())
                   .fontSize(10)
-                  .fontColor(Theme.primary)
+                  .fontColor(Theme.highlightAccent)
                   .backgroundColor(Theme.highlightBg)
                   .borderRadius(8)
                   .padding({ left: 8, right: 8, top: 2, bottom: 2 })
@@ -233,7 +233,8 @@ export struct PagodaTree {
                   Text(T(node.person.name)).fontFamily(uiFontFamily())
                     .fontSize(this.compact ? 11 : 12)
                     .fontWeight(FontWeight.Medium)
-                    .fontColor(node.person.gender === '女' ? Theme.female : Theme.ink)
+                    .fontColor(node.person.gender === '女' ?
+                      (node.uid === this.highlightUid ? Theme.highlightFemale : Theme.female) : Theme.ink)
                     .maxLines(1)
                     .textOverflow({ overflow: TextOverflow.Ellipsis })
                     .margin({ top: 2 })
@@ -251,7 +252,7 @@ export struct PagodaTree {
                   if (node.spouseText().length > 0) {
                     Text(T(node.spouseText())).fontFamily(uiFontFamily())
                       .fontSize(8)
-                      .fontColor(Theme.female)
+                      .fontColor(node.uid === this.highlightUid ? Theme.highlightFemale : Theme.female)
                       .maxLines(2)
                       .textOverflow({ overflow: TextOverflow.Ellipsis })
                       .width(this.compact ? 56 : 68)
@@ -266,8 +267,12 @@ export struct PagodaTree {
                 }
                 .alignItems(HorizontalAlign.Center)
                 .padding({ top: 4, bottom: 4, left: 2, right: 2 })
-                .backgroundColor(node.uid === this.highlightUid ? Theme.highlightBg : Color.Transparent)
+                .backgroundColor(node.uid === this.highlightUid ? Theme.selectedBg : Color.Transparent)
                 .borderRadius(8)
+                .border({
+                  width: node.uid === this.highlightUid ? 1.5 : 0,
+                  color: Theme.gold
+                })
                 .onClick((): void => {
                   this.onTapPerson(node.uid);
                 })

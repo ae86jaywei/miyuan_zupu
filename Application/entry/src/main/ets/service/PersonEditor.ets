@@ -1,4 +1,4 @@
-import { Person, copyPersonInto } from 'common_base';
+import { Person, PersonIndex, copyPersonInto } from 'common_base';
 import { PeopleStore } from './PeopleStore';
 import { SpouseRelations } from './SpouseRelations';
 
@@ -13,10 +13,13 @@ import { SpouseRelations } from './SpouseRelations';
 export class PersonEditor {
   private store: PeopleStore;
   private spouses: SpouseRelations;
+  /** 搜索索引：保存后必须同步，否则新增/改名要等切换族谱（reload）才可见 */
+  private index: PersonIndex;
 
-  constructor(store: PeopleStore, spouses: SpouseRelations) {
+  constructor(store: PeopleStore, spouses: SpouseRelations, index: PersonIndex) {
     this.store = store;
     this.spouses = spouses;
+    this.index = index;
   }
 
   /** 保存后的内存增量刷新 */
@@ -31,7 +34,12 @@ export class PersonEditor {
       || this.spouses.linksChanged(old.spouses, person.spouses);
     if (!structural && old !== undefined) {
       // 普通字段：原地改写，谱系节点持有的对象引用不变，无需重建树
+      // ⚠️ 先从搜索索引移除「旧人」——在 copyPersonInto 之前，
+      // 否则 old.name 已是新值，index.remove 会从新首字母桶清理，
+      // 旧首字母桶里留下 stale 条目导致搜索错乱。
+      this.index.remove(old.uid);
       copyPersonInto(old, person);
+      this.index.add(old);
       this.store.bump();
       return;
     }
@@ -75,9 +83,18 @@ export class PersonEditor {
     }
     // 3. 重建索引
     this.store.rebuildMap();
-    // 4. 同步配偶反向引用（对方向本人的记录）
+    // 4. 同步搜索索引：
+    //    - 改编号：先移除旧 uid（用 prevUid 而非 person.uid，person.uid 已是新值）
+    //    - 改姓名等搜索字段：index.update 会先删后加
+    if (prevUid.length > 0 && prevUid !== nextUid) {
+      this.index.remove(prevUid);
+      this.index.add(person);
+    } else {
+      this.index.update(person);
+    }
+    // 5. 同步配偶反向引用（对方向本人的记录）
     this.spouses.syncBackRefs(person, oldObj, prevUid);
-    // 5. 重建谱系树并发布新版本
+    // 6. 重建谱系树并发布新版本
     this.store.rebuildRoots();
     this.store.bump();
   }

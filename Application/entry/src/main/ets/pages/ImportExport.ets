@@ -515,7 +515,7 @@ struct ImportExport {
           Text(T(title)).fontFamily(uiFontFamily()).fontSize(14).fontColor(Theme.ink)
           Text(T(tag)).fontFamily(uiFontFamily())
             .fontSize(10)
-            .fontColor(Theme.gold)
+            .fontColor(Theme.highlightAccent)
             .backgroundColor(Theme.highlightBg)
             .borderRadius(4)
             .padding({ left: 4, right: 4, top: 1, bottom: 1 })

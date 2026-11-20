@@ -182,12 +182,13 @@ export struct ModernTree {
           Text(T(p.name)).fontFamily(uiFontFamily())
             .fontSize(15)
             .fontWeight(FontWeight.Medium)
-            .fontColor(p.gender === '女' ? Theme.female : Theme.ink)
+            .fontColor(p.gender === '女' ?
+              (p.uid === this.highlightUid ? Theme.highlightFemale : Theme.female) : Theme.ink)
             .maxLines(1)
           Text(T(lifeSpan(p.birthDate, p.deathDate, p.lifeStatus).length > 0 ?
             lifeSpan(p.birthDate, p.deathDate, p.lifeStatus) : p.uid)).fontFamily(uiFontFamily())
             .fontSize(10)
-            .fontColor(Theme.inkTertiary)
+            .fontColor(p.uid === this.highlightUid ? Theme.highlightMuted : Theme.inkTertiary)
             .margin({ top: 1 })
         }
         .alignItems(HorizontalAlign.Start)
@@ -199,7 +200,9 @@ export struct ModernTree {
       Row() {
         Tag({ text: generationLabel(p.generation), color: Theme.onPrimary, bg: Theme.primaryLight, dense: true })
         if (p.generationChar.length > 0) {
-          Tag({ text: '字派 ' + p.generationChar, color: Theme.gold, bg: Theme.highlightBg, dense: true }).margin({ left: 4 })
+          Tag({ text: '字派 ' + p.generationChar,
+            color: p.uid === this.highlightUid ? Theme.highlightAccent : Theme.gold,
+            bg: Theme.highlightBg, dense: true }).margin({ left: 4 })
         }
         if (p.occupation.length > 0) {
           Tag({ text: p.occupation, color: Theme.inkSecondary, bg: Theme.field, dense: true }).margin({ left: 4 })
@@ -221,7 +224,7 @@ export struct ModernTree {
       if (p.biography.length > 0) {
         Text(T(p.biography)).fontFamily(uiFontFamily())
           .fontSize(11)
-          .fontColor(Theme.inkTertiary)
+          .fontColor(p.uid === this.highlightUid ? Theme.highlightMuted : Theme.inkTertiary)
           .maxLines(2)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .margin({ top: 6 })
@@ -229,9 +232,10 @@ export struct ModernTree {
       }
     }
     .padding(Spacing.M)
-    .backgroundColor(p.uid === this.highlightUid ? Theme.highlightBg : Theme.card)
+    .backgroundColor(p.uid === this.highlightUid ? Theme.selectedBg : Theme.card)
     .borderRadius(14)
-    .border({ width: 0.5, color: p.uid === this.highlightUid ? Theme.gold : Theme.line })
+    .border({ width: p.uid === this.highlightUid ? 1.5 : 0.5,
+      color: p.uid === this.highlightUid ? Theme.gold : Theme.line })
     .shadow({ radius: 8, color: Theme.shadow, offsetY: 2 })
     .alignItems(HorizontalAlign.Start)
     .width('100%')

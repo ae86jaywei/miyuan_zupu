@@ -108,7 +108,11 @@ export class PersonIndex {
   }
   
   /**
-   * 更新人员索引（先删后加）
+   * 更新人员索引（先删后加）。
+   *
+   * ⚠️ person 必须已经反映了要写入的最新字段；若同一对象引用在上游被原地改写
+   *（例如 PersonEditor 的 copyPersonInto），请务必在改写前先 remove(oldUid)，
+   * 否则 remove 会用新姓名找首字母桶，留下旧桶的 stale 条目。
    */
   update(p: Person): void {
     this.remove(p.uid);

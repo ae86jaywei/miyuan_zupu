@@ -655,7 +655,7 @@ struct FamilyHome {
         Blank()
         Text(T(roleLabel(this.role))).fontFamily(uiFontFamily())
           .fontSize(11)
-          .fontColor(Theme.primary)
+          .fontColor(Theme.highlightAccent)
           .padding({ left: 8, right: 8, top: 3, bottom: 3 })
           .borderRadius(9)
           .backgroundColor(Theme.highlightBg)
@@ -863,7 +863,7 @@ struct FamilyHome {
           if (f.localBookId === 0 && ALLOW_JOIN) {
             Text(T('导入本机')).fontFamily(uiFontFamily())
               .fontSize(11.5)
-              .fontColor(Theme.primary)
+              .fontColor(Theme.highlightAccent)
               .padding({ left: 8, right: 8, top: 4, bottom: 4 })
               .borderRadius(9)
               .backgroundColor(Theme.highlightBg)
