@@ -4,7 +4,8 @@
   "private": true,
   "description": "add shared dependencies for cloud functions",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "sync-shared": "node tools/sync-shared.js"
   },
   "author": "",
   "license": "ISC",
