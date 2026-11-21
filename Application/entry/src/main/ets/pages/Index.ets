@@ -544,7 +544,7 @@ struct Index {
           .fontSize(10)
           .fontColor(Theme.inkTertiary)
           .margin({ left: 6 })
-        Text(this.tr('切换 ⌄')).fontFamily(uiFontFamily())
+        Text(this.tr('新建/切换 ⌄')).fontFamily(uiFontFamily())
           .fontSize(11)
           .fontColor(Theme.highlightAccent)
           .padding({ left: 7, right: 7, top: 3, bottom: 3 })
