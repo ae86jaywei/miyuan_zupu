@@ -400,11 +400,13 @@ async function upsertMany(typeName, objects) {
     rows.push(toGeneric(typeName, sanitizeForWrite(objects[i])));
   }
   try {
-    // 单次上传人数已放宽到 500，但 AGC 单次 upsert 仍按 100 条分块，避免写入超限
+    // 单次上传人数已放宽到 500，AGC 单次 upsert 按 100 条分块；各分块主键互不冲突，并行写入提速
     const chunk = UPSERT_CHUNK > 0 ? UPSERT_CHUNK : 100;
+    const promises = [];
     for (let start = 0; start < rows.length; start += chunk) {
-      await col.upsert(rows.slice(start, start + chunk));
+      promises.push(col.upsert(rows.slice(start, start + chunk)));
     }
+    await Promise.all(promises);
     return rows.length;
   } catch (e) {
     throw toBizError(e);

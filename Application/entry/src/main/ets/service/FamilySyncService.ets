@@ -15,8 +15,8 @@ import { CloudFunctionClient } from './CloudFunctionClient';
 import { RemoteWrite } from './CloudReplay';
 
 const TAG: string = '[Genealogy][FamilySync]';
-const PAGE_SIZE: number = 1000;
-/** 单次同步最多拉取的页数：1000 × 200 = 20 万人，避免大型族谱一轮拉不完 */
+const PAGE_SIZE: number = 3000;
+/** 单次同步最多拉取的页数：3000 × 200 = 60 万人，避免大型族谱一轮拉不完 */
 const MAX_PAGES: number = 200;
 const BOOK_CHANGED: string = 'SYNC_BOOK_CHANGED';
 
@@ -96,7 +96,19 @@ export class FamilySyncService {
       if (book.syncMode !== SyncMode.CLOUD_PENDING) {
         await this.flushOutbox(familyId, bookKey, result, onProgress);
       }
-      await this.pullAndReplay(familyId, bookKey, result, onProgress);
+      if (reason === 'after-bootstrap') {
+        // 发布后本地数据即是刚上传的云端基线，全量拉取回放纯属冗余，跳过以省 5~10 分钟
+        FamilySyncService.report(onProgress, '发布完成，本地已是最新基线', 84);
+        this.ensureSameBook(bookKey, familyId);
+        svc.setBookCloudState(familyId, SyncMode.CLOUD_READY,
+          FamilyService.getInstance().roleOf(familyId), book.cloudRev);
+        GenealogyStore.notifyChanged();
+        result.familyId = familyId;
+        result.role = FamilyService.getInstance().roleOf(familyId);
+        result.headRev = book.cloudRev;
+      } else {
+        await this.pullAndReplay(familyId, bookKey, result, onProgress);
+      }
       // 以 outbox 实际剩余为准，避免「已同步完成」与「还有待传」同时出现
       const store0: relationalStore.RdbStore | null = svc.getStore();
       const remaining: number = store0 === null ? 0

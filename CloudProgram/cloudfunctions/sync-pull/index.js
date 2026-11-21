@@ -29,7 +29,7 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
   const family = await S.getFamily(familyId);
   const headRev = Number(family.rev || 0);
   const sinceRev = S.num(params, 'sinceRev', 0);
-  const limit = Math.min(S.num(params, 'limit', 200), 1000);
+  const limit = Math.min(S.num(params, 'limit', 200), 3000);
   const offset = S.num(params, 'offset', 0);
   const isOwner = membership.role === S.ROLE.OWNER;
 

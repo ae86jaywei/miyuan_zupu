@@ -22,7 +22,10 @@ const MAX_BOOK_CHARS: number = 300000;
 const BATCH_INTERVAL_MS: number = 80;
 const MAX_RETRY: number = 4;
 const MAX_RATE_RETRY: number = 6;
-const FUNCTION_TIMEOUT_MS: number = 35 * 1000;
+/** 云函数 timeout 已拉到 600s，端侧留 5s 缓冲接收超时错误 */
+const FUNCTION_TIMEOUT_MS: number = 605 * 1000;
+/** 并发上传批次数：云函数幂等，多批并行可把 6 万人发布从 ~10 分钟压到 ~1 分钟 */
+const BOOTSTRAP_CONCURRENCY: number = 8;
 const CHECKPOINT_PREF: string = 'zupu_bootstrap';
 
 /** 发布进度回调（页面上展示「正在发布 200/1200」） */
@@ -89,13 +92,27 @@ export class FamilyBootstrapService {
         throw new Error('族谱序言或谱规内容过大，请精简后重新发布');
       }
       await this.sendBatch(familyId, 0, [], book);
-      while (cursor < total) {
-        const chunk: BootstrapBatch = this.collectBatch(people, cursor);
-        await this.sendBatch(familyId, cursor, chunk.persons, null);
-        cursor = chunk.next;
-        await this.saveCursor(familyId, total, cursor, fingerprint);
-        this.report(progress, '正在发布族人', cursor, total);
+      const batches: BootstrapBatchItem[] = [];
+      let collectCursor: number = cursor;
+      while (collectCursor < total) {
+        const chunk: BootstrapBatch = this.collectBatch(people, collectCursor);
+        const item: BootstrapBatchItem = new BootstrapBatchItem();
+        item.cursor = collectCursor;
+        item.persons = chunk.persons;
+        item.next = chunk.next;
+        batches.push(item);
+        collectCursor = chunk.next;
       }
+      const runState: BootstrapRunState = new BootstrapRunState();
+      runState.index = 0;
+      runState.completed = cursor;
+      const workerCount: number = Math.min(BOOTSTRAP_CONCURRENCY, batches.length);
+      const workers: Promise<void>[] = [];
+      for (let w: number = 0; w < workerCount; w++) {
+        workers.push(this.bootstrapWorker(batches, runState, familyId, total, fingerprint, progress));
+      }
+      await Promise.all(workers);
+      cursor = runState.completed;
       const current: Genealogy = svc.getBook();
       const sameBook: boolean = svc.getCurrentBookId() === book.key && current.familyId === familyId;
       if (sameBook) {
@@ -224,6 +241,22 @@ export class FamilyBootstrapService {
         await this.delay(wait);
         attempt = attempt + 1;
       }
+    }
+  }
+
+  /** 并发工作器：从共享队列动态领取批次发送，云函数幂等故乱序安全 */
+  private async bootstrapWorker(batches: BootstrapBatchItem[], state: BootstrapRunState,
+    familyId: string, total: number, fingerprint: string, progress: BootstrapProgress): Promise<void> {
+    while (state.index < batches.length) {
+      const myIndex: number = state.index;
+      state.index = state.index + 1;
+      const item: BootstrapBatchItem = batches[myIndex];
+      await this.sendBatch(familyId, item.cursor, item.persons, null);
+      if (item.next > state.completed) {
+        state.completed = item.next;
+      }
+      await this.saveCursor(familyId, total, state.completed, fingerprint);
+      this.report(progress, '正在发布族人', state.completed, total);
     }
   }
 
@@ -384,4 +417,15 @@ export class FamilyBootstrapService {
 class BootstrapBatch {
   persons: Record<string, Object>[] = [];
   next: number = 0;
+}
+
+class BootstrapBatchItem {
+  cursor: number = 0;
+  persons: Record<string, Object>[] = [];
+  next: number = 0;
+}
+
+class BootstrapRunState {
+  index: number = 0;
+  completed: number = 0;
 }
