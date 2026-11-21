@@ -581,7 +581,7 @@ export class FamilyService {
     await CloudFunctionClient.getInstance().call('family-delete', {
       'familyId': familyId,
       'confirmTitle': confirmTitle
-    });
+    }, 65 * 1000);
     this.roleCache.delete(familyId);
     this.familyCache.delete(familyId);
     const svc: GenealogyService = GenealogyService.getInstance();

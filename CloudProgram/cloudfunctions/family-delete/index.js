@@ -23,15 +23,15 @@ const CHILD_TYPES = [
 async function purgeType(typeName, familyId, log) {
   let removed = 0;
   let guard = 0;
-  while (guard < 200) {
+  while (guard < 400) {
     guard++;
-    const rows = await S.query(typeName, [['familyId', '=', familyId]], { limit: 200 });
+    const rows = await S.query(typeName, [['familyId', '=', familyId]], { limit: 500 });
     if (rows.length === 0) {
       break;
     }
     await S.deleteByType(typeName, rows);
     removed += rows.length;
-    if (rows.length < 200) {
+    if (rows.length < 500) {
       break;
     }
   }
@@ -58,16 +58,17 @@ module.exports.handler = S.createHandler('family-delete', async (params, event, 
   }
 
   const result = {};
-  for (let i = 0; i < CHILD_TYPES.length; i++) {
-    const t = CHILD_TYPES[i];
-    try {
-      result[t] = await purgeType(t, familyId, log);
-    } catch (e) {
+  // 各子表按 familyId 独立过滤、互不依赖，并发清空以缩短总耗时（避免大族谱超时）
+  const purgeTasks = CHILD_TYPES.map(function (t) {
+    return purgeType(t, familyId, log).then(function (n) {
+      result[t] = n;
+    }).catch(function (e) {
       // 某张表不存在或为空时不应阻断整体删除
       log.warn('[zupu][family-delete] skip ' + t + ': ' + (e && e.message));
       result[t] = 0;
-    }
-  }
+    });
+  });
+  await Promise.all(purgeTasks);
 
   // 最后删主表
   try {
