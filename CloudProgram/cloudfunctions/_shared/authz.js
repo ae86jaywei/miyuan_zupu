@@ -30,9 +30,40 @@ async function findMembership(familyId, userId) {
  * 正确性依赖「读取只走云函数」，已由 §五.9 端侧 [] 权限保证。
  */
 async function effectiveMembership(familyId, userId, logger) {
-  const row = await findMembership(familyId, userId);
+  let row = await findMembership(familyId, userId);
   if (row === null) {
-    return null;
+    // 谱主自愈（§五.10）：Membership 行可能因历史 bug / 数据迁移 / access-review 误删而缺失，
+    // 但 Family.ownerUserId 才是「谱主」的权威来源。只要当前可信 userId 就是创建该家族的华为账号，
+    // 即视为 OWNER——绝不能把谱主锁死在自己的家族外（无法删除 / 拉取 / 编辑）。
+    const fam0 = await db.getById(T.FAMILY, 'familyId', familyId);
+    if (fam0 !== null && fam0.ownerUserId === userId) {
+      const now = nowMs();
+      row = {
+        membershipId: membershipId(familyId, userId),
+        familyId: familyId,
+        userId: userId,
+        role: ROLE.OWNER,
+        status: MEMBERSHIP_STATUS.ACTIVE,
+        branchRootUid: '',
+        expireAt: 0,
+        nickName: '',
+        source: 'SELF_HEAL',
+        joinedAt: now,
+        revokedAt: 0,
+        updatedAt: now
+      };
+      try {
+        await db.upsertOne(T.MEMBERSHIP, Object.assign({}, row));
+        if (logger) {
+          logger.info('[zupu][authz] self-heal missing owner membership: ' + familyId + '#' + userId);
+        }
+      } catch (e) {
+        if (logger) {
+          logger.warn('[zupu][authz] self-heal missing owner membership failed: ' + (e && e.message));
+        }
+      }
+    }
+    return row;
   }
   // 自愈：Family.ownerUserId 才是「谱主」的权威来源。
   // 历史 bug（access-review 误覆盖）会把谱主自己的行降级成 VIEWER，导致其再也无权调用
