@@ -13,7 +13,7 @@ import { AccountService } from '../service/AccountService';
 
 
 import { GenealogyStore } from '../store/GenealogyStore';
-import { FamilySummary, Role, SyncMode, SyncResult, roleLabel } from 'common_base';
+import { CloudFamilyInspect, FamilySummary, Role, SyncMode, SyncResult, roleLabel } from 'common_base';
 import { Genealogy } from 'common_base';
 import { CloudSyncService } from '../service/CloudSyncService';
 import { BackupResult } from 'common_base';
@@ -394,6 +394,11 @@ struct FamilyHome {
       if (localBookId > 0) {
         await SR.genealogy().switchGenealogy(localBookId);
       } else {
+        // 云端若只剩残谱（谱书已删、族人残留），加入后导入会得到几百个断裂分支
+        const info: CloudFamilyInspect = await SR.family().inspectCloudFamily(summary.familyId);
+        if (!info.isComplete()) {
+          throw new Error('云端数据不完整（谱书缺失），已暂缓导入；请联系谱主重新发布');
+        }
         await SR.family().createLocalBookForFamily(summary);
       }
       GenealogyStore.notifyChanged();
@@ -932,18 +937,58 @@ struct FamilyHome {
   }
 
   private async importFamily(f: FamilySummary): Promise<void> {
+    if (this.busy) {
+      return;
+    }
     this.busy = true;
+    this.progressText = '正在检查《' + f.title + '》…';
+    let createdBookId: number = 0;
     try {
-      await SR.family().createLocalBookForFamily(f);
+      // 已在本机标记删除的家族，即使云端还有残留也不允许再次导入
+      if (await SR.family().isFamilyDeleted(f.familyId)) {
+        this.toast('该云族谱已删除，无法再导入');
+        await this.loadMine();
+        return;
+      }
+      const info: CloudFamilyInspect = await SR.family().inspectCloudFamily(f.familyId);
+      if (!info.exists) {
+        // 云端主表已不存在：写墓碑并从列表移除，避免残留成员关系把这条家族一直带回列表
+        await SR.family().markFamilyDeleted(f.familyId);
+        await this.loadMine();
+        this.toast('该云族谱已删除或你已无访问权限，已从列表中移除');
+        return;
+      }
+      if (!info.isComplete()) {
+        // 族人残留但谱书/主表结构缺失：导入只会得到互不相连的几百个分支
+        this.toast('云端数据不完整（谱书缺失，可能上次删除中断），已取消；请先删除该云族谱再重试');
+        return;
+      }
+      const book: Genealogy = await SR.family().createLocalBookForFamily(f);
+      createdBookId = book.key;
       GenealogyStore.notifyChanged();
       this.refreshHeader();
-      const synced: SyncResult = await SR.familySync().syncCurrent('import');
+      this.progressText = '正在从云端导入《' + f.title + '》…';
+      // 首次导入必须全量拉基线，不能沿用 Family.rev 走增量
+      const synced: SyncResult = await SR.familySync().fullResync();
+      const problem: string = SR.family().verifyImportedIntegrity(info.memberCount);
+      if (problem.length > 0) {
+        throw new Error(problem);
+      }
       await this.loadMine();
       this.toast('已导入《' + f.title + '》');
       this.showIntegrity(synced);
     } catch (err) {
+      // 导入失败必须回滚刚建的占位谱，避免本地留下空谱或半截谱
+      if (createdBookId > 0) {
+        try {
+          await SR.genealogy().deleteGenealogy(createdBookId);
+        } catch (e) {
+          this.toast('清理临时族谱失败，请在谱系列表中手动删除');
+        }
+      }
       const be: BusinessError = err as BusinessError;
       this.toast('导入失败：' + be.message);
+      await this.loadMine();
     } finally {
       this.busy = false;
     }

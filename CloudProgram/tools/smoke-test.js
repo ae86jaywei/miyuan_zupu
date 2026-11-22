@@ -366,6 +366,24 @@ function mkEvent(data, uid) {
   }, owner), {}, () => {}, console);
   check('谱主自审被拒绝', r28 && r28.code === 400, r28 && r28.message);
 
+  // ---- 24) family-delete：整部族谱必须删净（含主表、成员关系、谱书与业务表）----
+  const del = require(path.join(FN_DIR, 'family-delete', 'index.js')).handler;
+  const r29 = await del(mkEvent({ familyId: familyId, confirmTitle: '韦氏宗谱' }, owner), {}, () => {}, console);
+  check('family-delete 返回 DELETED', r29 && r29.code === 200 && r29.data && r29.data.status === 'DELETED',
+    JSON.stringify(r29 && (r29.data || r29.message)));
+  const remain = ['Family', 'FamilyBook', 'FamilyMember', 'Membership', 'ChangeLog', 'ChangeRequest',
+    'AccessRequest'].filter((t) => table(t).size > 0);
+  check('family-delete 后相关表全部清空', remain.length === 0, '残留: ' + remain.join(',') + '；' +
+    JSON.stringify(remain.map((t) => t + '=' + table(t).size)));
+  const listMineAfterDelete = await listMine(mkEvent({}, owner), {}, () => {}, console);
+  const afterLen = listMineAfterDelete && listMineAfterDelete.data && listMineAfterDelete.data.families
+    ? listMineAfterDelete.data.families.length : -1;
+  check('删除后「我的家族」不再返回该谱（不可再导入）', afterLen === 0, '实际 ' + afterLen);
+  const syncAfterDelete = await syncPull(mkEvent({ familyId: familyId, sinceRev: 0 }, owner), {}, () => {}, console);
+  check('删除后 sync-pull 不可再读取（403/404，云端无数据可导入）',
+    syncAfterDelete && (syncAfterDelete.code === 403 || syncAfterDelete.code === 404),
+    syncAfterDelete && syncAfterDelete.message);
+
   // 汇总
   const fail = results.filter(r => !r.ok);
   console.log('');

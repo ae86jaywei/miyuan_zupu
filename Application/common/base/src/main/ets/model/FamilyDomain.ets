@@ -131,6 +131,30 @@ export class FamilySummary {
   lastSyncAt: number = 0;
 }
 
+/**
+ * 云端族谱完整性预检结果（导入本机前使用）。
+ *
+ * 用于识别「删除不彻底」留下的残缺数据：主表（Family/谱书）已删、族人却仍有残留时，
+ * 导入只会得到一堆互不相连的族人（被拆成几百个分支），必须直接拒绝。
+ */
+export class CloudFamilyInspect {
+  /** 云端主表是否存在（false = 已删除 / 不可访问） */
+  exists: boolean = false;
+  /** 云端族人总数（全量基线时统计） */
+  memberCount: number = 0;
+  /** 云端谱书（FamilyBook）是否存在 */
+  hasBook: boolean = false;
+  headRev: number = 0;
+
+  /** 数据是否可作为「完整体」导入：主表在、谱书在；有族人时不能缺谱书 */
+  isComplete(): boolean {
+    if (!this.exists) {
+      return false;
+    }
+    return this.memberCount <= 0 || this.hasBook;
+  }
+}
+
 /** 成员行（family-acl-list 返回） */
 export class MemberInfo {
   userId: string = '';

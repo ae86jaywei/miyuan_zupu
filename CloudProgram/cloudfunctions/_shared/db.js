@@ -463,13 +463,19 @@ async function deleteInTransaction(steps) {
           for (let k = 0; k < step.rows.length; k++) {
             rows.push(toGeneric(step.type, sanitizeForWrite(step.rows[k])));
           }
-          tx.executeDelete(rows);
+          // executeDelete 在不同 SDK 小版本上可能是同步入队或返回 Promise：
+          // 只要返回值可 then，就必须等待完成后再提交，否则可能出现「事务提交成功但记录没删」。
+          const pending = tx.executeDelete(rows);
+          if (pending !== undefined && pending !== null && typeof pending.then === 'function') {
+            await pending;
+          }
           total += rows.length;
         }
         return true;
       }
     });
-    if (committed !== true) {
+    // 事务体未抛错即视为已提交：部分 SDK 版本返回 undefined，不能因此误判失败。
+    if (committed === false) {
       throw new BizError(CODE.INTERNAL, '删除事务未提交', 'tx_failed');
     }
     return total;

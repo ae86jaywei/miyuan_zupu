@@ -1,13 +1,14 @@
 ﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { relationalStore } from '@kit.ArkData';
 import { AccountService } from './AccountService';
-import { Genealogy, createEmptyGenealogy } from 'common_base';
+import { Genealogy, createEmptyGenealogy, Person } from 'common_base';
 import { GenealogyService } from './GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import {
   AccessKind,
   AccessRequestInfo,
   ChangeRequestInfo,
+  CloudFamilyInspect,
   FamilySummary,
   MemberInfo,
   Role,
@@ -50,6 +51,14 @@ export class FamilyService {
   static readonly KEY_FAMILY_ROLE: string = 'gpFamilyRole';
   static readonly KEY_FAMILY_TITLE: string = 'gpFamilyTitle';
   static readonly KEY_OFFLINE: string = 'gpOffline';
+
+  /**
+   * 本地「已删除云家族」墓碑（存 genealogy meta，跨重启保留）。
+   *
+   * 删除不彻底时云端可能残留 Membership / 族人数据，导致 family-list-mine 仍返回该家族、
+   * 端侧又能「导入本机」。墓碑让这些家族彻底从列表消失，并在导入入口做最后一道拦截。
+   */
+  static readonly TOMBSTONE_KEY: string = 'deleted_family_ids';
 
   static getInstance(): FamilyService {
     if (FamilyService.instance === null) {
@@ -182,10 +191,15 @@ export class FamilyService {
     const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-list-mine', {});
     const out: FamilySummary[] = [];
     const rows: Record<string, Object>[] = objectList(data, 'families');
+    // 已在本机标记删除的家族：即使云端还有 Membership 残留，也不再展示、更不允许导入。
+    const tombstones: string[] = await this.deletedFamilyIds();
     for (let i: number = 0; i < rows.length; i++) {
       const raw: Record<string, Object> = rows[i];
       const f: FamilySummary = new FamilySummary();
       f.familyId = str(raw, 'familyId');
+      if (tombstones.indexOf(f.familyId) >= 0) {
+        continue;
+      }
       f.title = str(raw, 'title');
       f.bookKey = num(raw, 'bookKey');
       f.rev = num(raw, 'rev');
@@ -562,24 +576,31 @@ export class FamilyService {
 
   /** 新建一部「云端家族」的本地占位族谱（加入别人的谱时使用） */
   async createLocalBookForFamily(summary: FamilySummary): Promise<Genealogy> {
+    if (await this.isFamilyDeleted(summary.familyId)) {
+      throw new Error('该云族谱已删除，无法再导入');
+    }
     const svc: GenealogyService = GenealogyService.getInstance();
     const book: Genealogy = await svc.createGenealogy(summary.title.length > 0 ? summary.title : '云端族谱');
     book.familyId = summary.familyId;
     book.syncMode = SyncMode.CLOUD_PENDING;
     book.familyRole = summary.role;
-    book.cloudRev = summary.rev;
+    // 首次接入必须从 rev=0 拉全量基线。若沿用 Family.rev，sync-pull 会走增量路径，
+    // 只能拿到「之后的」变更，导入结果必然残缺。
+    book.cloudRev = 0;
     await svc.saveBook(book);
-    await this.bindLocalBook(summary.familyId, summary.role, summary.title, summary.bookKey, summary.rev);
+    await this.bindLocalBook(summary.familyId, summary.role, summary.title, summary.bookKey, 0);
     return book;
   }
 
   /**
    * 解散云家族（仅谱主）。会清空该 familyId 下全部云端数据，不可恢复。
-   * 成功后：若当前本地族谱正绑定该家族，则退回「仅本机」模式。
+   * 成功后：写入本地墓碑（阻止残留数据被再次导入），并解除当前族谱的云绑定。
    */
   async deleteCloudFamily(familyId: string, confirmTitle: string): Promise<void> {
-    // 云端超过 5000 条会返回 202（分批续删），端侧持续调用直到明确返回 DELETED
+    // 云端按批返回 202（PARTIAL），端侧持续调用直到明确返回 DELETED；
+    // 云函数每次调用有自己的时间预算，不能只调一次就认为删完了。
     let rounds: number = 0;
+    let removed: number = 0;
     while (true) {
       rounds++;
       try {
@@ -590,26 +611,167 @@ export class FamilyService {
         const raw: Object | undefined = data === null ? undefined : data['status'];
         const status: string = raw === undefined ? '' : String(raw);
         const legacy: Object | undefined = data === null ? undefined : data['ok'];
+        removed += num(data, 'deleted');
         // 兼容尚未更新的旧版云函数（返回 ok:true 而无 status），避免部署先后顺序造成误判
-        if (status !== 'DELETED' && legacy !== true) {
+        if (status === 'DELETED' || legacy === true) {
+          break;
+        }
+        // 明确未完成：继续下一轮；其它未知返回一律报错，绝不当作删除成功
+        if (status !== 'PARTIAL') {
           throw new Error('云端未确认删除完成');
         }
-        break;
+        if (rounds >= 300) {
+          throw new Error('删除未完成：云端仍有残留（已删除 ' + removed.toString() + ' 条），请稍后重试');
+        }
       } catch (err) {
         const e: Error = err as Error;
         const code: number = CloudFunctionClient.errorCode(e);
-        if (code === 202 && rounds < 200) {
+        if (code === 202) {
+          if (rounds >= 300) {
+            throw new Error('删除未完成：云端仍有残留（已删除 ' + removed.toString() + ' 条），请稍后重试');
+          }
           continue;
         }
-        // 云函数可能已在服务端删完、但响应超时；再次确认时云端返回 404「族谱不存在」，
-        // 此时按删除成功处理，否则本地会一直挂着已不存在的家族ID。
+        // 云函数可能已在服务端删完、但响应超时；再次确认时云端返回 404「族谱不存在」。
+        // 按删除成功处理，但同样写墓碑，防止云端残留的关系把家族重新带回列表。
         if (code === 404 || e.message.indexOf('族谱不存在') >= 0) {
           break;
         }
         throw e;
       }
     }
+    await this.markFamilyDeleted(familyId);
     this.unbindCloudFamily(familyId, '已退出云家族');
+  }
+
+  // ---------------------------------------------------------------- 已删除家族墓碑
+
+  /** 读取本机记录的「已删除云家族」ID 列表 */
+  async deletedFamilyIds(): Promise<string[]> {
+    const text: string = await GenealogyService.getInstance().getMetaValue(FamilyService.TOMBSTONE_KEY);
+    if (text.length === 0) {
+      return [];
+    }
+    let parsed: string[] = [];
+    try {
+      parsed = JSON.parse(text) as string[];
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'parse deleted family ids failed');
+      return [];
+    }
+    const list: string[] = [];
+    if (parsed === null || parsed === undefined) {
+      return list;
+    }
+    for (let i: number = 0; i < parsed.length; i++) {
+      const raw: string = parsed[i] === undefined || parsed[i] === null ? '' : String(parsed[i]).trim();
+      if (raw.length > 0 && list.indexOf(raw) < 0) {
+        list.push(raw);
+      }
+    }
+    return list;
+  }
+
+  async isFamilyDeleted(familyId: string): Promise<boolean> {
+    if (familyId.length === 0) {
+      return false;
+    }
+    return (await this.deletedFamilyIds()).indexOf(familyId) >= 0;
+  }
+
+  /** 记录删除墓碑：保留最近 500 个，避免元信息无限增长 */
+  async markFamilyDeleted(familyId: string): Promise<void> {
+    if (familyId.length === 0) {
+      return;
+    }
+    const list: string[] = await this.deletedFamilyIds();
+    if (list.indexOf(familyId) < 0) {
+      list.push(familyId);
+    }
+    const kept: string[] = list.length > 500 ? list.slice(list.length - 500) : list;
+    await GenealogyService.getInstance().setMetaValue(FamilyService.TOMBSTONE_KEY, JSON.stringify(kept));
+  }
+
+  /** 重新创建 / 加入同 ID 家族时清除墓碑（正常不会发生，仅作自愈） */
+  async clearFamilyDeleted(familyId: string): Promise<void> {
+    const list: string[] = await this.deletedFamilyIds();
+    const idx: number = list.indexOf(familyId);
+    if (idx < 0) {
+      return;
+    }
+    list.splice(idx, 1);
+    await GenealogyService.getInstance().setMetaValue(FamilyService.TOMBSTONE_KEY, JSON.stringify(list));
+  }
+
+  // ---------------------------------------------------------------- 导入前预检
+
+  /**
+   * 云端族谱完整性预检：主表是否存在、族人总数、谱书是否存在。
+   *
+   * 「删除不彻底」的典型形态是：FamilyBook / FamilyDirectory 已被删，FamilyMember 却残留，
+   * 此时导入会把幸存的族人按断裂的父子关系拆成几百个孤立分支。导入前必须先做这一步。
+   */
+  async inspectCloudFamily(familyId: string): Promise<CloudFamilyInspect> {
+    const info: CloudFamilyInspect = new CloudFamilyInspect();
+    try {
+      const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('sync-pull', {
+        'familyId': familyId, 'sinceRev': 0, 'limit': 1, 'offset': 0
+      });
+      if (data === null) {
+        return info;
+      }
+      info.exists = true;
+      info.memberCount = num(data, 'memberCount');
+      const bookRaw: Object | undefined = data['book'];
+      info.hasBook = bookRaw !== undefined && bookRaw !== null;
+      info.headRev = num(data, 'headRev');
+    } catch (err) {
+      const e: Error = err as Error;
+      const code: number = CloudFunctionClient.errorCode(e);
+      if (code === 404 || code === 403 || e.message.indexOf('族谱不存在') >= 0) {
+        info.exists = false;
+        return info;
+      }
+      throw e;
+    }
+    return info;
+  }
+
+  /**
+   * 导入完成后校验本地数据是否完整，返回空串表示通过。
+   * @param expectedMemberCount 云端统计的族人总数（0 表示无法统计，跳过人数校验）
+   */
+  verifyImportedIntegrity(expectedMemberCount: number): string {
+    const people: Person[] = GenealogyService.getInstance().getPeople();
+    const total: number = people.length;
+    if (expectedMemberCount > 0 && total < expectedMemberCount) {
+      return '云端应有 ' + expectedMemberCount.toString() + ' 位族人，实际仅导入 ' + total.toString() +
+        ' 位，数据不完整';
+    }
+    if (total === 0) {
+      return '';
+    }
+    const ids: Set<string> = new Set<string>();
+    for (let i: number = 0; i < total; i++) {
+      const uid: string = people[i].uid.trim().toUpperCase();
+      if (uid.length > 0) {
+        ids.add(uid);
+      }
+    }
+    let missingParent: number = 0;
+    for (let i: number = 0; i < total; i++) {
+      const fid: string = people[i].fatherId.trim().toUpperCase();
+      if (fid.length > 0 && !ids.has(fid)) {
+        missingParent++;
+      }
+    }
+    // 少量父节点缺失可能是历史脏数据；超过 1% 或 5 人，说明云端父子链已被删除打断，
+    // 继续导入只会得到「几百个分支」，直接拒绝。
+    if (missingParent >= 5 || missingParent * 100 / total >= 1) {
+      return '检测到 ' + missingParent.toString() + ' 位族人的父系记录缺失（云端可能仍有删除残留），' +
+        '导入后会断成多个分支，已取消';
+    }
+    return '';
   }
 
   /** 解除某家族与本机的绑定（云端已删除或不可用时），避免卡在「已接入但无法同步」 */

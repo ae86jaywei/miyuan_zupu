@@ -38,6 +38,8 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
   const privates = [];
   const changes = [];
 
+  /** 全量基线时额外返回成员总数：端侧导入前据此判断云端数据是否残缺 */
+  let memberCount = 0;
   if (sinceRev <= 0) {
     // 首次同步：全量基线（分页）
     const all = await S.query(S.T.MEMBER, [['familyId', '=', familyId]], { limit: limit, offset: offset });
@@ -46,6 +48,7 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
     });
     // 墓穴只在第一页随基线下发：分页时每页都重查整表会让流量与耗时成倍放大
     if (offset === 0) {
+      memberCount = await S.count(S.T.MEMBER, [['familyId', '=', familyId]], 'memberId');
       const graveRows = await S.query(S.T.GRAVE, [['familyId', '=', familyId]], { limit: 1000 });
       graveRows.forEach((g) => {
         graves[g.graveId] = g;
@@ -118,6 +121,8 @@ module.exports.handler = S.createHandler('sync-pull', async (params, event, log,
     headRev: headRev,
     sinceRev: sinceRev,
     fullSnapshot: sinceRev <= 0,
+    memberCount: memberCount,
+    hasBook: book !== null,
     hasMore: (sinceRev <= 0) && (memberList.length >= limit),
     nextOffset: offset + memberList.length,
     changes: changes,
