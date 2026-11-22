@@ -511,6 +511,12 @@ export class PaginationService {
     const pending: PendingUnit[] = [];
     /** 已排进续页队列的 uid：跨页去重，防止同一人被切成多个续页单元 */
     const queued: Set<string> = new Set<string>();
+    /**
+     * 已落进任意一页的 uid（整本全局去重）。
+     * 只靠 cur.uids（本页集合）去重时，承接父卡换页后会再次展开上一页已排过的子女，
+     * 同一房支就会在多页重复出现；这里以整本为单位记录已排人员。
+     */
+    const placedUids: Set<string> = new Set<string>();
     let iter: number = 0;
     /** 已落页人数：进度按「已排人数 / 全支人数」算，比按迭代次数百分比准确 */
     let placed: number = 0;
@@ -528,7 +534,7 @@ export class PaginationService {
       }
       if (queue.length === 0) {
         this.commitPending(queue, pending);
-        placed = placed + this.flushPage(cur, pages, nodeMap);
+        placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
         cur = new PagePlan();
         cur.index = pages.length + 1;
         continue;
@@ -568,7 +574,7 @@ export class PaginationService {
         const c: PageContent = this.computeCanvas(roots2, set, style, profile, spec);
         if (!this.fits(c, spec)) {
           this.commitPending(queue, pending);
-          placed = placed + this.flushPage(cur, pages, nodeMap);
+          placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
           cur = new PagePlan();
           cur.index = pages.length + 1;
           continue;
@@ -584,43 +590,53 @@ export class PaginationService {
         cur.uids = set;
       }
 
-      // 页根/承接父卡已在页内：向下递归填页
-      if (cur.uids.has(unit.node.uid)) {
-        this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending, nodeMap, queued);
+      // 页面已经有人，且这一单元的人在前页已落过：不再展开（其未排子女已作为独立单元在队列中）
+      if (cur.uids.size > 0 && !cur.uids.has(unit.node.uid) && placedUids.has(unit.node.uid)) {
         if (queue[0] === unit) {
           queue.shift();
         }
         continue;
       }
 
-      // 整支装得下就整支放
+      // 页根/承接父卡已在页内：向下递归填页
+      if (cur.uids.has(unit.node.uid)) {
+        this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending, nodeMap, queued, placedUids);
+        if (queue[0] === unit) {
+          queue.shift();
+        }
+        continue;
+      }
+
+      // 整支装得下就整支放（只收尚未落页的人：已排过的不再重复装箱）
       const size: number = sizeMap.get(unit.node.uid) !== undefined ?
         (sizeMap.get(unit.node.uid) as number) : 1;
       if (size <= slots - cur.uids.size) {
         const trial: Set<string> = this.copySet(cur.uids);
-        this.collectSubtree(unit.node, trial);
-        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
-        if (this.fits(c, spec)) {
-          cur.uids = trial;
-          queue.shift();
-          continue;
+        this.collectSubtree(unit.node, trial, placedUids);
+        if (trial.size > cur.uids.size) {
+          const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
+          if (this.fits(c, spec)) {
+            cur.uids = trial;
+            queue.shift();
+            continue;
+          }
         }
       }
 
       // 整支放不下：把这一支的根卡先放进本页，再逐层填；连根卡都放不进才换页
       const before: number = cur.uids.size;
-      this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending, nodeMap, queued);
+      this.fill(unit.node, cur, style, profile, spec, sizeMap, slots, pending, nodeMap, queued, placedUids);
       if (cur.uids.size > before) {
         queue.shift();
         continue;
       }
       this.commitPending(queue, pending);
-      placed = placed + this.flushPage(cur, pages, nodeMap);
+      placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
       cur = new PagePlan();
       cur.index = pages.length + 1;
     }
     if (cur.uids.size > 0 && pages.length < MAX_PAGES) {
-      placed = placed + this.flushPage(cur, pages, nodeMap);
+      placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
     }
     if (queue.length > 0 || pending.length > 0) {
       book.truncated = true;
@@ -640,16 +656,22 @@ export class PaginationService {
    */
   private fill(node: PersonNode, cur: PagePlan, style: string, profile: LayoutProfile, spec: PageSpec,
     sizeMap: Map<string, number>, slots: number, pending: PendingUnit[],
-    nodeMap: Map<string, PersonNode>, queued: Set<string>): void {
+    nodeMap: Map<string, PersonNode>, queued: Set<string>, placedUids: Set<string>): void {
+    // 该人已在前面某页排过，且不是本页的页根/承接卡：不再展开，避免整支重复
+    if (!cur.uids.has(node.uid) && placedUids.has(node.uid)) {
+      return;
+    }
     if (!cur.uids.has(node.uid)) {
       const size: number = sizeMap.get(node.uid) !== undefined ? (sizeMap.get(node.uid) as number) : 1;
       if (size <= slots - cur.uids.size) {
         const trial: Set<string> = this.copySet(cur.uids);
-        this.collectSubtree(node, trial);
-        const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
-        if (this.fits(c, spec)) {
-          cur.uids = trial;
-          return;
+        this.collectSubtree(node, trial, placedUids);
+        if (trial.size > cur.uids.size) {
+          const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
+          if (this.fits(c, spec)) {
+            cur.uids = trial;
+            return;
+          }
         }
       }
       // 整支放不下：先把根卡放进来，线由页根/承接父卡连到它
@@ -685,7 +707,13 @@ export class PaginationService {
         continue;
       }
       seen.add(child.uid);
-      if (!cur.uids.has(child.uid)) {
+      const inPage: boolean = cur.uids.has(child.uid);
+      // 已落页且不在本页：不再收集也不下钻。它的未排子女在上一次落页时
+      // 已由 cutUncovered 作为独立续页单元入队，这里再下钻只会重复排整支。
+      if (!inPage && placedUids.has(child.uid)) {
+        continue;
+      }
+      if (!inPage) {
         order.push(child);
       }
       if (walkStack.length < MAX_PAGE_DEPTH) {
@@ -724,12 +752,12 @@ export class PaginationService {
     }
 
     // 3) 本页内每个人「落在页外的子女」统一记为续页，避免跨页悬空
-    this.cutUncovered(cur, nodeMap, pending, queued);
+    this.cutUncovered(cur, nodeMap, pending, queued, placedUids);
   }
 
   /** 本页已排下的节点，其不在本页的子女全部切成续页单元 */
   private cutUncovered(cur: PagePlan, nodeMap: Map<string, PersonNode>, pending: PendingUnit[],
-    queued: Set<string>): void {
+    queued: Set<string>, placedUids: Set<string>): void {
     const parents: PersonNode[] = [];
     cur.uids.forEach((uid: string): void => {
       const n: PersonNode | undefined = nodeMap.get(uid);
@@ -741,32 +769,32 @@ export class PaginationService {
       const p: PersonNode = parents[i];
       let first: number = -1;
       for (let k: number = 0; k < p.children.length; k = k + 1) {
-        if (!cur.uids.has(p.children[k].uid)) {
+        const childUid: string = p.children[k].uid;
+        // 已落页的子女不再入队，否则承接父卡换页后会把它整支再排一遍
+        if (!cur.uids.has(childUid) && !placedUids.has(childUid)) {
           first = k;
           break;
         }
       }
       if (first >= 0) {
-        this.cutChildren(p, p.children, first, cur, pending, queued);
+        this.cutChildren(p, p.children, first, cur, pending, queued, placedUids);
       }
     }
   }
 
   /** 某个父卡还有子女没排进本页：记续见，并把它们排进后续页队列 */
   private cutChildren(parent: PersonNode, children: PersonNode[], start: number, cur: PagePlan,
-    pending: PendingUnit[], queued: Set<string>): void {
+    pending: PendingUnit[], queued: Set<string>, placedUids: Set<string>): void {
     if (start >= children.length) {
       return;
     }
     const cut: PageCut = new PageCut();
     cut.parentUid = parent.uid;
     cut.parentName = parent.person.name;
-    cut.relationText = (children.length - start).toString() + ' 支';
     for (let i: number = start; i < children.length; i = i + 1) {
       const child: PersonNode = children[i];
-      // 已经在续页队列里的人不再重复入队：fill 每次都会扫全页的未覆盖子女，
-      // 不去重会把同一批人切成多份，队列爆炸且同一人排进多页
-      if (queued.has(child.uid)) {
+      // 已落页的人不再入队；队列里已有的也不重复入队
+      if (placedUids.has(child.uid) || queued.has(child.uid)) {
         continue;
       }
       queued.add(child.uid);
@@ -775,6 +803,7 @@ export class PaginationService {
       pending.push(new PendingUnit(child, parent, cur.index, rank));
     }
     if (cut.childUids.length > 0) {
+      cut.relationText = cut.childUids.length.toString() + ' 支';
       cur.cuts.push(cut);
     }
   }
@@ -827,10 +856,13 @@ export class PaginationService {
   }
 
   /** 落页：算世代范围、奇偶页、页码，然后追加到书里；返回本页人数（进度用） */
-  private flushPage(page: PagePlan, pages: PagePlan[], nodeMap: Map<string, PersonNode>): number {
+  private flushPage(page: PagePlan, pages: PagePlan[], nodeMap: Map<string, PersonNode>,
+    placedUids: Set<string>): number {
     let lo: number = -1;
     let hi: number = -1;
     page.uids.forEach((uid: string): void => {
+      // 本页所有卡片（含页首承接卡）都算已落页：后续页不再重复展开它们的内容
+      placedUids.add(uid);
       const n: PersonNode | undefined = nodeMap.get(uid);
       if (n === undefined) {
         return;
@@ -1055,11 +1087,21 @@ export class PaginationService {
       let usedW: number = 0;
       let usedH: number = 0;
       let first: boolean = true;
+      // 跨片段去重：承接父卡和后续片段常来自同一支，每段独立 layout 不共享 placed，
+      // 因此把前面片段已画的人从 allowed 中剔除，再交给下一段布局，避免整支重复。
+      const remaining: Set<string> = this.copySet(allowed);
       for (let i: number = 0; i < roots.length; i = i + 1) {
+        const rootUid: string = roots[i].uid;
+        if (!remaining.has(rootUid)) {
+          continue;
+        }
         const c: EuCanvas = EuLayout.compute([roots[i]], profile.cardW, profile.cardH, profile.colGap,
-          profile.showSpouse, 0, allowed, profile.metrics());
+          profile.showSpouse, 0, remaining, profile.metrics());
         if (c.boxes.length === 0) {
           continue;
+        }
+        for (let d: number = 0; d < c.boxes.length; d = d + 1) {
+          remaining.delete(c.boxes[d].node.uid);
         }
         if (cursorX > 0 && cursorX + c.width > limitW + FIT_EPS) {
           cursorX = 0;
@@ -1108,12 +1150,12 @@ export class PaginationService {
     return content;
   }
 
-  private collectSubtree(node: PersonNode, into: Set<string>): void {
+  private collectSubtree(node: PersonNode, into: Set<string>, skip: Set<string>): void {
     const stack: PersonNode[] = [node];
     while (stack.length > 0) {
       const n: PersonNode = stack[stack.length - 1];
       stack.pop();
-      if (into.has(n.uid)) {
+      if (into.has(n.uid) || skip.has(n.uid)) {
         continue;
       }
       into.add(n.uid);
