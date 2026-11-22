@@ -12,6 +12,7 @@ import { DirectoryForm, DirectoryService, MEMBER_COUNT_BANDS } from '../service/
 import { DirectoryEntry } from 'common_base';
 import { Genealogy } from 'common_base';
 import { RouterUtil } from 'common_base';
+import { GenealogyStore } from '../store/GenealogyStore';
 
 /**
  * 族谱黄页（方案 §五.11、§十三.4）。
@@ -50,6 +51,38 @@ struct FamilyDirectoryView {
 
   private toast(message: string): void {
     this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
+  }
+
+  /** 本机是否有该家族对应的族谱（自己有权限的谱不必再申请） */
+  private localBookKey(familyId: string): number {
+    const books: Genealogy[] = SR.genealogy().getBooks();
+    for (let i: number = 0; i < books.length; i++) {
+      if (books[i].familyId === familyId) {
+        return books[i].key;
+      }
+    }
+    return 0;
+  }
+
+  /** 打开本机已有的族谱（是当前谱则直接返回，否则先切换） */
+  private openLocal(familyId: string): void {
+    const key: number = this.localBookKey(familyId);
+    if (key <= 0) {
+      return;
+    }
+    if (key === SR.genealogy().getCurrentBookId()) {
+      RouterUtil.back(this.getUIContext());
+      return;
+    }
+    SR.genealogy().switchGenealogy(key)
+      .then((): void => {
+        GenealogyStore.notifyChanged();
+        AppStorage.setOrCreate<string>('gpSelection', '');
+        RouterUtil.back(this.getUIContext());
+      })
+      .catch((err: BusinessError): void => {
+        this.toast('打开族谱失败：' + err.message);
+      });
   }
 
   private async search(): Promise<void> {
@@ -161,23 +194,36 @@ struct FamilyDirectoryView {
           .fontSize(10.5)
           .fontColor(Theme.primary)
           .layoutWeight(1)
-        Button(T('申请查看')).fontFamily(uiFontFamily())
-          .fontSize(12)
-          .height(30)
-          .backgroundColor(Theme.primary)
-          .fontColor(Theme.onPrimary)
-          .onClick((): void => {
-            RouterUtil.accessApply(this.getUIContext(), e.familyId);
-          })
-        Button(T('我要加入')).fontFamily(uiFontFamily())
-          .fontSize(12)
-          .height(30)
-          .margin({ left: Spacing.S })
-          .backgroundColor(Theme.field)
-          .fontColor(Theme.primary)
-          .onClick((): void => {
-            RouterUtil.accessApply(this.getUIContext(), e.familyId);
-          })
+        if (this.localBookKey(e.familyId) > 0) {
+          // 本机已有这部谱（自己创建的或已加入）：直接打开，不再要求申请
+          Button(T(this.localBookKey(e.familyId) === SR.genealogy().getCurrentBookId() ? '进入本谱' : '打开此谱'))
+            .fontFamily(uiFontFamily())
+            .fontSize(12)
+            .height(30)
+            .backgroundColor(Theme.primary)
+            .fontColor(Theme.onPrimary)
+            .onClick((): void => {
+              this.openLocal(e.familyId);
+            })
+        } else {
+          Button(T('申请查看')).fontFamily(uiFontFamily())
+            .fontSize(12)
+            .height(30)
+            .backgroundColor(Theme.primary)
+            .fontColor(Theme.onPrimary)
+            .onClick((): void => {
+              RouterUtil.accessApply(this.getUIContext(), e.familyId);
+            })
+          Button(T('我要加入')).fontFamily(uiFontFamily())
+            .fontSize(12)
+            .height(30)
+            .margin({ left: Spacing.S })
+            .backgroundColor(Theme.field)
+            .fontColor(Theme.primary)
+            .onClick((): void => {
+              RouterUtil.accessApply(this.getUIContext(), e.familyId);
+            })
+        }
       }
       .width('100%')
       .margin({ top: Spacing.M })
