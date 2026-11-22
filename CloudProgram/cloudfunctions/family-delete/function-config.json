@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "解散云家族（仅谱主，需 confirmTitle 二次确认，逐表清空后删除 Family）",
   "handler": "index.handler",
-  "memorySize": 500,
-  "timeout": 60,
+  "memorySize": 4096,
+  "timeout": 600,
   "triggers": [
     {
       "type": "http",
