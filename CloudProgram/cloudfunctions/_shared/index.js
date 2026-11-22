@@ -200,4 +200,4 @@ function reply(payload, callback) {
 
 module.exports = Object.assign({}, constants, core, identity, authz, rev, db, validate, patch, privacy, human,
   members, EXTRA, { extractParams, describeEvent, getFamily, createHandler, queryOne: db.queryOne, query: db.query,
-    upsertOne: db.upsertOne, upsertMany: db.upsertMany });
+    upsertOne: db.upsertOne, upsertMany: db.upsertMany, deleteInTransaction: db.deleteInTransaction });

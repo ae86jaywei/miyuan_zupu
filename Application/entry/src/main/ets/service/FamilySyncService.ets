@@ -136,8 +136,14 @@ export class FamilySyncService {
       FamilyService.getInstance().setOffline(false);
     } catch (err) {
       const msg: string = FamilySyncService.describe(err);
+      const code: number = CloudFunctionClient.errorCode(err as Error);
       if (msg.indexOf(BOOK_CHANGED) >= 0) {
         result.message = '同步已中止：同步期间已切换族谱';
+      } else if (code === 404 || msg.indexOf('族谱不存在') >= 0) {
+        // 云端家族已被删除（常见于删除操作超时但服务端已删完）：
+        // 解除本地绑定，避免永远卡在「族谱不存在」且无法重新发布。
+        FamilyService.getInstance().unbindCloudFamily(familyId, '云端族谱已不存在，已解除绑定');
+        result.message = '云端族谱已不存在（可能已被删除），已解除本地绑定，可重新发布';
       } else {
         result.message = '同步失败：' + msg;
         FamilyService.getInstance().setOffline(true);

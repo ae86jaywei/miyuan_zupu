@@ -129,6 +129,23 @@ export class CloudFunctionClient {
     return body as Record<string, Object>;
   }
 
+  /**
+   * 云函数业务错误码（仅当错误来自 `{code,message}` 返回体）。
+   * 传输层失败（如网关 504）没有业务码，返回 0。
+   */
+  static errorCode(err: Error): number {
+    const name: string = err !== null && err.name !== undefined ? err.name : '';
+    const prefix: string = 'CloudFunctionError:';
+    if (name.indexOf(prefix) !== 0) {
+      return 0;
+    }
+    const rest: string = name.substring(prefix.length);
+    const colon: number = rest.indexOf(':');
+    const text: string = colon >= 0 ? rest.substring(0, colon) : rest;
+    const code: number = Number(text);
+    return Number.isNaN(code) ? 0 : code;
+  }
+
   private ensureCloudReady(): void {
     if (AppStorage.get<boolean>(KEY_CLOUD_READY) !== true) {
       const msg: string | undefined = AppStorage.get<string>(KEY_CLOUD_MSG);

@@ -578,10 +578,42 @@ export class FamilyService {
    * 成功后：若当前本地族谱正绑定该家族，则退回「仅本机」模式。
    */
   async deleteCloudFamily(familyId: string, confirmTitle: string): Promise<void> {
-    await CloudFunctionClient.getInstance().call('family-delete', {
-      'familyId': familyId,
-      'confirmTitle': confirmTitle
-    }, 590 * 1000);
+    // 云端超过 5000 条会返回 202（分批续删），端侧持续调用直到明确返回 DELETED
+    let rounds: number = 0;
+    while (true) {
+      rounds++;
+      try {
+        const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('family-delete', {
+          'familyId': familyId,
+          'confirmTitle': confirmTitle
+        }, 590 * 1000);
+        const raw: Object | undefined = data === null ? undefined : data['status'];
+        const status: string = raw === undefined ? '' : String(raw);
+        const legacy: Object | undefined = data === null ? undefined : data['ok'];
+        // 兼容尚未更新的旧版云函数（返回 ok:true 而无 status），避免部署先后顺序造成误判
+        if (status !== 'DELETED' && legacy !== true) {
+          throw new Error('云端未确认删除完成');
+        }
+        break;
+      } catch (err) {
+        const e: Error = err as Error;
+        const code: number = CloudFunctionClient.errorCode(e);
+        if (code === 202 && rounds < 200) {
+          continue;
+        }
+        // 云函数可能已在服务端删完、但响应超时；再次确认时云端返回 404「族谱不存在」，
+        // 此时按删除成功处理，否则本地会一直挂着已不存在的家族ID。
+        if (code === 404 || e.message.indexOf('族谱不存在') >= 0) {
+          break;
+        }
+        throw e;
+      }
+    }
+    this.unbindCloudFamily(familyId, '已退出云家族');
+  }
+
+  /** 解除某家族与本机的绑定（云端已删除或不可用时），避免卡在「已接入但无法同步」 */
+  unbindCloudFamily(familyId: string, statusText: string): void {
     this.roleCache.delete(familyId);
     this.familyCache.delete(familyId);
     const svc: GenealogyService = GenealogyService.getInstance();
@@ -589,7 +621,7 @@ export class FamilyService {
       svc.setBookCloudState('', SyncMode.LOCAL, '', 0);
       this.publishState(SyncMode.LOCAL, '');
       this.setPendingCount(0);
-      this.setSyncStatus('已退出云家族');
+      this.setSyncStatus(statusText);
     }
   }
 

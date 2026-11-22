@@ -13,8 +13,15 @@ module.exports.handler = S.createHandler('directory-search', async (params, even
 
   await S.requireUserId(event, params);
   const keyword = S.str(params, 'keyword').toLowerCase();
+  const familyId = S.str(params, 'familyId');
   const limit = Math.min(S.num(params, 'limit', 50), 100);
   const offset = S.num(params, 'offset', 0);
+
+  // 精确查询某部族谱是否已上架（端侧详情页标注用）
+  if (familyId.length > 0) {
+    const one = await S.queryOne(S.T.DIRECTORY, [['dirId', '=', familyId]]);
+    return { dirs: one === null ? [] : [one], total: one === null ? 0 : 1, nextCursor: 0 };
+  }
 
   const rows = await S.query(S.T.DIRECTORY, [], { limit: 500, orderBy: [['updatedAt', 'DESC']] });
   const hit = [];

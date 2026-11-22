@@ -436,6 +436,48 @@ async function deleteByType(typeName, objects) {
   }
 }
 
+/**
+ * 在一个 CloudDB 事务中删除多张表的记录：任一步失败则整体回滚。
+ * 事务内不允许再拆并发，调用方按批（≤5000 条）多次调用即可。
+ * @param {Array<{type: string, rows: object[]}>} steps
+ * @returns {Promise<number>} 实际提交的删除条数
+ */
+async function deleteInTransaction(steps) {
+  const list = (steps || []).filter((s) => s && s.type && s.rows && s.rows.length > 0);
+  if (list.length === 0) {
+    return 0;
+  }
+  const db = database();
+  if (typeof db.runTransaction !== 'function') {
+    throw new BizError(CODE.INTERNAL, '云数据库 SDK 不支持事务（缺少 runTransaction）', 'tx_unsupported');
+  }
+  let total = 0;
+  try {
+    // 注意：runTransaction 接收的是 TransactionFunction 对象（含 apply 方法），
+    // 直接传函数会让 SDK 调用 Function.prototype.apply 导致事务体拿不到 tx。
+    const committed = await db.runTransaction({
+      apply: async (tx) => {
+        for (let i = 0; i < list.length; i++) {
+          const step = list[i];
+          const rows = [];
+          for (let k = 0; k < step.rows.length; k++) {
+            rows.push(toGeneric(step.type, sanitizeForWrite(step.rows[k])));
+          }
+          tx.executeDelete(rows);
+          total += rows.length;
+        }
+        return true;
+      }
+    });
+    if (committed !== true) {
+      throw new BizError(CODE.INTERNAL, '删除事务未提交', 'tx_failed');
+    }
+    return total;
+  } catch (e) {
+    throw toBizError(e);
+  }
+}
+
 /** 统计某家族某表的行数（用于黄页人数区间）：优先 countQuery，失败退回分页查询 */
 async function count(typeName, conds, pkField) {
   const col = obj(typeName);
@@ -490,4 +532,4 @@ async function writeBatch(steps, logger) {
 }
 
 module.exports = { ensureCloud, database, obj, sanitizeForWrite, toGeneric, toPlain, query, queryOne, getById,
-  upsertMany, upsertOne, deleteByType, count, writeBatch, T, zoneName };
+  upsertMany, upsertOne, deleteByType, deleteInTransaction, count, writeBatch, T, zoneName };

@@ -1,13 +1,11 @@
-﻿import { cloudDatabase } from '@kit.CloudFoundationKit';
-import { hilog } from '@kit.PerformanceAnalysisKit';
+﻿import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AccountService } from './AccountService';
 import { Genealogy } from 'common_base';
 import { DirectoryEntry } from 'common_base';
-import { CloudFamilyDirectory } from 'common_base';
+import { objectList, str, num } from 'common_base';
 import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Directory]';
-const ZONE_NAME: string = 'miyuanfamily';
 const MAX_ROWS: number = 100;
 /** 人数区间枚举（与云侧 MEMBER_COUNT_BANDS 一致，禁止精确人数） */
 export const MEMBER_COUNT_BANDS: string[] = ['0-50', '50-100', '100-500', '500-1000', '1000+'];
@@ -42,42 +40,45 @@ export class DirectoryService {
     return DirectoryService.instance;
   }
 
-  /** 搜索黄页（任意登录用户可读，不需要 Membership） */
+  /**
+   * 搜索黄页（任意登录用户可读，不需要 Membership）。
+   * 统一走云函数：端侧对协作 Zone 的直读权限在新环境可能未放开，
+   * 直读失败时会静默返回空列表，表现为「已上架却搜不到」。
+   */
   async search(keyword: string): Promise<DirectoryEntry[]> {
     const out: DirectoryEntry[] = [];
     if (!AccountService.getInstance().isCloudReady()) {
       return out;
     }
     try {
-      const zone: cloudDatabase.DatabaseZone = cloudDatabase.zone(ZONE_NAME);
-      const query: cloudDatabase.DatabaseQuery<CloudFamilyDirectory> =
-        new cloudDatabase.DatabaseQuery<CloudFamilyDirectory>(CloudFamilyDirectory);
-      query.limit(MAX_ROWS);
-      const rows: CloudFamilyDirectory[] = await zone.query(query);
-      const kw: string = keyword.trim();
+      const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('directory-search', {
+        'keyword': keyword.trim(),
+        'limit': MAX_ROWS
+      });
+      const rows: Record<string, Object>[] = data === null ? [] : objectList(data, 'dirs');
       for (let i: number = 0; i < rows.length; i++) {
-        const row: CloudFamilyDirectory = rows[i];
-        const e: DirectoryEntry = new DirectoryEntry();
-        e.dirId = row.dirId !== undefined ? row.dirId : '';
-        e.familyId = row.familyId !== undefined ? row.familyId : '';
-        e.surname = row.surname !== undefined ? row.surname : '';
-        e.region = row.region !== undefined ? row.region : '';
-        e.title = row.title !== undefined ? row.title : '';
-        e.branchSummary = row.branchSummary !== undefined ? row.branchSummary : '';
-        e.memberCountBand = row.memberCountBand !== undefined ? row.memberCountBand : '';
-        e.coverRef = row.coverRef !== undefined ? row.coverRef : '';
-        e.accessHint = row.accessHint !== undefined ? row.accessHint : '';
-        e.updatedAt = row.updatedAt !== undefined ? row.updatedAt : 0;
-        if (kw.length === 0 || e.title.indexOf(kw) >= 0 || e.surname.indexOf(kw) >= 0 ||
-          e.region.indexOf(kw) >= 0 || e.branchSummary.indexOf(kw) >= 0) {
-          out.push(e);
-        }
+        out.push(DirectoryService.toEntry(rows[i]));
       }
       return out;
     } catch (err) {
-      hilog.warn(0x0000, TAG, 'query directory failed: %{public}s', JSON.stringify(err));
+      hilog.warn(0x0000, TAG, 'search directory failed: %{public}s', JSON.stringify(err));
       return out;
     }
+  }
+
+  private static toEntry(r: Record<string, Object>): DirectoryEntry {
+    const e: DirectoryEntry = new DirectoryEntry();
+    e.dirId = str(r, 'dirId');
+    e.familyId = str(r, 'familyId');
+    e.surname = str(r, 'surname');
+    e.region = str(r, 'region');
+    e.title = str(r, 'title');
+    e.branchSummary = str(r, 'branchSummary');
+    e.memberCountBand = str(r, 'memberCountBand');
+    e.coverRef = str(r, 'coverRef');
+    e.accessHint = str(r, 'accessHint');
+    e.updatedAt = num(r, 'updatedAt');
+    return e;
   }
 
   /** 是否为已上架的谱（用于本地族谱卡片标注） */
@@ -86,13 +87,10 @@ export class DirectoryService {
       return false;
     }
     try {
-      const zone: cloudDatabase.DatabaseZone = cloudDatabase.zone(ZONE_NAME);
-      const query: cloudDatabase.DatabaseQuery<CloudFamilyDirectory> =
-        new cloudDatabase.DatabaseQuery<CloudFamilyDirectory>(CloudFamilyDirectory);
-      query.equalTo('dirId', familyId);
-      query.limit(1);
-      const rows: CloudFamilyDirectory[] = await zone.query(query);
-      return rows.length > 0;
+      const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call('directory-search', {
+        'familyId': familyId
+      });
+      return data !== null && objectList(data, 'dirs').length > 0;
     } catch (err) {
       return false;
     }

@@ -8,6 +8,8 @@ const CODE = {
   FORBIDDEN: 403,
   NOT_FOUND: 404,
   CONFLICT: 409,
+  /** 受理但未完成：大族谱分批删除时返回，端侧据此继续调用 */
+  PARTIAL: 202,
   TOO_MANY: 429,
   INTERNAL: 500
 };
