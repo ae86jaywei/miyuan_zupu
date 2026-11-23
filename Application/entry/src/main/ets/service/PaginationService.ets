@@ -140,6 +140,13 @@ const FIT_EPS: number = 0.2;
  * 避免同一页混排多个房支导致「树冠在十几页反复出现」。
  */
 const MIN_PEOPLE_PER_PAGE: number = 20;
+/**
+ * 欧式「五世一表」软上限：页根所在世起算，最多画 5 世，第 6 世优先另起一页。
+ * 软限制——本页人数不足时允许多画一世，避免为了卡世数把页面排成空白。
+ */
+const EU_MAX_GENERATIONS: number = 5;
+/** 触发五世换页的最小页人数，低于此值宁可放宽世代上限 */
+const EU_GEN_CUT_MIN_PEOPLE: number = 12;
 
 /**
  * 分页规划与逐页布局。
@@ -567,6 +574,17 @@ export class PaginationService {
         if (unit.carry === null) {
           queue.shift();
         }
+      }
+
+      // 主动切页：新房支起点优先换页（单一世系）；欧式超过五世软上限也换页。
+      // 放在承接父卡入页之前，避免新房支的根卡先被并入上一页。
+      if (this.shouldCutBeforeBranchPoint(unit, cur, nodeMap) ||
+        (style === TreeStyle.EU && this.shouldCutForGeneration(unit, cur, EU_MAX_GENERATIONS))) {
+        this.commitPending(queue, pending);
+        placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
+        cur = new PagePlan();
+        cur.index = pages.length + 1;
+        continue;
       }
 
       // 这一支的承接父卡不在本页：把它作为新的独立片段放进本页；
@@ -1087,6 +1105,28 @@ export class PaginationService {
   }
 
   /**
+   * 欧式「五世一表」软上限判定。
+   *
+   * 以本页页根的世次为基准，下一代若已到第 6 世（跨度 ≥ 5）就换页；
+   * 页内人数不足 EU_GEN_CUT_MIN_PEOPLE 时放宽，宁可不守世数也不排空页。
+   * 世次未编（≤0）或人已在本页时不切。
+   */
+  private shouldCutForGeneration(unit: PendingUnit, cur: PagePlan, maxGen: number): boolean {
+    if (cur.rootNodes.length === 0 || cur.uids.size < EU_GEN_CUT_MIN_PEOPLE) {
+      return false;
+    }
+    if (cur.uids.has(unit.node.uid)) {
+      return false;
+    }
+    const base: number = cur.rootNodes[0].person.generation;
+    const gen: number = unit.node.person.generation;
+    if (base <= 0 || gen <= 0) {
+      return false;
+    }
+    return gen - base >= maxGen;
+  }
+
+  /**
    * 给每页补房支与承接信息：
    *  - branchName：页内首个节点的房名；
    *  - contextAncestors：页根上溯两代父辈（屏幕页首卡片、PDF 页首共用）；
@@ -1304,14 +1344,21 @@ export class PaginationService {
 }
 
 /**
- * 页眉文案：世系图 · 第X世—第Y世
+ * 页眉文案：单一世系标签（页根世代）。
+ *
+ * 抬头不再写「第X—Y世」这类跨世标题：翻页时读者需要知道「这一页是谁的房、哪一世」，
+ * 跨世范围只作为版面条目存在，不进入标题。调用方在前面拼谱名/房名。
  */
 export function pageGenText(page: PagePlan): string {
-  if (page.genFrom <= 0) {
+  let gen: number = 0;
+  if (page.rootNodes.length > 0) {
+    gen = page.rootNodes[0].person.generation;
+  }
+  if (gen <= 0) {
+    gen = page.genFrom;
+  }
+  if (gen <= 0) {
     return '世系图';
   }
-  if (page.genFrom === page.genTo) {
-    return '世系图 · ' + generationLabel(page.genFrom);
-  }
-  return '世系图 · ' + generationLabel(page.genFrom) + '—' + generationLabel(page.genTo);
+  return generationLabel(gen);
 }

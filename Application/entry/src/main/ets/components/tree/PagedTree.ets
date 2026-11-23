@@ -79,7 +79,7 @@ struct PrintCard {
  * 分页画布：一次只显示一页，页内所有连线两端都在本页。
  *
  * 尺寸与纸质族谱一致（默认横版 320×220mm），版心、装订口、翻口、天头地脚都按
- * PageSpec 计算；页与页之间不画线，用页眉世代范围、卡片外「承P/续P」标注、
+ * PageSpec 计算；页与页之间不画线，用页眉「房名 · 页根世代」、卡片外「承P/续P」标注、
  * 页脚「续见第 N 页」接续。
  */
 @Component
@@ -219,7 +219,14 @@ export struct PagedTree {
       this.header = '世系图';
       return;
     }
-    this.header = pageGenText(page) + (this.branchName.length > 0 ? ' · ' + this.branchName : '');
+    // 页眉按「房名 · 第N世」单一世系标注，不再把跨世范围写进标题
+    const branch: string = page.branchName.length > 0 ? page.branchName : this.branchName;
+    const genText: string = pageGenText(page);
+    if (genText === '世系图') {
+      this.header = branch.length > 0 ? branch : genText;
+    } else {
+      this.header = branch.length > 0 ? branch + ' · ' + genText : genText;
+    }
     this.footer = page.footerText;
     this.ancestorUids = page.contextAncestors;
     this.ancestorNames = page.contextAncestorNames;
@@ -666,7 +673,7 @@ export struct PagedTree {
       // 页首承接祖先卡
       this.AncestorCards()
 
-      // 页眉：谱名/支系 + 世代范围
+      // 页眉：房名 + 页根世代（单一世系，不写跨世范围）
       Text(T(this.header)).fontFamily(uiFontFamily())
         .fontSize(this.pt(8))
         .fontColor(PrintTheme.ink2)

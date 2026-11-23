@@ -249,7 +249,7 @@ export class PageCacheWriter {
       const start: number = (v - 1) * volPages + 1;
       const end: number = Math.min(book.pages.length, v * volPages);
       const firstPage: PagePlan = book.pages[start - 1];
-      const title: string = '第' + v.toString() + '卷' +
+      const title: string = '第' + v.toString() + '册' +
         (firstPage.branchName.length > 0 ? '（' + firstPage.branchName + '）' : '');
       const vb: relationalStore.ValuesBucket = {
         'cache_key': cacheKey,

@@ -333,10 +333,10 @@ export class PagedPdfExportService {
       const volCount: number = endG - startG;
       const title: string = PagedPdfExportService.safeName(genealogy.title);
       const outPath: string = volumeCount > 1
-        ? outDir + '/' + title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '卷.pdf'
+        ? outDir + '/' + title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '册.pdf'
         : outDir + '/' + title + '_' + styleName + '_' + stamp + '.pdf';
       const info: PdfInfo = new PdfInfo(genealogy.title +
-        (volumeCount > 1 ? ' 第' + (v + 1).toString() + '卷' : ''));
+        (volumeCount > 1 ? ' 第' + (v + 1).toString() + '册' : ''));
       const writer: RawPdfWriter = new RawPdfWriter(outPath, PAGE_W_PT, PAGE_H_PT, RENDER_W, RENDER_H,
         rawFont, info);
       let lastBook: number = -1;
@@ -381,7 +381,7 @@ export class PagedPdfExportService {
         globalPage = globalPage + 1;
         if (onProgress) {
           const volTag: string = volumeCount > 1
-            ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
+            ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '册）' : '';
           onProgress({ current: globalPage, total: total,
             message: T('渲染分页 ') + globalPage.toString() + '/' + total.toString() + volTag });
         }
@@ -429,9 +429,12 @@ export class PagedPdfExportService {
     return result;
   }
 
-  /** 页眉文本（页面上画出，同时作为书签标题） */
+  /** 页眉文本（页面上画出，同时作为书签标题）：谱名 · 宗支 · 房名 · 页根第N世 */
   private static rawHeader(genealogy: Genealogy, rootName: string, plan: PagePlan): string {
-    return genealogy.title + (rootName.length > 0 ? ' · ' + rootName : '') + ' · ' + pageGenText(plan);
+    const branch: string = plan.branchName.length > 0 && plan.branchName !== rootName
+      ? ' · ' + plan.branchName : '';
+    return genealogy.title + (rootName.length > 0 ? ' · ' + rootName : '') + branch +
+      ' · ' + pageGenText(plan);
   }
 
   /** 画页眉、卡片姓名/UID、页脚，并收集不可见文本层（F2 检索） */
@@ -515,7 +518,8 @@ export class PagedPdfExportService {
     ctx.textBaseline = 'middle';
     ctx.fillStyle = PDF_FOOTER;
     ctx.font = '22px sans-serif';
-    const foot: string = T('第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
+    const branch: string = plan.branchName.length > 0 ? plan.branchName + ' · ' : '';
+    const foot: string = T('第 ' + volumeNo.toString() + ' 册 · ' + branch + '第 ' + pageNo.toString() +
       ' 页 / 共 ' + totalPages.toString() + ' 页');
     ctx.fillText(foot, RENDER_W / 2, RENDER_H - 24);
     const footW: number = measurePx(foot, 22);
@@ -758,9 +762,9 @@ export class PagedPdfExportService {
       const startG: number = v * maxPagesPerVolume;
       const endG: number = Math.min(total, startG + maxPagesPerVolume);
       const volCount: number = endG - startG;
-      // 单卷沿用原文件名；多卷加「_第N卷」后缀，便于区分
+      // 单册沿用原文件名；多册加「_第N册」后缀，便于区分
       const outPath: string = volumeCount > 1
-        ? outDir + '/' + genealogy.title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '卷.pdf'
+        ? outDir + '/' + genealogy.title + '_' + styleName + '_' + stamp + '_第' + (v + 1).toString() + '册.pdf'
         : outDir + '/' + genealogy.title + '_' + styleName + '_' + stamp + '.pdf';
 
       const doc: pdfService.PdfDocument = new pdfService.PdfDocument();
@@ -838,7 +842,7 @@ export class PagedPdfExportService {
           }
           if (onProgress) {
             const volTag: string = volumeCount > 1
-              ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '卷）' : '';
+              ? '（第' + (v + 1).toString() + '/' + volumeCount.toString() + '册）' : '';
             onProgress({ current: globalPage, total: total,
               message: T('渲染分页 ') + globalPage.toString() + '/' + total.toString() + volTag });
           }
@@ -1102,8 +1106,9 @@ export class PagedPdfExportService {
     }
 
     // 页码：居中放在页脚下一行（距底 6mm），与接续文案不再同一基线
-    // 分卷后必须标出「第几卷第几页」，否则用户不知道当前文件在整套谱中的位置
-    const footer: string = '第 ' + volumeNo.toString() + ' 卷 · 第 ' + pageNo.toString() +
+    // 分册后必须标出「第几册第几页」，否则用户不知道当前文件在整套谱中的位置
+    const branch: string = plan.branchName.length > 0 ? plan.branchName + ' · ' : '';
+    const footer: string = '第 ' + volumeNo.toString() + ' 册 · ' + branch + '第 ' + pageNo.toString() +
       ' 页 / 共 ' + total.toString() + ' 页';
     const fw: number = measurePt(measureCtx, footer, PAGE_NO_PT);
     page.addTextObject(footer, PAGE_W_PT / 2 - fw / 2,
