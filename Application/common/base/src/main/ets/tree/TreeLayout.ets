@@ -20,6 +20,8 @@ export class LineSeg {
   x2: number = 0;
   y2: number = 0;
   red: boolean = false;
+  /** 淡淡的分隔线：非世系连线，只用于把不同父系的家庭块在视觉上分开 */
+  faint: boolean = false;
 }
 
 /** 配偶卡片位置（供外部读取配偶布局用） */
@@ -720,6 +722,54 @@ export class EuLayout {
       const l: LineSeg = canvas.lines[i];
       l.x1 = mirrorW - l.x1;
       l.x2 = mirrorW - l.x2;
+    }
+
+    // 按父亲分组的分隔线：同一世代列里，相邻两张主卡若父系不同，
+    // 在两张卡之间的空隙中点画一条淡线，把不同房的叔侄家庭分开。
+    // 只取主卡（不含配偶卡），分隔线落在卡与卡的留白里，不压卡框。
+    const byColumn: Map<number, EuBox[]> = new Map<number, EuBox[]>();
+    for (let i: number = 0; i < baseBoxes.length; i = i + 1) {
+      const b: EuBox = baseBoxes[i];
+      const key: number = Math.round(b.x * 10);
+      const arr: EuBox[] | undefined = byColumn.get(key);
+      if (arr === undefined) {
+        byColumn.set(key, [b]);
+      } else {
+        arr.push(b);
+      }
+    }
+    const colKeys: number[] = [];
+    byColumn.forEach((v: EuBox[], k: number): void => {
+      colKeys.push(k);
+    });
+    for (let ci: number = 0; ci < colKeys.length; ci = ci + 1) {
+      const arr: EuBox[] | undefined = byColumn.get(colKeys[ci]);
+      if (arr === undefined || arr.length < 2) {
+        continue;
+      }
+      arr.sort((a: EuBox, b: EuBox): number => (a.y + a.h / 2) - (b.y + b.h / 2));
+      for (let i: number = 1; i < arr.length; i = i + 1) {
+        const up: EuBox = arr[i - 1];
+        const down: EuBox = arr[i];
+        const keyUp: string = up.node.father !== null ? up.node.father.uid : up.node.uid;
+        const keyDown: string = down.node.father !== null ? down.node.father.uid : down.node.uid;
+        if (keyUp === keyDown) {
+          continue;
+        }
+        const gapTop: number = up.y + Math.max(up.h, stackHeightOf(up.node));
+        const gapBottom: number = down.y;
+        if (gapBottom - gapTop < 1) {
+          continue;
+        }
+        const sep: LineSeg = new LineSeg();
+        sep.id = canvas.lines.length;
+        sep.x1 = down.x;
+        sep.x2 = down.x + down.w;
+        sep.y1 = (gapTop + gapBottom) / 2;
+        sep.y2 = sep.y1;
+        sep.faint = true;
+        canvas.lines.push(sep);
+      }
     }
     return canvas;
   }

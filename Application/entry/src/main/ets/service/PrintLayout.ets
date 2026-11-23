@@ -234,3 +234,33 @@ export class LayoutProfile {
       '|' + this.showSpouse.toString();
   }
 }
+
+/**
+ * 分页容量口径（屏幕分页、PDF 导出共用）。
+ *
+ * 以前这些阈值散落在 PaginationService 里，导出侧若另外按格数估算就会与屏幕差一截；
+ * 统一放到这里后，任何「一页能放多少人 / 多少世」的判断都从同一处来。
+ * 注意：slotCapacity 只是「标的卡位」上限，真实排版还会因树形留白少排，
+ * 只用于快速否定明显装不下的整支，不作为最终版心判定。
+ */
+export class PageCapacity {
+  /** 分支点提前切页的最小页人数 */
+  static readonly MIN_PEOPLE_PER_PAGE: number = 20;
+  /** 欧式「五世一表」软上限：页根起算最多画几世 */
+  static readonly EU_MAX_GENERATIONS: number = 5;
+  /** 五世换页的最小页人数，低于此值宁可放宽世代上限 */
+  static readonly EU_GEN_CUT_MIN_PEOPLE: number = 12;
+  /** 稀疏页判定：本页人数 / 标称卡位低于该比例时尝试并入上一页 */
+  static readonly SPARSE_PAGE_FILL: number = 0.2;
+
+  /** 每页卡片槽位上限（横排数 × 竖排数） */
+  static slotCapacity(style: string, spec: PageSpec, profile: LayoutProfile): number {
+    const genGap: number = profile.generationGap(style);
+    const sibGap: number = profile.siblingGapOf(style);
+    const colPitch: number = profile.cardW + (style === TreeStyle.SU ? sibGap : genGap);
+    const rowPitch: number = profile.cardH + (style === TreeStyle.SU ? genGap : sibGap);
+    const cols: number = Math.max(1, Math.floor(spec.contentWidth() / colPitch));
+    const rows: number = Math.max(1, Math.floor(spec.contentHeight() / rowPitch));
+    return cols * rows;
+  }
+}

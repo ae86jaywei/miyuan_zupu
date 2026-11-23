@@ -690,6 +690,7 @@ export struct PagedTree {
             .width(Math.max(1, Math.abs(seg.x2 - seg.x1) * this.k))
             .height(this.lineThickness())
             .backgroundColor(seg.red ? PrintTheme.red : PrintTheme.gold)
+            .opacity(seg.faint ? 0.45 : 1)
             .position({
               x: this.contentX() + Math.min(seg.x1, seg.x2) * this.k,
               y: this.contentY() + seg.y1 * this.k - this.lineThickness() / 2
@@ -699,6 +700,7 @@ export struct PagedTree {
             .width(this.lineThickness())
             .height(Math.max(1, Math.abs(seg.y2 - seg.y1) * this.k))
             .backgroundColor(seg.red ? PrintTheme.red : PrintTheme.gold)
+            .opacity(seg.faint ? 0.45 : 1)
             .position({
               x: this.contentX() + seg.x1 * this.k - this.lineThickness() / 2,
               y: this.contentY() + Math.min(seg.y1, seg.y2) * this.k

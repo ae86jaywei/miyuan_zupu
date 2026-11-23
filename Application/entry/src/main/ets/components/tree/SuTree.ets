@@ -161,6 +161,7 @@ export struct SuTree {
             .width(this.isHorizontal(seg) ? Math.max(Math.abs(seg.x2 - seg.x1), 1) : this.lineThickness())
             .height(this.isHorizontal(seg) ? this.lineThickness() : Math.max(Math.abs(seg.y2 - seg.y1), 1))
             .backgroundColor(seg.red ? Theme.primary : Theme.goldLight)
+            .opacity(seg.faint ? 0.45 : 1)
             .position({ x: Math.min(seg.x1, seg.x2), y: Math.min(seg.y1, seg.y2) })
         }, (seg: LineSeg) => 'su_ln_' + this.rootUid + '_' + this.layoutVersion.toString() + '_' +
           this.cardWidth.toString() + '_' + this.dense.toString() + '_' + seg.id.toString())

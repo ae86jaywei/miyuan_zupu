@@ -87,13 +87,16 @@ export function paintRasterTile(g: OffscreenCanvasRenderingContext2D, x0: number
       || Math.max(ay, by) + pad < y0 || Math.min(ay, by) - pad > y1) {
       continue;
     }
-    g.strokeStyle = lineData[i + 4] > 0 ? C_RED : C_GOLD;
+    g.strokeStyle = lineData[i + 4] === 1 ? C_RED : C_GOLD;
+    // 2 = 按父亲分组的分隔线：金色但压淡，与真实世系线区分
+    g.globalAlpha = lineData[i + 4] === 2 ? 0.45 : 1;
     g.lineWidth = lw;
     g.beginPath();
     g.moveTo(ax - x0, ay - y0);
     g.lineTo(bx - x0, by - y0);
     g.stroke();
   }
+  g.globalAlpha = 1;
 
   // 卡片：底色 + 描边（女卡绛紫描边）
   for (let i: number = 0; i + 4 < boxData.length; i += 5) {

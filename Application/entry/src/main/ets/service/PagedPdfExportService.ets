@@ -230,7 +230,7 @@ function packLineData(canvas: EuCanvas | SuCanvas): number[] {
   const out: number[] = [];
   for (let i: number = 0; i < canvas.lines.length; i++) {
     const s: LineSeg = canvas.lines[i];
-    out.push(s.x1, s.y1, s.x2, s.y2, s.red ? 1 : 0);
+    out.push(s.x1, s.y1, s.x2, s.y2, s.faint ? 2 : (s.red ? 1 : 0));
   }
   return out;
 }

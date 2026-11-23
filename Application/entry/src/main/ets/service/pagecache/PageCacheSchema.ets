@@ -10,8 +10,8 @@ export const TABLE_VOLUME: string = 'page_cache_volume';
 export const TABLE_BRANCH: string = 'page_cache_branch';
 export const TABLE_CANVAS: string = 'page_cache_canvas';
 
-/** 缓存结构版本：排序规则、分页算法、纸张规格变化时必须 +1（8 = 页抬头单一世系 + 房支换页 + 欧式五世软上限） */
-export const CACHE_VERSION: number = 8;
+/** 缓存结构版本：排序规则、分页算法、纸张规格变化时必须 +1（9 = 稀疏页合并 + 同父兄弟优先 + 欧式父系分隔线） */
+export const CACHE_VERSION: number = 9;
 /** 写入缓存的批量大小 */
 export const WRITE_BATCH: number = 50;
 /** 导出缓存默认分卷页数（与 PagedPdfExportService 保持一致） */

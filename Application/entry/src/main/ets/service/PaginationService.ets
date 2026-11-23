@@ -1,7 +1,7 @@
 ﻿import { PersonNode } from 'common_base';
 import { TreeStyle, generationLabel } from 'common_base';
 import { EuCanvas, EuLayout, LineSeg, SuCanvas, SuLayout } from 'common_base';
-import { LayoutProfile, PageSpec } from './PrintLayout';
+import { LayoutProfile, PageCapacity, PageSpec } from './PrintLayout';
 import { GenealogyService } from './GenealogyService';
 import { taskpool } from '@kit.ArkTS';
 
@@ -134,19 +134,6 @@ const MAX_PAGES: number = 20000;
 const MAX_ITER: number = 400000;
 /** 容量判定的浮点容差（mm） */
 const FIT_EPS: number = 0.2;
-/**
- * 分支点提前切页的最小页人数。
- * 页面已排下至少这么多人、且下一支属于另一房时，优先在新房起点换页，
- * 避免同一页混排多个房支导致「树冠在十几页反复出现」。
- */
-const MIN_PEOPLE_PER_PAGE: number = 20;
-/**
- * 欧式「五世一表」软上限：页根所在世起算，最多画 5 世，第 6 世优先另起一页。
- * 软限制——本页人数不足时允许多画一世，避免为了卡世数把页面排成空白。
- */
-const EU_MAX_GENERATIONS: number = 5;
-/** 触发五世换页的最小页人数，低于此值宁可放宽世代上限 */
-const EU_GEN_CUT_MIN_PEOPLE: number = 12;
 
 /**
  * 分页规划与逐页布局。
@@ -514,7 +501,7 @@ export class PaginationService {
     this.indexSubtree(root, nodeMap);
     book.peopleCount = nodeMap.size;
     const sizeMap: Map<string, number> = this.buildSizeMap(root);
-    const slots: number = this.slotCapacity(style, spec, profile);
+    const slots: number = PageCapacity.slotCapacity(style, spec, profile);
 
     const pages: PagePlan[] = [];
     let cur: PagePlan = new PagePlan();
@@ -579,7 +566,7 @@ export class PaginationService {
       // 主动切页：新房支起点优先换页（单一世系）；欧式超过五世软上限也换页。
       // 放在承接父卡入页之前，避免新房支的根卡先被并入上一页。
       if (this.shouldCutBeforeBranchPoint(unit, cur, nodeMap) ||
-        (style === TreeStyle.EU && this.shouldCutForGeneration(unit, cur, EU_MAX_GENERATIONS))) {
+        (style === TreeStyle.EU && this.shouldCutForGeneration(unit, cur, PageCapacity.EU_MAX_GENERATIONS))) {
         this.commitPending(queue, pending);
         placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
         cur = new PagePlan();
@@ -713,6 +700,9 @@ export class PaginationService {
     if (cur.uids.size > 0 && pages.length < MAX_PAGES) {
       placed = placed + this.flushPage(cur, pages, nodeMap, placedUids);
     }
+    // 稀疏页合并：装箱末期常留下「一页一两人」的尾页，能并入上一页就并，
+    // 避免 PDF 里出现大量几乎空白的页面。合并只发生在同房支且并后版心仍装得下时。
+    this.mergeSparsePages(pages, style, profile, spec, nodeMap);
     if (queue.length > 0 || pending.length > 0) {
       book.truncated = true;
     }
@@ -759,48 +749,69 @@ export class PaginationService {
       cur.uids = set;
     }
 
-    // 1) 深度优先收集候选：先沿长子钻到底，再回头铺次子。
-    //    必须深度优先——广度优先会让整代兄弟先变成"最宽一排/一堆叶子"，
-    //    欧式的页高、苏式的页宽立刻被占满，后面的世代再也放不进来。
+    // 1) 局部广度优先收集候选：先铺本节点的直接子女（同父兄弟姐妹），
+    //    再分别沿每个子女深度下钻。原先纯深度优先会让长子一支占满整页、
+    //    次子被推到下一页，同父兄弟很难相邻；这里只把「第一层」改成先兄弟后孙辈，
+    //    更深的层级仍保持深度优先，避免整代摊平把版心一次占满。
     const limit: number = Math.max(1, slots - cur.uids.size);
     const order: PersonNode[] = [];
     const seen: Set<string> = new Set<string>();
-    const walkStack: PersonNode[] = [node];
-    const idxStack: number[] = [0];
-    while (walkStack.length > 0 && order.length < limit) {
-      const top: number = walkStack.length - 1;
-      const parent: PersonNode = walkStack[top];
-      const ci: number = idxStack[top];
-      if (ci >= parent.children.length) {
-        walkStack.pop();
-        idxStack.pop();
-        continue;
-      }
-      idxStack[top] = ci + 1;
-      const child: PersonNode = parent.children[ci];
+    // 第一层：直接子女按长幼顺序全部进入候选，作为后续下钻的起点
+    const direct: PersonNode[] = [];
+    for (let ci: number = 0; ci < node.children.length && order.length < limit; ci = ci + 1) {
+      const child: PersonNode = node.children[ci];
       if (seen.has(child.uid)) {
         continue;
       }
       seen.add(child.uid);
       const inPage: boolean = cur.uids.has(child.uid);
-      // 已落页且不在本页：不再收集也不下钻。它的未排子女在上一次落页时
-      // 已由 cutUncovered 作为独立续页单元入队，这里再下钻只会重复排整支。
+      // 已落页且不在本页：不下钻，其未排子女已作为独立续页单元入队
       if (!inPage && placedUids.has(child.uid)) {
         continue;
       }
+      direct.push(child);
       if (!inPage) {
         order.push(child);
       }
-      if (walkStack.length < MAX_PAGE_DEPTH) {
-        walkStack.push(child);
-        idxStack.push(0);
+    }
+    // 第二层起：对每个直接子女做深度优先，继续收集尚未入页的子孙
+    for (let di: number = 0; di < direct.length && order.length < limit; di = di + 1) {
+      const start: PersonNode = direct[di];
+      const walkStack: PersonNode[] = [start];
+      const idxStack: number[] = [0];
+      while (walkStack.length > 0 && order.length < limit) {
+        const top: number = walkStack.length - 1;
+        const parent: PersonNode = walkStack[top];
+        const ci: number = idxStack[top];
+        if (ci >= parent.children.length) {
+          walkStack.pop();
+          idxStack.pop();
+          continue;
+        }
+        idxStack[top] = ci + 1;
+        const child: PersonNode = parent.children[ci];
+        if (seen.has(child.uid)) {
+          continue;
+        }
+        seen.add(child.uid);
+        const inPage: boolean = cur.uids.has(child.uid);
+        if (!inPage && placedUids.has(child.uid)) {
+          continue;
+        }
+        if (!inPage) {
+          order.push(child);
+        }
+        if (walkStack.length < MAX_PAGE_DEPTH) {
+          walkStack.push(child);
+          idxStack.push(0);
+        }
       }
     }
 
     // 2) 指数回退式批量试探：一次先试加一批，装不下就把批量减半重试。
     //
-    // 不能用二分：布局能否装下对「前 k 个人」并不单调——深度优先的前若干个
-    // 往往是一条链，先被列宽/页高卡住；而随后的兄弟落在同一列，几乎不增占位。
+    // 不能用二分：布局能否装下对「前 k 个人」并不单调——先铺同辈兄弟时，
+    // 同一列/同一行的人几乎不增占位，后面才被下一代的宽度或高度卡住。
     // 二分会把这类「前面失败、后面反而装得下」的人整批丢掉，页数不降反升。
     // 也不能逐个试：五万人的谱是「人数 × 页内人数」次整页布局，主线程必超 6s。
     if (order.length > 0) {
@@ -963,18 +974,6 @@ export class PaginationService {
     return sizes;
   }
 
-  /** 每页卡片槽位上限；真正排版还会因树形留白，这里只用于快速否定 */
-  private slotCapacity(style: string, spec: PageSpec, profile: LayoutProfile): number {
-    // 横向、纵向的“格距”由谱式决定：欧式列＝世代、行＝兄弟，苏式列＝兄弟、行＝世代
-    const genGap: number = profile.generationGap(style);
-    const sibGap: number = profile.siblingGapOf(style);
-    const colPitch: number = profile.cardW + (style === TreeStyle.SU ? sibGap : genGap);
-    const rowPitch: number = profile.cardH + (style === TreeStyle.SU ? genGap : sibGap);
-    const cols: number = Math.max(1, Math.floor(spec.contentWidth() / colPitch));
-    const rows: number = Math.max(1, Math.floor(spec.contentHeight() / rowPitch));
-    return cols * rows;
-  }
-
   /** 落页：算世代范围、奇偶页、页码，然后追加到书里；返回本页人数（进度用） */
   private flushPage(page: PagePlan, pages: PagePlan[], nodeMap: Map<string, PersonNode>,
     placedUids: Set<string>): number {
@@ -1003,6 +1002,204 @@ export class PaginationService {
     page.recto = (page.index % 2) === 1;
     pages.push(page);
     return page.uids.size;
+  }
+
+  /**
+   * 稀疏页后处理：把「一页一两人」的尾页并入上一页。
+   *
+   * 合并条件（全部满足才并）：
+   *  - 本页人数低于标称卡位的 SPARSE_PAGE_FILL；
+   *  - 与上一页同属一房（跨房支的稀疏页是分支切页产生的，并回去会破坏单一世系）；
+   *  - 合并后不超过标称卡位、欧式不超过五世；
+   *  - 重新布局后版心装得下，且画布确实画出了并集里的每个人（防止承接父卡离页后丢人）。
+   */
+  private mergeSparsePages(pages: PagePlan[], style: string, profile: LayoutProfile, spec: PageSpec,
+    nodeMap: Map<string, PersonNode>): void {
+    if (pages.length < 2) {
+      return;
+    }
+    const slots: number = PageCapacity.slotCapacity(style, spec, profile);
+    const limit: number = Math.max(2, Math.floor(slots * PageCapacity.SPARSE_PAGE_FILL));
+    let i: number = 1;
+    while (i < pages.length) {
+      const small: PagePlan = pages[i];
+      const prev: PagePlan = pages[i - 1];
+      if (small.uids.size > limit || prev.uids.size + small.uids.size > slots) {
+        i = i + 1;
+        continue;
+      }
+      if (!this.sameBranch(prev, small, nodeMap)) {
+        i = i + 1;
+        continue;
+      }
+      const union: Set<string> = this.copySet(prev.uids);
+      small.uids.forEach((uid: string): void => {
+        union.add(uid);
+      });
+      if (style === TreeStyle.EU &&
+        this.generationCount(union, nodeMap) > PageCapacity.EU_MAX_GENERATIONS) {
+        i = i + 1;
+        continue;
+      }
+      const roots: PersonNode[] = [];
+      const rootSeen: Set<string> = new Set<string>();
+      for (let r: number = 0; r < prev.rootNodes.length; r = r + 1) {
+        if (!rootSeen.has(prev.rootNodes[r].uid)) {
+          rootSeen.add(prev.rootNodes[r].uid);
+          roots.push(prev.rootNodes[r]);
+        }
+      }
+      for (let r: number = 0; r < small.rootNodes.length; r = r + 1) {
+        if (!rootSeen.has(small.rootNodes[r].uid)) {
+          rootSeen.add(small.rootNodes[r].uid);
+          roots.push(small.rootNodes[r]);
+        }
+      }
+      if (roots.length === 0) {
+        i = i + 1;
+        continue;
+      }
+      const c: PageContent = this.computeCanvas(roots, union, style, profile, spec);
+      if (!this.fits(c, spec) || !this.canvasCovers(c, union, style)) {
+        i = i + 1;
+        continue;
+      }
+      const prevOld: Set<string> = prev.uids;
+      prev.uids = union;
+      prev.rootNodes = roots;
+      // 只保留「并前不在上一页」的页根；承接父卡已与上一页同页，不再重复标「承前页」
+      for (let r: number = 0; r < small.roots.length; r = r + 1) {
+        const ref: PageRootRef = small.roots[r];
+        if (prevOld.has(ref.uid)) {
+          continue;
+        }
+        let exists: boolean = false;
+        for (let k: number = 0; k < prev.rootUids.length; k = k + 1) {
+          if (prev.rootUids[k] === ref.uid) {
+            exists = true;
+            break;
+          }
+        }
+        if (!exists) {
+          prev.rootUids.push(ref.uid);
+          prev.roots.push(ref);
+        }
+      }
+      for (let r: number = 0; r < small.cuts.length; r = r + 1) {
+        prev.cuts.push(small.cuts[r]);
+      }
+      pages.splice(i, 1);
+      // 不递增 i：下一张稀疏页可能还能并进同一张 prev
+    }
+    for (let pi: number = 0; pi < pages.length; pi = pi + 1) {
+      const page: PagePlan = pages[pi];
+      page.index = pi + 1;
+      page.recto = (page.index % 2) === 1;
+      this.recomputeGeneration(page, nodeMap);
+    }
+  }
+
+  /** 整页是否同属一房（房支 id 非空且一致）；混房页返回 false */
+  private sameBranch(a: PagePlan, b: PagePlan, nodeMap: Map<string, PersonNode>): boolean {
+    const ta: string = this.branchToken(a.uids, nodeMap);
+    if (ta.length === 0) {
+      return false;
+    }
+    return ta === this.branchToken(b.uids, nodeMap);
+  }
+
+  private branchToken(uids: Set<string>, nodeMap: Map<string, PersonNode>): string {
+    let token: string = '';
+    let mixed: boolean = false;
+    uids.forEach((uid: string): void => {
+      if (mixed) {
+        return;
+      }
+      const n: PersonNode | undefined = nodeMap.get(uid);
+      if (n === undefined) {
+        return;
+      }
+      if (n.branchId.length === 0) {
+        mixed = true;
+        return;
+      }
+      if (token.length === 0) {
+        token = n.branchId;
+      } else if (token !== n.branchId) {
+        mixed = true;
+      }
+    });
+    return mixed ? '' : token;
+  }
+
+  /** 集合覆盖的世数（最大世 − 最小世 + 1）；世次未编时返回 0（不参与限制） */
+  private generationCount(uids: Set<string>, nodeMap: Map<string, PersonNode>): number {
+    let lo: number = -1;
+    let hi: number = -1;
+    uids.forEach((uid: string): void => {
+      const n: PersonNode | undefined = nodeMap.get(uid);
+      if (n === undefined) {
+        return;
+      }
+      const g: number = n.person.generation;
+      if (g <= 0) {
+        return;
+      }
+      if (lo < 0 || g < lo) {
+        lo = g;
+      }
+      if (g > hi) {
+        hi = g;
+      }
+    });
+    return lo < 0 ? 0 : hi - lo + 1;
+  }
+
+  /** 画布是否画出了集合里的每一个人；漏画说明布局不可复用，不能并页 */
+  private canvasCovers(content: PageContent, uids: Set<string>, style: string): boolean {
+    const drawn: Set<string> = new Set<string>();
+    if (style === TreeStyle.SU) {
+      if (content.su !== null) {
+        for (let i: number = 0; i < content.su.boxes.length; i = i + 1) {
+          drawn.add(content.su.boxes[i].node.uid);
+        }
+      }
+    } else if (content.eu !== null) {
+      for (let i: number = 0; i < content.eu.boxes.length; i = i + 1) {
+        drawn.add(content.eu.boxes[i].node.uid);
+      }
+    }
+    let ok: boolean = true;
+    uids.forEach((uid: string): void => {
+      if (!drawn.has(uid)) {
+        ok = false;
+      }
+    });
+    return ok;
+  }
+
+  /** 并页后重算世代范围（不重复标记已落页） */
+  private recomputeGeneration(page: PagePlan, nodeMap: Map<string, PersonNode>): void {
+    let lo: number = -1;
+    let hi: number = -1;
+    page.uids.forEach((uid: string): void => {
+      const n: PersonNode | undefined = nodeMap.get(uid);
+      if (n === undefined) {
+        return;
+      }
+      const g: number = n.person.generation;
+      if (g <= 0) {
+        return;
+      }
+      if (lo < 0 || g < lo) {
+        lo = g;
+      }
+      if (g > hi) {
+        hi = g;
+      }
+    });
+    page.genFrom = lo;
+    page.genTo = hi;
   }
 
   /** 全量索引：人物→首次出现页；配偶 uid 也指到同一页（配偶以卡片文字出现） */
@@ -1082,7 +1279,7 @@ export class PaginationService {
   private shouldCutBeforeBranchPoint(unit: PendingUnit, cur: PagePlan,
     nodeMap: Map<string, PersonNode>): boolean {
     const node: PersonNode = unit.node;
-    if (cur.uids.size < MIN_PEOPLE_PER_PAGE) {
+    if (cur.uids.size < PageCapacity.MIN_PEOPLE_PER_PAGE) {
       return false;
     }
     if (!node.isBranchPoint || node.branchRootUid !== node.uid) {
@@ -1108,11 +1305,11 @@ export class PaginationService {
    * 欧式「五世一表」软上限判定。
    *
    * 以本页页根的世次为基准，下一代若已到第 6 世（跨度 ≥ 5）就换页；
-   * 页内人数不足 EU_GEN_CUT_MIN_PEOPLE 时放宽，宁可不守世数也不排空页。
+   * 页内人数不足 PageCapacity.EU_GEN_CUT_MIN_PEOPLE 时放宽，宁可不守世数也不排空页。
    * 世次未编（≤0）或人已在本页时不切。
    */
   private shouldCutForGeneration(unit: PendingUnit, cur: PagePlan, maxGen: number): boolean {
-    if (cur.rootNodes.length === 0 || cur.uids.size < EU_GEN_CUT_MIN_PEOPLE) {
+    if (cur.rootNodes.length === 0 || cur.uids.size < PageCapacity.EU_GEN_CUT_MIN_PEOPLE) {
       return false;
     }
     if (cur.uids.has(unit.node.uid)) {
@@ -1281,6 +1478,7 @@ export class PaginationService {
           seg.x2 = c.lines[l].x2 + cursorX;
           seg.y2 = c.lines[l].y2 + cursorY;
           seg.red = c.lines[l].red;
+          seg.faint = c.lines[l].faint;
           seg.id = merged.lines.length;
           merged.lines.push(seg);
         }
