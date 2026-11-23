@@ -848,10 +848,13 @@ export class PaginationService {
 
   /** 每页卡片槽位上限；真正排版还会因树形留白，这里只用于快速否定 */
   private slotCapacity(style: string, spec: PageSpec, profile: LayoutProfile): number {
-    const cols: number = Math.max(1, Math.floor(spec.contentWidth() / (profile.cardW + profile.colGap)));
-    const rowH: number = style === TreeStyle.SU ?
-      profile.cardH + profile.rowGap : profile.cardH + profile.siblingGap;
-    const rows: number = Math.max(1, Math.floor(spec.contentHeight() / rowH));
+    // 横向、纵向的“格距”由谱式决定：欧式列＝世代、行＝兄弟，苏式列＝兄弟、行＝世代
+    const genGap: number = profile.generationGap(style);
+    const sibGap: number = profile.siblingGapOf(style);
+    const colPitch: number = profile.cardW + (style === TreeStyle.SU ? sibGap : genGap);
+    const rowPitch: number = profile.cardH + (style === TreeStyle.SU ? genGap : sibGap);
+    const cols: number = Math.max(1, Math.floor(spec.contentWidth() / colPitch));
+    const rows: number = Math.max(1, Math.floor(spec.contentHeight() / rowPitch));
     return cols * rows;
   }
 
@@ -1065,13 +1068,14 @@ export class PaginationService {
     profile: LayoutProfile, spec: PageSpec): PageContent {
     const content: PageContent = new PageContent();
     if (style === TreeStyle.SU) {
-      const c: SuCanvas = SuLayout.compute(roots, profile.cardW, false, profile.showSpouse, allowed, profile.metrics());
+      const c: SuCanvas = SuLayout.compute(roots, profile.cardW, false, profile.showSpouse, allowed,
+        profile.metrics(TreeStyle.SU));
       content.su = c;
       content.width = c.width;
       content.height = c.height;
     } else if (roots.length <= 1) {
-      const c: EuCanvas = EuLayout.compute(roots, profile.cardW, profile.cardH, profile.colGap,
-        profile.showSpouse, 0, allowed, profile.metrics());
+      const c: EuCanvas = EuLayout.compute(roots, profile.cardW, profile.cardH,
+        profile.showSpouse, 0, allowed, profile.metrics(TreeStyle.EU));
       content.eu = c;
       content.width = c.width;
       content.height = c.height;
@@ -1095,8 +1099,8 @@ export class PaginationService {
         if (!remaining.has(rootUid)) {
           continue;
         }
-        const c: EuCanvas = EuLayout.compute([roots[i]], profile.cardW, profile.cardH, profile.colGap,
-          profile.showSpouse, 0, remaining, profile.metrics());
+        const c: EuCanvas = EuLayout.compute([roots[i]], profile.cardW, profile.cardH,
+          profile.showSpouse, 0, remaining, profile.metrics(TreeStyle.EU));
         if (c.boxes.length === 0) {
           continue;
         }

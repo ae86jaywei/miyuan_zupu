@@ -1,4 +1,4 @@
-import { LayoutMetrics } from 'common_base';
+import { LayoutMetrics, TreeStyle } from 'common_base';
 import { MM_TO_PT } from './pdf/PdfCommon';
 
 /**
@@ -151,12 +151,6 @@ export class LayoutProfile {
   cardW: number = 22;
   /** 主卡高 */
   cardH: number = 10;
-  /** 世代列间距（欧式） */
-  colGap: number = 3;
-  /** 世代行距（苏式） */
-  rowGap: number = 4;
-  /** 同层兄弟间距（欧式） */
-  siblingGap: number = 2;
   /** 夫妻卡间距 */
   spouseGap: number = 3;
   /** 多妻竖排间距 */
@@ -182,9 +176,6 @@ export class LayoutProfile {
     p.name = '紧凑';
     p.cardW = 16;
     p.cardH = 8;
-    p.colGap = 3;
-    p.rowGap = 3;
-    p.siblingGap = 1.5;
     p.nameFontPt = 6;
     p.detailFontPt = 5;
     return p;
@@ -201,29 +192,38 @@ export class LayoutProfile {
     p.name = '大字';
     p.cardW = 28;
     p.cardH = 12;
-    p.colGap = 4;
-    p.rowGap = 5;
-    p.siblingGap = 2.5;
     p.nameFontPt = 9;
     p.detailFontPt = 7;
     return p;
   }
 
-  /** 转为布局层参数 */
-  metrics(): LayoutMetrics {
+  /** 世代间距：欧式横向隔一列＝一张卡宽，苏式纵向隔一行＝一张卡高 */
+  generationGap(style: string): number {
+    return style === TreeStyle.SU ? this.cardH : this.cardW;
+  }
+
+  /** 兄弟间距：欧式纵向半张卡高，苏式横向半张卡宽 */
+  siblingGapOf(style: string): number {
+    return style === TreeStyle.SU ? this.cardW / 2 : this.cardH / 2;
+  }
+
+  /** 转为布局层参数（按谱式取横向/纵向口径） */
+  metrics(style: string): LayoutMetrics {
     const m: LayoutMetrics = new LayoutMetrics();
     m.cardHeight = this.cardH;
-    m.siblingGap = this.siblingGap;
+    m.siblingGap = this.siblingGapOf(style);
     m.spouseGap = this.spouseGap;
     m.stackGap = this.stackGap;
     m.lineGap = this.lineGap;
     m.busStep = this.busStep;
     m.railGap = this.railGap;
-    m.colGap = this.colGap;
-    m.rowGap = this.rowGap;
+    // colGap 在欧式里是世代列距，在苏式里是兄弟列距，两者口径不同
+    m.colGap = style === TreeStyle.SU ? this.siblingGapOf(style) : this.generationGap(style);
+    // rowGap 只被苏式用作世代行距
+    m.rowGap = this.generationGap(style);
     m.startX = 0;
     m.scale = 1;
-    // 纸上相邻两代卡片之间的净空就是 rowGap：多妻竖排也不额外撑高该世，
+    // 纸上相邻两代卡片之间的净空就是世代间距：多妻竖排也不额外撑高该世，
     // 世系横线因此严格落在上代卡底与下代卡顶的正中间（屏幕连续视图保留手指出余量）
     m.minChildGap = 0;
     return m;
@@ -231,7 +231,6 @@ export class LayoutProfile {
 
   key(): string {
     return this.name + '|' + this.cardW.toString() + 'x' + this.cardH.toString() +
-      '|' + this.colGap.toString() + '|' + this.rowGap.toString() + '|' + this.siblingGap.toString() +
       '|' + this.showSpouse.toString();
   }
 }

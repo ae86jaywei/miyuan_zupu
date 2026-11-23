@@ -42,7 +42,7 @@ export class SpousePos {
 export class LayoutMetrics {
   /** 主卡高度；<=0 时按屏幕版规则推导 */
   cardHeight: number = 0;
-  /** 同层兄弟间距；<=0 时按叶子数自适应（屏幕版） */
+  /** 同层兄弟间距（欧式纵向）；<=0 时取半张卡高 */
   siblingGap: number = 0;
   /** 夫妻卡间距 */
   spouseGap: number = 12;
@@ -54,9 +54,9 @@ export class LayoutMetrics {
   busStep: number = 14;
   /** 多房竖线轨道的横向错开（苏式） */
   railGap: number = 8;
-  /** 苏式列间距；<=0 时用 SuLayout.COL_GAP */
+  /** 苏式兄弟列间距（欧式此字段作世代列距）；<=0 时取半张卡宽 */
   colGap: number = 0;
-  /** 苏式世代行距；<0 时用 dense 规则 */
+  /** 苏式世代行距；<0 时取一张卡高 */
   rowGap: number = -1;
   /** 苏式左起始边距；<0 时用 SuLayout.START_X */
   startX: number = -1;
@@ -304,6 +304,42 @@ class ChildGroup {
   kids: PersonNode[] = [];
 }
 
+/**
+ * 兄弟姐妹的显示顺序：儿子在前、女儿在后，各自保持原有长幼次序
+ * （TreeBuilder 构建时已按出生日期排序，这里只做稳定分组）。
+ * 只用于版面排布，不改写 PersonNode.children，避免影响房支命名与排行字段。
+ */
+function orderedChildren(node: PersonNode): PersonNode[] {
+  const kids: PersonNode[] = node.children;
+  let seenDaughter: boolean = false;
+  let mixed: boolean = false;
+  for (let i: number = 0; i < kids.length; i = i + 1) {
+    if (kids[i].person.gender === '男') {
+      if (seenDaughter) {
+        mixed = true;
+        break;
+      }
+    } else {
+      seenDaughter = true;
+    }
+  }
+  if (!mixed) {
+    return kids;
+  }
+  const ordered: PersonNode[] = [];
+  for (let i: number = 0; i < kids.length; i = i + 1) {
+    if (kids[i].person.gender === '男') {
+      ordered.push(kids[i]);
+    }
+  }
+  for (let i: number = 0; i < kids.length; i = i + 1) {
+    if (kids[i].person.gender !== '男') {
+      ordered.push(kids[i]);
+    }
+  }
+  return ordered;
+}
+
 /** 把某人的子女按生母分组；无生母者归入父亲本组 */
 function groupChildren(parent: PersonNode): ChildGroup[] {
   const groups: ChildGroup[] = [];
@@ -352,7 +388,7 @@ export class EuCanvas {
  *  - 子女按生母分组引出：各组独立母线，组内兄弟相连，不同母的子女经父母相连。
  */
 export class EuLayout {
-  static compute(roots: PersonNode[], cardWidth: number, rowHeight: number, colGap: number,
+  static compute(roots: PersonNode[], cardWidth: number, rowHeight: number,
     showSpouse: boolean, startY: number, allowed: Set<string> | null = null,
     metrics: LayoutMetrics | null = null): EuCanvas {
     const canvas: EuCanvas = new EuCanvas();
@@ -376,11 +412,14 @@ export class EuLayout {
     /** 连线与卡框之间的留白，避免线条贴着卡片 */
     const lineGap: number = metrics !== null ? metrics.lineGap : 6;
 
-    // [PERF] 叶子数与每世最大配偶数一次遍历取齐，避免大谱重复全树 DFS
+    // [PERF] 每世最大配偶数一次遍历取齐，避免大谱重复全树 DFS
     const stats: TreeStats = collectTreeStats(roots, allowed);
-    const leafCount: number = stats.leafCount;
-    const siblingGap: number = (metrics !== null && metrics.siblingGap > 0) ? metrics.siblingGap
-      : (leafCount <= 6 ? 18 : (leafCount <= 14 ? 11 : 7));
+    // 兄弟卡间距固定为半个卡片高：不再按叶子数压缩，保证同一视觉节奏
+    const siblingGap: number = (metrics !== null && metrics.siblingGap > 0)
+      ? metrics.siblingGap : cardH / 2;
+    // 世代列间距固定为一个卡片宽：父子两代之间留出整张卡的空白
+    const genGap: number = (metrics !== null && metrics.colGap > 0)
+      ? metrics.colGap : cardWidth;
 
     // 列坐标：在每世卡片右侧为配偶列预留宽度（配偶竖向堆叠，横向只占一列）
     const colX: number[] = [0];
@@ -389,7 +428,7 @@ export class EuLayout {
       for (let d: number = 0; d < maxSpouseAt.length; d = d + 1) {
         const n: number = maxSpouseAt[d];
         const extra: number = n > 0 ? (spouseGap + spouseW) : 0;
-        colX.push(colX[d] + cardWidth + extra + colGap);
+        colX.push(colX[d] + cardWidth + extra + genGap);
       }
     }
 
@@ -434,7 +473,7 @@ export class EuLayout {
       box.node = node;
       box.w = cardWidth;
       box.h = cardH;
-      box.x = depth < colX.length ? colX[depth] : depth * (cardWidth + colGap);
+      box.x = depth < colX.length ? colX[depth] : depth * (cardWidth + genGap);
       if (depth === 0 && canvas.rootBox === null) {
         canvas.rootBox = box;
       }
@@ -462,9 +501,10 @@ export class EuLayout {
       } else {
         // [PERF] 递归热路径用 for 循环，避免为每个节点分配 forEach 闭包；
         // 同时直接复用 place 的返回值，省去再按 uid 查一次 placed（大谱约 8 万次字符串哈希）
+        const children: PersonNode[] = orderedChildren(node);
         const childBoxes: EuBox[] = [];
-        for (let i: number = 0; i < node.children.length; i = i + 1) {
-          const child: PersonNode = node.children[i];
+        for (let i: number = 0; i < children.length; i = i + 1) {
+          const child: PersonNode = children[i];
           // 分页布局：允许集合之外的子女属于下一页，本页停在这里，不画切线
           if (allowed !== null && !allowed.has(child.uid)) {
             continue;
@@ -630,23 +670,8 @@ export class EuLayout {
         const childNearX: number = dirRight ? childX : childRight;
         const dir: number = dirRight ? 1 : -1;
         const span: number = Math.abs(childNearX - railX);
-        let busX: number = railX + dir * Math.min(Math.max(4, span * (0.5 + gi * 0.15)),
-          Math.max(4, span - 4));
-        if (dirRight) {
-          if (busX > childNearX - 4) {
-            busX = childNearX - 4;
-          }
-          if (busX < railX) {
-            busX = railX;
-          }
-        } else {
-          if (busX < childNearX + 4) {
-            busX = childNearX + 4;
-          }
-          if (busX > railX) {
-            busX = railX;
-          }
-        }
+        // 兄弟母线固定在父子连线的正中：多房分组也用同一位置，不再按房次错开
+        const busX: number = railX + dir * (span / 2);
         // 横线自卡框边缘引出，与卡框相接后再接到竖线轨道
         if (Math.abs(busX - edgeX) > 1) {
           pushLine(canvas.lines, edgeX, ay, busX, ay);
@@ -679,7 +704,7 @@ export class EuLayout {
         maxY = b.y + b.h;
       }
     }
-    canvas.width = maxX + colGap;
+    canvas.width = maxX + genGap;
     // 纸上版心已扣过天地头，底部再留 24mm 会少排一整代；屏幕连续视图保持原留白
     canvas.height = maxY + (metrics !== null ? 4 : startY + 24);
 
@@ -728,10 +753,6 @@ export class SuCanvas {
  * 子女按生母分组下引：各组独立母线，组内兄弟相连，异母兄弟经父母相连。
  */
 export class SuLayout {
-  /** 苏式布局列间距 */
-  /** 卡片统一间距：横排、竖排、代间距都用同一个值，保证视觉节奏一致 */
-  static readonly CARD_GAP: number = 34;
-  static readonly COL_GAP: number = 34;
   /** 苏式布局左起始边距 */
   static readonly START_X: number = 8;
 
@@ -741,13 +762,14 @@ export class SuLayout {
     const placed: Map<string, SuBox> = new Map<string, SuBox>();
     /** 正在递归下钻的节点：父链若成环，下钻会无限递归导致栈溢出 */
     const visiting: Set<string> = new Set<string>();
-    const colGap: number = (metrics !== null && metrics.colGap > 0) ? metrics.colGap : SuLayout.COL_GAP;
-    const startX: number = (metrics !== null && metrics.startX >= 0) ? metrics.startX : SuLayout.START_X;
-    // 代间距与列间距取同一个卡片间距，手机上也不再压缩，避免父子卡贴太近、连线贴边
-    const rowGap: number = (metrics !== null && metrics.rowGap >= 0) ? metrics.rowGap : SuLayout.CARD_GAP;
     // 卡片高度按实际内容高度取值（渲染时卡片固定为该高度，连线才能与卡框对齐）
     const cardH: number = (metrics !== null && metrics.cardHeight > 0)
       ? metrics.cardHeight : (dense ? 62 : 74);
+    // 苏式兄弟卡横向间距固定为半个卡片宽
+    const colGap: number = (metrics !== null && metrics.colGap > 0) ? metrics.colGap : cardWidth / 2;
+    const startX: number = (metrics !== null && metrics.startX >= 0) ? metrics.startX : SuLayout.START_X;
+    // 苏式世代上下间距固定为一个卡片高
+    const rowGap: number = (metrics !== null && metrics.rowGap >= 0) ? metrics.rowGap : cardH;
 
     // 配偶卡与主卡同宽，避免窄卡片内容被压缩 / 裁切
     const spouseW: number = cardWidth;
@@ -824,9 +846,10 @@ export class SuLayout {
       if (node.children.length === 0) {
         box.x = cursorX;
       } else {
+        const children: PersonNode[] = orderedChildren(node);
         const childBoxes: SuBox[] = [];
-        for (let i: number = 0; i < node.children.length; i = i + 1) {
-          const child: PersonNode = node.children[i];
+        for (let i: number = 0; i < children.length; i = i + 1) {
+          const child: PersonNode = children[i];
           // 分页布局：允许集合之外的子女属于下一页，本页停在这里，不画切线
           if (allowed !== null && !allowed.has(child.uid)) {
             continue;
@@ -962,18 +985,8 @@ export class SuLayout {
         if (loCx < 0) {
           continue;
         }
-        // 母线放在父母底边与子女顶边的等分位置：竖线不至于过长，横线也不贴住任一侧卡片；
-        // 多房时按房次在父下子上的区间内均匀分布，不叠成一条也不挤在一端
-        const gapSpan: number = childTop - edgeY;
-        // 纸上版的行距可能只有十几 pt，留白必须随实际净空收放，固定 14 会把母线顶到父卡上
-        const busMargin: number = Math.max(1, Math.min(14, gapSpan * 0.25));
-        let busY: number = edgeY + gapSpan * (gi + 1) / (groups.length + 1);
-        if (busY < edgeY + busMargin) {
-          busY = edgeY + busMargin;
-        }
-        if (busY > childTop - busMargin) {
-          busY = childTop - busMargin;
-        }
+        // 母线固定在父母底边与子女顶边的正中间，多房分组也用同一位置
+        const busY: number = (edgeY + childTop) / 2;
         pushLine(canvas.lines, ax, edgeY, ax, busY);
         const leftX: number = Math.min(ax, loCx);
         const rightX: number = Math.max(ax, hiCx);

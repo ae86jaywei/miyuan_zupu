@@ -106,7 +106,7 @@ export class TreeLayoutCache {
       return hit;
     }
     TreePerf.begin('layout_eu');
-    const canvas: EuCanvas = EuLayout.compute(roots, cardWidth, rowHeight, 30, showSpouse, startY);
+    const canvas: EuCanvas = EuLayout.compute(roots, cardWidth, rowHeight, showSpouse, startY);
     TreePerf.end('layout_eu', 'root=' + rootKey + ' boxes=' + canvas.boxes.length.toString());
     // 索引预热并入本次布局阻塞，避免组件首帧再出现一次 100ms 级排序长任务
     TreePerf.begin('index_eu');
