@@ -15,7 +15,7 @@ import { PersonPickerField } from 'common_ui';
 import { DateFieldInput } from 'common_ui';
 import { PersonFieldForm } from 'common_ui';
 import { Breakpoint } from 'common_base';
-import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, childStatusLabel, childStatusHint, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
+import { Person, SpouseRelation, createEmptyPerson, clonePerson, cloneSpouseRelation, SPOUSE_RELATIONS, FEMALE_RANK_OPTIONS, spouseRelationLabel, spouseRelationHint, spouseRelationLevel, normalizeSpouseRelation, childRankOfSpouseRelation, childStatusLabel, childStatusHint, childStatusOptionsOf, CONCUBINE_CHILD_TITLE_HINT } from 'common_base';
 import { GenealogyService } from '../service/GenealogyService';
 import { GenealogyStore } from '../store/GenealogyStore';
 import { FamilyService } from '../service/FamilyService';
@@ -29,7 +29,7 @@ import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraL
 import { cnYearText, huangLiText, HuangLi, julianDay, LunarMonthOption, lunarMonthsOfYear, lunarMonthDays, lunarToSolar, SolarDate } from 'common_dateutil';
 import { eraYearText, lunarDayName, lunarMonthName, solarToLunar, LunarDate } from 'common_dateutil';
 import { CoordParseResult, DateMath, GraveCoordParser, NumTextUtil, PersonMediaUtil } from './personedit/PersonEditUtils';
-import { FormLabel, FormToggleRow, GroupHeaderRow } from './personedit/FormWidgets';
+import { FormLabel, GroupHeaderRow } from './personedit/FormWidgets';
 import { SpouseSection } from './personedit/SpouseSection';
 import { PreviewItem, SidePreview } from './personedit/SidePreview';
 import { EraPickerPanel } from './personedit/EraPickerPanel';
@@ -73,7 +73,6 @@ struct PersonEdit {
   @State fChildMarkTarget: string = '';
   @State fChildMarkSource: string = '';
   @State fChildMarkSeq: number = 0;
-  @State fChildless: boolean = false;
   @State fBirthDate: string = '';
   @State fBirthCalendar: string = '公历';
   @State fDeathDate: string = '';
@@ -240,6 +239,32 @@ struct PersonEdit {
     return poem.split(/[，,、\s]+/).join('').split('');
   }
 
+  /** 按字派诗 + 世代自动取字（第 1 世取诗第 1 字），取不到时返回空 */
+  private autoGenChar(): string {
+    const chars: string[] = this.poemChars();
+    const idx: number = this.fGeneration - 1;
+    if (idx >= 0 && idx < chars.length) {
+      return chars[idx];
+    }
+    return '';
+  }
+
+  /** 排行候选按性别过滤：男只留“子”排行，女只留“女”排行 */
+  private filterRankByGender(list: string[]): string[] {
+    const out: string[] = [];
+    for (let i: number = 0; i < list.length; i++) {
+      const r: string = list[i];
+      if (this.fGender === '女' && r.indexOf('子') >= 0) {
+        continue;
+      }
+      if (this.fGender === '男' && r.indexOf('女') >= 0) {
+        continue;
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
   private maxGeneration(): number {
     let m: number = 0;
     this.svc().getPeople().forEach((p: Person): void => {
@@ -283,18 +308,7 @@ struct PersonEdit {
 
   /** 娘家排行候选：按性别只留子/女排行，去掉随母子/随母女 */
   private natalRankOptions(): string[] {
-    const list: string[] = [];
-    for (let i: number = 0; i < NATAL_RANK_OPTIONS.length; i++) {
-      const r: string = NATAL_RANK_OPTIONS[i];
-      if (this.fGender === '女' && r.indexOf('子') >= 0) {
-        continue;
-      }
-      if (this.fGender === '男' && r.indexOf('女') >= 0) {
-        continue;
-      }
-      list.push(r);
-    }
-    return list;
+    return this.filterRankByGender(NATAL_RANK_OPTIONS);
   }
 
   /**
@@ -305,7 +319,10 @@ struct PersonEdit {
   private normalizeRank(p: Person): string {
     if (this.isNatalOutsider()) {
       const natal: string = p.rank.trim();
-      return natal.length > 0 && natal !== ANCESTOR_RANK ? natal : '';
+      if (natal.length === 0 || natal === ANCESTOR_RANK) {
+        return '';
+      }
+      return this.filterRankByGender(NATAL_RANK_OPTIONS).indexOf(natal) >= 0 ? natal : '';
     }
     if (p.generation === 1) {
       return ANCESTOR_RANK;
@@ -314,7 +331,7 @@ struct PersonEdit {
     if (rank.length === 0 || rank === ANCESTOR_RANK) {
       return '';
     }
-    return CLAN_RANK_OPTIONS.indexOf(rank) >= 0 ? rank : '';
+    return this.filterRankByGender(CLAN_RANK_OPTIONS).indexOf(rank) >= 0 ? rank : '';
   }
 
   private fill(p: Person): void {
@@ -327,14 +344,19 @@ struct PersonEdit {
     this.fArtName = p.artName;
     this.fAlias = p.alias;
     this.fGender = p.gender;
-    this.fGenChar = p.generationChar;
+    this.fGenChar = p.generationChar.length > 0 ? p.generationChar : this.autoGenChar();
     this.fLifeStatus = p.lifeStatus;
     this.fChildStatus = p.childStatus.length > 0 ? p.childStatus : '未记';
-    this.fChildMark = p.childMark.length > 0 ? p.childMark : '未记';
+    // 男性不应保留女性名分（如旧数据误记“侧室”）；历史“嗣子/养子”保留展示，避免丢失
+    if (p.gender !== '女' && FEMALE_RANK_OPTIONS.indexOf(this.fChildStatus) >= 0) {
+      this.fChildStatus = '未记';
+    }
+    // 无出已并入子女标记：旧数据只有 childless 布尔值时映射为“无出”
+    this.fChildMark = (p.childMark.length > 0 && p.childMark !== '未记') ? p.childMark :
+      (p.childless ? '无出' : '未记');
     this.fChildMarkTarget = p.childMarkTarget;
     this.fChildMarkSource = p.childMarkSource;
     this.fChildMarkSeq = p.childMarkSeq;
-    this.fChildless = p.childless;
     this.fBirthDate = p.birthDate;
     this.fBirthCalendar = p.birthCalendar;
     this.fDeathDate = p.deathDate;
@@ -356,6 +378,10 @@ struct PersonEdit {
       return c;
     });
     this.fMarriageStatus = p.marriageStatus.length > 0 ? p.marriageStatus : '未记';
+    // 已有配偶时“未娶/未字”与之矛盾，统一校正为娶妻/适人
+    if (this.hasRecordedSpouse() && (this.fMarriageStatus === '未娶' || this.fMarriageStatus === '未字')) {
+      this.fMarriageStatus = this.fGender === '女' ? '适人' : '娶妻';
+    }
     this.fSpouseFamily = p.spouseFamily;
     this.fRank = this.normalizeRank(p);
     this.fAdoption = p.adoption;
@@ -398,7 +424,7 @@ struct PersonEdit {
     p.childMarkTarget = this.fChildMarkTarget;
     p.childMarkSource = this.fChildMarkSource;
     p.childMarkSeq = this.fChildMarkSeq;
-    p.childless = this.fChildless;
+    p.childless = this.fChildMark === '无出';
     p.birthDate = this.fBirthDate;
     p.birthCalendar = this.fBirthCalendar;
     p.deathDate = this.fDeathDate;
@@ -511,6 +537,7 @@ struct PersonEdit {
       list.push(nr);
     });
     this.fSpouses = list;
+    this.syncMarriageWithSpouses();
   }
 
   private addSpouse(): void {
@@ -527,6 +554,7 @@ struct PersonEdit {
     const list: SpouseRelation[] = this.fSpouses.slice();
     list.push(rel);
     this.fSpouses = list;
+    this.syncMarriageWithSpouses();
   }
 
   private removeSpouse(index: number): void {
@@ -634,7 +662,7 @@ struct PersonEdit {
       this.mode, this.fGeneration.toString(), this.fUid, this.fName, this.fCourtesyName,
       this.fArtName, this.fAlias, this.fGender, this.fGenChar, this.fLifeStatus,
       this.fChildStatus, this.fChildMark, this.fChildMarkTarget, this.fChildMarkSource,
-      this.fChildMarkSeq.toString(), this.fChildless ? '1' : '0',
+      this.fChildMarkSeq.toString(),
       this.fBirthDate, this.fBirthCalendar, this.fDeathDate, this.fDeathCalendar,
       this.fBirthPlace, this.fResidence,
       this.fFatherId, this.fFatherName, this.fFatherLifeStatus,
@@ -1018,7 +1046,17 @@ struct PersonEdit {
     return GENERATION_KEYS;
   }
 
-  /** 排行候选：姻亲用娘家排行；本族第一世只有“第一世（始祖）”，其余为子/女排行 */
+  /** 是否已真正录入配偶（忽略“添加配偶”后尚未选人的空行） */
+  private hasRecordedSpouse(): boolean {
+    for (let i: number = 0; i < this.fSpouses.length; i++) {
+      if (this.fSpouses[i].uid.trim().length > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** 排行候选：姻亲用娘家排行；本族第一世只有“第一世（始祖）”，其余按性别取子/女排行 */
   private rankOptions(): string[] {
     if (this.isNatalOutsider()) {
       return this.natalRankOptions();
@@ -1026,21 +1064,53 @@ struct PersonEdit {
     if (this.fGeneration === 1) {
       return [ANCESTOR_RANK];
     }
-    return CLAN_RANK_OPTIONS;
+    return this.filterRankByGender(CLAN_RANK_OPTIONS);
   }
 
-  /** 婚配状态候选：按性别区分未字/未娶、适人/娶妻 */
-  private marriageOptions(): string[] {
+  /** 身份候选：男只看出身；女为出身 + 本人名分（名分与配偶关系自动同步） */
+  private childStatusOptions(): string[] {
+    return childStatusOptionsOf(this.fGender);
+  }
+
+  private childStatusFieldHint(): string {
     if (this.fGender === '女') {
-      return MARRIAGE_OPTIONS_FEMALE;
+      return '本人出身；女性另可选本人名分（与配偶关系自动同步）';
     }
-    return MARRIAGE_OPTIONS_MALE;
+    return '本人出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 随母';
   }
 
-  /** 选了适人/娶妻/招赘，才显示夫家/婆家输入 */
+  /** 婚配状态候选：按性别区分未字/未娶、适人/娶妻；已有配偶时排除未娶/未字 */
+  private marriageOptions(): string[] {
+    const base: string[] = this.fGender === '女' ? MARRIAGE_OPTIONS_FEMALE : MARRIAGE_OPTIONS_MALE;
+    if (!this.hasRecordedSpouse()) {
+      return base;
+    }
+    const out: string[] = [];
+    for (let i: number = 0; i < base.length; i++) {
+      const m: string = base[i];
+      if (m === '未娶' || m === '未字') {
+        continue;
+      }
+      out.push(m);
+    }
+    return out;
+  }
+
+  /** 已有配偶时把“未记/未娶/未字”校正为娶妻/适人，避免与配偶关系矛盾 */
+  private syncMarriageWithSpouses(): void {
+    if (!this.hasRecordedSpouse()) {
+      return;
+    }
+    if (this.fMarriageStatus === '' || this.fMarriageStatus === '未记' ||
+      this.fMarriageStatus === '未娶' || this.fMarriageStatus === '未字') {
+      this.fMarriageStatus = this.fGender === '女' ? '适人' : '娶妻';
+    }
+  }
+
+  /** 选了适人/娶妻/招赘且尚未录入配偶，才显示夫家/婆家输入 */
   private showSpouseFamily(): boolean {
-    return this.fMarriageStatus === '适人' || this.fMarriageStatus === '娶妻' ||
-      this.fMarriageStatus === '招赘';
+    return !this.hasRecordedSpouse() && (this.fMarriageStatus === '适人' || this.fMarriageStatus === '娶妻' ||
+      this.fMarriageStatus === '招赘');
   }
 
   private genCharOptions(): string[] {
@@ -1080,6 +1150,11 @@ struct PersonEdit {
         } else if (this.fRank === ANCESTOR_RANK) {
           this.fRank = '';
         }
+        // 辈分/字派按字派诗自动带出，用户仍可手动改选
+        const auto: string = this.autoGenChar();
+        if (auto.length > 0 || this.poemChars().length > 0) {
+          this.fGenChar = auto;
+        }
         break;
       }
       case 'gender': {
@@ -1087,6 +1162,15 @@ struct PersonEdit {
         // 婚配状态选项随性别变化（未字/适人 ↔ 未娶/娶妻），切换后回到未记
         this.fMarriageStatus = '未记';
         this.fSpouseFamily = '';
+        this.syncMarriageWithSpouses();
+        // 身份/排行按性别过滤，原选择不适用时清空
+        if (value !== '女' && FEMALE_RANK_OPTIONS.indexOf(this.fChildStatus) >= 0) {
+          this.fChildStatus = '未记';
+        }
+        if (this.fRank.length > 0 && this.fRank !== ANCESTOR_RANK &&
+          this.rankOptions().indexOf(this.fRank) < 0) {
+          this.fRank = '';
+        }
         // 新增且 ID 仍为自动生成 → 按新性别重新计算（男 F / 女 M）
         if (this.originalUid.length === 0 && this.uidAuto) {
           this.fUid = this.svc().nextUid(value);
@@ -1754,7 +1838,7 @@ struct PersonEdit {
         Column() {
           SelectField({
             label: '辈分/字派',
-            hint: '上下滑动选择所属字辈',
+            hint: '按字派诗与世代自动带出，亦可手动改选',
             options: this.genCharOptions(),
             value: this.fGenChar,
             onValue: (v: string): void => {
@@ -1798,6 +1882,8 @@ struct PersonEdit {
         PersonFieldForm({
           meta: fieldMetaOf('childStatus'),
           value: this.fChildStatus,
+          optionsOverride: this.childStatusOptions(),
+          hint: this.childStatusFieldHint(),
           onValue: (v: string): void => {
             this.assignValue('childStatus', v);
           }
@@ -1841,28 +1927,15 @@ struct PersonEdit {
         })
       }
 
-      // 子女标记（出嗣/兼祧的所嗣对象、入继来源统一在「过继/出嗣/兼祧」中填写）
+      // 子女标记（无出已并入选项；出嗣/兼祧/继养统一在「过继/出嗣/兼祧」中填写）
       PersonFieldForm({
         meta: fieldMetaOf('childMark'),
         value: this.fChildMark,
-        hint: '殇/幼殇/早卒/出嗣/兼祧/继子/养子/未记',
+        hint: '殇/幼殇/早卒/无出/未记',
         onValue: (v: string): void => {
           this.assignValue('childMark', v);
         }
       })
-
-      Row() {
-        FormToggleRow({
-          label: '无出',
-          value: this.fChildless,
-          hint: '无子女',
-          onChange: (v: boolean): void => {
-            this.fChildless = v;
-          }
-        })
-      }
-      .width('100%')
-      .margin({ top: Spacing.S })
 
       PersonFieldForm({
         meta: fieldMetaOf('alias'),
@@ -2067,7 +2140,7 @@ struct PersonEdit {
         label: '排行',
         hint: this.isNatalOutsider() ? '填写在娘家的排行' :
           (this.fGeneration === 1 ? '第一世为始祖，排行记为“第一世（始祖）”' :
-            '第几子/女，上下滑动选择，如：长子、次女'),
+            (this.fGender === '女' ? '第几女，如：长女、次女' : '第几子，如：长子、次子')),
         options: this.rankOptions(),
         value: this.fRank,
         onValue: (v: string): void => {
@@ -2110,8 +2183,10 @@ struct PersonEdit {
         }
       })
 
-      Column() {
-        FormLabel({ text: '墓葬信息', required: false, hint: '地点、山向、碑文摘要（仅已故者填写）' })
+      // 墓葬信息仅在已故时显示
+      if (this.fLifeStatus === '已故') {
+        Column() {
+          FormLabel({ text: '墓葬信息', required: false, hint: '地点、山向、碑文摘要（仅已故者填写）' })
         TextArea({ text: this.fGraveInfo }).fontFamily(uiFontFamily())
           .height(80)
           .fontSize(14)
@@ -2233,6 +2308,7 @@ struct PersonEdit {
       }
       .width('100%')
       .margin({ bottom: Spacing.M })
+      }
 
       // 联系方式
       GroupHeaderRow({ title: '联系方式', icon: '📞' })

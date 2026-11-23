@@ -114,8 +114,8 @@ export const MARRIAGE_OPTIONS_FEMALE: string[] = ['未记', '未字', '适人', 
 /** 婚配状态：男性 */
 export const MARRIAGE_OPTIONS_MALE: string[] = ['未记', '未娶', '娶妻', '招赘', '不详'];
 
-/** 子女标记：殇/幼殇/早卒/出嗣/兼祧/继子/养子 */
-export const CHILD_MARK_OPTIONS: string[] = ['未记', '殇', '幼殇', '早卒', '出嗣', '兼祧', '继子', '养子'];
+/** 子女标记：殇/幼殇/早卒/无出（出嗣/兼祧/继养统一在“过继/出嗣/兼祧”字段记录） */
+export const CHILD_MARK_OPTIONS: string[] = ['未记', '殇', '幼殇', '早卒', '无出'];
 
 /** 一…三十的中文数字（模块级常量，避免每次调用重建数组） */
 const GEN_CN: string[] = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十',

@@ -1011,7 +1011,7 @@ struct ImportExport {
 
           TS({ title: T('字段规范'), subtitle: '与族人编辑表单一一对应', icon: '📋' })
           Column() {
-            Text(T('身份标识：世代、唯一ID、谱名、字、号、曾用名/小名、性别、辈分/字派、在世状态（在世/已故/失联/不详）、身份（未记/嫡出/庶出/婢生/奸生/嗣子/养子/随母；妻妾可记元配/继室/侧室/偏房等名分）')).fontFamily(uiFontFamily())
+            Text(T('身份标识：世代、唯一ID、谱名、字、号、曾用名/小名、性别、辈分/字派、在世状态（在世/已故/失联/不详）、身份（出身：未记/嫡出/庶出/婢生/奸生/随母；女性另可记元配/继室/侧室/偏房等名分）、子女标记（未记/殇/幼殇/早卒/无出）')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')

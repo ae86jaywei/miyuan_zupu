@@ -175,14 +175,34 @@ export interface ChildStatusMeta {
   hint: string;
 }
 
-export const CHILD_STATUS_OPTIONS: string[] = ['未记', '嫡出', '庶出', '婢生', '奸生', '嗣子', '养子', '随母',
-  // 本人身份（妻妾名分）：可直接在个人信息里标注自己在家中的身份
-  '元配', '正室', '嫡妻', '发妻', '继室', '继妻', '继配', '后妻', '续弦', '填房', '正房',
-  '平妻', '并嫡', '对房', '两头大',
-  '媵', '侧室', '副室',
-  '偏房', '二房', '姨娘', '如夫人',
-  '陪房', '侍妾', '婢妾', '通房丫头',
-  '外室', '外妇'];
+/** 本人出身（男女通用）：过继/出嗣/兼祧/继养统一由 adoption 字段记录 */
+export const CHILD_STATUS_OPTIONS: string[] = ['未记', '嫡出', '庶出', '婢生', '奸生', '随母'];
+
+/** 女性本人名分：复用配偶名分候选，去掉“夫/未记” */
+function buildFemaleRankOptions(): string[] {
+  const list: string[] = [];
+  for (let i: number = 0; i < SPOUSE_RELATIONS.length; i = i + 1) {
+    const r: string = SPOUSE_RELATIONS[i];
+    if (r !== '夫' && r !== '未记') {
+      list.push(r);
+    }
+  }
+  return list;
+}
+
+export const FEMALE_RANK_OPTIONS: string[] = buildFemaleRankOptions();
+
+/** 身份下拉候选：男性只看出身；女性为出身 + 本人名分 */
+export function childStatusOptionsOf(gender: string): string[] {
+  if (gender !== '女') {
+    return CHILD_STATUS_OPTIONS;
+  }
+  const list: string[] = CHILD_STATUS_OPTIONS.slice();
+  for (let i: number = 0; i < FEMALE_RANK_OPTIONS.length; i = i + 1) {
+    list.push(FEMALE_RANK_OPTIONS[i]);
+  }
+  return list;
+}
 
 export const CHILD_STATUS_METAS: ChildStatusMeta[] = [
   { status: '未记', hint: '未标注出身名分。' },
@@ -293,9 +313,9 @@ export class Person {
   generationChar: string = '';
   /** 在世状态：在世 / 已故 / 失联 */
   lifeStatus: string = '在世';
-  /** 子女出身/身份：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母 */
+  /** 本人出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 随母；女性可另存本人名分（元配/继室/侧室等） */
   childStatus: string = '未记';
-  /** 子女标记：未记 / 殇 / 幼殇 / 早卒 / 出嗣 / 兼祧 / 继子 / 养子 */
+  /** 子女标记：未记 / 殇 / 幼殇 / 早卒 / 无出（出嗣/兼祧/继养统一记入 adoption） */
   childMark: string = '未记';
   /** 出嗣目标 / 兼祧对象（如：堂叔启明） */
   childMarkTarget: string = '';
@@ -402,8 +422,8 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'gender', label: '性别', hint: '男 / 女', group: '身份标识', type: 'select', privacy: false },
   { key: 'generationChar', label: '辈分/字派', hint: '所属字辈，如：德', group: '身份标识', type: 'text', privacy: false },
   { key: 'lifeStatus', label: '在世状态', hint: '在世 / 已故 / 失联 / 不详（上下滑动选择）', group: '身份标识', type: 'select', privacy: false },
-  { key: 'childStatus', label: '身份', hint: '本人身份或出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 嗣子 / 养子 / 随母；妻妾可选元配 / 继室 / 侧室 / 偏房等名分', group: '身份标识', type: 'select', privacy: false },
-  { key: 'childMark', label: '子女标记', hint: '子女特殊标记：未记 / 殇 / 幼殇 / 早卒 / 出嗣 / 兼祧 / 继子 / 养子', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childStatus', label: '身份', hint: '本人出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 随母；女性另可选本人名分（与配偶关系自动同步）', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childMark', label: '子女标记', hint: '未记 / 殇 / 幼殇 / 早卒 / 无出', group: '身份标识', type: 'select', privacy: false },
   { key: 'childMarkTarget', label: '出嗣/兼祧对象', hint: '出嗣目标或兼祧对象，如：堂叔启明', group: '身份标识', type: 'text', privacy: false },
   { key: 'childMarkSource', label: '入继来源', hint: '入继来源，如：胞兄明远', group: '身份标识', type: 'text', privacy: false },
   { key: 'childMarkSeq', label: '在源第几子', hint: '在来源中的排行，如：第三子 = 3', group: '身份标识', type: 'number', privacy: false },

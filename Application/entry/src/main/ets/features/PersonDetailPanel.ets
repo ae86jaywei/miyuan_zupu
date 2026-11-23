@@ -300,7 +300,8 @@ export struct PersonDetailPanel {
                 .width('100%')
                 .margin({ top: 6 })
               }
-              if ((this.person() as Person).graveInfo.length > 0 || (this.person() as Person).graveLat !== 0) {
+              if ((this.person() as Person).lifeStatus === '已故' &&
+                ((this.person() as Person).graveInfo.length > 0 || (this.person() as Person).graveLat !== 0)) {
                 Column() {
                   Text(T('墓葬信息')).fontFamily(uiFontFamily())
                     .fontSize(12.5)
@@ -429,6 +430,9 @@ export struct PersonDetailPanel {
       return '';
     }
     const cm: string = p.childMark;
+    if (cm === '无出') {
+      return '无出';
+    }
     if (cm === '殇') {
       return '殇（早夭无后）';
     }
