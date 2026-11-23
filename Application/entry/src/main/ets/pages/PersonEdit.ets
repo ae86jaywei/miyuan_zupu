@@ -1056,6 +1056,24 @@ struct PersonEdit {
     return false;
   }
 
+  /** 已婚外来女性（妻/妾）：本族无其父母，只登记岳父岳母姓名 */
+  private isMarriedInWoman(): boolean {
+    return this.fGender === '女' && this.hasRecordedSpouse();
+  }
+
+  /** 父母未收录姓名块：仅“女性且已录入配偶”时显示 */
+  private showNatalParentRecords(): boolean {
+    return this.isMarriedInWoman();
+  }
+
+  /** 父亲ID/母亲ID：默认显示；已婚外来女性隐藏，招赘时仍需显示双方父母 */
+  private showParentIds(): boolean {
+    if (!this.isMarriedInWoman()) {
+      return true;
+    }
+    return this.fMarriageStatus === '招赘';
+  }
+
   /** 排行候选：姻亲用娘家排行；本族第一世只有“第一世（始祖）”，其余按性别取子/女排行 */
   private rankOptions(): string[] {
     if (this.isNatalOutsider()) {
@@ -2052,34 +2070,38 @@ struct PersonEdit {
 
       // 亲属关系
       GroupHeaderRow({ title: '亲属关系', icon: '👪' })
-      PersonPickerField({
-        label: '父亲ID',
-        hint: '点击搜索并选择父亲，如：F000；妻/妾等无父母者可留空',
-        value: this.fFatherId,
-        genderFilter: '男',
-        excludeUid: this.fUid,
-        clearable: true,
-        onValue: (v: string): void => {
-          this.fFatherId = v;
-        },
-        onSearch: (k: string): Person[] => SR.genealogy().search(k),
-        onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
-      })
-      PersonPickerField({
-        label: '母亲ID',
-        hint: '点击搜索并选择母亲，如：M050；妻/妾等无父母者可留空',
-        value: this.fMotherId,
-        genderFilter: '女',
-        excludeUid: this.fUid,
-        clearable: true,
-        onValue: (v: string): void => {
-          this.fMotherId = v;
-        },
-        onSearch: (k: string): Person[] => SR.genealogy().search(k),
-        onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
-      })
-      // 父母未录入族谱时的兜底姓名：妻子的父亲/母亲即丈夫条目中的岳父/岳母
-      Row() {
+      // 已婚外来女性（非招赘）不录本族父母
+      if (this.showParentIds()) {
+        PersonPickerField({
+          label: '父亲ID',
+          hint: '点击搜索并选择父亲，如：F000；妻/妾等无父母者可留空',
+          value: this.fFatherId,
+          genderFilter: '男',
+          excludeUid: this.fUid,
+          clearable: true,
+          onValue: (v: string): void => {
+            this.fFatherId = v;
+          },
+          onSearch: (k: string): Person[] => SR.genealogy().search(k),
+          onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
+        })
+        PersonPickerField({
+          label: '母亲ID',
+          hint: '点击搜索并选择母亲，如：M050；妻/妾等无父母者可留空',
+          value: this.fMotherId,
+          genderFilter: '女',
+          excludeUid: this.fUid,
+          clearable: true,
+          onValue: (v: string): void => {
+            this.fMotherId = v;
+          },
+          onSearch: (k: string): Person[] => SR.genealogy().search(k),
+          onResolve: (uid: string): Person | null => SR.genealogy().getPerson(uid)
+        })
+      }
+      // 父母未录入族谱时的兜底姓名：仅已婚外来女性登记（妻子的父亲/母亲即岳父/岳母）
+      if (this.showNatalParentRecords()) {
+        Row() {
         Column() {
           PersonFieldForm({
             meta: fieldMetaOf('fatherName'),
@@ -2123,6 +2145,7 @@ struct PersonEdit {
         .margin({ left: Spacing.S })
       }
       .width('100%')
+      }
       SpouseSection({
         spouses: this.fSpouses,
         selfUid: this.fUid,
