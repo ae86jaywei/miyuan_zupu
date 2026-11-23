@@ -422,7 +422,7 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'marriageStatus', label: '婚配状态', hint: '未字/未娶/适人/娶妻/招赘/不详；未记则不写婚配结论', group: '亲属关系', type: 'select', privacy: false },
   { key: 'spouseFamily', label: '夫家/婆家（未收录）', hint: '已出嫁/入赘但配偶未录入时填写，如：同邑陈氏', group: '亲属关系', type: 'text', privacy: false },
   { key: 'rank', label: '排行', hint: '第几子/女，如：长子、次女、三子', group: '亲属关系', type: 'text', privacy: false },
-  { key: 'adoption', label: '过继/出嗣', hint: '若有过继，填“过继自XX”或“出嗣给XX”', group: '亲属关系', type: 'text', privacy: false },
+  { key: 'adoption', label: '过继/出嗣/兼祧', hint: '若有过继、出嗣或兼祧，填“过继自XX”“出嗣给XX”或“兼祧XX”', group: '亲属关系', type: 'text', privacy: false },
   { key: 'education', label: '学历/学位', hint: '如：本科-华南理工大学', group: '生平履历', type: 'text', privacy: false },
   { key: 'occupation', label: '职业/职务', hint: '如：高级工程师、村支书', group: '生平履历', type: 'text', privacy: false },
   { key: 'biography', label: '生平简介', hint: '500字以内，记录重大成就、品德、事迹', group: '生平履历', type: 'text', privacy: false },

@@ -29,7 +29,7 @@ import { parseDate, ParsedDate, parseHistoricalDate, composeDate, ERA_LIST, eraL
 import { cnYearText, huangLiText, HuangLi, julianDay, LunarMonthOption, lunarMonthsOfYear, lunarMonthDays, lunarToSolar, SolarDate } from 'common_dateutil';
 import { eraYearText, lunarDayName, lunarMonthName, solarToLunar, LunarDate } from 'common_dateutil';
 import { CoordParseResult, DateMath, GraveCoordParser, NumTextUtil, PersonMediaUtil } from './personedit/PersonEditUtils';
-import { FormLabel, FormToggleRow, GroupHeaderRow, NumberFieldRow } from './personedit/FormWidgets';
+import { FormLabel, FormToggleRow, GroupHeaderRow } from './personedit/FormWidgets';
 import { SpouseSection } from './personedit/SpouseSection';
 import { PreviewItem, SidePreview } from './personedit/SidePreview';
 import { EraPickerPanel } from './personedit/EraPickerPanel';
@@ -1841,62 +1841,15 @@ struct PersonEdit {
         })
       }
 
-      // 齿录模板新增：子女标记
-      Row() {
-        Column() {
-          PersonFieldForm({
-            meta: fieldMetaOf('childMark'),
-            value: this.fChildMark,
-            hint: '殇/出嗣/兼祧/继子/养子/无出/未记',
-            onValue: (v: string): void => {
-              this.assignValue('childMark', v);
-            }
-          })
+      // 子女标记（出嗣/兼祧的所嗣对象、入继来源统一在「过继/出嗣/兼祧」中填写）
+      PersonFieldForm({
+        meta: fieldMetaOf('childMark'),
+        value: this.fChildMark,
+        hint: '殇/幼殇/早卒/出嗣/兼祧/继子/养子/未记',
+        onValue: (v: string): void => {
+          this.assignValue('childMark', v);
         }
-        .layoutWeight(1)
-        Column() {
-          PersonFieldForm({
-            meta: fieldMetaOf('childMarkTarget'),
-            value: this.fChildMarkTarget,
-            hint: '出嗣/兼祧时填写所嗣之房支或人名',
-            onValue: (v: string): void => {
-              this.fChildMarkTarget = v;
-            }
-          })
-        }
-        .layoutWeight(1)
-        .margin({ left: Spacing.M })
-      }
-      .width('100%')
-
-      Row() {
-        Column() {
-          PersonFieldForm({
-            meta: fieldMetaOf('childMarkSource'),
-            value: this.fChildMarkSource,
-            hint: '入继/兼祧时填写来源房支或人名',
-            onValue: (v: string): void => {
-              this.fChildMarkSource = v;
-            }
-          })
-        }
-        .layoutWeight(1)
-        Column() {
-          NumberFieldRow({
-            label: '在源第几子',
-            value: this.fChildMarkSeq,
-            hint: '入继/兼祧时填写在来源中的排行',
-            min: 1,
-            max: 99,
-            onChange: (v: number): void => {
-              this.fChildMarkSeq = v;
-            }
-          })
-        }
-        .layoutWeight(1)
-        .margin({ left: Spacing.M })
-      }
-      .width('100%')
+      })
 
       Row() {
         FormToggleRow({

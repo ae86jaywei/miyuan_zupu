@@ -262,7 +262,7 @@ export struct PersonDetailPanel {
                 InfoRow({ label: '排行', value: (this.person() as Person).rank })
               }
               if ((this.person() as Person).adoption.length > 0) {
-                InfoRow({ label: '过继/出嗣', value: (this.person() as Person).adoption })
+                InfoRow({ label: '过继/出嗣/兼祧', value: (this.person() as Person).adoption })
               }
 
               if (this.relativeChips().length > 0) {

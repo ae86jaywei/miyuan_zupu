@@ -58,7 +58,7 @@ export class ExportService {
       case '婚配状态': return p.marriageStatus;
       case '夫家/婆家（未收录）': return p.spouseFamily;
       case '排行': return p.rank;
-      case '过继/出嗣': return p.adoption;
+      case '过继/出嗣/兼祧': return p.adoption;
       case '学历/学位': return p.education;
       case '职业/职务': return p.occupation;
       case '生平简介': return p.biography;
@@ -118,7 +118,7 @@ export class ExportService {
         '婚配状态': p.marriageStatus,
         '夫家/婆家（未收录）': p.spouseFamily,
         '排行': p.rank,
-        '过继/出嗣': p.adoption,
+        '过继/出嗣/兼祧': p.adoption,
         '学历/学位': p.education,
         '职业/职务': p.occupation,
         '生平简介': p.biography,
@@ -408,7 +408,7 @@ export class ExportService {
       p.spouses = ExportService.parseSpouses(r['配偶关系'] ?? '', p.gender);
       ExportService.finalizeSpouses(p);
       p.rank = r['排行'] ?? '';
-      p.adoption = r['过继/出嗣'] ?? '';
+      p.adoption = r['过继/出嗣/兼祧'] ?? r['过继/出嗣'] ?? '';
       p.education = r['学历/学位'] ?? '';
       p.occupation = r['职业/职务'] ?? '';
       p.biography = r['生平简介'] ?? '';
@@ -500,6 +500,7 @@ export class ExportService {
           case '婚配状态': p.marriageStatus = value; break;
           case '夫家/婆家（未收录）': p.spouseFamily = value; break;
           case '排行': p.rank = value; break;
+          case '过继/出嗣/兼祧':
           case '过继/出嗣': p.adoption = value; break;
           case '学历/学位': p.education = value; break;
           case '职业/职务': p.occupation = value; break;

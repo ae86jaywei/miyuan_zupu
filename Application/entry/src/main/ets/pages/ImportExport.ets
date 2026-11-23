@@ -1020,7 +1020,7 @@ struct ImportExport {
               .fontColor(Theme.inkSecondary)
               .width('100%')
               .margin({ top: 4 })
-            Text(T('亲属关系：父亲ID/父名（未收录）、母亲ID/母名（未收录）、配偶关系（元配/继室/侧室/偏房等名分，格式 UID:名分;UID:名分）、排行、过继/出嗣')).fontFamily(uiFontFamily())
+            Text(T('亲属关系：父亲ID/父名（未收录）、母亲ID/母名（未收录）、配偶关系（元配/继室/侧室/偏房等名分，格式 UID:名分;UID:名分）、排行、过继/出嗣/兼祧')).fontFamily(uiFontFamily())
               .fontSize(12)
               .fontColor(Theme.inkSecondary)
               .width('100%')
