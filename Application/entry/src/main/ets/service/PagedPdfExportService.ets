@@ -9,7 +9,7 @@ import { currentPssKb, PDF_MEMORY_HARD_LIMIT_KB, PAGED_PDF_SOFT_LIMIT_KB } from 
 import { MM_TO_PT, PDF_MUTED, PDF_TEXT, PDF_TEXT_2, PDF_HEADER, PDF_FOOTER } from './pdf/PdfCommon';
 import { Genealogy } from 'common_base';
 import { generationLabel } from 'common_base';
-import { PaginationService, PrintBook, PagePlan, pageGenText } from './PaginationService';
+import { PaginationService, PrintBook, PagePlan, PageCut, pageGenText } from './PaginationService';
 import { GenealogyService } from './GenealogyService';
 import { EuCanvas, EuBox, LineSeg, SuCanvas, SuBox } from 'common_base';
 import { PersonNode } from 'common_base';
@@ -363,15 +363,16 @@ export class PagedPdfExportService {
         if (canvas === null) {
           throw new Error('第 ' + localIdx.toString() + ' 页布局为空');
         }
-        // 双面印刷按「卷内页序」交替装订侧：每卷单独装订，不能按宗支内页码判断
-        const recto: boolean = ((g - startG + 1) % 2) === 1;
+        // 装订侧与屏幕分页预览同源：按书内页序奇偶镜像，
+        // 不能按卷内页序算，否则跨宗支时 PDF 版心会和预览错位
+        const recto: boolean = plan.recto;
         const innerXMm: number = currentBook.spec.innerX(recto);
         const contentWMm: number = currentBook.spec.contentWidth();
         const gutterXMm: number = currentBook.spec.gutterX(recto);
         const gutterWMm: number = currentBook.spec.gutter;
         const raw: RawPageResult = await PagedPdfExportService.renderRawPage(canvas, plan, genealogy,
           style, currentRootName, v + 1, g - startG + 1, volCount, context, innerXMm, contentWMm,
-          gutterXMm, gutterWMm);
+          gutterXMm, gutterWMm, currentBook);
         writer.addJpegPage(raw.path, raw.runs, raw.header);
         try {
           fileIo.unlinkSync(raw.path);
@@ -397,7 +398,7 @@ export class PagedPdfExportService {
   private static async renderRawPage(canvas: EuCanvas | SuCanvas, plan: PagePlan,
     genealogy: Genealogy, style: string, rootName: string, volumeNo: number, pageNo: number,
     totalPages: number, context: common.UIAbilityContext, innerXMm: number, contentWMm: number,
-    gutterXMm: number, gutterWMm: number): Promise<RawPageResult> {
+    gutterXMm: number, gutterWMm: number, printBook: PrintBook): Promise<RawPageResult> {
     const lineData: number[] = packLineData(canvas);
     const boxData: number[] = packBoxData(canvas, style);
     const off: OffscreenCanvas = new OffscreenCanvas(RENDER_W, RENDER_H, LengthMetricsUnit.PX);
@@ -405,7 +406,7 @@ export class PagedPdfExportService {
     paintRasterTile(ctx, 0, 0, RENDER_W, RENDER_H, 0.2, lineData, boxData,
       innerXMm, gutterXMm, gutterWMm);
     const runs: PdfTextRun[] = PagedPdfExportService.drawRawText(ctx, canvas, plan, genealogy,
-      style, rootName, volumeNo, pageNo, totalPages, innerXMm, contentWMm);
+      style, rootName, volumeNo, pageNo, totalPages, innerXMm, contentWMm, printBook);
     const pm: image.PixelMap = ctx.getPixelMap(0, 0, RENDER_W, RENDER_H);
     const packer: image.ImagePacker = image.createImagePacker();
     const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
@@ -437,7 +438,7 @@ export class PagedPdfExportService {
   private static drawRawText(ctx: OffscreenCanvasRenderingContext2D, canvas: EuCanvas | SuCanvas,
     plan: PagePlan, genealogy: Genealogy, style: string, rootName: string,
     volumeNo: number, pageNo: number, totalPages: number, innerXMm: number,
-    contentWMm: number): PdfTextRun[] {
+    contentWMm: number, printBook: PrintBook): PdfTextRun[] {
     const runs: PdfTextRun[] = [];
     const maxTextW: number = contentWMm * PX_PER_MM;
     ctx.textAlign = 'center';
@@ -454,6 +455,27 @@ export class PagedPdfExportService {
     const headerW: number = measurePx(header, headerSize);
     runs.push(PagedPdfExportService.textRun(header, RENDER_W / 2 - headerW / 2, 46, headerSize));
 
+    // 页首承上：把上一页的父辈链写在天头，解决翻页后「无头无尾」
+    if (plan.contextAncestorNames.length > 0) {
+      const names: string[] = [];
+      for (let a: number = 0; a < plan.contextAncestorNames.length; a++) {
+        names.push(plan.contextAncestorNames[a]);
+      }
+      const ancestorText: string = T('承：' + names.join(' › '));
+      const ancestorFs: number = 22;
+      const ancestorX: number = innerXMm * PX_PER_MM;
+      const ancestorY: number = 12 * PX_PER_MM;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillStyle = PDF_MUTED;
+      ctx.font = ancestorFs.toString() + 'px sans-serif';
+      const ancestor: string = PagedPdfExportService.fitTextPx(ancestorText,
+        contentWMm * PX_PER_MM, ancestorFs);
+      ctx.fillText(ancestor, ancestorX, ancestorY);
+      runs.push(PagedPdfExportService.textRun(ancestor, ancestorX, ancestorY + ancestorFs * 0.8,
+        ancestorFs));
+    }
+
     if (style === 'su') {
       const su: SuCanvas = canvas as SuCanvas;
       for (let i: number = 0; i < su.boxes.length; i = i + 1) {
@@ -468,6 +490,27 @@ export class PagedPdfExportService {
       }
     }
 
+    // 卡片外标注（承P / 续P）：画在卡框之外，不再塞进卡片内部
+    const boxes: Array<EuBox | SuBox> = style === 'su' ? (canvas as SuCanvas).boxes : (canvas as EuCanvas).boxes;
+    const tagFs: number = 22;
+    const tagGapMm: number = 2.2;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = PDF_FOOTER;
+    ctx.font = tagFs.toString() + 'px sans-serif';
+    for (let i: number = 0; i < boxes.length; i = i + 1) {
+      const b: EuBox | SuBox = boxes[i];
+      const tag: string = PagedPdfExportService.cardTagOf(plan, b.node.uid, printBook);
+      if (tag.length === 0) {
+        continue;
+      }
+      const tagPx: number = (innerXMm + b.x) * PX_PER_MM;
+      const aboveMm: number = INNER_Y_MM + b.y - tagGapMm;
+      const tagPy: number = (b.y >= tagGapMm ? aboveMm : (INNER_Y_MM + b.y + b.h + 0.3)) * PX_PER_MM;
+      ctx.fillText(tag, tagPx, tagPy);
+      runs.push(PagedPdfExportService.textRun(tag, tagPx, tagPy + tagFs * 0.8, tagFs));
+    }
+
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = PDF_FOOTER;
@@ -478,6 +521,44 @@ export class PagedPdfExportService {
     const footW: number = measurePx(foot, 22);
     runs.push(PagedPdfExportService.textRun(foot, RENDER_W / 2 - footW / 2, RENDER_H - 24, 22));
     return runs;
+  }
+
+  /** 卡片外标注：承P（页根从哪页续来）/ 续P（本卡子女续到哪页） */
+  private static cardTagOf(plan: PagePlan, uid: string, book: PrintBook): string {
+    let tag: string = '';
+    for (let i: number = 0; i < plan.roots.length; i = i + 1) {
+      if (plan.roots[i].uid === uid && plan.roots[i].fromPage > 0 &&
+        plan.roots[i].fromPage < plan.index) {
+        tag = '承P' + plan.roots[i].fromPage.toString();
+        break;
+      }
+    }
+    for (let c: number = 0; c < plan.cuts.length; c = c + 1) {
+      const cut: PageCut = plan.cuts[c];
+      if (cut.parentUid !== uid || cut.childUids.length === 0) {
+        continue;
+      }
+      let lo: number = 0;
+      let hi: number = 0;
+      for (let k: number = 0; k < cut.childUids.length; k = k + 1) {
+        const p: number = book.pageOf(cut.childUids[k]);
+        if (p <= plan.index) {
+          continue;
+        }
+        if (lo === 0 || p < lo) {
+          lo = p;
+        }
+        if (p > hi) {
+          hi = p;
+        }
+      }
+      if (lo > plan.index) {
+        const span: string = lo === hi ? lo.toString() : (lo.toString() + '—' + hi.toString());
+        tag = tag.length > 0 ? tag + ' · 续P' + span : '续P' + span;
+      }
+      break;
+    }
+    return tag;
   }
 
   /** 卡片内文字：第1行「姓名 字：xxx」，第2行「ID 排行」，第3行「生卒：xxxx年-xxxx年」 */
@@ -729,8 +810,8 @@ export class PagedPdfExportService {
           }
           globalPage++;
           const pageNoInVol: number = g - startG + 1; // 卷内页码：第X页/共 volCount 页
-          // 双面印刷按卷内页序交替装订侧（与屏幕分页、栅格层保持同一几何）
-          const recto: boolean = (pageNoInVol % 2) === 1;
+          // 装订侧与屏幕分页预览同源：按书内页序奇偶镜像
+          const recto: boolean = plan.recto;
           const innerXMm: number = currentBook.spec.innerX(recto);
           const gutterXMm: number = currentBook.spec.gutterX(recto);
           const gutterWMm: number = currentBook.spec.gutter;

@@ -7,7 +7,7 @@ import { Theme } from 'common_base';
 import { PrintTheme } from 'common_base';
 import { EuBox, EuCanvas, LineSeg, SuBox, SuCanvas } from 'common_base';
 import { LayoutProfile, PageSpec } from '../../service/PrintLayout';
-import { PageJump, PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
+import { PageCut, PageJump, PagePlan, PaginationService, PrintBook, pageGenText } from '../../service/PaginationService';
 import { DeviceUtil } from 'common_base';
 import { compactUid } from 'common_base';
 
@@ -21,7 +21,6 @@ struct PrintCard {
   @StorageProp('gpScript') script: string = 'hans';
   @Prop name: string = '';
   @Prop detail: string = '';
-  @Prop badge: string = '';
   @Prop cardW: number = 80;
   @Prop cardH: number = 38;
   @Prop nameSize: number = 12;
@@ -41,14 +40,6 @@ struct PrintCard {
           .maxLines(1)
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
-        if (this.badge.length > 0) {
-          Text(T(this.badge)).fontFamily(uiFontFamily())
-            .fontSize(this.detailSize)
-            .fontColor(PrintTheme.foot)
-            .maxLines(1)
-            .flexShrink(0)
-            .margin({ left: 1 })
-        }
       }
       .width('100%')
 
@@ -88,7 +79,7 @@ struct PrintCard {
  * 分页画布：一次只显示一页，页内所有连线两端都在本页。
  *
  * 尺寸与纸质族谱一致（默认横版 320×220mm），版心、装订口、翻口、天头地脚都按
- * PageSpec 计算；页与页之间不画线，用页眉世代范围、页根「承第 N 页」角标、
+ * PageSpec 计算；页与页之间不画线，用页眉世代范围、卡片外「承P/续P」标注、
  * 页脚「续见第 N 页」接续。
  */
 @Component
@@ -140,8 +131,8 @@ export struct PagedTree {
   private page: PagePlan | null = null;
   private spec: PageSpec = PageSpec.landscape();
   private profile: LayoutProfile = LayoutProfile.standard();
-  /** 页根 uid -> 来源页：卡片右上角写「承 P11」 */
-  private rootPages: Map<string, number> = new Map<string, number>();
+  /** 卡片外标注：承P（本页从哪页续来）、续P（本卡子女续到哪页） */
+  private cardTags: Map<string, string> = new Map<string, string>();
   /** 当前书的 key：宗支/谱式/数据版本变化时强制重建 */
   private lastKey: string = '';
   /** 视口平移量（vp）：页面左上角在可视区中的位置，由单指拖动/缩放共同维护 */
@@ -216,7 +207,6 @@ export struct PagedTree {
     this.pageNo = idx;
     const page: PagePlan | null = book.page(idx);
     this.page = page;
-    this.rootPages.clear();
     this.euBoxes = [];
     this.suBoxes = [];
     this.lines = [];
@@ -224,6 +214,7 @@ export struct PagedTree {
     this.ancestorUids = [];
     this.ancestorNames = [];
     this.siblingLinks = [];
+    this.cardTags.clear();
     if (page === null) {
       this.header = '世系图';
       return;
@@ -236,7 +227,32 @@ export struct PagedTree {
     for (let i: number = 0; i < page.roots.length; i = i + 1) {
       const from: number = page.roots[i].fromPage;
       if (from > 0 && from < idx) {
-        this.rootPages.set(page.roots[i].uid, from);
+        this.addCardTag(page.roots[i].uid, '承P' + from.toString());
+      }
+    }
+    // 子女被切到后页：在父卡外标「续P*」，读者一眼知道这一支往哪翻
+    for (let c: number = 0; c < page.cuts.length; c = c + 1) {
+      const cut: PageCut = page.cuts[c];
+      if (cut.childUids.length === 0 || this.book === null) {
+        continue;
+      }
+      let lo: number = 0;
+      let hi: number = 0;
+      for (let k: number = 0; k < cut.childUids.length; k = k + 1) {
+        const p: number = this.book.pageOf(cut.childUids[k]);
+        if (p <= idx) {
+          continue;
+        }
+        if (lo === 0 || p < lo) {
+          lo = p;
+        }
+        if (p > hi) {
+          hi = p;
+        }
+      }
+      if (lo > idx) {
+        const span: string = lo === hi ? lo.toString() : (lo.toString() + '—' + hi.toString());
+        this.addCardTag(cut.parentUid, '续P' + span);
       }
     }
     if (this.style === TreeStyle.SU) {
@@ -409,10 +425,61 @@ export struct PagedTree {
     return Math.max(0.4, this.profile.lineWidth * this.k);
   }
 
-  /** 页根角标：承第 N 页；普通卡片返回空串 */
-  private badgeOf(uid: string): string {
-    const from: number | undefined = this.rootPages.get(uid);
-    return from === undefined ? '' : ('承P' + from.toString());
+  /** 同一张卡既承接又续页时合并为一个标注 */
+  private addCardTag(uid: string, tag: string): void {
+    if (uid.length === 0 || tag.length === 0) {
+      return;
+    }
+    const old: string | undefined = this.cardTags.get(uid);
+    this.cardTags.set(uid, old === undefined ? tag : old + ' · ' + tag);
+  }
+
+  /** 卡片外标注：承P / 续P；普通卡片返回空串 */
+  private cardTagOf(uid: string): string {
+    const tag: string | undefined = this.cardTags.get(uid);
+    return tag === undefined ? '' : tag;
+  }
+
+  /** 标注放在卡片外：优先卡顶上方（兄弟间距内）；顶部贴版心时落到卡底下方 */
+  private tagY(boxY: number, boxH: number): number {
+    if (boxY >= 2.2) {
+      return this.contentY() + (boxY - 2.2) * this.k;
+    }
+    return this.contentY() + (boxY + boxH + 0.3) * this.k;
+  }
+
+  /** 卡片外标注层：不压卡片内文，也不改变卡片命中区域 */
+  @Builder
+  CardTags() {
+    if (this.style === TreeStyle.SU) {
+      ForEach(this.suBoxes, (b: SuBox, idx: number) => {
+        if (this.cardTagOf(b.node.uid).length > 0) {
+          Text(T(this.cardTagOf(b.node.uid))).fontFamily(uiFontFamily())
+            .fontSize(this.pt(5.5))
+            .fontColor(PrintTheme.foot)
+            .maxLines(1)
+            .hitTestBehavior(HitTestMode.None)
+            .position({
+              x: this.contentX() + b.x * this.k,
+              y: this.tagY(b.y, b.h)
+            })
+        }
+      }, (b: SuBox, idx: number) => 'sut_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
+    } else {
+      ForEach(this.euBoxes, (b: EuBox, idx: number) => {
+        if (this.cardTagOf(b.node.uid).length > 0) {
+          Text(T(this.cardTagOf(b.node.uid))).fontFamily(uiFontFamily())
+            .fontSize(this.pt(5.5))
+            .fontColor(PrintTheme.foot)
+            .maxLines(1)
+            .hitTestBehavior(HitTestMode.None)
+            .position({
+              x: this.contentX() + b.x * this.k,
+              y: this.tagY(b.y, b.h)
+            })
+        }
+      }, (b: EuBox, idx: number) => 'eut_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
+    }
   }
 
   /** 当前页版心左边界（mm） */
@@ -638,7 +705,6 @@ export struct PagedTree {
           PrintCard({
             name: b.node.person.name.length > 0 ? b.node.person.name : b.node.uid,
             detail: this.detailOf(b.node),
-            badge: this.badgeOf(b.node.uid),
             cardW: this.mm(this.profile.cardW),
             cardH: this.mm(this.profile.cardH),
             nameSize: this.pt(this.profile.nameFontPt),
@@ -664,7 +730,6 @@ export struct PagedTree {
           PrintCard({
             name: b.node.person.name.length > 0 ? b.node.person.name : b.node.uid,
             detail: this.detailOf(b.node),
-            badge: this.badgeOf(b.node.uid),
             cardW: this.mm(this.profile.cardW),
             cardH: this.mm(this.profile.cardH),
             nameSize: this.pt(this.profile.nameFontPt),
@@ -685,6 +750,9 @@ export struct PagedTree {
             })
         }, (b: SuBox, idx: number) => 'su_' + this.pageNo.toString() + '_' + idx.toString() + '_' + b.node.uid)
       }
+
+      // 卡片外标注：承P / 续P（写在卡框之外）
+      this.CardTags()
 
       // 页脚软链接：兄弟分支直达
       this.BranchLinks()

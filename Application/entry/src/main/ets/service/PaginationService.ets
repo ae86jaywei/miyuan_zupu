@@ -150,8 +150,9 @@ const MIN_PEOPLE_PER_PAGE: number = 20;
  *
  * 装箱规则：
  *  - 以「房」为单位（一个节点 + 全部子孙），整房装不下就移到下一页，宁留白不切房；
- *  - 只有单房本身超过一页才拆：父卡留本页，子女按长幼依次尝试，放不下的整支去后页，
- *    后页以该子女为页根（PageRootRef 记住来源页与父辈）。
+ *  - 只有单房本身超过一页才拆：父卡留在本页，尚未落页的子女在后续页
+ *    以父卡为页根继续铺开（PageRootRef 记住来源页与父辈），
+ *    同一父辈的兄弟优先相邻成页，不会被长子一支隔开好几页。
  */
 export class PaginationService {
   private static instance: PaginationService | null = null;
@@ -231,14 +232,17 @@ export class PaginationService {
         }
       });
     }
+    const lastSeen: Map<string, number> = new Map<string, number>();
     for (let i: number = 0; i < book.pages.length; i = i + 1) {
       const page: PagePlan = book.pages[i];
       for (let r: number = 0; r < page.roots.length; r = r + 1) {
-        const home: number = book.pageOf(page.roots[r].uid);
-        if (home > 0) {
-          page.roots[r].fromPage = home;
-        }
+        const prev: number | undefined = lastSeen.get(page.roots[r].uid);
+        // 承接父卡指向最近一次出现页；首次落页的根不回填
+        page.roots[r].fromPage = prev === undefined ? 0 : prev;
       }
+      page.uids.forEach((uid: string): void => {
+        lastSeen.set(uid, page.index);
+      });
       for (let s: number = 0; s < page.siblingLinks.length; s = s + 1) {
         const target: number = book.pageOf(page.siblingLinks[s].uid);
         if (target > 0) {
@@ -252,7 +256,7 @@ export class PaginationService {
         let hi: number = 0;
         for (let k: number = 0; k < cut.childUids.length; k = k + 1) {
           const p: number | undefined = book.indexByUid.get(cut.childUids[k]);
-          if (p === undefined) {
+          if (p === undefined || p <= page.index) {
             continue;
           }
           if (lo === 0 || p < lo) {
@@ -317,6 +321,7 @@ export class PaginationService {
     for (let i: number = 0; i < plans.length; i = i + 1) {
       const p: PagePlan = plans[i];
       p.index = i + 1;
+      p.recto = (p.index % 2) === 1;
       p.rootNodes = [];
       for (let r: number = 0; r < p.rootUids.length; r = r + 1) {
         const node: PersonNode | undefined = nodeIndex.get(p.rootUids[r]);
@@ -540,6 +545,11 @@ export class PaginationService {
         continue;
       }
       const unit: PendingUnit = queue[0];
+      // 父卡续页单元开始排：先解除它的排队标记，
+      // 本页排不完时 cutChildren 才能再次把它排进后续页
+      if (unit.carry !== null && unit.carry.uid === unit.node.uid) {
+        queued.delete(unit.node.uid);
+      }
 
       // 空页：页根 = 承接父卡（宗支根页则用本支始祖）
       if (cur.uids.size === 0) {
@@ -588,6 +598,53 @@ export class PaginationService {
         ref.relation = '承前页';
         cur.roots.push(ref);
         cur.uids = set;
+      }
+
+      // 父卡续页：先把这一父辈尚未落页的子女整体铺进本页，再往下填孙辈。
+      // 否则长子一支会独占整页，次子又被切到下一页，同一父辈的兄弟被隔开好几页。
+      if (unit.carry !== null && unit.carry.uid === unit.node.uid && cur.uids.has(unit.node.uid)) {
+        const kids: PersonNode[] = [];
+        // 男先女后（与版面排序一致），保证一页只放得下一部分子女时也是按长幼、性别顺序
+        for (let pass: number = 0; pass < 2; pass = pass + 1) {
+          const wantMale: boolean = pass === 0;
+          for (let k: number = 0; k < unit.node.children.length; k = k + 1) {
+            const child: PersonNode = unit.node.children[k];
+            if ((child.person.gender === '男') !== wantMale) {
+              continue;
+            }
+            if (!cur.uids.has(child.uid) && !placedUids.has(child.uid)) {
+              kids.push(child);
+            }
+          }
+        }
+        let take: number = kids.length;
+        while (take > 0) {
+          const trial: Set<string> = this.copySet(cur.uids);
+          for (let k: number = 0; k < take; k = k + 1) {
+            trial.add(kids[k].uid);
+          }
+          const c: PageContent = this.computeCanvas(cur.rootNodes, trial, style, profile, spec);
+          if (this.fits(c, spec)) {
+            cur.uids = trial;
+            break;
+          }
+          take = Math.floor(take / 2);
+        }
+        // 前面的子女整批放不下（如长子一支特别宽）：逐个尝试，
+        // 至少让能放下的兄弟落页，避免所有兄弟都被一个占位大的分支卡住
+        if (take === 0 && kids.length > 0) {
+          for (let k: number = 0; k < kids.length; k = k + 1) {
+            if (cur.uids.has(kids[k].uid)) {
+              continue;
+            }
+            const one: Set<string> = this.copySet(cur.uids);
+            one.add(kids[k].uid);
+            const c1: PageContent = this.computeCanvas(cur.rootNodes, one, style, profile, spec);
+            if (this.fits(c1, spec)) {
+              cur.uids = one;
+            }
+          }
+        }
       }
 
       // 页面已经有人，且这一单元的人在前页已落过：不再展开（其未排子女已作为独立单元在队列中）
@@ -782,7 +839,13 @@ export class PaginationService {
     }
   }
 
-  /** 某个父卡还有子女没排进本页：记续见，并把它们排进后续页队列 */
+  /**
+   * 某个父卡还有子女没排进本页：记续见，并把剩余子女整体排进后续页队列。
+   *
+   * 以父卡为一个续页单元（而不是每个子女各成一个单元）：
+   * 下一页重复父卡后，把尚未落页的子女一次性按长幼铺开，
+   * 兄弟分支的起点因此相邻，不会出现「同一父辈的子女被隔好几页」。
+   */
   private cutChildren(parent: PersonNode, children: PersonNode[], start: number, cur: PagePlan,
     pending: PendingUnit[], queued: Set<string>, placedUids: Set<string>): void {
     if (start >= children.length) {
@@ -791,20 +854,37 @@ export class PaginationService {
     const cut: PageCut = new PageCut();
     cut.parentUid = parent.uid;
     cut.parentName = parent.person.name;
+    let remain: number = 0;
     for (let i: number = start; i < children.length; i = i + 1) {
       const child: PersonNode = children[i];
-      // 已落页的人不再入队；队列里已有的也不重复入队
+      // 已落页的人不再计入续页（其未排子女另有续页单元）
       if (placedUids.has(child.uid) || queued.has(child.uid)) {
         continue;
       }
-      queued.add(child.uid);
       cut.childUids.push(child.uid);
-      const rank: string = child.person.rank.length > 0 ? child.person.rank : '子';
-      pending.push(new PendingUnit(child, parent, cur.index, rank));
+      remain = remain + 1;
     }
-    if (cut.childUids.length > 0) {
-      cut.relationText = cut.childUids.length.toString() + ' 支';
+    if (remain === 0) {
+      return;
+    }
+    cut.relationText = remain.toString() + ' 支';
+    // 同一页多次 fill 可能重复切到同一父卡：只保留一条最新续页记录
+    let exists: PageCut | null = null;
+    for (let c: number = 0; c < cur.cuts.length; c = c + 1) {
+      if (cur.cuts[c].parentUid === parent.uid) {
+        exists = cur.cuts[c];
+        break;
+      }
+    }
+    if (exists !== null) {
+      exists.childUids = cut.childUids;
+      exists.relationText = cut.relationText;
+    } else {
       cur.cuts.push(cut);
+    }
+    if (!queued.has(parent.uid)) {
+      queued.add(parent.uid);
+      pending.push(new PendingUnit(parent, parent, cur.index, '承前页'));
     }
   }
 
@@ -907,16 +987,24 @@ export class PaginationService {
         }
       });
     }
-    // 承接父卡的「承第 N 页」
+    // 承接父卡的「承第 N 页」：指向最近一次出现该卡的上一页。
+    // 承接父卡会连续多页重复，指向前一页才符合「翻回上一页接着看」的直觉；
+    // 只有前面都没出现过（本页首次落页）时才不回填。
+    const lastSeen: Map<string, number> = new Map<string, number>();
     for (let i: number = 0; i < book.pages.length; i = i + 1) {
       const page: PagePlan = book.pages[i];
       for (let r: number = 0; r < page.roots.length; r = r + 1) {
-        const home: number = book.pageOf(page.roots[r].uid);
-        // 承接父卡：取它首次出现页；同页下方新片段已显式记过来源页，不再覆盖
-        if (home > 0 && page.roots[r].fromPage <= 0) {
-          page.roots[r].fromPage = home;
+        if (page.roots[r].fromPage > 0) {
+          continue;
+        }
+        const prev: number | undefined = lastSeen.get(page.roots[r].uid);
+        if (prev !== undefined) {
+          page.roots[r].fromPage = prev;
         }
       }
+      page.uids.forEach((uid: string): void => {
+        lastSeen.set(uid, page.index);
+      });
     }
     // 页脚接续：父卡所在页写明后页页码
     for (let i: number = 0; i < book.pages.length; i = i + 1) {
@@ -928,7 +1016,7 @@ export class PaginationService {
         let hi: number = 0;
         for (let k: number = 0; k < cut.childUids.length; k = k + 1) {
           const p: number | undefined = book.indexByUid.get(cut.childUids[k]);
-          if (p === undefined) {
+          if (p === undefined || p <= page.index) {
             continue;
           }
           if (lo === 0 || p < lo) {
@@ -1022,7 +1110,10 @@ export class PaginationService {
         page.branchId = '';
       }
 
-      let cur: PersonNode = first;
+      // 承接上下文以页根为准：页根是承接父卡或本页入口，
+      // 用 Set 里第一个 uid 上溯会把某个叶子的祖先误当成整页来源。
+      const pageAnchor: PersonNode = page.rootNodes.length > 0 ? page.rootNodes[0] : first;
+      let cur: PersonNode = pageAnchor;
       for (let k: number = 0; k < 2; k = k + 1) {
         const parent: PersonNode | null = cur.father !== null ? cur.father : cur.mother;
         if (parent === null || parent === cur) {
