@@ -8,7 +8,8 @@ import { EuTree } from '../components/tree/EuTree';
 import { SuTree } from '../components/tree/SuTree';
 import { PagodaTree } from '../components/tree/PagodaTree';
 import { DieRecord } from '../components/tree/DieRecord';
-import { DieJiIndex } from '../service/DieJiText';
+import { DieJiIndex, DieJiStyle } from '../service/DieJiText';
+import { DisplayService } from '../service/DisplayService';
 import { ModernTree } from '../components/tree/ModernTree';
 import { PagedTree } from '../components/tree/PagedTree';
 import { SearchField } from 'common_ui';
@@ -53,6 +54,8 @@ export struct TreeCanvas {
   @StorageProp('gpScript') script: string = 'hans';
   @Prop @Watch('onStyleChanged') style: string = TreeStyle.EU;
   @StorageProp('gpVersion') @Watch('onDataVersionChanged') dataVersion: number = 0;
+  /** 牒记阅读文体：与导出页共用同一个全局设置（文言 / 现代白话） */
+  @StorageLink('dieJiStyle') @Watch('onDieJiStyleChanged') dieJiStyle: string = DieJiStyle.CLASSIC;
   /**
    * 分页状态以 AppStorage 为准：页面顶部的谱式导航栏同样按它决定显隐。
    * 之前只靠 @State 本组件自己维护，页面层无法在切换谱式时退出分页，
@@ -223,6 +226,13 @@ export struct TreeCanvas {
     if (this.hintTimer >= 0) {
       clearTimeout(this.hintTimer);
       this.hintTimer = -1;
+    }
+  }
+
+  /** 牒记阅读文体切换：正文整体重排，重载列表让可见卡片按新文体重建 */
+  onDieJiStyleChanged(): void {
+    if (this.diePeople.length > 0) {
+      this.dieSource.setData(this.diePeople);
     }
   }
 
@@ -1386,6 +1396,21 @@ export struct TreeCanvas {
     .backgroundColor(Theme.overlayLight)
   }
 
+  /** 牒记阅读文体切换：文言 / 现代白话，写入全局设置后导出 PDF 同步生效 */
+  @Builder
+  DieStyleChip(label: string, value: string) {
+    Text(T(label)).fontFamily(uiFontFamily())
+      .fontSize(11.5)
+      .fontColor(this.dieJiStyle === value ? Theme.onPrimary : Theme.inkSecondary)
+      .backgroundColor(this.dieJiStyle === value ? Theme.primary : Theme.field)
+      .borderRadius(12)
+      .padding({ left: 12, right: 12, top: 4, bottom: 4 })
+      .margin({ left: 6 })
+      .onClick((): void => {
+        DisplayService.getInstance().setDieJiStyle(value);
+      })
+  }
+
   @Builder
   DieList() {
     List({ space: Spacing.M, scroller: this.dieScroller }) {
@@ -1412,6 +1437,7 @@ export struct TreeCanvas {
               index: 0,
               showPrivate: this.showPrivate,
               highlight: person.uid === this.selectionUid(),
+              dieStyle: this.dieJiStyle,
               onTapPerson: (uid: string): void => {
                 this.onTapPerson(uid);
               }
@@ -1419,8 +1445,8 @@ export struct TreeCanvas {
           }
           .width('100%')
         }
-      }, (person: Person) => 'die_' + this.dataVersion.toString() + '_' + person.uid +
-        (person.uid === this.selectionUid() ? '_hl' : ''))
+      }, (person: Person) => 'die_' + this.dataVersion.toString() + '_' + this.dieJiStyle + '_' +
+        person.uid + (person.uid === this.selectionUid() ? '_hl' : ''))
     }
     .width('100%')
     .layoutWeight(1)
@@ -1491,7 +1517,22 @@ export struct TreeCanvas {
         if (this.peopleCount === 0) {
           EmptyHint({ icon: '🌱', title: T('族谱暂无人物'), desc: '点击右下角“＋”创建始祖，开启家族记录' })
         } else if (this.style === TreeStyle.DIE) {
-          this.DieList()
+          Column() {
+            Row() {
+              Text(T('阅读方式')).fontFamily(uiFontFamily())
+                .fontSize(12)
+                .fontColor(Theme.inkSecondary)
+              Blank()
+              this.DieStyleChip('文言', DieJiStyle.CLASSIC)
+              this.DieStyleChip('白话', DieJiStyle.MODERN)
+            }
+            .width('100%')
+            .padding({ left: Spacing.L, right: Spacing.L, top: 8, bottom: 6 })
+
+            this.DieList()
+          }
+          .width('100%')
+          .layoutWeight(1)
         } else if (this.style === TreeStyle.PAGODA) {
           this.GenerationIndex()
           PagodaTree({

@@ -67,8 +67,11 @@ export class DisplayService {
   private static instance: DisplayService | null = null;
 
   static readonly KEY_ORIENTATION: string = 'gpOrientation';
+  /** 牒记阅读文体：classic=文言，modern=现代白话（屏幕与 PDF / Markdown 共用） */
+  static readonly KEY_DIEJI_STYLE: string = 'dieJiStyle';
   private static readonly PREF_NAME: string = 'zupu_display';
   private static readonly PREF_FIELD: string = 'orientation';
+  private static readonly PREF_FIELD_STYLE: string = 'dieJiStyle';
 
   private context: common.Context | null = null;
   private prefs: preferences.Preferences | null = null;
@@ -165,6 +168,8 @@ export class DisplayService {
     } catch (err) {
       hilog.warn(0x0000, TAG, 'prefs init failed: %{public}s', JSON.stringify(err));
     }
+    // 牒记阅读文体与设备形态无关，任何设备都恢复上次选择
+    AppStorage.setOrCreate<string>(DisplayService.KEY_DIEJI_STYLE, this.readSavedStyle());
     if (DisplayService.isSystemManaged()) {
       AppStorage.setOrCreate<string>(DisplayService.KEY_ORIENTATION, OrientationMode.FOLLOW_SYSTEM);
       return;
@@ -187,6 +192,40 @@ export class DisplayService {
     } catch (err) {
       hilog.warn(0x0000, TAG, 'read orientation failed: %{public}s', JSON.stringify(err));
       return OrientationMode.FOLLOW_SYSTEM;
+    }
+  }
+
+  /** 当前牒记阅读文体：classic / modern，非法值回落文言 */
+  static currentDieJiStyle(): string {
+    const v: string | undefined = AppStorage.get<string>(DisplayService.KEY_DIEJI_STYLE);
+    return v === 'modern' ? 'modern' : 'classic';
+  }
+
+  private readSavedStyle(): string {
+    if (this.prefs === null) {
+      return 'classic';
+    }
+    try {
+      const v: string = this.prefs.getSync(DisplayService.PREF_FIELD_STYLE, 'classic') as string;
+      return v === 'modern' ? 'modern' : 'classic';
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'read dieJiStyle failed: %{public}s', JSON.stringify(err));
+      return 'classic';
+    }
+  }
+
+  /** 切换牒记阅读文体：立即写入全局状态并持久化（屏幕与导出共用） */
+  async setDieJiStyle(style: string): Promise<void> {
+    const value: string = style === 'modern' ? 'modern' : 'classic';
+    AppStorage.setOrCreate<string>(DisplayService.KEY_DIEJI_STYLE, value);
+    if (this.prefs === null) {
+      return;
+    }
+    try {
+      await this.prefs.put(DisplayService.PREF_FIELD_STYLE, value);
+      await this.prefs.flush();
+    } catch (err) {
+      hilog.warn(0x0000, TAG, 'persist dieJiStyle failed: %{public}s', JSON.stringify(err));
     }
   }
 

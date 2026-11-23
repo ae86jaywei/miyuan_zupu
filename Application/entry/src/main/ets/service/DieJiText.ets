@@ -18,17 +18,29 @@ import { ageOf, parseHistoricalDate, parseYear, formatDateConversion, GanZhi } f
  */
 
 /**
+ * 牒记阅读文体：
+ * - classic：仿古文言（讳/字/行第、全角空格断句）；
+ * - modern：现代白话（直书姓名、现代标点、现代表达习惯）。
+ */
+export enum DieJiStyle {
+  CLASSIC = 'classic',
+  MODERN = 'modern'
+}
+
+/**
  * 互引选项：屏幕 / PDF / Markdown 共用。
  * - enabled：是否在姓名后写 UID、在亲属名后写「UID·第N页」；
  * - refs：第一遍排版传 null 用等宽占位页码，第二遍传真实 uid→页码；
  * - crossRef：分卷导出时本卷查不到的亲属，用「第N卷M页」；
- * - withPage：是否带页码。屏幕与 Markdown 无页码概念，只写「（F001）」。
+ * - withPage：是否带页码。屏幕与 Markdown 无页码概念，只写「（F001）」；
+ * - style：阅读文体，classic=文言，modern=现代白话。
  */
 export class DieJiRefOptions {
   enabled: boolean = false;
   refs: Map<string, number> | null = null;
   crossRef: Map<string, string> | null = null;
   withPage: boolean = true;
+  style: string = DieJiStyle.CLASSIC;
 }
 
 /** 全角空格：牒记正文的唯一断句符（不用句读标点） */
@@ -327,6 +339,7 @@ export class DieJiText {
    * 由调用方决定是否再做繁简转换（T）。
    */
   static paragraph(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
+    const style: string = DieJiText.styleOf(opts);
     let raw: string = '';
     if (p.gender === '女') {
       const husband: Person | null = DieJiText.husbandOf(p, idx);
@@ -337,8 +350,14 @@ export class DieJiText {
     if (raw.length === 0) {
       raw = DieJiText.personParagraph(p, idx, opts);
     }
-    // 统一出口去句读标点：三端排版只认全角空格断句
-    return DieJiText.plainPunct(raw);
+    // 文言统一去句读标点（全角空格断句）；白话保留现代标点，只做首尾清理
+    return DieJiText.plainPunct(raw, style);
+  }
+
+  /** 从选项取阅读文体；未传或非法值一律回落文言 */
+  static styleOf(opts?: DieJiRefOptions): string {
+    return opts !== undefined && opts.style === DieJiStyle.MODERN
+      ? DieJiStyle.MODERN : DieJiStyle.CLASSIC;
   }
 
   /**
@@ -463,12 +482,19 @@ export class DieJiText {
   }
 
   /**
-   * 牒记排版标点：不用逗号、句号、顿号、分号，一律以全角空格断句；
-   * 冒号保留（「生子四：」「女一：」），括号、书名号、间隔号原样。
+   * 牒记排版标点：
+   * - 文言不用逗号、句号、顿号、分号，一律以全角空格断句（冒号保留）；
+   * - 白话保留现代标点，只把多余空白折叠掉。
    * 屏幕 / PDF / Markdown 共用这一个出口，改这里三端同步。
    */
-  static plainPunct(text: string): string {
+  static plainPunct(text: string, style: string = DieJiStyle.CLASSIC): string {
     let s: string = text;
+    if (style === DieJiStyle.MODERN) {
+      s = s.replace(/[\s\u3000]+/g, ' ');
+      s = s.replace(/^[\s\u3000]+/, '');
+      s = s.replace(/[\s\u3000]+$/, '');
+      return s;
+    }
     s = s.split('，').join(DIE_SPACE);
     s = s.split('。').join(DIE_SPACE);
     s = s.split('、').join(DIE_SPACE);
@@ -585,7 +611,10 @@ export class DieJiText {
     return p.lifeStatus === '已故';
   }
 
-  private static namePart(p: Person): string {
+  private static namePart(p: Person, style: string = DieJiStyle.CLASSIC): string {
+    if (style === DieJiStyle.MODERN) {
+      return p.name.trim();
+    }
     return (DieJiText.isDead(p) ? '讳' : '名') + p.name.trim();
   }
 
@@ -595,17 +624,21 @@ export class DieJiText {
     return g.indexOf('第') === 0 ? g.substring(1) : g;
   }
 
-  /** 行二：仅男性且排行可解析时输出 */
-  private static rowText(p: Person): string {
+  /** 行二：仅男性且排行可解析时输出；白话作「排行第二」 */
+  private static rowText(p: Person, style: string = DieJiStyle.CLASSIC): string {
     if (p.gender !== '男') {
       return '';
     }
     const n: number = rankIndex(p.rank);
-    return n > 0 ? '行' + cnNum(n) : '';
+    if (n <= 0) {
+      return '';
+    }
+    return style === DieJiStyle.MODERN ? '排行第' + cnNum(n) : '行' + cnNum(n);
   }
 
   /** 「次子/三女」：优先用排行字段，否则按同父同胞次序推算 */
-  private static childOrdinal(p: Person, idx: DieJiIndex): string {
+  private static childOrdinal(p: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string {
     const rank: string = p.rank.trim();
     if (rank === '独子' || rank === '独女') {
       return rank;
@@ -617,6 +650,9 @@ export class DieJiText {
     if (n > 0 && n <= 10) {
       return (n === 1 ? '长' : n === 2 ? '次' : cnNum(n)) + (p.gender === '女' ? '女' : '子');
     }
+    if (style === DieJiStyle.MODERN) {
+      return p.gender === '女' ? '女儿' : '儿子';
+    }
     return p.gender === '女' ? '女' : '子';
   }
 
@@ -627,25 +663,31 @@ export class DieJiText {
    */
   private static headSentence(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions,
     withGeneration: boolean = true): string {
+    const style: string = DieJiText.styleOf(opts);
     const parts: string[] = [];
     if (withGeneration) {
       parts.push(DieJiText.generationText(p));
     }
-    parts.push(DieJiText.namePart(p) + DieJiText.uidSuffix(p, opts));
+    parts.push(DieJiText.namePart(p, style) + DieJiText.uidSuffix(p, opts));
     if (p.courtesyName.trim().length > 0) {
       parts.push('字' + p.courtesyName.trim());
     }
     if (p.artName.trim().length > 0) {
       parts.push('号' + p.artName.trim());
     }
-    const row: string = DieJiText.rowText(p);
+    const row: string = DieJiText.rowText(p, style);
     if (row.length > 0) {
       parts.push(row);
     }
     const father: Person | null = idx.fatherOf(p);
     if (father !== null && father.name.trim().length > 0) {
-      parts.push('乃' + father.name.trim() + '公' + DieJiText.childOrdinal(p, idx) +
-        DieJiText.refSuffix(father, opts));
+      if (style === DieJiStyle.MODERN) {
+        parts.push('是' + father.name.trim() + '的' + DieJiText.childOrdinal(p, idx, style) +
+          DieJiText.refSuffix(father, opts));
+      } else {
+        parts.push('乃' + father.name.trim() + '公' + DieJiText.childOrdinal(p, idx, style) +
+          DieJiText.refSuffix(father, opts));
+      }
     }
     return parts.join('，') + '。';
   }
@@ -653,22 +695,30 @@ export class DieJiText {
   /** 妣氏条目首句：孺人刘氏，讳秀兰，潭江刘公振邦之女，绍文公原配。 */
   private static wifeHeadSentence(p: Person, husband: Person, idx: DieJiIndex,
     opts?: DieJiRefOptions): string {
+    const style: string = DieJiText.styleOf(opts);
     const dead: boolean = DieJiText.isDead(p);
     const relation: string = DieJiText.relationToHusband(p, husband);
     const parts: string[] = [];
     const clan: string = clanName(p.name);
-    parts.push((clan.length > 0 ? clan : p.name.trim()) + DieJiText.uidSuffix(p, opts));
+    // 白话直书全名；文言只写「姓氏 + 氏」，另起「讳名」分句
+    parts.push((style === DieJiStyle.MODERN ? p.name.trim()
+      : (clan.length > 0 ? clan : p.name.trim())) + DieJiText.uidSuffix(p, opts));
     const given: string = givenNameOf(p.name);
-    if (given.length > 0) {
+    if (style !== DieJiStyle.MODERN && given.length > 0) {
       parts.push((dead ? '讳' : '名') + given);
     }
-    const parent: string = DieJiText.parentClause(p, idx);
+    const parent: string = DieJiText.parentClause(p, idx, style);
     if (parent.length > 0) {
       const father: Person | null = idx.person(p.fatherId);
       parts.push(shortPlace(p.birthPlace) + parent + DieJiText.refSuffix(father, opts));
     }
-    const husbandTitle: string = husband.name.trim() + (DieJiText.isDead(husband) ? '公' : '');
-    parts.push(husbandTitle + DieJiText.relationLabel(relation) + DieJiText.refSuffix(husband, opts));
+    if (style === DieJiStyle.MODERN) {
+      parts.push(husband.name.trim() + '的' + DieJiText.relationLabel(relation) +
+        DieJiText.refSuffix(husband, opts));
+    } else {
+      const husbandTitle: string = husband.name.trim() + (DieJiText.isDead(husband) ? '公' : '');
+      parts.push(husbandTitle + DieJiText.relationLabel(relation) + DieJiText.refSuffix(husband, opts));
+    }
     return parts.join('，') + '。';
   }
 
@@ -696,14 +746,19 @@ export class DieJiText {
     return r === '未记' ? '原配' : r;
   }
 
-  /** 生卒句：生于…，享年…，终于…；young 时改为殇句 */
-  private static lifeSentence(p: Person, young: boolean): string {
+  /** 生卒句：生于…，享年…，终于…；young 时改为殇句；白话作现代表述 */
+  private static lifeSentence(p: Person, young: boolean,
+    style: string = DieJiStyle.CLASSIC): string {
+    const modern: boolean = style === DieJiStyle.MODERN;
     const dead: boolean = DieJiText.isDead(p);
     // 失联/不详：齿录只到生年，享年与去向均记「未知」
     const lost: boolean = p.lifeStatus === '失联' || p.lifeStatus === '不详';
     const bText: string = dateText(p.birthDate, p.birthCalendar);
     const dText: string = dateText(p.deathDate, p.deathCalendar);
     if (bText.length === 0 && dText.length === 0) {
+      if (modern) {
+        return lost ? '生卒年不详，目前' + p.lifeStatus + '。' : '生卒年不详。';
+      }
       return lost ? '年庚未知，为' + p.lifeStatus + '。' : '年庚未知。';
     }
     const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
@@ -713,14 +768,14 @@ export class DieJiText {
     }
     if (young) {
       if (dText.length > 0) {
-        parts.push('不幸殇于' + dText);
+        parts.push((modern ? '不幸于' : '不幸殇于') + dText);
       }
       if (age >= 0) {
         parts.push('年仅' + cnNum(age) + '岁');
       }
     } else {
       if (dText.length > 0) {
-        parts.push((dead ? '终于' : '卒于') + dText);
+        parts.push(modern ? '于' + dText + '去世' : (dead ? '终于' : '卒于') + dText);
       }
       // 示例版式：逝世日期紧随出生日期，享年放在逝世日期之后
       if (dead && age >= 0) {
@@ -728,7 +783,10 @@ export class DieJiText {
       }
     }
     const base: string = parts.join('，') + '。';
-    return lost ? base + '享年未知，为' + p.lifeStatus + '。' : base;
+    if (!lost) {
+      return base;
+    }
+    return modern ? base + '目前' + p.lifeStatus + '。' : base + '享年未知，为' + p.lifeStatus + '。';
   }
 
   /** 娘家排行：长女/次女/三女；无有效排行时返回空串（仍写“之女”） */
@@ -747,13 +805,14 @@ export class DieJiText {
     return rank;
   }
 
-  /** 父名尊称：在世“吴忠伟”，已故“吴公忠伟”（姓 + 公 + 名） */
-  private static parentDisplay(name: string, dead: boolean): string {
+  /** 父名尊称：在世“吴忠伟”，已故“吴公忠伟”（姓 + 公 + 名）；白话直书姓名 */
+  private static parentDisplay(name: string, dead: boolean,
+    style: string = DieJiStyle.CLASSIC): string {
     const n: string = name.trim();
     if (n.length === 0) {
       return '';
     }
-    if (!dead) {
+    if (style === DieJiStyle.MODERN || !dead) {
       return n;
     }
     const s: string = surnameOf(n);
@@ -765,41 +824,60 @@ export class DieJiText {
   }
 
   /** 妻子父母称谓：优先已录入的父亲，其次自定义父名；再其次母亲 */
-  private static parentClause(sp: Person, idx: DieJiIndex): string {
+  private static parentClause(sp: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string {
     const ordinal: string = DieJiText.natalOrdinal(sp);
-    const suffix: string = ordinal.length > 0 ? '之' + ordinal : '之女';
+    const suffix: string = style === DieJiStyle.MODERN
+      ? '的' + (ordinal.length > 0 ? ordinal : '女儿')
+      : (ordinal.length > 0 ? '之' + ordinal : '之女');
     const father: Person | null = idx.person(sp.fatherId);
     if (father !== null && father.name.trim().length > 0) {
-      return DieJiText.parentDisplay(father.name, DieJiText.isDead(father)) + suffix;
+      return DieJiText.parentDisplay(father.name, DieJiText.isDead(father), style) + suffix;
     }
     if (sp.fatherName.trim().length > 0) {
       const dead: boolean = sp.fatherLifeStatus === '已故';
-      return DieJiText.parentDisplay(sp.fatherName, dead) + suffix;
+      return DieJiText.parentDisplay(sp.fatherName, dead, style) + suffix;
     }
     const mother: Person | null = idx.person(sp.motherId);
     if (mother !== null && mother.name.trim().length > 0) {
-      return DieJiText.motherClause(mother.name, ordinal);
+      return DieJiText.motherClause(mother.name, ordinal, style);
     }
     if (sp.motherName.trim().length > 0) {
-      return DieJiText.motherClause(sp.motherName, ordinal);
+      return DieJiText.motherClause(sp.motherName, ordinal, style);
     }
     return '';
   }
 
-  /** 岳母：王秀兰→王氏讳秀兰之长女；王氏/王→王氏之女 */
-  private static motherClause(name: string, ordinal: string = ''): string {
+  /** 岳母：王秀兰→王氏讳秀兰之长女；白话直书姓名 + 的女儿 */
+  private static motherClause(name: string, ordinal: string = '',
+    style: string = DieJiStyle.CLASSIC): string {
     const n: string = name.trim();
     const s: string = surnameOf(n);
     if (s.length === 0) {
       return '';
+    }
+    if (style === DieJiStyle.MODERN) {
+      return n + '的' + (ordinal.length > 0 ? ordinal : '女儿');
     }
     const given: string = givenNameOf(n);
     const title: string = given.length > 0 ? s + '氏讳' + given : s + '氏';
     return title + (ordinal.length > 0 ? '之' + ordinal : '之女');
   }
 
+  /** 白话称谓：元配/正室等统一写「妻子」，其余名分（继室、侧室、偏房…）按原称谓 */
+  private static modernSpousePrefix(relation: string): string {
+    const r: string = normalizeSpouseRelation(relation);
+    if (r === '元配' || r === '正室' || r === '嫡妻' || r === '发妻' || r === '正房' ||
+      r === '未记' || r === '夫') {
+      return '妻子';
+    }
+    return r;
+  }
+
   /** 配偶句：配李氏，本邑李德顺之女。不写配偶生卒，也不加「孺人」。 */
   private static spouseSentences(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string[] {
+    const style: string = DieJiText.styleOf(opts);
+    const modern: boolean = style === DieJiStyle.MODERN;
     const out: string[] = [];
     for (let i: number = 0; i < p.spouses.length; i++) {
       const relation: SpouseRelation = p.spouses[i];
@@ -807,12 +885,14 @@ export class DieJiText {
       if (sp === null) {
         continue;
       }
-      const prefix: string = spousePrefix(relation.relation);
+      const prefix: string = modern ? DieJiText.modernSpousePrefix(relation.relation)
+        : spousePrefix(relation.relation);
       const clan: string = clanName(sp.name);
-      let text: string = prefix + (clan.length > 0 ? clan : sp.name.trim()) + DieJiText.refSuffix(sp, opts);
-      const parent: string = DieJiText.parentClause(sp, idx);
+      const displayName: string = modern ? sp.name.trim() : (clan.length > 0 ? clan : sp.name.trim());
+      let text: string = prefix + displayName + DieJiText.refSuffix(sp, opts);
+      const parent: string = DieJiText.parentClause(sp, idx, style);
       if (parent.length > 0) {
-        text += '，' + shortPlace(sp.birthPlace) + parent;
+        text += '，' + (modern ? '是' : '') + shortPlace(sp.birthPlace) + parent;
       }
       out.push(text + '。');
     }
@@ -821,6 +901,8 @@ export class DieJiText {
 
   /** 子女句：生子三：长…、次…；女二：长适…、次适…。 */
   private static childrenSentence(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
+    const style: string = DieJiText.styleOf(opts);
+    const modern: boolean = style === DieJiStyle.MODERN;
     // 无出由 heirSentences 统一写「无嗣」，这里不再重复「生子无出」
     if (p.childless) {
       return '';
@@ -835,49 +917,73 @@ export class DieJiText {
     if (sons.length > 0) {
       const names: string[] = [];
       for (let i: number = 0; i < sons.length; i++) {
-        names.push(DieJiText.orderWord(i, sons.length) + sons[i].name.trim() +
-          DieJiText.childMarkSuffix(sons[i]) + DieJiText.refSuffix(sons[i], opts));
+        names.push((modern ? DieJiText.orderWord(i, sons.length, '子')
+          : DieJiText.orderWord(i, sons.length)) + sons[i].name.trim() +
+          DieJiText.childMarkSuffix(sons[i], style) + DieJiText.refSuffix(sons[i], opts));
       }
-      groups.push('生子' + cnNum(sons.length) + '：' + names.join('、'));
+      groups.push((modern ? '生有' + DieJiText.countWord(sons.length) + '个儿子：' : '生子' + cnNum(sons.length) + '：') +
+        names.join('、'));
     }
     if (daughters.length > 0) {
       const names: string[] = [];
       for (let i: number = 0; i < daughters.length; i++) {
-        names.push(DieJiText.orderWord(i, daughters.length) +
-          DieJiText.daughterMarriage(daughters[i], idx) +
-          DieJiText.childMarkSuffix(daughters[i]) + DieJiText.refSuffix(daughters[i], opts));
+        names.push((modern ? DieJiText.orderWord(i, daughters.length, '女')
+          : DieJiText.orderWord(i, daughters.length)) +
+          DieJiText.daughterMarriage(daughters[i], idx, style) +
+          DieJiText.childMarkSuffix(daughters[i], style) + DieJiText.refSuffix(daughters[i], opts));
       }
-      groups.push('女' + cnNum(daughters.length) + '：' + names.join('、'));
+      groups.push((modern ? '生有' + DieJiText.countWord(daughters.length) + '个女儿：' : '女' + cnNum(daughters.length) + '：') +
+        names.join('、'));
     }
     return groups.join('；') + '。';
   }
 
-  /** 只有多人时才加长/次/三，单人直接写名 */
-  private static orderWord(index: number, total: number): string {
+  /** 白话数量词：2 读「两」，其余用中文数字 */
+  private static countWord(n: number): string {
+    return n === 2 ? '两' : cnNum(n);
+  }
+
+  /** 只有多人时才加长/次/三，单人直接写名；genderSuffix 供白话补「子/女」 */
+  private static orderWord(index: number, total: number, genderSuffix: string = ''): string {
     if (total <= 1) {
       return '';
     }
-    return index === 0 ? '长' : index === 1 ? '次' : cnNum(index + 1);
+    const word: string = index === 0 ? '长' : index === 1 ? '次' : cnNum(index + 1);
+    return word + genderSuffix;
   }
 
   /** 子女标记后缀：殇/幼殇/早卒/出嗣/兼祧/继子/养子 */
-  private static childMarkSuffix(child: Person): string {
+  private static childMarkSuffix(child: Person, style: string = DieJiStyle.CLASSIC): string {
+    const modern: boolean = style === DieJiStyle.MODERN;
     const mark: string = child.childMark.trim();
     if (mark === '未记' || mark.length === 0) return '';
-    if (mark === '殇') return '（殇）';
-    if (mark === '幼殇') return '（幼殇）';
-    if (mark === '早卒') return '（早卒）';
+    if (mark === '殇') return modern ? '（早夭）' : '（殇）';
+    if (mark === '幼殇') return modern ? '（幼年夭折）' : '（幼殇）';
+    if (mark === '早卒') return modern ? '（早逝）' : '（早卒）';
     if (mark === '出嗣') {
       const target: string = child.childMarkTarget.trim();
+      if (modern) {
+        return target.length > 0 ? '（过继给' + target + '）' : '（过继）';
+      }
       return target.length > 0 ? '（出嗣' + target + '）' : '（出嗣）';
     }
     if (mark === '兼祧') {
       const target: string = child.childMarkTarget.trim();
+      if (modern) {
+        return target.length > 0 ? '（兼祧' + target + '房）' : '（兼祧）';
+      }
       return target.length > 0 ? '（兼祧' + target + '嗣）' : '（兼祧）';
     }
     if (mark === '继子') {
       const source: string = child.childMarkSource.trim();
       const seq: number = child.childMarkSeq;
+      if (modern) {
+        if (source.length > 0 && seq > 0) {
+          return '（' + source + '的第' + cnNum(seq) + '子入继）';
+        }
+        if (source.length > 0) return '（' + source + '入继）';
+        return '（继子）';
+      }
       if (source.length > 0 && seq > 0) {
         return '（' + source + '第' + cnNum(seq) + '子入继）';
       }
@@ -888,34 +994,40 @@ export class DieJiText {
     return '';
   }
 
-  /** 女适某氏；未嫁则写本名 */
-  private static daughterMarriage(daughter: Person, idx: DieJiIndex): string {
+  /** 女适某氏；未嫁则写本名。白话作「嫁给某某」并直书夫名 */
+  private static daughterMarriage(daughter: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string {
     const husband: Person | null = DieJiText.husbandOf(daughter, idx);
     if (husband === null) {
       return daughter.name.trim();
+    }
+    if (style === DieJiStyle.MODERN) {
+      return daughter.name.trim() + '嫁给' + shortPlace(husband.birthPlace) + husband.name.trim();
     }
     const sur: string = surnameOf(husband.name);
     return '适' + shortPlace(husband.birthPlace) + (sur.length > 0 ? sur + '氏' : husband.name.trim());
   }
 
-  /** 学历/职业：按文言习惯改写，如「学至本科，毕业于华南理工大学，以工程师为业。」 */
-  private static careerSentence(p: Person): string {
+  /** 学历/职业：文言「学至本科，毕业于…，以工程师为业」，白话「本科毕业…，从事工程师工作」 */
+  private static careerSentence(p: Person, style: string = DieJiStyle.CLASSIC): string {
+    const modern: boolean = style === DieJiStyle.MODERN;
     const parts: string[] = [];
-    const edu: string = DieJiText.educationText(p.education.trim());
+    const edu: string = DieJiText.educationText(p.education.trim(), style);
     if (edu.length > 0) {
       parts.push(edu);
     }
     if (p.occupation.trim().length > 0) {
-      parts.push('以' + p.occupation.trim() + '为业');
+      parts.push(modern ? '从事' + p.occupation.trim() + '工作' : '以' + p.occupation.trim() + '为业');
     }
     return parts.length > 0 ? parts.join('，') + '。' : '';
   }
 
   /** 「本科-华南理工大学-计算机」→「学至本科，毕业于华南理工大学，习计算机」 */
-  private static educationText(edu: string): string {
+  private static educationText(edu: string, style: string = DieJiStyle.CLASSIC): string {
     if (edu.length === 0) {
       return '';
     }
+    const modern: boolean = style === DieJiStyle.MODERN;
     const degrees: string[] = ['小学', '初中', '高中', '中专', '大专', '本科', '硕士', '博士', '研究生'];
     const raw: string[] = edu.split(/[-—·/]/);
     const segs: string[] = [];
@@ -928,32 +1040,38 @@ export class DieJiText {
     if (segs.length === 0) {
       return '';
     }
-    const out: string[] = [];
+    const first: string = degrees.indexOf(segs[0]) >= 0
+      ? (modern ? '学历为' + segs[0] : '学至' + segs[0])
+      : (modern ? '曾就读于' + segs[0] : '尝就学于' + segs[0]);
     if (segs.length === 1) {
-      return degrees.indexOf(segs[0]) >= 0 ? '学至' + segs[0] : '尝就学于' + segs[0];
+      return first;
     }
-    out.push(degrees.indexOf(segs[0]) >= 0 ? '学至' + segs[0] : '尝就学于' + segs[0]);
+    const out: string[] = [];
+    out.push(first);
     out.push('毕业于' + segs[1]);
     if (segs.length >= 3) {
-      out.push('习' + segs[2]);
+      out.push(modern ? '学习' + segs[2] + '专业' : '习' + segs[2]);
     }
     return out.join('，');
   }
 
   /** 墓葬定位：东经/北纬/海拔；未定位不写 */
-  private static gpsText(p: Person): string {
+  private static gpsText(p: Person, style: string = DieJiStyle.CLASSIC): string {
     if (p.graveLat === 0 && p.graveLng === 0) {
       return '';
     }
-    return '坟定位坐标：东经' + p.graveLng.toFixed(6) + '°北纬' + p.graveLat.toFixed(6) +
+    return (style === DieJiStyle.MODERN ? '墓地位于东经' : '坟定位坐标：东经') +
+      p.graveLng.toFixed(6) + '°北纬' + p.graveLat.toFixed(6) +
       '°，海拔' + p.graveAltitude.toFixed(1) + '米';
   }
 
   /** 墓葬句：合葬/葬/附葬/坟墓未知，后接定位坐标 */
-  private static graveSentence(p: Person, idx: DieJiIndex): string {
+  private static graveSentence(p: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string {
+    const modern: boolean = style === DieJiStyle.MODERN;
     const dead: boolean = DieJiText.isDead(p);
     const grave: string = p.graveInfo.trim().replace(/。$/, '');
-    const gps: string = DieJiText.gpsText(p);
+    const gps: string = DieJiText.gpsText(p, style);
     let base: string = '';
     if (grave.length > 0) {
       if (grave.indexOf('葬') >= 0) {
@@ -967,9 +1085,13 @@ export class DieJiText {
             break;
           }
         }
-        base = wifeGrave ? '公与妣合葬' + grave : '葬' + grave;
+        if (modern) {
+          base = wifeGrave ? '与配偶合葬于' + grave : '安葬于' + grave;
+        } else {
+          base = wifeGrave ? '公与妣合葬' + grave : '葬' + grave;
+        }
       } else {
-        base = '葬' + grave;
+        base = modern ? '安葬于' + grave : '葬' + grave;
       }
     }
     const parts: string[] = [];
@@ -980,13 +1102,18 @@ export class DieJiText {
       parts.push(gps);
     }
     if (parts.length === 0) {
-      return dead ? '坟墓未知。' : '';
+      if (!dead) {
+        return '';
+      }
+      return modern ? '墓葬信息不详。' : '坟墓未知。';
     }
     return parts.join('。') + '。';
   }
 
   /** 无配偶 / 无子嗣的旧谱用语 */
-  private static heirSentences(p: Person, idx: DieJiIndex): string[] {
+  private static heirSentences(p: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string[] {
+    const modern: boolean = style === DieJiStyle.MODERN;
     const dead: boolean = DieJiText.isDead(p);
     if (!dead) {
       return [];
@@ -1000,26 +1127,36 @@ export class DieJiText {
     const noKids: boolean = idx.childrenOf(p.uid).length === 0;
     if (noSpouse && noKids) {
       if (young) {
-        out.push(p.gender === '女' ? '未字' : '未聘');
+        if (modern) {
+          out.push(p.gender === '女' ? '尚未出嫁' : '尚未成婚');
+        } else {
+          out.push(p.gender === '女' ? '未字' : '未聘');
+        }
       } else if (marriage === '未字' || marriage === '未娶') {
         // 只有明确标记未字/未娶才写「终身未字」；未记不臆断
-        out.push(p.gender === '女' ? '终身未字' : '终身未娶');
+        if (modern) {
+          out.push(p.gender === '女' ? '终身未嫁' : '终身未娶');
+        } else {
+          out.push(p.gender === '女' ? '终身未字' : '终身未娶');
+        }
       }
     }
     // 出嫁/娶妻/招赘但配偶未收录：写夫家，如「适同邑陈氏」
     if (noSpouse) {
       const family: string = p.spouseFamily.trim();
       if (marriage === '适人') {
-        out.push(family.length > 0 ? '适' + family : '已适');
+        out.push(modern ? (family.length > 0 ? '已嫁入' + family : '已出嫁')
+          : (family.length > 0 ? '适' + family : '已适'));
       } else if (marriage === '娶妻') {
-        out.push(family.length > 0 ? '娶' + family : '已娶');
+        out.push(modern ? (family.length > 0 ? '已娶' + family : '已婚')
+          : (family.length > 0 ? '娶' + family : '已娶'));
       } else if (marriage === '招赘') {
         out.push(family.length > 0 ? '入赘' + family : '入赘');
       }
     }
     // 只有明确勾选「无出」才写无嗣；未录子女不等于无嗣
     if (p.childless && noKids && p.adoption.trim().length === 0) {
-      out.push('无嗣');
+      out.push(modern ? '无子女' : '无嗣');
     }
     return out.length === 0 ? [] : [out.join('，') + '。'];
   }
@@ -1032,20 +1169,25 @@ export class DieJiText {
   }
 
   /** 过继/出嗣句 */
-  private static adoptionSentence(p: Person, idx: DieJiIndex): string {
+  private static adoptionSentence(p: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string {
     const adopt: string = p.adoption.trim().replace(/。$/, '');
     if (adopt.length === 0 || !DieJiText.isOutAdoption(p)) {
       return '';
     }
     const father: Person | null = idx.fatherOf(p);
     if (father !== null && father.name.trim().length > 0) {
+      if (style === DieJiStyle.MODERN) {
+        return '原是' + father.name.trim() + '的' + DieJiText.childOrdinal(p, idx, style) + '，' + adopt + '。';
+      }
       return '原系' + father.name.trim() + '公' + DieJiText.childOrdinal(p, idx) + '，' + adopt + '。';
     }
     return adopt + '。';
   }
 
   /** 乏嗣而以他人子为嗣：乏嗣，以兄…为嗣。 */
-  private static heirByAdoptionSentence(p: Person, idx: DieJiIndex): string {
+  private static heirByAdoptionSentence(p: Person, idx: DieJiIndex,
+    style: string = DieJiStyle.CLASSIC): string {
     const adopt: string = p.adoption.trim().replace(/。$/, '');
     if (adopt.length === 0 || DieJiText.isOutAdoption(p)) {
       return '';
@@ -1053,11 +1195,12 @@ export class DieJiText {
     if (idx.childrenOf(p.uid).length > 0) {
       return '';
     }
-    return '乏嗣，' + adopt + '。';
+    return (style === DieJiStyle.MODERN ? '因为没有子嗣，' : '乏嗣，') + adopt + '。';
   }
 
   /** 本支人物（含未婚女子） */
   private static personParagraph(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): string {
+    const style: string = DieJiText.styleOf(opts);
     const dead: boolean = DieJiText.isDead(p);
     const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
     const young: boolean = dead && age >= 0 && age <= 15 && p.spouses.length === 0 &&
@@ -1065,12 +1208,12 @@ export class DieJiText {
     const s: string[] = [];
     // 世代已由屏幕卡片 / Markdown 章节 / PDF 小标题独立承载，正文姓名前不再重复「X世」
     s.push(DieJiText.headSentence(p, idx, opts, false));
-    const adopt: string = DieJiText.adoptionSentence(p, idx);
+    const adopt: string = DieJiText.adoptionSentence(p, idx, style);
     if (adopt.length > 0) {
       s.push(adopt);
     }
-    s.push(DieJiText.lifeSentence(p, young));
-    const career: string = DieJiText.careerSentence(p);
+    s.push(DieJiText.lifeSentence(p, young, style));
+    const career: string = DieJiText.careerSentence(p, style);
     if (career.length > 0) {
       s.push(career);
     }
@@ -1078,7 +1221,7 @@ export class DieJiText {
     if (p.lifeStatus !== '在世' && p.biography.trim().length > 0) {
       s.push(p.biography.trim().replace(/。$/, '') + '。');
     }
-    const heir: string[] = DieJiText.heirSentences(p, idx);
+    const heir: string[] = DieJiText.heirSentences(p, idx, style);
     for (let i: number = 0; i < heir.length; i++) {
       s.push(heir[i]);
     }
@@ -1090,11 +1233,11 @@ export class DieJiText {
     if (kids.length > 0) {
       s.push(kids);
     }
-    const heirAdopt: string = DieJiText.heirByAdoptionSentence(p, idx);
+    const heirAdopt: string = DieJiText.heirByAdoptionSentence(p, idx, style);
     if (heirAdopt.length > 0) {
       s.push(heirAdopt);
     }
-    const grave: string = DieJiText.graveSentence(p, idx);
+    const grave: string = DieJiText.graveSentence(p, idx, style);
     if (grave.length > 0) {
       s.push(grave);
     }
@@ -1104,13 +1247,14 @@ export class DieJiText {
   /** 妣氏条目 */
   private static wifeParagraph(p: Person, husband: Person, idx: DieJiIndex,
     opts?: DieJiRefOptions): string {
+    const style: string = DieJiText.styleOf(opts);
     const dead: boolean = DieJiText.isDead(p);
     const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
     const young: boolean = dead && age >= 0 && age <= 15 && idx.childrenOf(p.uid).length === 0;
     const s: string[] = [];
     s.push(DieJiText.wifeHeadSentence(p, husband, idx, opts));
-    s.push(DieJiText.lifeSentence(p, young));
-    const career: string = DieJiText.careerSentence(p);
+    s.push(DieJiText.lifeSentence(p, young, style));
+    const career: string = DieJiText.careerSentence(p, style);
     if (career.length > 0) {
       s.push(career);
     }
@@ -1121,22 +1265,23 @@ export class DieJiText {
       const adopt: string = p.adoption.trim().replace(/。$/, '');
       if (adopt.length > 0) {
         s.push(adopt.indexOf('为嗣') >= 0 || adopt.indexOf('以') === 0 ?
-          '乏嗣，' + adopt + '。' : '无嗣。');
+          (style === DieJiStyle.MODERN ? '因为没有子嗣，' : '乏嗣，') + adopt + '。' :
+          (style === DieJiStyle.MODERN ? '无子女。' : '无嗣。'));
       } else if (idx.childrenOf(husband.uid).length === 0) {
         // 旧谱常只记父子不记母子：丈夫名下有子女时不轻易断言妻子「无嗣」
-        s.push('无嗣。');
+        s.push(style === DieJiStyle.MODERN ? '无子女。' : '无嗣。');
       }
     } else {
       const kids: string = DieJiText.childrenSentence(p, idx, opts);
       if (kids.length > 0) {
         s.push(kids);
       }
-      const heirAdopt: string = DieJiText.heirByAdoptionSentence(p, idx);
+      const heirAdopt: string = DieJiText.heirByAdoptionSentence(p, idx, style);
       if (heirAdopt.length > 0) {
         s.push(heirAdopt);
       }
     }
-    const grave: string = DieJiText.graveSentence(p, idx);
+    const grave: string = DieJiText.graveSentence(p, idx, style);
     if (grave.length > 0) {
       s.push(grave);
     }
@@ -1158,9 +1303,10 @@ export class DieJiText {
     return DieJiText.personBlocks(p, idx, opts);
   }
 
-  /** 只收非空块；句读统一转全角空格，与 paragraph() 同一出口 */
-  private static pushBlock(out: DieJiBlock[], text: string, bullet: boolean, kind: string): void {
-    const body: string = DieJiText.plainPunct(text);
+  /** 只收非空块；标点按文体处理，与 paragraph() 同一出口 */
+  private static pushBlock(out: DieJiBlock[], text: string, bullet: boolean, kind: string,
+    style: string = DieJiStyle.CLASSIC): void {
+    const body: string = DieJiText.plainPunct(text, style);
     if (body.length === 0) {
       return;
     }
@@ -1169,60 +1315,64 @@ export class DieJiText {
 
   /** 本支人物语义块 */
   private static personBlocks(p: Person, idx: DieJiIndex, opts?: DieJiRefOptions): DieJiBlock[] {
+    const style: string = DieJiText.styleOf(opts);
     const dead: boolean = DieJiText.isDead(p);
     const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
     const young: boolean = dead && age >= 0 && age <= 15 && p.spouses.length === 0 &&
       idx.childrenOf(p.uid).length === 0;
     const out: DieJiBlock[] = [];
-    DieJiText.pushBlock(out, DieJiText.headSentence(p, idx, opts, false), false, 'head');
-    DieJiText.pushBlock(out, DieJiText.adoptionSentence(p, idx), true, 'adopt');
-    DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young), true, 'life');
+    DieJiText.pushBlock(out, DieJiText.headSentence(p, idx, opts, false), false, 'head', style);
+    DieJiText.pushBlock(out, DieJiText.adoptionSentence(p, idx, style), true, 'adopt', style);
+    DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young, style), true, 'life', style);
     const spouse: string[] = DieJiText.spouseSentences(p, idx, opts);
     if (spouse.length > 0) {
-      DieJiText.pushBlock(out, spouse.join(''), true, 'spouse');
+      DieJiText.pushBlock(out, spouse.join(''), true, 'spouse', style);
     }
-    DieJiText.pushBlock(out, DieJiText.childrenSentence(p, idx, opts), true, 'child');
-    const heir: string[] = DieJiText.heirSentences(p, idx);
+    DieJiText.pushBlock(out, DieJiText.childrenSentence(p, idx, opts), true, 'child', style);
+    const heir: string[] = DieJiText.heirSentences(p, idx, style);
     if (heir.length > 0) {
-      DieJiText.pushBlock(out, heir.join(''), true, 'heir');
+      DieJiText.pushBlock(out, heir.join(''), true, 'heir', style);
     }
-    DieJiText.pushBlock(out, DieJiText.careerSentence(p), true, 'career');
+    DieJiText.pushBlock(out, DieJiText.careerSentence(p, style), true, 'career', style);
     // 生不立传：在世者只记齿录，不写生平赞语
     if (p.lifeStatus !== '在世' && p.biography.trim().length > 0) {
-      DieJiText.pushBlock(out, p.biography.trim().replace(/。$/, '') + '。', true, 'bio');
+      DieJiText.pushBlock(out, p.biography.trim().replace(/。$/, '') + '。', true, 'bio', style);
     }
-    DieJiText.pushBlock(out, DieJiText.heirByAdoptionSentence(p, idx), true, 'heir');
-    DieJiText.pushBlock(out, DieJiText.graveSentence(p, idx), true, 'grave');
+    DieJiText.pushBlock(out, DieJiText.heirByAdoptionSentence(p, idx, style), true, 'heir', style);
+    DieJiText.pushBlock(out, DieJiText.graveSentence(p, idx, style), true, 'grave', style);
     return out;
   }
 
   /** 妣氏条目语义块 */
   private static wifeBlocks(p: Person, husband: Person, idx: DieJiIndex,
     opts?: DieJiRefOptions): DieJiBlock[] {
+    const style: string = DieJiText.styleOf(opts);
+    const modern: boolean = style === DieJiStyle.MODERN;
     const dead: boolean = DieJiText.isDead(p);
     const age: number = ageOf(p.birthDate, p.deathDate, p.lifeStatus);
     const young: boolean = dead && age >= 0 && age <= 15 && idx.childrenOf(p.uid).length === 0;
     const out: DieJiBlock[] = [];
-    DieJiText.pushBlock(out, DieJiText.wifeHeadSentence(p, husband, idx, opts), false, 'head');
-    DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young), true, 'life');
+    DieJiText.pushBlock(out, DieJiText.wifeHeadSentence(p, husband, idx, opts), false, 'head', style);
+    DieJiText.pushBlock(out, DieJiText.lifeSentence(p, young, style), true, 'life', style);
     if (p.childless && idx.childrenOf(p.uid).length === 0 && dead) {
       const adopt: string = p.adoption.trim().replace(/。$/, '');
       if (adopt.length > 0) {
         DieJiText.pushBlock(out, adopt.indexOf('为嗣') >= 0 || adopt.indexOf('以') === 0 ?
-          '乏嗣，' + adopt + '。' : '无嗣。', true, 'heir');
+          (modern ? '因为没有子嗣，' : '乏嗣，') + adopt + '。' :
+          (modern ? '无子女。' : '无嗣。'), true, 'heir', style);
       } else if (idx.childrenOf(husband.uid).length === 0) {
         // 旧谱常只记父子不记母子：丈夫名下有子女时不轻易断言妻子「无嗣」
-        DieJiText.pushBlock(out, '无嗣。', true, 'heir');
+        DieJiText.pushBlock(out, modern ? '无子女。' : '无嗣。', true, 'heir', style);
       }
     } else {
-      DieJiText.pushBlock(out, DieJiText.childrenSentence(p, idx, opts), true, 'child');
-      DieJiText.pushBlock(out, DieJiText.heirByAdoptionSentence(p, idx), true, 'heir');
+      DieJiText.pushBlock(out, DieJiText.childrenSentence(p, idx, opts), true, 'child', style);
+      DieJiText.pushBlock(out, DieJiText.heirByAdoptionSentence(p, idx, style), true, 'heir', style);
     }
-    DieJiText.pushBlock(out, DieJiText.careerSentence(p), true, 'career');
+    DieJiText.pushBlock(out, DieJiText.careerSentence(p, style), true, 'career', style);
     if (p.lifeStatus !== '在世' && p.biography.trim().length > 0) {
-      DieJiText.pushBlock(out, p.biography.trim().replace(/。$/, '') + '。', true, 'bio');
+      DieJiText.pushBlock(out, p.biography.trim().replace(/。$/, '') + '。', true, 'bio', style);
     }
-    DieJiText.pushBlock(out, DieJiText.graveSentence(p, idx), true, 'grave');
+    DieJiText.pushBlock(out, DieJiText.graveSentence(p, idx, style), true, 'grave', style);
     return out;
   }
 }

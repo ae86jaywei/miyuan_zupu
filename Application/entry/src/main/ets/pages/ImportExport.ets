@@ -15,6 +15,7 @@ import { GenealogyScope } from 'common_base';
 import { Person } from 'common_base';
 import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { ImportPlan, ImportResult } from '../service/ImportPlanner';
+import { DisplayService } from '../service/DisplayService';
 
 /**
  * 单卷人数上限：超过则按世系分卷。
@@ -72,6 +73,8 @@ struct ImportExport {
   @State pdfStyle: string = 'die';
   /** 牒记版式：modern=现代横排，classic=仿古竖排（右起左行） */
   @State pdfLayout: string = 'modern';
+  /** 牒记文风：classic=文言，modern=现代白话（与牒记页阅读方式共用并持久化） */
+  @StorageLink('dieJiStyle') dieJiStyle: string = 'classic';
   /** 装订方式：true=双面（按所选装订边镜像），false=单面（每页统一装订边） */
   @StorageLink('printDuplex') printDuplex: boolean = true;
   /** 装订方向：left=左侧装订，right=右侧装订（传统右翻） */
@@ -209,7 +212,7 @@ struct ImportExport {
         content = ExportService.toCsv(people, this.includePrivate);
         fileName = '族谱表格_' + stamp + '.csv';
       } else {
-        content = ExportService.toMarkdown(people, this.svc().getBook());
+        content = ExportService.toMarkdown(people, this.svc().getBook(), this.dieJiStyle);
         fileName = '族谱谱文_' + stamp + '.md';
       }
       this.previewText = content.length > 1200 ? content.substring(0, 1200) + '\n……' : content;
@@ -294,7 +297,7 @@ struct ImportExport {
       if (jobs.length <= 30) {
         this.setProgress('正在计算各卷页码…', 3);
         crossRef = await PdfExportService.prepareCrossRefs(people, book, jobs, true,
-          this.pdfLayout === 'classic');
+          this.pdfLayout === 'classic', this.dieJiStyle);
       }
       for (let i: number = 0; i < jobs.length; i++) {
         const vol: PdfVolume = jobs[i];
@@ -307,6 +310,7 @@ struct ImportExport {
             kinSource: people,
             style: 'die',
             classicLayout: this.pdfLayout === 'classic',
+            dieJiStyle: this.dieJiStyle,
             crossRef: crossRef === null ? undefined : crossRef
           },
           (p: PdfExportProgress): void => {
@@ -564,6 +568,31 @@ struct ImportExport {
     })
   }
 
+  /** 牒记文风选择按钮：文言 / 现代白话（与牒记页共用同一设置） */
+  @Builder
+  TextStyleChip(label: string, value: string, hint: string) {
+    Column() {
+      Text(T(label)).fontFamily(uiFontFamily())
+        .fontSize(12.5)
+        .fontColor(this.dieJiStyle === value ? Theme.onPrimary : Theme.ink)
+        .fontWeight(FontWeight.Medium)
+      Text(T(hint)).fontFamily(uiFontFamily())
+        .fontSize(9)
+        .fontColor(this.dieJiStyle === value ? Theme.onPrimarySubtle : Theme.inkTertiary)
+        .margin({ top: 2 })
+        .maxLines(1)
+    }
+    .layoutWeight(1)
+    .padding({ top: 8, bottom: 8, left: 4, right: 4 })
+    .margin({ right: 6 })
+    .backgroundColor(this.dieJiStyle === value ? Theme.primary : Theme.field)
+    .borderRadius(8)
+    .border({ width: 0.5, color: this.dieJiStyle === value ? Theme.primary : Theme.line })
+    .onClick((): void => {
+      DisplayService.getInstance().setDieJiStyle(value);
+    })
+  }
+
   /** PDF 谱式选择按钮 */
   @Builder
   PdfStyleChip(label: string, value: string, hint: string) {
@@ -811,6 +840,18 @@ struct ImportExport {
                 Row() {
                   this.LayoutChip('现代版', 'modern', '横排，现代阅读习惯')
                   this.LayoutChip('仿古版', 'classic', '竖排，右起左行')
+                }
+                .width('100%')
+                .margin({ top: 8 })
+                Text(T('牒记文风')).fontFamily(uiFontFamily())
+                  .fontSize(13)
+                  .fontColor(Theme.ink)
+                  .fontWeight(FontWeight.Medium)
+                  .width('100%')
+                  .margin({ top: 12 })
+                Row() {
+                  this.TextStyleChip('文言', 'classic', '仿古句式，全角空格断句')
+                  this.TextStyleChip('现代白话', 'modern', '现代标点与表达习惯')
                 }
                 .width('100%')
                 .margin({ top: 8 })

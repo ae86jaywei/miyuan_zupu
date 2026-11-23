@@ -3,7 +3,7 @@ import { Person } from 'common_base';
 import { Theme, Spacing } from 'common_base';
 import { generationLabel } from 'common_base';
 import { Tag } from 'common_ui';
-import { DieJiIndex, DieJiText, DieJiNameRange, DieJiRefOptions } from '../../service/DieJiText';
+import { DieJiIndex, DieJiText, DieJiNameRange, DieJiRefOptions, DieJiStyle } from '../../service/DieJiText';
 
 /** 正文分段：姓名段、括号引用段、普通段 */
 class DieJiSpan {
@@ -52,6 +52,8 @@ export struct DieRecord {
   }
   @Prop showPrivate: boolean = false;
   @Prop highlight: boolean = false;
+  /** 阅读文体：文言 / 现代白话，由牒记页统一控制 */
+  @Prop dieStyle: string = DieJiStyle.CLASSIC;
   onTapPerson: (uid: string) => void = (uid: string): void => {};
 
   private dieText(): string {
@@ -59,6 +61,7 @@ export struct DieRecord {
     const opts: DieJiRefOptions = new DieJiRefOptions();
     opts.enabled = true;
     opts.withPage = false;
+    opts.style = this.dieStyle;
     if (this.ctx === null) {
       const single: DieJiIndex = new DieJiIndex([this.person]);
       return DieJiText.paragraph(this.person, single, opts);

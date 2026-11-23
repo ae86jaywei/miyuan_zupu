@@ -13,7 +13,7 @@ import { RawPdfWriter, PdfTextLine, PdfInfo, PdfRule } from './RawPdfWriter';
 import { RawPdfFont } from './RawPdfFont';
 import { PdfFontUtil } from './PdfFontUtil';
 import { PageSpec as PrintPageSpec } from './PrintLayout';
-import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange, DieJiBlock, DIE_SPACE } from './DieJiText';
+import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiNameRange, DieJiBlock, DIE_SPACE, DieJiStyle } from './DieJiText';
 import {
   BranchInfo, FamilyUnit, KinshipIndex, TextLine, TextRun, charWidth, lineHOf
 } from './pdf/PdfTextCompose';
@@ -92,6 +92,8 @@ export interface PdfExportOptions {
   crossRef?: Map<string, string>;
   /** 牒记版式：true=仿古竖排（右起左行、从上到下），缺省=现代横排 */
   classicLayout?: boolean;
+  /** 牒记文风：classic=文言（默认），modern=现代白话；与屏幕阅读方式共用 */
+  dieJiStyle?: string;
 }
 
 /** 分卷单元 */
@@ -279,12 +281,13 @@ function padLine(): TextLine {
  */
 function personEntryLines(ctx: OffscreenCanvasRenderingContext2D, p: Person,
   dieIndex: DieJiIndex, refs: Map<string, number> | null,
-  contentW: number = CONTENT_W): TextLine[] {
+  contentW: number = CONTENT_W, dieJiStyle: string = DieJiStyle.CLASSIC): TextLine[] {
   const lines: TextLine[] = [];
   const opts: DieJiRefOptions = new DieJiRefOptions();
   opts.enabled = true;
   opts.refs = refs;
   opts.crossRef = gCrossRef;
+  opts.style = dieJiStyle === DieJiStyle.MODERN ? DieJiStyle.MODERN : DieJiStyle.CLASSIC;
   const nameColor: string = p.gender === '女' ? C_FEMALE : C_INK;
   const blocks: DieJiBlock[] = DieJiText.blocks(p, dieIndex, opts);
   for (let bi: number = 0; bi < blocks.length; bi++) {
@@ -339,7 +342,7 @@ function needsAncestorEntry(people: Person[], units: FamilyUnit[], ancestorName:
 async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, people: Person[],
   kinIndex: KinshipIndex, refs: Map<string, number> | null,
   contentW: number = CONTENT_W, ancestorName: string = '',
-  dieIndex?: DieJiIndex): Promise<EntryBlock[]> {
+  dieIndex?: DieJiIndex, dieJiStyle: string = DieJiStyle.CLASSIC): Promise<EntryBlock[]> {
   const index: DieJiIndex = dieIndex === undefined ? new DieJiIndex(people) : dieIndex;
   const units: FamilyUnit[] = buildFamilyUnits(people);
   const entries: EntryBlock[] = [];
@@ -366,7 +369,7 @@ async function buildGenealogyEntries(ctx: OffscreenCanvasRenderingContext2D, peo
     const unitId: string = unit.anchorUid + '#' + unit.generation.toString();
     for (let j: number = 0; j < unit.members.length; j++) {
       const p: Person = unit.members[j];
-      const lines: TextLine[] = personEntryLines(ctx, p, index, refs, contentW);
+      const lines: TextLine[] = personEntryLines(ctx, p, index, refs, contentW, dieJiStyle);
       lines.unshift({
         text: heading,
         font: 15, lineH: 30, color: C_INK, bold: false, indent: 0, center: false
@@ -1283,7 +1286,8 @@ export class PdfExportService {
     book: Genealogy,
     jobs: PdfVolume[],
     includeCover: boolean,
-    classicLayout: boolean = false
+    classicLayout: boolean = false,
+    dieJiStyle: string = DieJiStyle.CLASSIC
   ): Promise<Map<string, string>> {
     const out: Map<string, string> = new Map<string, string>();
     if (jobs.length === 0) {
@@ -1307,7 +1311,7 @@ export class PdfExportService {
       const offset: number = coverPages.length + prefacePages.length;
       const entries: EntryBlock[] =
         await buildGenealogyEntries(ctx, vol.people, kinIndex, null, contentW,
-          jobs.length === 1 ? book.ancestorName : '', dieIndex);
+          jobs.length === 1 ? book.ancestorName : '', dieIndex, dieJiStyle);
       const pg: PaginateResult = classicLayout
         ? await paginateEntriesVerticalColumns(entries, offset, contentW, contentH)
         : await paginateEntries(entries, offset, contentH);
@@ -1347,10 +1351,13 @@ export class PdfExportService {
     const contentH: number = dieContentH(printSpec);
     // 牒记版式：仿古竖排时按列分页、逐字右起左行；封面仍横排
     const classic: boolean = options.classicLayout === true;
+    // 牒记文风：文言 / 现代白话，与屏幕阅读方式保持同一设置
+    const dieJiStyle: string = options.dieJiStyle === DieJiStyle.MODERN
+      ? DieJiStyle.MODERN : DieJiStyle.CLASSIC;
     const kinPeople: Person[] = (options.kinSource !== undefined && options.kinSource.length > 0)
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = kinshipFor(kinPeople);
-    // 牒记文言生成器：与屏幕、Markdown 共用，按全量亲缘解析配偶与子嗣
+    // 牒记正文生成器：与屏幕、Markdown 共用，按全量亲缘解析配偶与子嗣
     const dieIndex: DieJiIndex = new DieJiIndex(kinPeople);
     const coverPages: PageSpec[] = options.includeCover
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0,
@@ -1365,7 +1372,7 @@ export class PdfExportService {
 
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, contentW,
-      ancestorForBody, dieIndex);
+      ancestorForBody, dieIndex, dieJiStyle);
     const firstPass: PaginateResult = classic
       ? await paginateEntriesVerticalColumns(entries1, offset, contentW, contentH)
       : await paginateEntries(entries1, offset, contentH);
@@ -1379,7 +1386,7 @@ export class PdfExportService {
     entries1 = [];
     firstPass.pages = [];
     let entries2: EntryBlock[] =
-      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW, ancestorForBody, dieIndex);
+      await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, contentW, ancestorForBody, dieIndex, dieJiStyle);
     if (!classic) {
       // 横排版靠补空行稳住两遍分页；竖排按字符数分页，补空行反而会多占列
       for (let i: number = 0; i < entries2.length; i = i + 1) {
@@ -1727,6 +1734,8 @@ export class PdfExportService {
       ? options.kinSource : people;
     const kinIndex: KinshipIndex = new KinshipIndex(kinPeople);
     const dieIndex: DieJiIndex = new DieJiIndex(kinPeople);
+    const dieJiStyle: string = options.dieJiStyle === DieJiStyle.MODERN
+      ? DieJiStyle.MODERN : DieJiStyle.CLASSIC;
 
     const coverPages: PageSpec[] = options.includeCover
       ? paginateLines(ctx, buildCover(book, people.length, options.volumeTitle ?? ''), '封 面', 0) : [];
@@ -1739,7 +1748,7 @@ export class PdfExportService {
     // 先让进度条跑完一帧，再进入耗时的同步断行与分页
     await yieldToUi();
     let entries1: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, null, CONTENT_W,
-      ancestorForBody, dieIndex);
+      ancestorForBody, dieIndex, dieJiStyle);
     const firstPass: PaginateResult = await paginateEntries(entries1, offset);
     // 第一遍整页排版仅用于页码映射与行数校验，取出 uidPage 后即可释放，
     // 避免其与第二遍数据同时常驻，降低大数据导出时的内存峰值
@@ -1756,7 +1765,7 @@ export class PdfExportService {
     entries1 = [];
     firstPass.pages = [];
     let entries2: EntryBlock[] = await buildGenealogyEntries(ctx, people, kinIndex, uidPageMap, CONTENT_W,
-      ancestorForBody, dieIndex);
+      ancestorForBody, dieIndex, dieJiStyle);
     for (let i: number = 0; i < entries2.length; i++) {
       const e: EntryBlock = entries2[i];
       const want: number | undefined = heights.get(e.uid);

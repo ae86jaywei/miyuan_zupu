@@ -10,7 +10,7 @@ import { Genealogy, createEmptyGenealogy } from 'common_base';
 import { csvEscape } from 'common_base';
 import { generationLabel } from 'common_base';
 import { T, ScriptService } from 'common_base';
-import { DieJiIndex, DieJiText, DieJiRefOptions } from './DieJiText';
+import { DieJiIndex, DieJiText, DieJiRefOptions, DieJiStyle } from './DieJiText';
 
 /** 一次解析 JSON 备份得到的结果：人物列表 + 族谱信息 */
 export class JsonBundle {
@@ -170,8 +170,9 @@ export class ExportService {
     return JSON.stringify(payload, null, 2);
   }
 
-  /** 生成牒记式 Markdown 谱文 */
-  static toMarkdown(people: Person[], book: Genealogy): string {
+  /** 生成牒记式 Markdown 谱文；dieJiStyle 与屏幕 / PDF 共用文言或现代白话 */
+  static toMarkdown(people: Person[], book: Genealogy,
+    dieJiStyle: string = DieJiStyle.CLASSIC): string {
     const lines: string[] = [];
     lines.push(T('# ' + book.title));
     if (book.hallName.length > 0) {
@@ -195,11 +196,12 @@ export class ExportService {
     for (let i: number = 0; i < people.length; i++) {
       nameMap.set(people[i].uid.trim().toUpperCase(), people[i].name);
     }
-    // 牒记正文与屏幕 / PDF 共用同一套文言生成器；Markdown 无页码，只写「（F001）」
+    // 牒记正文与屏幕 / PDF 共用同一套生成器；Markdown 无页码，只写「（F001）」
     const dieIndex: DieJiIndex = new DieJiIndex(people);
     const dieRefs: DieJiRefOptions = new DieJiRefOptions();
     dieRefs.enabled = true;
     dieRefs.withPage = false;
+    dieRefs.style = dieJiStyle === DieJiStyle.MODERN ? DieJiStyle.MODERN : DieJiStyle.CLASSIC;
     let lastGen: number = -1;
     sorted.forEach((p: Person): void => {
       if (p.generation !== lastGen) {
