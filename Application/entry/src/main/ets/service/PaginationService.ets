@@ -888,10 +888,29 @@ export class PaginationService {
     }
   }
 
-  /** 本页切下来的续页单元插到队首，保证按房支、长幼顺序接着排 */
+  /**
+   * 本页切下来的续页单元入队。
+   *
+   * 父卡续页单元（排同一父辈剩余子女）插到队首：兄弟必须紧接上一页出现；
+   * 子女分支单元排到队尾：同一代兄弟的家族按顺序逐页展开，
+   * 不会让长子的整棵大树占掉几百页，把次子推到几千页之后。
+   */
   private commitPending(queue: PendingUnit[], pending: PendingUnit[]): void {
-    for (let i: number = pending.length - 1; i >= 0; i = i - 1) {
-      queue.unshift(pending[i]);
+    const front: PendingUnit[] = [];
+    const back: PendingUnit[] = [];
+    for (let i: number = 0; i < pending.length; i = i + 1) {
+      const u: PendingUnit = pending[i];
+      if (u.carry !== null && u.carry.uid === u.node.uid) {
+        front.push(u);
+      } else {
+        back.push(u);
+      }
+    }
+    for (let i: number = front.length - 1; i >= 0; i = i - 1) {
+      queue.unshift(front[i]);
+    }
+    for (let i: number = 0; i < back.length; i = i + 1) {
+      queue.push(back[i]);
     }
     pending.splice(0, pending.length);
   }
