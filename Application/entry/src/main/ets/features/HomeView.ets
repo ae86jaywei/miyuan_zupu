@@ -209,44 +209,6 @@ export struct HomeView {
   }
 
   @Builder
-  StyleShortcuts() {
-    Column() {
-      ForEach([['eu', '欧式', '横轴世系'], ['su', '苏式', '竖式吊线'], ['pagoda', '宝塔', '金字塔'],
-        ['die', '牒记', '文字编年'], ['modern', '现代', '卡片时间轴']], (item: string[], idx: number) => {
-        Row() {
-          Text(T(item[0].toUpperCase())).fontFamily(uiFontFamily())
-            .fontSize(11)
-            .fontColor(Theme.highlightAccent)
-            .width(26)
-            .height(26)
-            .textAlign(TextAlign.Center)
-            .backgroundColor(Theme.highlightBg)
-            .borderRadius(13)
-          Column() {
-            Text(T(item[1] + '谱')).fontFamily(uiFontFamily())
-              .fontSize(13.5)
-              .fontColor(Theme.ink)
-            Text(T(item[2])).fontFamily(uiFontFamily())
-              .fontSize(10)
-              .fontColor(Theme.inkTertiary)
-              .margin({ top: 1 })
-          }
-          .alignItems(HorizontalAlign.Start)
-          .layoutWeight(1)
-          .margin({ left: 8 })
-          Text(T('›')).fontFamily(uiFontFamily()).fontSize(16).fontColor(Theme.inkTertiary)
-        }
-        .width('100%')
-        .padding({ top: 8, bottom: 8 })
-        .onClick((): void => {
-          this.onOpenStyle(item[0]);
-        })
-      }, (item: string[]) => 'sc_' + item[0])
-    }
-    .width('100%')
-  }
-
-  @Builder
   RecentList() {
     Column() {
       ForEach(this.recentView, (p: Person) => {
@@ -505,18 +467,6 @@ export struct HomeView {
               .border({ width: 0.5, color: Theme.line })
               .margin({ bottom: Spacing.M })
               .clip(true)
-
-              TS({ title: T('五种谱式'), subtitle: '一键切换展示方式', icon: '📜' })
-              Column() {
-                this.StyleShortcuts()
-              }
-              .width('100%')
-              .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
-              .backgroundColor(Theme.card)
-              .borderRadius(16)
-              .border({ width: 0.5, color: Theme.line })
-              .margin({ bottom: Spacing.M })
-              .clip(true)
             }
             .layoutWeight(1)
             .margin({ right: Spacing.M })
@@ -575,18 +525,6 @@ export struct HomeView {
           TS({ title: T('世代分布'), subtitle: '各世人数与占比', icon: '📊' })
           Column() {
             this.GenerationChart()
-          }
-          .width('100%')
-          .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
-          .backgroundColor(Theme.card)
-          .borderRadius(16)
-          .border({ width: 0.5, color: Theme.line })
-          .margin({ bottom: Spacing.M })
-          .clip(true)
-
-          TS({ title: T('五种谱式'), subtitle: '一键切换展示方式', icon: '📜' })
-          Column() {
-            this.StyleShortcuts()
           }
           .width('100%')
           .padding({ left: Spacing.L, right: Spacing.L, top: Spacing.L, bottom: Spacing.L })
