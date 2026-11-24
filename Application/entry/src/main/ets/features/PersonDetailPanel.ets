@@ -26,6 +26,7 @@ export struct PersonDetailPanel {
   onClose: () => void = (): void => {};
   onJump: (uid: string) => void = (uid: string): void => {};
   onAddChild: (uid: string) => void = (uid: string): void => {};
+  onAddSpouse: (uid: string) => void = (uid: string): void => {};
   onCreateBranch: (uid: string) => void = (uid: string): void => {};
 
   private person(): Person | null {
@@ -125,10 +126,13 @@ export struct PersonDetailPanel {
           .width('100%')
           .alignItems(VerticalAlign.Top)
 
-          // 快捷操作：详情栏最窄只有 300vp，三个按钮在一行放不下时要能换行，避免右侧被裁
+          // 快捷操作：详情栏最窄只有 300vp，按钮多时换行，避免右侧被裁
           Flex({ wrap: FlexWrap.Wrap }) {
             this.ActionButton('✎ 编辑', Theme.primary, (): void => {
               this.onEdit(this.uid);
+            })
+            this.ActionButton('❤ 添加配偶', Theme.female, (): void => {
+              this.onAddSpouse(this.uid);
             })
             this.ActionButton('＋ 添加子女', Theme.alive, (): void => {
               this.onAddChild(this.uid);

@@ -226,11 +226,30 @@ struct PersonEdit {
           p.generationChar = chars[idx];
         }
       }
+    } else if (params.mode === 'spouse' && params.presetParent.length > 0) {
+      // 新增配偶：性别与所选族人相反、世代相同，并预置双向配偶关系
+      const anchor: Person | null = svc.getPerson(params.presetParent);
+      if (anchor !== null) {
+        p.generation = anchor.generation;
+        p.gender = anchor.gender === '女' ? '男' : '女';
+        p.marriageStatus = p.gender === '女' ? '适人' : '娶妻';
+        const rel: SpouseRelation = new SpouseRelation();
+        rel.uid = anchor.uid;
+        rel.relation = p.gender === '女' ? '夫' : '元配';
+        rel.level = spouseRelationLevel(rel.relation);
+        rel.order = 1;
+        p.spouses = [rel];
+      }
     } else if (params.mode === 'create') {
       const maxGen: number = this.maxGeneration();
       p.generation = maxGen > 0 ? maxGen + 1 : 1;
     }
     this.fill(p);
+    if (params.mode === 'spouse') {
+      // 姻亲不沿用本族字派，避免自动带出世代诗里的字
+      this.fGenChar = '';
+      this.baseline = this.formSnapshot();
+    }
     this.loading = false;
   }
 
@@ -2460,7 +2479,8 @@ struct PersonEdit {
             this.confirmExit();
           }
         })
-        Text(T(this.originalUid.length > 0 ? '编辑族人' : (this.mode === 'child' ? '添加子女' : '新增族人'))).fontFamily(uiFontFamily())
+        Text(T(this.originalUid.length > 0 ? '编辑族人' :
+          (this.mode === 'child' ? '添加子女' : (this.mode === 'spouse' ? '添加配偶' : '新增族人')))).fontFamily(uiFontFamily())
           .fontSize(17)
           .fontWeight(FontWeight.Medium)
           .fontColor(Theme.ink)

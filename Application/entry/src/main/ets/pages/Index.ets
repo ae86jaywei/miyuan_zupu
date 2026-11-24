@@ -683,6 +683,9 @@ struct Index {
         onAddChild: (uid: string): void => {
           RouterUtil.editPerson(this.getUIContext(), '', 'child', uid);
         },
+        onAddSpouse: (uid: string): void => {
+          RouterUtil.editPerson(this.getUIContext(), '', 'spouse', uid);
+        },
         onCreateBranch: (uid: string): void => {
           this.createBranch(uid);
         }
@@ -1454,6 +1457,10 @@ struct Index {
           onAddChild: (uid: string): void => {
             this.showDetailSheet = false;
             RouterUtil.editPerson(this.getUIContext(), '', 'child', uid);
+          },
+          onAddSpouse: (uid: string): void => {
+            this.showDetailSheet = false;
+            RouterUtil.editPerson(this.getUIContext(), '', 'spouse', uid);
           },
           onCreateBranch: (uid: string): void => {
             this.createBranch(uid);

@@ -22,11 +22,11 @@ export class GenealogyScope {
 
 /** 人物编辑页参数 */
 export class EditParams {
-  /** 编辑模式：create / edit / child */
+  /** 编辑模式：create / edit / child / spouse */
   mode: string = 'edit';
   /** 人物唯一ID */
   uid: string = '';
-  /** 新生子女时预设的父亲或母亲ID */
+  /** 新增子女/配偶时预设的父（母）或配偶本人ID */
   presetParent: string = '';
 }
 
