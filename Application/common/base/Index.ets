@@ -24,6 +24,7 @@ export * from './src/main/ets/util/IdGenerator';
 export * from './src/main/ets/util/PatchUtil';
 export * from './src/main/ets/util/RouterUtil';
 export * from './src/main/ets/util/ScriptService';
+export * from './src/main/ets/util/SpouseOrder';
 export * from './src/main/ets/util/StringUtil';
 export * from './src/main/ets/util/SvgUtil';
 export * from './src/main/ets/util/TextUtil';

@@ -140,7 +140,7 @@ export async function renderTileImpl(pageNo: number, r: number, c: number, lineW
   let buf: ArrayBuffer;
   try {
     const opt: image.PackingOption = { format: 'image/jpeg', quality: JPEG_QUALITY };
-    buf = await packer.packing(pm, opt);
+    buf = await packer.packToData(pm, opt);
   } finally {
     pm.release();
     packer.release();

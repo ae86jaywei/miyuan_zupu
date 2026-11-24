@@ -279,8 +279,8 @@ export struct ModernTree {
               Column() {
                 if (row.first) {
                   Stack() {
-                    Circle({ width: 14, height: 14 }).fill(Theme.primary)
-                    Circle({ width: 6, height: 6 }).fill(Color.White)
+                    Circle({ width: 14, height: 14 }).backgroundColor(Theme.primary)
+                    Circle({ width: 6, height: 6 }).backgroundColor(Color.White)
                   }
                 }
               }

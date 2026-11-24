@@ -26,7 +26,7 @@ export class FlatListSource<T> implements IDataSource {
   /** 只刷新指定行（键值需随内容变化），避免选中态变化时整表重建 */
   notifyItemChanged(index: number): void {
     this.listeners.slice().forEach((listener: DataChangeListener): void => {
-      listener.onDataChanged(index);
+      listener.onDataChange(index);
     });
   }
 

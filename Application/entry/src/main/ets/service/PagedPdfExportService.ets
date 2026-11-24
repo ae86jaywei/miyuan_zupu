@@ -410,7 +410,7 @@ export class PagedPdfExportService {
     const pm: image.PixelMap = ctx.getPixelMap(0, 0, RENDER_W, RENDER_H);
     const packer: image.ImagePacker = image.createImagePacker();
     const opt: image.PackingOption = { format: 'image/jpeg', quality: 95 };
-    const buf: ArrayBuffer = await packer.packing(pm, opt);
+    const buf: ArrayBuffer = await packer.packToData(pm, opt);
     const path: string = context.cacheDir + '/raw_pdf_' + pageNo.toString() + '_' +
       Date.now().toString() + '.jpg';
     const fh: fileIo.File = fileIo.openSync(path,
@@ -945,7 +945,7 @@ export class PagedPdfExportService {
           let buf: ArrayBuffer;
           try {
             const opt: image.PackingOption = { format: 'image/jpeg', quality: JPEG_QUALITY };
-            buf = await packer.packing(pm, opt);
+            buf = await packer.packToData(pm, opt);
           } finally {
             pm.release();
           }

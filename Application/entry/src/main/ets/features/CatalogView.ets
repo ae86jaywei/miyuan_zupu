@@ -11,6 +11,7 @@ import { Breakpoint } from 'common_base';
 import { RouterUtil } from 'common_base';
 import { FlatListSource } from 'common_base';
 import { TreePerf } from 'common_base';
+import { SpouseOrder } from 'common_base';
 
 /**
  * 世系名录：按搜索、世代、性别、状态筛选，以列表/表格形式浏览全部族人。
@@ -107,7 +108,7 @@ export struct CatalogView {
     if (this.filterStatus.length > 0) {
       list = list.filter((p: Person): boolean => p.lifeStatus === this.filterStatus);
     }
-    this.filteredCache = list;
+    this.filteredCache = SpouseOrder.maleFirst(list);
     this.filterCacheKey = key;
     TreePerf.end('catalog_filter', 'people=' + list.length.toString());
     return list;

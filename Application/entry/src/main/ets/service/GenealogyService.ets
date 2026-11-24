@@ -237,6 +237,9 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
       // 迁移失败时保持旧数据可正常打开（ID 只是文本），下次启动会自动重试。
       try {
         await DatabaseSchema.migrateGenderUidPrefix(this.store as relationalStore.RdbStore);
+        // 上一版迁移会把新库的引用列整体误换（父亲指向女性、母亲指向男性），
+        // 导致示例族谱裂成多个宗支、夫妻主次颠倒；这里检测并复原一次。
+        await DatabaseSchema.repairSwappedUidReferences(this.store as relationalStore.RdbStore);
       } catch (e) {
         const me = e as BusinessError;
         hilog.error(0x0000, TAG, 'swap uid prefix failed %{public}d %{public}s', me.code, me.message);

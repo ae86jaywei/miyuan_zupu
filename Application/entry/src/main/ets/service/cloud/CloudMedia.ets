@@ -249,7 +249,7 @@ export class CloudMedia {
       pixelMap = await source.createPixelMap(decodeOptions);
       packer = image.createImagePacker();
       const packOptions: image.PackingOption = { format: 'image/jpeg', quality: 80 };
-      const data: ArrayBuffer = await packer.packing(pixelMap, packOptions);
+      const data: ArrayBuffer = await packer.packToData(pixelMap, packOptions);
       dstFile = fileIo.openSync(dstPath,
         fileIo.OpenMode.READ_WRITE | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC);
       fileIo.writeSync(dstFile.fd, data);

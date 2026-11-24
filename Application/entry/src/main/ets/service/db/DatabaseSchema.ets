@@ -11,6 +11,8 @@ export const TABLE_SPOUSE: string = 'person_spouse';
 export const TABLE_META: string = 'app_meta';
 /** 元数据键：唯一ID 性别前缀互换迁移是否已完成（老库只需执行一次） */
 export const META_UID_PREFIX_SWAPPED: string = 'uid_gender_prefix_swapped_v1';
+/** 元数据键：误换引用字段的修复是否已完成（仅修复被上一版迁移误改的新库） */
+export const META_UID_REF_REPAIRED: string = 'uid_ref_double_swap_repaired_v1';
 /** 本地墓葬缓存表（由 GraveService 建表，迁移时按需判断是否存在） */
 const TABLE_GRAVE: string = 'grave_location';
 /** 协作待上传变更表（由 OutboxService 建表，迁移时按需判断是否存在） */
@@ -310,6 +312,75 @@ export class DatabaseSchema {
           [JSON.stringify(list), keys[i]]);
       }
     }
+  }
+
+  /**
+   * 修复上一版迁移误改的引用字段。
+   *
+   * 上一版 migrateGenderUidPrefix 在「本就男 M / 女 F」的新库上仍会无差别互换引用列，
+   * 结果父亲字段指向女性、母亲字段指向男性：父母链断开成多个宗支，夫妻主卡也换成妻子。
+   * 人员 uid 本身没有被改动，因此这里只把引用列再互换一次即可复原。
+   * 用「父亲是女性 / 母亲是男性」作为判定条件，正常库不会命中。
+   */
+  static async repairSwappedUidReferences(store: relationalStore.RdbStore): Promise<void> {
+    if ((await DatabaseSchema.readMeta(store, META_UID_REF_REPAIRED)) === '1') {
+      return;
+    }
+    if ((await DatabaseSchema.countGenderRoleMismatch(store)) === 0) {
+      await store.executeSql(`INSERT OR REPLACE INTO ${TABLE_META}(key, value) VALUES(?, '1')`,
+        [META_UID_REF_REPAIRED]);
+      return;
+    }
+    store.beginTransaction();
+    try {
+      await DatabaseSchema.swapUidColumn(store, TABLE_PERSON, 'father_id');
+      await DatabaseSchema.swapUidColumn(store, TABLE_PERSON, 'mother_id');
+      await DatabaseSchema.swapUidColumn(store, TABLE_PERSON, 'spouse_id');
+      await DatabaseSchema.swapSpouseRows(store);
+      await DatabaseSchema.swapUidColumn(store, TABLE_BOOK, 'branch_root_uid');
+      await DatabaseSchema.swapUidColumn(store, TABLE_BOOK, 'parent_uid');
+      if (await DatabaseSchema.tableExists(store, TABLE_GRAVE)) {
+        await DatabaseSchema.swapUidColumn(store, TABLE_GRAVE, 'uid');
+      }
+      // 修复前产生的待上传补丁带着错位引用，清空避免回写云端
+      if (await DatabaseSchema.tableExists(store, TABLE_OUTBOX)) {
+        await store.executeSql(`DELETE FROM ${TABLE_OUTBOX}`);
+      }
+      await store.executeSql(`INSERT OR REPLACE INTO ${TABLE_META}(key, value) VALUES(?, '1')`,
+        [META_UID_REF_REPAIRED]);
+      store.commit();
+    } catch (e) {
+      store.rollBack();
+      throw new Error('唯一ID引用修复失败：' + (e as Error).message);
+    }
+  }
+
+  /** 统计「uid 前缀与性别不符」的行数：>0 说明库里仍是旧前缀，需要整套互换 */
+  private static async countGenderUidMismatch(store: relationalStore.RdbStore): Promise<number> {
+    return DatabaseSchema.countSql(store, `SELECT COUNT(*) AS c FROM ${TABLE_PERSON}
+      WHERE (gender = '男' AND SUBSTR(uid,1,1) = 'F') OR (gender = '女' AND SUBSTR(uid,1,1) = 'M')`);
+  }
+
+  /** 统计「父亲是女性 / 母亲是男性」的引用行数：>0 说明引用字段被互换过 */
+  private static async countGenderRoleMismatch(store: relationalStore.RdbStore): Promise<number> {
+    return DatabaseSchema.countSql(store, `SELECT COUNT(*) AS c FROM ${TABLE_PERSON} p
+      LEFT JOIN ${TABLE_PERSON} f ON f.uid = p.father_id AND f.book_id = p.book_id
+      LEFT JOIN ${TABLE_PERSON} m ON m.uid = p.mother_id AND m.book_id = p.book_id
+      WHERE f.gender = '女' OR m.gender = '男'`);
+  }
+
+  /** 执行只有一行一列的 COUNT 查询 */
+  private static async countSql(store: relationalStore.RdbStore, sql: string): Promise<number> {
+    const rs: relationalStore.ResultSet = await store.querySql(sql);
+    let n: number = 0;
+    try {
+      if (rs.goToFirstRow()) {
+        n = rs.getLong(rs.getColumnIndex('c'));
+      }
+    } finally {
+      rs.close();
+    }
+    return n;
   }
 
   /** 单个标准编号的前缀互换（F↔M），非标准编号原样返回 */

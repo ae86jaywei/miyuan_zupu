@@ -1,4 +1,4 @@
-import { GenealogyStats, GenerationStat, Person, SpouseRelation, generationLabel } from 'common_base';
+import { GenealogyStats, GenerationStat, Person, SpouseRelation, SpouseOrder, generationLabel } from 'common_base';
 import { parseYear } from 'common_dateutil';
 
 /**
@@ -6,7 +6,7 @@ import { parseYear } from 'common_dateutil';
  * 由 GenealogyService 传入当前谱的人物数组与可选过滤条件。
  */
 export class StatsCalculator {
-  /** 按世代分组 */
+  /** 按世代分组（组内夫妇成组：丈夫在前、妻子紧随，供牒记/现代谱式平铺展示） */
   static groupByGeneration(people: Person[], filterFn?: (p: Person) => boolean): Map<number, Person[]> {
     const map: Map<number, Person[]> = new Map<number, Person[]>();
     people.forEach((p: Person): void => {
@@ -20,6 +20,9 @@ export class StatsCalculator {
       } else {
         arr.push(p);
       }
+    });
+    map.forEach((arr: Person[], g: number): void => {
+      map.set(g, SpouseOrder.maleFirst(arr));
     });
     return map;
   }
