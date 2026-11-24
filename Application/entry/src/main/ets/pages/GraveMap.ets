@@ -17,10 +17,11 @@ import { FlatListSource } from 'common_base';
 /**
  * 祭祖寻墓（方案 §五.8、§七 GraveMap）。
  *
- * 数据来自**公开对象类型** FamilyGraveLocation：任意登录用户都能查到祖墓坐标，
- * 不要求先加入家族。同时本地缓存一份，山里没信号也能看（离线寻墓）。
+ * 仅**已加入家族**的成员可查看：云函数 grave-list-public 会校验 Membership，
+ * 未加入 / 已到期 / 已撤销一律拒绝；端侧只展示当前家族的公开墓葬。
+ * 同时本地缓存一份，山里没信号也能看（离线寻墓）。
  *
- * 谱主/编辑者录入墓葬前必须知情：坐标对任何人可见，且公开后无法撤回。
+ * 谱主/编辑者录入墓葬前必须知情：坐标对家族成员可见，且公开后无法撤回。
  */
 @Entry
 @Component
@@ -31,7 +32,6 @@ struct GraveMap {
   @StorageProp('gpFamilyRole') role: string = '';
 
   @State keyword: string = '';
-  @State onlyMine: boolean = true;
   /** 仅内部使用；列表渲染走 graveSource，避免状态变化触发整页重建 */
   private graves: GraveEntry[] = [];
   @State loading: boolean = false;
@@ -63,7 +63,14 @@ struct GraveMap {
     this.familyId = SR.genealogy().getBook().familyId;
     // 只持有引用，不拷贝、不创建 UI；展开选择器时再由 LazyForEach 按需渲染
     this.peopleSource.setData(SR.genealogy().getPeople());
-    this.load();
+    if (this.joinedFamily()) {
+      this.load();
+    }
+  }
+
+  /** 已加入家族：当前族谱已绑定云家族，且我在其中拥有成员角色 */
+  private joinedFamily(): boolean {
+    return this.familyId.length > 0 && this.role.length > 0;
   }
 
   private toast(message: string): void {
@@ -71,16 +78,18 @@ struct GraveMap {
   }
 
   private async load(): Promise<void> {
+    if (!this.joinedFamily()) {
+      this.graves = [];
+      this.graveSource.setData(this.graves);
+      return;
+    }
     this.loading = true;
     this.message = '';
     try {
-      const scope: string = this.onlyMine && this.familyId.length > 0 ? this.familyId : '';
-      this.graves = await SR.grave().loadPublic(scope, this.keyword);
+      this.graves = await SR.grave().loadPublic(this.familyId, this.keyword);
       this.graveSource.setData(this.graves);
       if (this.graves.length === 0) {
-        this.message = this.onlyMine
-          ? '本谱还没有公开的墓葬位置。谱主可在下方录入（录入前请知悉：坐标对任何登录用户可见）。'
-          : '暂时没有查到祖墓位置记录。';
+        this.message = '本谱还没有公开的墓葬位置。谱主可在下方录入（录入前请知悉：坐标对本家族成员可见）。';
       }
     } catch (err) {
       const be: BusinessError = err as BusinessError;
@@ -114,7 +123,7 @@ struct GraveMap {
     this.editPrecision = 'EXACT';
     this.getUIContext().showAlertDialog({
       title: T('录入前请确认'),
-      message: T('祖墓坐标将作为公开数据，任何登录用户都能查到，且一旦公开无法撤回。') +
+      message: T('祖墓坐标仅对本家族成员可见，且一旦公开无法撤回。') +
         '若家族不希望对外公开，请把可见性设为「仅族人可见」——此时该记录会从公开表中真正删除，而不是隐藏。',
       primaryButton: {
         value: T('我已知悉，继续'),
