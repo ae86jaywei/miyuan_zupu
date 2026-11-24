@@ -17,10 +17,11 @@ import { FlatListSource } from 'common_base';
 /**
  * 祭祖寻墓（方案 §五.8、§七 GraveMap）。
  *
- * 数据来自**公开对象类型** FamilyGraveLocation：任意登录用户都能查到祖墓坐标，
- * 不要求先加入家族。同时本地缓存一份，山里没信号也能看（离线寻墓）。
+ * 数据来自 FamilyGraveLocation，**仅对已加入该家族的成员开放**：
+ * 端侧经云函数 grave-list-public 读取，云端按 Membership 校验；
+ * 未加入家族时页面不展示任何墓葬数据。同时本地缓存一份，山里没信号也能看（离线寻墓）。
  *
- * 谱主/编辑者录入墓葬前必须知情：坐标对任何人可见，且公开后无法撤回。
+ * 谱主/编辑者录入墓葬前必须知情：坐标对本家族成员可见，且公开后无法撤回。
  */
 @Entry
 @Component
@@ -28,10 +29,9 @@ struct GraveMap {
   /** 订阅简繁设置：切换后重绘（T() 依赖全局状态，需显式订阅） */
   @StorageProp('gpScript') script: string = 'hans';
   @StorageProp('darkMode') @Watch('onDarkModeChange') darkMode: boolean = false;
-  @StorageProp('gpFamilyRole') role: string = '';
+  @StorageProp('gpFamilyRole') @Watch('onRoleChange') role: string = '';
 
   @State keyword: string = '';
-  @State onlyMine: boolean = true;
   /** 仅内部使用；列表渲染走 graveSource，避免状态变化触发整页重建 */
   private graves: GraveEntry[] = [];
   @State loading: boolean = false;
@@ -58,6 +58,11 @@ struct GraveMap {
     Theme.use(this.darkMode);
   }
 
+  /** 加入家族 / 角色变化后立即重算可见性 */
+  onRoleChange(): void {
+    this.load();
+  }
+
   aboutToAppear(): void {
     Theme.use(this.darkMode);
     this.familyId = SR.genealogy().getBook().familyId;
@@ -70,17 +75,27 @@ struct GraveMap {
     this.getUIContext().getPromptAction().showToast({ message: T(message), duration: 2500 });
   }
 
+  private joinedFamily(): boolean {
+    return this.role.length > 0 && this.familyId.length > 0;
+  }
+
   private async load(): Promise<void> {
     this.loading = true;
     this.message = '';
+    this.graves = [];
+    this.graveSource.setData(this.graves);
+    if (!this.joinedFamily()) {
+      this.message = this.role.length === 0
+        ? '祭祖寻墓仅对家族成员开放：请先在「我的家族」创建或加入家族。'
+        : '当前族谱尚未接入云家族，加入家族后才能查看祭祖寻墓。';
+      this.loading = false;
+      return;
+    }
     try {
-      const scope: string = this.onlyMine && this.familyId.length > 0 ? this.familyId : '';
-      this.graves = await SR.grave().loadPublic(scope, this.keyword);
+      this.graves = await SR.grave().loadPublic(this.familyId, this.keyword);
       this.graveSource.setData(this.graves);
       if (this.graves.length === 0) {
-        this.message = this.onlyMine
-          ? '本谱还没有公开的墓葬位置。谱主可在下方录入（录入前请知悉：坐标对任何登录用户可见）。'
-          : '暂时没有查到祖墓位置记录。';
+        this.message = '本谱还没有可查看的墓葬位置。谱主可在下方录入（录入前请知悉：坐标仅家族成员可见）。';
       }
     } catch (err) {
       const be: BusinessError = err as BusinessError;
@@ -114,8 +129,8 @@ struct GraveMap {
     this.editPrecision = 'EXACT';
     this.getUIContext().showAlertDialog({
       title: T('录入前请确认'),
-      message: T('祖墓坐标将作为公开数据，任何登录用户都能查到，且一旦公开无法撤回。') +
-        '若家族不希望对外公开，请把可见性设为「仅族人可见」——此时该记录会从公开表中真正删除，而不是隐藏。',
+      message: T('祖墓坐标将进入本家族的寻墓列表，家族成员都能查到，且一旦加入无法自动撤回。') +
+        '若家族不希望出现在寻墓列表，请把可见性设为「仅族人可见」——此时该记录会从寻墓列表中真正移除（仍随族人资料同步给成员，而不是对任何人公开）。',
       primaryButton: {
         value: T('我已知悉，继续'),
         action: (): void => {
@@ -224,7 +239,7 @@ struct GraveMap {
           .fontSize(11.5)
           .fontColor(Theme.inkTertiary)
           .width(64)
-        Text(T('公开')).fontFamily(uiFontFamily())
+        Text(T('寻墓列表')).fontFamily(uiFontFamily())
           .fontSize(12)
           .fontColor(this.editVisibility === 'PUBLIC' ? Theme.onPrimary : Theme.inkSecondary)
           .backgroundColor(this.editVisibility === 'PUBLIC' ? Theme.primary : Theme.field)
@@ -319,7 +334,7 @@ struct GraveMap {
     Column() {
       PageNavBar({
         title: T('祭祖寻墓'),
-        subtitle: '祖墓坐标公开 · 任意登录用户可查',
+        subtitle: '仅家族成员可查看 · 离线可查',
         busy: this.loading,
         onBack: (): void => {
           this.getUIContext().getRouter().back();
@@ -341,16 +356,9 @@ struct GraveMap {
               }
             })
             Row() {
-              Text(T('只看本谱')).fontFamily(uiFontFamily())
-                .fontSize(12)
-                .fontColor(Theme.inkSecondary)
-              Toggle({ type: ToggleType.Switch, isOn: this.onlyMine })
-                .selectedColor(Theme.primary)
-                .margin({ left: 6 })
-                .onChange((isOn: boolean): void => {
-                  this.onlyMine = isOn;
-                  this.load();
-                })
+              Text(T('范围：当前家族')).fontFamily(uiFontFamily())
+                .fontSize(11.5)
+                .fontColor(Theme.inkTertiary)
               Blank()
               Text(T('离线可用：已读取的记录会缓存在本机')).fontFamily(uiFontFamily())
                 .fontSize(10)
@@ -359,11 +367,42 @@ struct GraveMap {
             .width('100%')
             .margin({ top: Spacing.S, bottom: Spacing.M })
 
+            if (!this.joinedFamily()) {
+              Column() {
+                Text(T('🔒 仅家族成员可见')).fontFamily(uiFontFamily())
+                  .fontSize(13.5)
+                  .fontColor(Theme.ink)
+                  .width('100%')
+                Text(T('祭祖寻墓不对外开放。请先在「我的家族」创建或使用加入码加入家族，加入后即可查看本家族祖墓位置。')).fontFamily(uiFontFamily())
+                  .fontSize(11.5)
+                  .fontColor(Theme.inkTertiary)
+                  .lineHeight(17)
+                  .width('100%')
+                  .margin({ top: 4 })
+                Button(T('去我的家族'))
+                  .fontFamily(uiFontFamily())
+                  .fontSize(13)
+                  .height(34)
+                  .backgroundColor(Theme.primary)
+                  .fontColor(Theme.onPrimary)
+                  .margin({ top: Spacing.M })
+                  .onClick((): void => {
+                    RouterUtil.familyHome(this.getUIContext());
+                  })
+              }
+              .width('100%')
+              .padding(Spacing.L)
+              .backgroundColor(Theme.card)
+              .borderRadius(Radius.L)
+              .border({ width: 0.5, color: Theme.line })
+              .margin({ bottom: Spacing.L })
+            }
+
             if (this.canEdit()) {
               TS({ title: T('录入墓葬位置'), subtitle: '仅谱主/编辑者 · 需先在本机族人资料里录入过坐标', icon: '📍' })
               Column() {
                 if (this.editingUid.length === 0) {
-                  Text(T('从本机族人中选择一位，把已有的坐标与墓葬说明发布到公开墓葬表（或改为仅族人可见）。')).fontFamily(uiFontFamily())
+                  Text(T('从本机族人中选择一位，把已有的坐标与墓葬说明发布到本家族寻墓列表（或改为仅族人可见）。')).fontFamily(uiFontFamily())
                     .fontSize(11.5)
                     .fontColor(Theme.inkTertiary)
                     .width('100%')
@@ -446,7 +485,7 @@ struct GraveMap {
 
         ListItem() {
           Column() {
-            Text(T('说明：墓葬位置属于公开数据（便于族人祭祖寻墓，不需要先加入家族）。谱主可对个别墓穴关闭公开或做约30米模糊处理；关闭后该记录会从公开表中真正移除。')).fontFamily(uiFontFamily())
+            Text(T('说明：墓葬位置仅对已加入本家族的成员可见，未加入家族的用户无法查看。谱主可对个别墓穴关闭展示或做约30米模糊处理；关闭后该记录会从寻墓列表中真正移除。')).fontFamily(uiFontFamily())
               .fontSize(10.5)
               .fontColor(Theme.inkTertiary)
               .width('100%')

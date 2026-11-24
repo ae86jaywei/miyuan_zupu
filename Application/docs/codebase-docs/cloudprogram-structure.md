@@ -33,7 +33,7 @@ CloudProgram/
 │   ├── family-join/                  # 通过加入码加入云家族，按加入码生成 VIEWER/EDITOR Membership
 │   ├── family-list-mine/             # 查看当前用户所属的全部云家族及角色
 │   ├── family-private-get/           # 谱主读取家族隐私字段（手机号/微信/现居地），权限收窄到 OWNER
-│   ├── grave-list-public/            # 公开墓葬查询：按关键字检索祖先墓葬，返回用于祭祖寻墓的公开数据
+│   ├── grave-list-public/            # 祭祖寻墓唯一读取入口：校验 Membership 后按关键字检索本家族祖先墓葬
 │   ├── grave-update/                 # 写入/更新公开墓葬记录，按字段回退规则保留已有值
 │   ├── media-list/                   # 查询家族媒体资料清单（头像、相片、视频）元数据
 │   ├── media-record/                 # 记录云存储媒体路径与元数据，含路径穿越（CWE-22）防护

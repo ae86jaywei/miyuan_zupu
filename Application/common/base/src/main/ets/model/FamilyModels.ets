@@ -159,7 +159,7 @@ export class CloudCollaborativeMedia extends cloudDatabase.DatabaseObject {
 }
 
 /**
- * 墓葬位置（**公开可读对象类型之一**，方案 §五.8）。
+ * 墓葬位置（仅家族成员可读，经云函数 grave-list-public 校验 Membership）。
  * 该表只允许放墓穴位置类字段，严禁加入任何活人信息（§五.9 边界纪律）。
  */
 export class CloudGraveLocation extends cloudDatabase.DatabaseObject {

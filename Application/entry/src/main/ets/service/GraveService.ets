@@ -1,26 +1,24 @@
-﻿import { cloudDatabase } from '@kit.CloudFoundationKit';
-import { relationalStore } from '@kit.ArkData';
+﻿import { relationalStore } from '@kit.ArkData';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { AccountService } from './AccountService';
 import { GenealogyService } from './GenealogyService';
-import { GraveEntry, num, str } from 'common_base';
-import { CloudGraveLocation } from 'common_base';
+import { FamilyService } from './FamilyService';
+import { GraveEntry, num, objectList, str } from 'common_base';
 import { CloudFunctionClient } from './CloudFunctionClient';
 
 const TAG: string = '[Genealogy][Grave]';
 const TABLE_GRAVE: string = 'grave_location';
-const ZONE_NAME: string = 'miyuanfamily';
-/** 全局重读：不分家族地列出全部公开墓穴（祭祖寻墓场景，任何人可查） */
-const MAX_ROWS: number = 500;
+/** 单次最多读取 200 行（与云函数 grave-list-public 的 limit 上限一致） */
+const MAX_ROWS: number = 200;
 
 /**
  * 祭祖寻墓（方案 §五.8、§七 GraveMap 行）。
  *
- * 数据来源：**公开对象类型 FamilyGraveLocation**（端侧 Authenticated 可直读），
- * 不需要 Membership、不需要云函数鉴权 —— 这正是它能被「任意登录用户」查到的原因。
+ * 数据来源：FamilyGraveLocation，但**必须经云函数 grave-list-public 按 Membership 校验**，
+ * 只有已加入该家族的成员才能读取本家族墓葬；对象类型本身不再对端侧开放直读。
  *
  * 同时把读到的行写入本地 grave_location 表：山里常常没有信号，
- * 离线时仍能打开寻墓页看到上次缓存的位置。
+ * 离线时仍能打开寻墓页看到上次缓存的位置（缓存读取同样要求成员身份）。
  */
 export class GraveService {
   private static instance: GraveService | null = null;
@@ -55,29 +53,37 @@ export class GraveService {
     )`);
   }
 
+  /** 是否已加入当前家族（角色非空 = 拥有有效成员关系） */
+  static hasMembership(): boolean {
+    return FamilyService.getInstance().currentRole().length > 0;
+  }
+
   /**
-   * 从云端公开表读取（任意登录用户可读）。
-   * @param familyId 为空表示「全部家族」；否则只取该家族
+   * 读取当前家族的墓葬位置（仅家族成员可读）。
+   *
+   * 端侧不再直读云数据库，统一走云函数 grave-list-public：由云端按 Membership 校验，
+   * 未加入家族一律查不到数据。
+   * @param familyId 当前家族ID（必须非空）
    * @param keyword 关键字（人物名/谱名/墓地名/路线）
    */
   async loadPublic(familyId: string, keyword: string): Promise<GraveEntry[]> {
     const out: GraveEntry[] = [];
+    if (familyId.length === 0 || !GraveService.hasMembership()) {
+      return out;
+    }
     if (!AccountService.getInstance().isCloudReady()) {
       return await this.loadCached(familyId, keyword);
     }
     try {
-      const zone: cloudDatabase.DatabaseZone = cloudDatabase.zone(ZONE_NAME);
-      const query: cloudDatabase.DatabaseQuery<CloudGraveLocation> =
-        new cloudDatabase.DatabaseQuery<CloudGraveLocation>(CloudGraveLocation);
-      // 只查公开可见的（FAMILY_ONLY 的行本就不在公开表里，这里再加一层防御性过滤）
-      query.equalTo('visibility', 'PUBLIC');
-      if (familyId.length > 0) {
-        query.equalTo('familyId', familyId);
-      }
-      query.limit(MAX_ROWS);
-      const rows: CloudGraveLocation[] = await zone.query(query);
+      const data: Record<string, Object> | null = await CloudFunctionClient.getInstance().call(
+        'grave-list-public', {
+          'familyId': familyId,
+          'keyword': keyword,
+          'limit': MAX_ROWS
+        });
+      const rows: Record<string, Object>[] = objectList(data, 'graves');
       for (let i: number = 0; i < rows.length; i++) {
-        const entry: GraveEntry = GraveService.fromCloudRow(rows[i]);
+        const entry: GraveEntry = GraveService.fromRecord(rows[i]);
         if (GraveService.matches(entry, keyword)) {
           out.push(entry);
         }
@@ -85,7 +91,11 @@ export class GraveService {
       await this.cacheEntries(out);
       return out;
     } catch (err) {
-      hilog.warn(0x0000, TAG, 'query public graves failed: %{public}s', JSON.stringify(err));
+      hilog.warn(0x0000, TAG, 'query member graves failed: %{public}s', JSON.stringify(err));
+      // 权限校验失败（非成员 / 授权到期）：绝不回落本地缓存，避免旧缓存被非成员读到
+      if (CloudFunctionClient.errorCode(err as Error) === 403) {
+        throw err as Error;
+      }
       // 云端不可用时回落到本地缓存（离线寻墓）
       return await this.loadCached(familyId, keyword);
     }
@@ -95,25 +105,7 @@ export class GraveService {
   async cacheRows(rows: Record<string, Object>[]): Promise<void> {
     const list: GraveEntry[] = [];
     for (let i: number = 0; i < rows.length; i++) {
-      const g: GraveEntry = new GraveEntry();
-      g.graveId = str(rows[i], 'graveId');
-      g.familyId = str(rows[i], 'familyId');
-      g.uid = str(rows[i], 'uid');
-      g.personName = str(rows[i], 'personName');
-      g.generation = num(rows[i], 'generation');
-      g.bookTitle = str(rows[i], 'bookTitle');
-      g.graveName = str(rows[i], 'graveName');
-      g.lng = num(rows[i], 'lng');
-      g.lat = num(rows[i], 'lat');
-      g.altitude = num(rows[i], 'altitude');
-      g.facing = str(rows[i], 'facing');
-      g.bearing = str(rows[i], 'bearing');
-      g.routeNote = str(rows[i], 'routeNote');
-      g.photoRefs = str(rows[i], 'photoRefs');
-      g.visibility = str(rows[i], 'visibility').length > 0 ? str(rows[i], 'visibility') : 'PUBLIC';
-      g.precision = str(rows[i], 'precision').length > 0 ? str(rows[i], 'precision') : 'EXACT';
-      g.rev = num(rows[i], 'rev');
-      g.updatedAt = num(rows[i], 'updatedAt');
+      const g: GraveEntry = GraveService.fromRecord(rows[i]);
       if (g.graveId.length > 0) {
         list.push(g);
       }
@@ -121,19 +113,21 @@ export class GraveService {
     await this.cacheEntries(list);
   }
 
-  /** 本地缓存读取（离线寻墓） */
+  /** 本地缓存读取（离线寻墓）：同样要求已加入家族，避免残留缓存被非成员读到 */
   async loadCached(familyId: string, keyword: string): Promise<GraveEntry[]> {
     const out: GraveEntry[] = [];
+    if (familyId.length === 0 || !GraveService.hasMembership()) {
+      return out;
+    }
     const svc: GenealogyService = GenealogyService.getInstance();
     const store: relationalStore.RdbStore | null = svc.getStore();
     if (store === null) {
       return out;
     }
     await GraveService.ensureTable(store);
-    const sql: string = familyId.length > 0
-      ? `SELECT * FROM ${TABLE_GRAVE} WHERE family_id = ? ORDER BY updated_at DESC LIMIT ${MAX_ROWS}`
-      : `SELECT * FROM ${TABLE_GRAVE} ORDER BY updated_at DESC LIMIT ${MAX_ROWS}`;
-    const args: relationalStore.ValueType[] = familyId.length > 0 ? [familyId] : [];
+    const sql: string = `SELECT * FROM ${TABLE_GRAVE} WHERE family_id = ? AND visibility = 'PUBLIC'
+      ORDER BY updated_at DESC LIMIT ${MAX_ROWS}`;
+    const args: relationalStore.ValueType[] = [familyId];
     const rs: relationalStore.ResultSet = await store.querySql(sql, args);
     try {
       while (rs.goToNextRow()) {
@@ -199,7 +193,7 @@ export class GraveService {
 
   /**
    * 更新墓葬位置（谱主/编辑者）。
-   * @param visibility PUBLIC / FAMILY_ONLY —— FAMILY_ONLY 时云函数会把该行**从公开表删除**
+   * @param visibility PUBLIC / FAMILY_ONLY —— FAMILY_ONLY 时云函数会把该行**从寻墓列表删除**
    * @param evidence 位置变更（>50m）时必须提供的依据说明
    */
   async updateGrave(familyId: string, uid: string, grave: Record<string, Object>, visibility: string,
@@ -210,26 +204,26 @@ export class GraveService {
     });
   }
 
-  private static fromCloudRow(row: CloudGraveLocation): GraveEntry {
+  private static fromRecord(row: Record<string, Object>): GraveEntry {
     const g: GraveEntry = new GraveEntry();
-    g.graveId = row.graveId !== undefined ? row.graveId : '';
-    g.familyId = row.familyId !== undefined ? row.familyId : '';
-    g.uid = row.uid !== undefined ? row.uid : '';
-    g.personName = row.personName !== undefined ? row.personName : '';
-    g.generation = row.generation !== undefined ? row.generation : 0;
-    g.bookTitle = row.bookTitle !== undefined ? row.bookTitle : '';
-    g.graveName = row.graveName !== undefined ? row.graveName : '';
-    g.lng = row.lng !== undefined ? row.lng : 0;
-    g.lat = row.lat !== undefined ? row.lat : 0;
-    g.altitude = row.altitude !== undefined ? row.altitude : 0;
-    g.facing = row.facing !== undefined ? row.facing : '';
-    g.bearing = row.bearing !== undefined ? row.bearing : '';
-    g.routeNote = row.routeNote !== undefined ? row.routeNote : '';
-    g.photoRefs = row.photoRefs !== undefined ? row.photoRefs : '';
-    g.visibility = row.visibility !== undefined ? row.visibility : 'PUBLIC';
-    g.precision = row.precision !== undefined ? row.precision : 'EXACT';
-    g.rev = row.rev !== undefined ? row.rev : 0;
-    g.updatedAt = row.updatedAt !== undefined ? row.updatedAt : 0;
+    g.graveId = str(row, 'graveId');
+    g.familyId = str(row, 'familyId');
+    g.uid = str(row, 'uid');
+    g.personName = str(row, 'personName');
+    g.generation = num(row, 'generation');
+    g.bookTitle = str(row, 'bookTitle');
+    g.graveName = str(row, 'graveName');
+    g.lng = num(row, 'lng');
+    g.lat = num(row, 'lat');
+    g.altitude = num(row, 'altitude');
+    g.facing = str(row, 'facing');
+    g.bearing = str(row, 'bearing');
+    g.routeNote = str(row, 'routeNote');
+    g.photoRefs = str(row, 'photoRefs');
+    g.visibility = str(row, 'visibility').length > 0 ? str(row, 'visibility') : 'PUBLIC';
+    g.precision = str(row, 'precision').length > 0 ? str(row, 'precision') : 'EXACT';
+    g.rev = num(row, 'rev');
+    g.updatedAt = num(row, 'updatedAt');
     return g;
   }
 

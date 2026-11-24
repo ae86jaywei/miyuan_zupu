@@ -781,8 +781,14 @@ struct FamilyHome {
           RouterUtil.accessApply(this.getUIContext(), this.familyId);
         })
       Divider().color(Theme.line).strokeWidth(0.5)
-      this.NavRow('🪦', '祭祖寻墓', '按人物名/谱名查祖墓坐标（对任何登录用户可见）',
+      this.NavRow('🪦', '祭祖寻墓', this.role.length > 0
+        ? '按人物名/谱名查祖墓坐标（仅家族成员可见）'
+        : '加入家族后可查看祖墓位置',
         (): void => {
+          if (this.role.length === 0) {
+            this.toast('请先创建或加入家族，加入后才能查看祭祖寻墓');
+            return;
+          }
           RouterUtil.graveMap(this.getUIContext());
         })
       if (this.role === Role.OWNER) {

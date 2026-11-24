@@ -547,9 +547,16 @@ export struct SettingsView {
             RouterUtil.changeReview(this.getUIContext());
           })
           Divider().color(Theme.line).strokeWidth(0.5)
-          this.NavRow('祭祖寻墓', '祖墓坐标对任意登录用户可见（离线可查）', (): void => {
-            RouterUtil.graveMap(this.getUIContext());
-          })
+          this.NavRow('祭祖寻墓', this.familyRole.length > 0 ? '仅家族成员可查看（离线可查）' : '加入家族后可查看',
+            (): void => {
+              if (this.familyRole.length === 0) {
+                this.getUIContext().getPromptAction().showToast({
+                  message: this.tr('请先创建或加入家族，加入后才能查看祭祖寻墓')
+                });
+                return;
+              }
+              RouterUtil.graveMap(this.getUIContext());
+            })
           if (this.syncMode !== SyncMode.LOCAL) {
             Button(this.tr(this.syncing ? '同步中…' : '立即同步')).fontFamily(uiFontFamily())
               .height(36)

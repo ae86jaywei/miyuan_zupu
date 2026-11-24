@@ -181,15 +181,11 @@
     },
     {
       "role": "Authenticated",
-      "rights": [
-        "Read"
-      ]
+      "rights": []
     },
     {
       "role": "Creator",
-      "rights": [
-        "Read"
-      ]
+      "rights": []
     },
     {
       "role": "Administrator",

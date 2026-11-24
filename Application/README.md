@@ -174,7 +174,7 @@ entry/src/main/ets/
 ### 8.3 隐私
 
 - `payload` 写云前**剔除**手机号 / 微信 / 现居地（进 `FamilyPrivate`，只有谱主经云函数能读）；
-- 墓葬坐标**迁出**到公开对象类型 `FamilyGraveLocation`（祭祖寻墓，任意登录用户可查）；
+- 墓葬坐标**迁出**到对象类型 `FamilyGraveLocation`（祭祖寻墓，仅已加入该家族的成员可查，经 `grave-list-public` 云函数按 Membership 校验，端侧不直读）；
 - 族谱黄页 `FamilyDirectory` **默认不可搜**，上架后才可被搜到，下架 = 从表中删除该行。
 
 ### 8.4 端侧新增
@@ -185,7 +185,7 @@ entry/src/main/ets/
 | `pages/FamilyMembers.ets` | 成员与访问申请审批（三条门槛的唯一审批入口） |
 | `pages/FamilyDirectoryView.ets` | 族谱黄页（只含索引元数据）+ 谱主上架管理 |
 | `pages/AccessApply.ets` | 申请查看 / 申请成为族人 + 我的申请 |
-| `pages/GraveMap.ets` | 祭祖寻墓（公开墓葬表 + 本地缓存，离线可查） |
+| `pages/GraveMap.ets` | 祭祖寻墓（仅家族成员可查 + 本地缓存，离线可查） |
 | `pages/ChangeReview.ets` | 待审变更的字段级 diff 与审核合入 |
 
 | 服务 | 作用 |
