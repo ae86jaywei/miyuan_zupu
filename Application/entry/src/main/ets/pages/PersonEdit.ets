@@ -1896,6 +1896,39 @@ struct PersonEdit {
         .margin({ left: Spacing.M })
       }
 
+      PersonFieldForm({
+        meta: fieldMetaOf('alias'),
+        value: this.fAlias,
+        onValue: (v: string): void => {
+          this.fAlias = v;
+        }
+      })
+
+      Row() {
+        Column() {
+          PersonFieldForm({
+            meta: fieldMetaOf('courtesyName'),
+            value: this.fCourtesyName,
+            onValue: (v: string): void => {
+              this.fCourtesyName = v;
+            }
+          })
+        }
+        .layoutWeight(1)
+        Column() {
+          PersonFieldForm({
+            meta: fieldMetaOf('artName'),
+            value: this.fArtName,
+            onValue: (v: string): void => {
+              this.fArtName = v;
+            }
+          })
+        }
+        .layoutWeight(1)
+        .margin({ left: Spacing.S })
+      }
+      .width('100%')
+
       Column() {
         PersonFieldForm({
           meta: fieldMetaOf('childStatus'),
@@ -1954,39 +1987,6 @@ struct PersonEdit {
           this.assignValue('childMark', v);
         }
       })
-
-      PersonFieldForm({
-        meta: fieldMetaOf('alias'),
-        value: this.fAlias,
-        onValue: (v: string): void => {
-          this.fAlias = v;
-        }
-      })
-
-      Row() {
-        Column() {
-          PersonFieldForm({
-            meta: fieldMetaOf('courtesyName'),
-            value: this.fCourtesyName,
-            onValue: (v: string): void => {
-              this.fCourtesyName = v;
-            }
-          })
-        }
-        .layoutWeight(1)
-        Column() {
-          PersonFieldForm({
-            meta: fieldMetaOf('artName'),
-            value: this.fArtName,
-            onValue: (v: string): void => {
-              this.fArtName = v;
-            }
-          })
-        }
-        .layoutWeight(1)
-        .margin({ left: Spacing.S })
-      }
-      .width('100%')
 
       // 时间信息
       GroupHeaderRow({ title: '时间信息', icon: '📅' })
