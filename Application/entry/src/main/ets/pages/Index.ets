@@ -1,9 +1,8 @@
 ﻿import { T, uiFontFamily, ScriptService } from 'common_base';
 import { SR } from '../service/ServiceRegistry';
 
-import { font, uiMaterial } from '@kit.ArkUI';
 import { common } from '@kit.AbilityKit';
-import { BusinessError, deviceInfo } from '@kit.BasicServicesKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { hilog } from '@kit.PerformanceAnalysisKit';
 import { Breakpoint } from 'common_base';
 import { Theme, Spacing } from 'common_base';
@@ -146,11 +145,6 @@ struct Index {
 
   aboutToAppear(): void {
     Theme.use(this.darkMode);
-    // 繁体界面字体：内置 BabelStone Han 覆盖简繁与生僻字，避免系统 SC 缺字回退导致字体混排、字距断裂
-    try {
-      font.registerFont({ familyName: 'MiyuanHan', familySrc: $rawfile('fonts/BabelStoneHan.ttf') });
-    } catch (e) {
-    }
     this.ensureStorage();
     this.syncDarkMode();
     DeviceUtil.listenBreakpoints(this.getUIContext());
@@ -451,11 +445,6 @@ struct Index {
     .border({ width: { right: 0.5 }, color: Theme.line })
   }
 
-  /** 系统是否支持 HDS 沉浸材质（API 26 起），不支持时回退到毛玻璃模糊 */
-  private immersiveMaterialSupported(): boolean {
-    return deviceInfo.apiAvailable('26.0.0');
-  }
-
   @Builder
   NavItems() {
     ForEach(NAV_ITEMS, (item: NavItem, idx: number) => {
@@ -483,37 +472,17 @@ struct Index {
   @Builder
   FloatingBottomBar() {
     Column() {
-      if (this.immersiveMaterialSupported()) {
-        // 新系统：HDS 沉浸光感材质，随内容与交互产生动态光效
-        Row() {
-          this.NavItems()
-        }
-        .width('100%')
-        .height(56)
-        .padding({ left: 5, right: 5, top: 5, bottom: 5 })
-        .borderRadius(28)
-        .systemMaterial(new uiMaterial.ImmersiveMaterial({
-          style: uiMaterial.ImmersiveStyle.REGULAR,
-          materialColor: Theme.card,
-          interactive: true,
-          lightEffect: { color: Theme.gold }
-        }))
-        .border({ width: 0.5, color: Theme.glassBorder })
-        .shadow({ radius: 20, color: Theme.shadowDeep, offsetY: 6 })
-      } else {
-        // 旧系统：等效毛玻璃材质（半透明底 + 背景模糊）
-        Row() {
-          this.NavItems()
-        }
-        .width('100%')
-        .height(56)
-        .padding({ left: 5, right: 5, top: 5, bottom: 5 })
-        .backgroundColor(Theme.glass)
-        .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
-        .borderRadius(28)
-        .border({ width: 0.5, color: Theme.glassBorder })
-        .shadow({ radius: 20, color: Theme.shadowDeep, offsetY: 6 })
+      Row() {
+        this.NavItems()
       }
+      .width('100%')
+      .height(56)
+      .padding({ left: 5, right: 5, top: 5, bottom: 5 })
+      .backgroundColor(Theme.glass)
+      .backgroundBlurStyle(BlurStyle.COMPONENT_THICK)
+      .borderRadius(28)
+      .border({ width: 0.5, color: Theme.glassBorder })
+      .shadow({ radius: 20, color: Theme.shadowDeep, offsetY: 6 })
     }
     .width('100%')
     .padding({ left: 16, right: 16, bottom: 4 })

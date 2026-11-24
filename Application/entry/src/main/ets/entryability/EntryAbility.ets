@@ -158,6 +158,17 @@ export default class EntryAbility extends UIAbility {
   }
 
   onWindowStageCreate(windowStage: window.WindowStage): void {
+    // 注册内置简繁生僻字体（幂等）：欢迎页与主页的大字号标题均依赖此字体。
+    // 必须在 loadContent 之前用 UIContext 关联的 Font 对象注册，避免 UI 上下文不明确。
+    try {
+      const mainWin: window.Window = windowStage.getMainWindowSync();
+      mainWin.getUIContext().getFont().registerFont({
+        familyName: 'MiyuanHan',
+        familySrc: $rawfile('fonts/BabelStoneHan.ttf')
+      });
+    } catch (e) {
+      hilog.warn(0x0000, TAG, 'registerFont failed');
+    }
     windowStage.getMainWindow()
       .then((mainWindow: window.Window): void => {
         this.mainWindow = mainWindow;
@@ -178,7 +189,7 @@ export default class EntryAbility extends UIAbility {
         hilog.warn(0x0000, TAG, 'getMainWindow failed %{public}d', err.code);
       });
 
-    windowStage.loadContent('pages/Index', (err: BusinessError): void => {
+    windowStage.loadContent('pages/Welcome', (err: BusinessError): void => {
       if (err.code) {
         hilog.error(0x0000, TAG, 'loadContent failed %{public}s', JSON.stringify(err));
         return;
