@@ -1,0 +1,173 @@
+【任务】
+修改 HarmonyOS ArkTS 家谱项目，实现：欧式谱（EuTree）和苏式谱（SuTree）中，
+把男性人员的配偶（妻/妾）作为独立卡片显示在男性右侧；夫妻之间画双线（婚约符号）；
+每位子女的连线起点改为其生母（mother）卡片，以区分妻生/妾生。
+
+【项目结构（已确认，路径固定）】
+仓库根目录下是 entry 模块，源码根为：entry/src/main/ets/
+相关文件：
+- entry/src/main/ets/service/TreeLayout.ets          （布局算法，含 EuLayout / SuLayout / LineSeg / EuBox / SuBox）
+- entry/src/main/ets/view/TreeCanvas.ets              （分发层，负责向 EuTree / SuTree 传 showSpouse）
+- entry/src/main/ets/components/tree/SuTree.ets       （苏式组件，内部调用 SuLayout.compute）
+- entry/src/main/ets/components/tree/EuTree.ets       （欧式组件，内部调用 EuLayout.compute；本次不修改此文件）
+- entry/src/main/ets/model/PersonNode.ets             （数据模型；本次不修改）
+- entry/src/main/ets/model/Person.ets                 （数据模型；本次不修改）
+
+【数据模型前提（已存在，禁止修改 PersonNode.ets / Person.ets）】
+PersonNode 已有：
+- uid: string
+- spouses: PersonNode[]        // 配偶列表（可能为空）
+- children: PersonNode[]      // 子女
+- mother?: PersonNode         // 生母（可能为 undefined）
+不需要扩展数据结构。
+
+【改动范围（严格限定三个文件）】
+1. entry/src/main/ets/service/TreeLayout.ets
+2. entry/src/main/ets/view/TreeCanvas.ets
+3. entry/src/main/ets/components/tree/SuTree.ets
+
+禁止修改：
+- entry/src/main/ets/components/tree/EuTree.ets（EuLayout.compute 签名不变，EuTree 已传入 showSpouse: true）
+- entry/src/main/ets/model/PersonNode.ets
+- entry/src/main/ets/model/Person.ets
+- entry/src/main/ets/components/tree/PagodaTree.ets / DieRecord.ets / ModernTree.ets（本轮不涉及）
+- 任何 model / service 其它文件
+
+────────────────────────────────────────
+【文件1：entry/src/main/ets/service/TreeLayout.ets】
+────────────────────────────────────────
+在 LineSeg 类定义之后、EuCanvas 类之前，新增公共工具（全部导出）：
+
+1) export class SpousePos {
+     spouse: PersonNode = new PersonNode(new Person());
+     index: number = 0;
+     x: number = 0;
+     y: number = 0;
+     w: number = 0;
+     h: number = 0;
+   }
+
+2) export function pushDoubleLine(lines: LineSeg[], x1: number, y1: number,
+     x2: number, y2: number, gap: number): void
+   —— 计算线段法向量，向两侧各偏移 gap，push 两条平行 LineSeg 形成双线。
+
+3) export function collectDepthMaxSpouse(roots: PersonNode[]): number[]
+   —— 递归遍历整棵树，返回“每一世 depth 的最大配偶数”数组。
+     必须用 Set<string> 记录 visited uid，防止重复计数/死循环。
+
+4) export function globalMaxSpouse(roots: PersonNode[]): number
+   —— 返回全树最大配偶数，同样用 Set 防重。
+
+修改 EuLayout.compute（签名保持不变：roots, cardWidth, rowHeight, colGap, showSpouse, startY）：
+- 保留原有“叶子计数 + 纵向堆叠”算法（place 递归、leaf slot、子中心取中点等全部保留）
+- 新增常量：spouseW = cardWidth * 0.85；spouseH = (rowHeight - 16) * 0.8；
+            spouseGap = 6；stackGap = 4
+- 当 showSpouse 为 true 时：
+  * 用 collectDepthMaxSpouse 得 maxSpouseAt
+  * 构建 colX 数组：colX[0]=0；对 d≥0：
+      extra = maxSpouseAt[d] > 0 ? (spouseGap + n*spouseW + (n-1)*stackGap) : 0
+      colX[d+1] = colX[d] + cardWidth + extra + colGap
+  * place 中 box.x 用 colX[depth]，depth 越界时回退 depth*(cardWidth+colGap)
+  * place 返回前：若该 node 有配偶且配偶堆叠高度 > box.h，
+      则 nextSlot += (stackH - box.h) / rowHeight（保证同列后续节点下移）
+- 主布局 place 全部结束后，若 showSpouse：
+    遍历 canvas.boxes（先取快照或用 forEach，避免边遍历边 push）：
+      对每个 pb，for i in 0..spouses.length-1：
+        sb = new EuBox(); sb.node = pb.node.spouses[i];
+        sb.w = spouseW; sb.h = spouseH;
+        sb.x = pb.x + pb.w + spouseGap;
+        sb.y = pb.y + i * (spouseH + stackGap);
+        sb.centerY = sb.y + sb.h / 2;
+        canvas.boxes.push(sb); placed.set(pb.node.spouses[i].uid, sb);
+        pushDoubleLine(canvas.lines, pb.x + pb.w, pb.y + pb.h/2,
+                       sb.x, sb.y + sb.h/2, 3);
+- 子女连线（保留原“父右缘 → 折线 → 子左缘”形状），仅改起点：
+    若 child.mother 存在且 placed.get(child.mother.uid) 存在 → 用该母亲 box 右缘中心作起点
+    否则回退 parentBox 右缘中心
+  折线中间仍用 midX = x1 + (x2 - x1)/2，竖直/水平段逻辑不变
+- 末尾 width/height 遍历全部 boxes（含配偶）取 maxX/maxY，防止配偶被裁切
+
+修改 SuLayout.compute（签名新增最后一位参数 showSpouse: boolean）：
+  新签名：compute(roots, cardWidth, colGap, rowGap, startX, cardH, showSpouse)
+- 保留原有“叶子计数 + 横向排布”算法
+- 新增常量：spouseW = cardWidth * 0.8；spouseH = cardH * 0.8；
+            spouseGap = 6；stackGap = 4
+- 计算：
+    maxAll = showSpouse ? globalMaxSpouse(roots) : 0
+    maxStackH = maxAll > 0 ? Math.max(0, maxAll*spouseH + (maxAll-1)*stackGap - cardH) : 0
+    effRowGap = rowGap + maxStackH
+    extraW = maxAll > 0 ? (spouseGap + maxAll*spouseW + (maxAll-1)*stackGap) : 0
+    slotW = cardWidth + extraW + colGap
+- place 中 box.y = depth * (cardH + effRowGap)（原为 rowGap，改为 effRowGap）
+- 主布局后，若 showSpouse：
+    遍历 canvas.boxes 快照，对每个有配偶的 pb，for i：
+      sb = new SuBox(); sb.node = pb.node.spouses[i];
+      sb.w = spouseW; sb.h = spouseH;
+      sb.x = pb.x + pb.w + spouseGap;
+      sb.y = pb.y + i * (spouseH + stackGap);
+      push 到 boxes；placed.set(uid, sb)；
+      pushDoubleLine(lines, pb.x + pb.w, pb.y + pb.h/2,
+                     sb.x, sb.y + sb.h/2, 2.5)
+- 子女连线改为“每位子女从生母底部独立折线到子顶部”：
+    for each child:
+      cx = childBox.x + childBox.w/2
+      起点：若 child.mother 在 placed 中 → sx = mb.x + mb.w/2, sy = mb.y + mb.h
+            否则 → sx = parentBox.x + parentBox.w/2, sy = parentBox.y + parentBox.h
+      midY = sy + rowGap/2
+      三段：竖线(sx,sy)→(sx,midY)，横线(sx,midY)→(cx,midY)，竖线(cx,midY)→(cx,childBox.y)
+- 末尾 width/height 遍历全部 boxes 取 max
+
+────────────────────────────────────────
+【文件2：entry/src/main/ets/view/TreeCanvas.ets】
+────────────────────────────────────────
+只改一处：在 SuTree({ ... }) 的调用参数中，新增一行：
+    showSpouse: true,
+位置放在 showGenMark: true 之后、offsetX 之前。
+EuTree({ ... }) 的调用已有 showSpouse: true，不要动它。
+其余代码一律不改。
+
+────────────────────────────────────────
+【文件3：entry/src/main/ets/components/tree/SuTree.ets】
+────────────────────────────────────────
+改两处：
+1. 在组件 @Prop 声明区（找 showGenMark: boolean = true 附近）新增：
+       @Prop showSpouse: boolean = false;
+   （如果该文件已有 @Prop showSpouse，则跳过此步）
+2. 找到内部调用 SuLayout.compute(...) 的那一行，在参数末尾追加 this.showSpouse。
+   原调用形如：
+       SuLayout.compute(this.roots, this.cardWidth, colGap, rowGap, startX, this.cardH)
+   改为：
+       SuLayout.compute(this.roots, this.cardWidth, colGap, rowGap, startX, this.cardH, this.showSpouse)
+   其余实参保持原样，不要改动顺序或数值。
+
+────────────────────────────────────────
+【ArkTS 编译硬约束（务必遵守）】
+────────────────────────────────────────
+1. 禁止使用 ?? 空值合并运算符。改用：
+     const got = map.get(k); const v = got !== undefined ? got : 默认值;
+2. Map.get 返回 T | undefined，取值后必须先判空再使用
+3. 禁止 for...of 遍历数组，统一用 forEach 或传统 for 循环
+4. 不要用对象字面量 push 到 LineSeg[]，统一 new LineSeg() 后逐字段赋值
+5. 所有函数参数和返回值必须显式标注类型
+6. 禁止使用 any 类型
+
+────────────────────────────────────────
+【验收标准】
+────────────────────────────────────────
+1. 编译通过，无 ArkTS 类型错误
+2. 欧式谱：多个配偶的男性，配偶卡片竖排在右侧，互不重叠，夫妻之间是双线
+3. 苏式谱：同上；最右侧子树的配偶卡片不被画布右边缘裁切
+   （若被裁，把 spouseW 比例从 0.8 调到 0.72）
+4. 找一户“妻生 + 妾生”并存的家庭：妻生子的连线从妻卡片右缘/底边引出，
+   妾生子的连线从妾卡片引出，不是全部从父亲卡片引出
+5. 没有 mother 字段（或 mother 未被布局）的子女，连线回退到从父亲引出，
+   不报错、不断线
+6. showSpouse 传 false 时，布局退化回原样，不出现空卡片或错位
+
+────────────────────────────────────────
+【输出要求】
+────────────────────────────────────────
+请直接输出三个文件的完整修改后代码（完整文件替换，不要只给 diff 片段），
+每个文件用 ```typescript 代码块包裹，并在代码块前用一行标注完整路径，例如：
+// 文件：entry/src/main/ets/service/TreeLayout.ets
+不要输出解释性长文。若有必须说明的取舍，用 3 行以内的注释写在代码对应位置。

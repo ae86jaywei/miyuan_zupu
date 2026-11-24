@@ -1,5 +1,5 @@
 /**
- * 人物模型 —— 字段严格对应《关键信息字段_20261023.xlsx》
+ * 人物模型 —— 人物信息字段定义
  *
  * 身份标识：世代 / 唯一ID / 谱名 / 曾用名小名 / 性别 / 辈分字派 / 在世状态
  * 时间信息：出生日期 / 逝世日期 / 出生地 / 现居地
@@ -295,7 +295,7 @@ export function cloneSpouseRelation(src: SpouseRelation): SpouseRelation {
 export class Person {
   /** 自增主键（数据库内部） */
   key: number = 0;
-  /** 唯一ID：主键，不可重复，如 F001 / M050 */
+  /** 唯一ID：主键，不可重复，如 M001 / F050 */
   uid: string = '';
   /** 世代：1 表示一世（始祖），2 表示二世…… */
   generation: number = 1;
@@ -325,7 +325,7 @@ export class Person {
   childMarkSeq: number = 0;
   /** 无出（此人无子女） */
   childless: boolean = false;
-  /** 婚配状态：未记 / 未字（女）/ 未娶（男）/ 适人（女）/ 娶妻（男）/ 招赘 / 不详 */
+  /** 婚配状态：未记 / 未字（女）/ 未娶（男）/ 适人（女）/ 娶妻（男）/ 招赘（女）/ 出赘（男）/ 不详 */
   marriageStatus: string = '';
   /** 夫家/婆家/入赘对象（配偶未收录时填写，如：同邑陈氏） */
   spouseFamily: string = '';
@@ -414,7 +414,7 @@ export const FIELD_GROUPS: string[] = ['身份标识', '时间信息', '亲属�
 
 export const FIELD_METAS: FieldMeta[] = [
   { key: 'generation', label: '世代', hint: '如：始祖（一世）、二世、三世', group: '身份标识', type: 'number', privacy: false },
-  { key: 'uid', label: '唯一ID', hint: '自动生成或按规则编号，如 F001；主键不可重复', group: '身份标识', type: 'text', privacy: false },
+  { key: 'uid', label: '唯一ID', hint: '自动生成或按规则编号，如 M001（男）/ F001（女）；主键不可重复', group: '身份标识', type: 'text', privacy: false },
   { key: 'name', label: '谱名', hint: '族谱上的正式名字，如：李德明', group: '身份标识', type: 'text', privacy: false },
   { key: 'courtesyName', label: '字', hint: '表字，如：昭远；牒记写作「字昭远」，在世者可写', group: '身份标识', type: 'text', privacy: false },
   { key: 'artName', label: '号', hint: '别号，如：朴庵；牒记写作「号朴庵」', group: '身份标识', type: 'text', privacy: false },
@@ -423,7 +423,7 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'generationChar', label: '辈分/字派', hint: '所属字辈，如：德', group: '身份标识', type: 'text', privacy: false },
   { key: 'lifeStatus', label: '在世状态', hint: '在世 / 已故 / 失联 / 不详（上下滑动选择）', group: '身份标识', type: 'select', privacy: false },
   { key: 'childStatus', label: '身份', hint: '本人出身：未记 / 嫡出 / 庶出 / 婢生 / 奸生 / 随母；女性另可选本人名分（与配偶关系自动同步）', group: '身份标识', type: 'select', privacy: false },
-  { key: 'childMark', label: '子女标记', hint: '未记 / 殇 / 幼殇 / 早卒 / 无出', group: '身份标识', type: 'select', privacy: false },
+  { key: 'childMark', label: '标记', hint: '未记 / 殇 / 幼殇 / 早卒 / 无出', group: '身份标识', type: 'select', privacy: false },
   { key: 'childMarkTarget', label: '出嗣/兼祧对象', hint: '出嗣目标或兼祧对象，如：堂叔启明', group: '身份标识', type: 'text', privacy: false },
   { key: 'childMarkSource', label: '入继来源', hint: '入继来源，如：胞兄明远', group: '身份标识', type: 'text', privacy: false },
   { key: 'childMarkSeq', label: '在源第几子', hint: '在来源中的排行，如：第三子 = 3', group: '身份标识', type: 'number', privacy: false },
@@ -432,14 +432,14 @@ export const FIELD_METAS: FieldMeta[] = [
   { key: 'deathDate', label: '逝世日期', hint: '格式同上，在世者留空', group: '时间信息', type: 'date', privacy: false },
   { key: 'birthPlace', label: '出生地', hint: '省-市-县-乡镇-村，如：广东-梅州-兴宁-罗岗镇', group: '时间信息', type: 'text', privacy: false },
   { key: 'residence', label: '现居地', hint: '同上，精确到小区/街道', group: '时间信息', type: 'text', privacy: false },
-  { key: 'fatherId', label: '父亲ID', hint: '填写父亲的【唯一ID】，如：F000', group: '亲属关系', type: 'relation', privacy: false },
+  { key: 'fatherId', label: '父亲ID', hint: '填写父亲的【唯一ID】，如：M000', group: '亲属关系', type: 'relation', privacy: false },
   { key: 'fatherName', label: '父名（未收录）', hint: '父亲未录入族谱时填姓名；妻子的父亲即岳父', group: '亲属关系', type: 'text', privacy: false },
   { key: 'fatherLifeStatus', label: '父名在世状态', hint: '父名（未收录）为在世还是已故；已故牒记称「吴公忠伟」', group: '亲属关系', type: 'select', privacy: false },
-  { key: 'motherId', label: '母亲ID', hint: '填写母亲的【唯一ID】，如：M050', group: '亲属关系', type: 'relation', privacy: false },
+  { key: 'motherId', label: '母亲ID', hint: '填写母亲的【唯一ID】，如：F050', group: '亲属关系', type: 'relation', privacy: false },
   { key: 'motherName', label: '母名（未收录）', hint: '母亲未录入族谱时填姓名；妻子的母亲即岳母', group: '亲属关系', type: 'text', privacy: false },
   { key: 'motherLifeStatus', label: '母名在世状态', hint: '母名（未收录）为在世还是已故', group: '亲属关系', type: 'select', privacy: false },
   { key: 'spouses', label: '配偶关系', hint: '支持多位配偶：元配 / 继室 / 妾，按先后顺序记录', group: '亲属关系', type: 'relation', privacy: false },
-  { key: 'marriageStatus', label: '婚配状态', hint: '未字/未娶/适人/娶妻/招赘/不详；未记则不写婚配结论', group: '亲属关系', type: 'select', privacy: false },
+  { key: 'marriageStatus', label: '婚配状态', hint: '未字/未娶/适人/娶妻/招赘（女）/出赘（男）/不详；未记则不写婚配结论', group: '亲属关系', type: 'select', privacy: false },
   { key: 'spouseFamily', label: '夫家/婆家（未收录）', hint: '已出嫁/入赘但配偶未录入时填写，如：同邑陈氏', group: '亲属关系', type: 'text', privacy: false },
   { key: 'rank', label: '排行', hint: '第几子/女，如：长子、次女、三子', group: '亲属关系', type: 'text', privacy: false },
   { key: 'adoption', label: '过继/出嗣/兼祧', hint: '若有过继、出嗣或兼祧，填“过继自XX”“出嗣给XX”或“兼祧XX”', group: '亲属关系', type: 'text', privacy: false },

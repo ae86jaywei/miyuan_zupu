@@ -12,7 +12,7 @@ import { GenealogyService } from '../service/GenealogyService';
 import { EmptyHint } from 'common_ui';
 
 /**
- * 人物详情面板：展示《关键信息字段》全部字段；
+ * 人物详情面板：展示全部人物字段；
  * 宽屏下作为主从布局的右栏，窄屏下作为全屏对话框。
  */
 @Component
@@ -191,18 +191,9 @@ export struct PersonDetailPanel {
                 .padding({ left: 84, bottom: 6 })
               }
 
-              // 齿录模板新增：子女标记
+              // 齿录模板新增：标记（出嗣/兼祧/继养统一由「过继/出嗣/兼祧」承载，此处不再重复展示）
               if (this.childMarkText(this.person() as Person).length > 0) {
-                InfoRow({ label: '子女标记', value: this.childMarkText(this.person() as Person) })
-              }
-              if ((this.person() as Person).childMarkTarget.length > 0) {
-                InfoRow({ label: '出嗣/兼祧对象', value: (this.person() as Person).childMarkTarget })
-              }
-              if ((this.person() as Person).childMarkSource.length > 0) {
-                InfoRow({ label: '入继来源', value: (this.person() as Person).childMarkSource })
-              }
-              if ((this.person() as Person).childMarkSeq > 0) {
-                InfoRow({ label: '在源第几子', value: (this.person() as Person).childMarkSeq.toString() })
+                InfoRow({ label: '标记', value: this.childMarkText(this.person() as Person) })
               }
               if ((this.person() as Person).childless) {
                 InfoRow({ label: '无出', value: '是' })

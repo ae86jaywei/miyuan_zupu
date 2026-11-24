@@ -9,6 +9,19 @@ export const TABLE_BOOK: string = 'genealogy';
 export const TABLE_SPOUSE: string = 'person_spouse';
 /** 表名：应用元数据 */
 export const TABLE_META: string = 'app_meta';
+/** 元数据键：唯一ID 性别前缀互换迁移是否已完成（老库只需执行一次） */
+export const META_UID_PREFIX_SWAPPED: string = 'uid_gender_prefix_swapped_v1';
+/** 本地墓葬缓存表（由 GraveService 建表，迁移时按需判断是否存在） */
+const TABLE_GRAVE: string = 'grave_location';
+/** 协作待上传变更表（由 OutboxService 建表，迁移时按需判断是否存在） */
+const TABLE_OUTBOX: string = 'outbox';
+
+/** 已删除编号记录（仅迁移黑名单时使用，结构同 GenealogyService 中的 RetiredUid） */
+class RetiredUidEntry {
+  uid: string = '';
+  name: string = '';
+  deletedAt: number = 0;
+}
 
 /**
  * 数据库结构与旧库迁移。
@@ -173,5 +186,173 @@ export class DatabaseSchema {
       SELECT ?, uid, spouse_uid, relation, level, ord FROM ${TABLE_SPOUSE}`, [currentBookId]);
     await store.executeSql(`DROP TABLE ${TABLE_SPOUSE}`);
     await store.executeSql(`ALTER TABLE person_spouse_v2 RENAME TO ${TABLE_SPOUSE}`);
+  }
+
+  /**
+   * 旧库迁移：唯一ID 前缀由「女 M / 男 F」改为「男 M / 女 F」。
+   * 互换 person.uid 并同步全部引用字段（父母、配偶、分支、墓葬缓存、已删除编号黑名单），
+   * 待上传队列里的旧补丁仍带着旧 ID，直接清空避免回写云端。
+   * 全表 UPDATE 只执行一次，用 app_meta 标记避免每次启动重复扫描。
+   */
+  static async migrateGenderUidPrefix(store: relationalStore.RdbStore): Promise<void> {
+    if ((await DatabaseSchema.readMeta(store, META_UID_PREFIX_SWAPPED)) === '1') {
+      return;
+    }
+    store.beginTransaction();
+    try {
+      // 1) 人员 uid：男 F→M、女 M→F。
+      //    分两阶段先落到临时小写前缀，避免同一批互换时新值与尚未处理的行重名。
+      await store.executeSql(`UPDATE ${TABLE_PERSON} SET uid =
+        CASE WHEN SUBSTR(uid,1,1) = 'F' THEN 'm' ELSE 'f' END || SUBSTR(uid,2)
+        WHERE LENGTH(uid) > 1 AND SUBSTR(uid,2,1) GLOB '[0-9]'
+          AND ((gender = '男' AND SUBSTR(uid,1,1) = 'F') OR (gender = '女' AND SUBSTR(uid,1,1) = 'M'))`);
+      await store.executeSql(`UPDATE ${TABLE_PERSON} SET uid =
+        CASE WHEN SUBSTR(uid,1,1) = 'm' THEN 'M' ELSE 'F' END || SUBSTR(uid,2)
+        WHERE LENGTH(uid) > 1 AND SUBSTR(uid,2,1) GLOB '[0-9]'
+          AND ((gender = '男' AND SUBSTR(uid,1,1) = 'm') OR (gender = '女' AND SUBSTR(uid,1,1) = 'f'))`);
+      // 2) 人员内部引用
+      await DatabaseSchema.swapUidColumn(store, TABLE_PERSON, 'father_id');
+      await DatabaseSchema.swapUidColumn(store, TABLE_PERSON, 'mother_id');
+      await DatabaseSchema.swapUidColumn(store, TABLE_PERSON, 'spouse_id');
+      // 3) 配偶关系表：两列同时交换，避免复合主键在中间态冲突
+      await DatabaseSchema.swapSpouseRows(store);
+      // 4) 族谱元信息里的分支引用
+      await DatabaseSchema.swapUidColumn(store, TABLE_BOOK, 'branch_root_uid');
+      await DatabaseSchema.swapUidColumn(store, TABLE_BOOK, 'parent_uid');
+      // 5) 本地墓葬缓存
+      if (await DatabaseSchema.tableExists(store, TABLE_GRAVE)) {
+        await DatabaseSchema.swapUidColumn(store, TABLE_GRAVE, 'uid');
+      }
+      // 6) 已删除编号黑名单（JSON 数组）
+      await DatabaseSchema.swapRetiredUids(store);
+      // 7) 待上传队列：旧补丁的 target/payload 都是旧 ID，清空避免把旧编号写回云端
+      if (await DatabaseSchema.tableExists(store, TABLE_OUTBOX)) {
+        await store.executeSql(`DELETE FROM ${TABLE_OUTBOX}`);
+      }
+      await store.executeSql(`INSERT OR REPLACE INTO ${TABLE_META}(key, value) VALUES(?, '1')`,
+        [META_UID_PREFIX_SWAPPED]);
+      store.commit();
+    } catch (e) {
+      store.rollBack();
+      throw new Error('唯一ID前缀迁移失败：' + (e as Error).message);
+    }
+  }
+
+  /** 单列 uid 引用互换（两阶段，只处理「F/M + 数字」的标准编号） */
+  private static async swapUidColumn(store: relationalStore.RdbStore, table: string, column: string): Promise<void> {
+    await store.executeSql(`UPDATE ${table} SET ${column} =
+      CASE WHEN SUBSTR(${column},1,1) = 'F' THEN 'm' ELSE 'f' END || SUBSTR(${column},2)
+      WHERE ${column} IS NOT NULL AND LENGTH(${column}) > 1 AND SUBSTR(${column},2,1) GLOB '[0-9]'
+        AND SUBSTR(${column},1,1) IN ('F','M')`);
+    await store.executeSql(`UPDATE ${table} SET ${column} =
+      CASE WHEN SUBSTR(${column},1,1) = 'm' THEN 'M' ELSE 'F' END || SUBSTR(${column},2)
+      WHERE ${column} IS NOT NULL AND LENGTH(${column}) > 1 AND SUBSTR(${column},2,1) GLOB '[0-9]'
+        AND SUBSTR(${column},1,1) IN ('m','f')`);
+  }
+
+  /** 配偶关系表两列互换（两阶段，避免 (book_id, uid, spouse_uid) 主键中间态冲突） */
+  private static async swapSpouseRows(store: relationalStore.RdbStore): Promise<void> {
+    // 两列各自独立判断，避免一行 spouse_uid 非标准时把 uid 也漏掉，造成引用悬空
+    await store.executeSql(`UPDATE ${TABLE_SPOUSE} SET
+      uid = CASE WHEN SUBSTR(uid,1,1) = 'F' THEN 'm' || SUBSTR(uid,2)
+                 WHEN SUBSTR(uid,1,1) = 'M' THEN 'f' || SUBSTR(uid,2) ELSE uid END,
+      spouse_uid = CASE WHEN SUBSTR(spouse_uid,1,1) = 'F' THEN 'm' || SUBSTR(spouse_uid,2)
+                        WHEN SUBSTR(spouse_uid,1,1) = 'M' THEN 'f' || SUBSTR(spouse_uid,2) ELSE spouse_uid END
+      WHERE (LENGTH(uid) > 1 AND SUBSTR(uid,2,1) GLOB '[0-9]' AND SUBSTR(uid,1,1) IN ('F','M'))
+         OR (LENGTH(spouse_uid) > 1 AND SUBSTR(spouse_uid,2,1) GLOB '[0-9]' AND SUBSTR(spouse_uid,1,1) IN ('F','M'))`);
+    await store.executeSql(`UPDATE ${TABLE_SPOUSE} SET
+      uid = CASE WHEN SUBSTR(uid,1,1) = 'm' THEN 'M' || SUBSTR(uid,2)
+                 WHEN SUBSTR(uid,1,1) = 'f' THEN 'F' || SUBSTR(uid,2) ELSE uid END,
+      spouse_uid = CASE WHEN SUBSTR(spouse_uid,1,1) = 'm' THEN 'M' || SUBSTR(spouse_uid,2)
+                        WHEN SUBSTR(spouse_uid,1,1) = 'f' THEN 'F' || SUBSTR(spouse_uid,2) ELSE spouse_uid END
+      WHERE (LENGTH(uid) > 1 AND SUBSTR(uid,2,1) GLOB '[0-9]' AND SUBSTR(uid,1,1) IN ('m','f'))
+         OR (LENGTH(spouse_uid) > 1 AND SUBSTR(spouse_uid,2,1) GLOB '[0-9]' AND SUBSTR(spouse_uid,1,1) IN ('m','f'))`);
+  }
+
+  /** 已删除编号黑名单：逐部族谱把 JSON 里的 uid 前缀互换 */
+  private static async swapRetiredUids(store: relationalStore.RdbStore): Promise<void> {
+    const keys: string[] = [];
+    const values: string[] = [];
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT key, value FROM ${TABLE_META} WHERE key LIKE 'retired_uids_%'`);
+    try {
+      const keyIndex: number = rs.getColumnIndex('key');
+      const valueIndex: number = rs.getColumnIndex('value');
+      while (rs.goToNextRow()) {
+        keys.push(rs.getString(keyIndex));
+        const v: string = rs.getString(valueIndex);
+        values.push(v === null ? '' : v);
+      }
+    } finally {
+      rs.close();
+    }
+    for (let i: number = 0; i < keys.length; i++) {
+      let list: RetiredUidEntry[] = [];
+      try {
+        list = JSON.parse(values[i]) as RetiredUidEntry[];
+      } catch (err) {
+        continue;
+      }
+      if (list === null || list === undefined) {
+        continue;
+      }
+      let changed: boolean = false;
+      for (let j: number = 0; j < list.length; j++) {
+        const uid: string = list[j].uid === undefined ? '' : list[j].uid;
+        const swapped: string = DatabaseSchema.swappedUid(uid);
+        if (swapped !== uid) {
+          list[j].uid = swapped;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await store.executeSql(`UPDATE ${TABLE_META} SET value = ? WHERE key = ?`,
+          [JSON.stringify(list), keys[i]]);
+      }
+    }
+  }
+
+  /** 单个标准编号的前缀互换（F↔M），非标准编号原样返回 */
+  private static swappedUid(uid: string): string {
+    if (uid.length < 2 || !/^[0-9]+$/.test(uid.substring(1))) {
+      return uid;
+    }
+    const head: string = uid.substring(0, 1);
+    if (head === 'F') {
+      return 'M' + uid.substring(1);
+    }
+    if (head === 'M') {
+      return 'F' + uid.substring(1);
+    }
+    return uid;
+  }
+
+  /** 读取 app_meta */
+  private static async readMeta(store: relationalStore.RdbStore, key: string): Promise<string> {
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT value FROM ${TABLE_META} WHERE key = ?`, [key]);
+    let value: string = '';
+    try {
+      if (rs.goToFirstRow()) {
+        const v: string = rs.getString(rs.getColumnIndex('value'));
+        value = v === null ? '' : v;
+      }
+    } finally {
+      rs.close();
+    }
+    return value;
+  }
+
+  /** 表是否存在（部分表按需创建，迁移前需判断） */
+  private static async tableExists(store: relationalStore.RdbStore, table: string): Promise<boolean> {
+    const rs: relationalStore.ResultSet = await store.querySql(
+      `SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, [table]);
+    let exists: boolean = false;
+    try {
+      exists = rs.goToFirstRow();
+    } finally {
+      rs.close();
+    }
+    return exists;
   }
 }

@@ -1,5 +1,5 @@
 /**
- * 基础枚举（与《关键信息字段_20261023.xlsx》保持一致）。
+ * 基础枚举。
  */
 
 /** 性别 */
@@ -111,10 +111,10 @@ export const NATAL_RANK_OPTIONS: string[] = ['长子', '次子', '三子', '四�
 /** 婚配状态：女性 */
 export const MARRIAGE_OPTIONS_FEMALE: string[] = ['未记', '未字', '适人', '招赘', '不详'];
 
-/** 婚配状态：男性 */
-export const MARRIAGE_OPTIONS_MALE: string[] = ['未记', '未娶', '娶妻', '招赘', '不详'];
+/** 婚配状态：男性（入赘女家记“出赘”） */
+export const MARRIAGE_OPTIONS_MALE: string[] = ['未记', '未娶', '娶妻', '出赘', '不详'];
 
-/** 子女标记：殇/幼殇/早卒/无出（出嗣/兼祧/继养统一在“过继/出嗣/兼祧”字段记录） */
+/** 标记：殇/幼殇/早卒/无出（出嗣/兼祧/继养统一在“过继/出嗣/兼祧”字段记录） */
 export const CHILD_MARK_OPTIONS: string[] = ['未记', '殇', '幼殇', '早卒', '无出'];
 
 /** 一…三十的中文数字（模块级常量，避免每次调用重建数组） */

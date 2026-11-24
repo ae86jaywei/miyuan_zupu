@@ -1141,7 +1141,7 @@ export class DieJiText {
         }
       }
     }
-    // 出嫁/娶妻/招赘但配偶未收录：写夫家，如「适同邑陈氏」
+    // 出嫁/娶妻/招赘（女）/出赘（男）但配偶未收录：写夫家，如「适同邑陈氏」
     if (noSpouse) {
       const family: string = p.spouseFamily.trim();
       if (marriage === '适人') {
@@ -1150,8 +1150,9 @@ export class DieJiText {
       } else if (marriage === '娶妻') {
         out.push(modern ? (family.length > 0 ? '已娶' + family : '已婚')
           : (family.length > 0 ? '娶' + family : '已娶'));
-      } else if (marriage === '招赘') {
-        out.push(family.length > 0 ? '入赘' + family : '入赘');
+      } else if (marriage === '招赘' || marriage === '出赘') {
+        const verb: string = p.gender === '男' ? '出赘' : '入赘';
+        out.push(family.length > 0 ? verb + family : verb);
       }
     }
     // 只有明确勾选「无出」才写无嗣；未录子女不等于无嗣

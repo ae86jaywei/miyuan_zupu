@@ -134,7 +134,7 @@ function summarize(op, targetName, patch) {
 
 const FIELD_LABELS = {
   name: '谱名', courtesyName: '字', artName: '号', alias: '曾用名', gender: '性别', generation: '世代', generationChar: '字派',
-  lifeStatus: '在世状态', childStatus: '子女身份', childMark: '子女标记', childMarkTarget: '出嗣/兼祧对象', childMarkSource: '入继来源', childMarkSeq: '在源第几子', childless: '无出', birthDate: '出生日期', birthCalendar: '出生历法', deathDate: '逝世日期', deathCalendar: '逝世历法',
+  lifeStatus: '在世状态', childStatus: '子女身份', childMark: '标记', childMarkTarget: '出嗣/兼祧对象', childMarkSource: '入继来源', childMarkSeq: '在源第几子', childless: '无出', birthDate: '出生日期', birthCalendar: '出生历法', deathDate: '逝世日期', deathCalendar: '逝世历法',
   birthPlace: '出生地', residence: '现居地', spouseId: '配偶ID', fatherId: '父亲ID', fatherName: '父名（未收录）', fatherLifeStatus: '父名在世状态', motherId: '母亲ID', motherName: '母名（未收录）', motherLifeStatus: '母名在世状态', marriageStatus: '婚配状态', spouseFamily: '夫家/婆家（未收录）', spouses: '配偶',
   rank: '排行', adoption: '过继/出嗣/兼祧', education: '学历', occupation: '职业', biography: '生平简介',
   graveInfo: '墓葬信息', graveLng: '墓葬经度', graveLat: '墓葬纬度', graveAltitude: '墓葬海拔',

@@ -233,6 +233,14 @@ export class GenealogyService implements BookHost, ImportHost, BranchHost, Resto
         await this.backfillSpouseLevels();
         await this.setMeta(META_SPOUSE_MIGRATED, '1');
       }
+      // 旧库迁移：唯一ID 性别前缀改为「男 M / 女 F」，互换已有族人及其全部引用。
+      // 迁移失败时保持旧数据可正常打开（ID 只是文本），下次启动会自动重试。
+      try {
+        await DatabaseSchema.migrateGenderUidPrefix(this.store as relationalStore.RdbStore);
+      } catch (e) {
+        const me = e as BusinessError;
+        hilog.error(0x0000, TAG, 'swap uid prefix failed %{public}d %{public}s', me.code, me.message);
+      }
       await this.reload();
       this.ready = true;
     } catch (e) {

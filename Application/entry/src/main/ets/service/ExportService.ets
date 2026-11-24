@@ -23,8 +23,7 @@ export class JsonBundle {
  */
 export class ExportService {
 
-  /** Excel 表头（与《关键信息字段》字段名称一致） */
-  /** CSV 列顺序由字段注册表统一维护 */
+  /** Excel 表头，CSV 列顺序由字段注册表统一维护 */
   private static readonly HEADERS: string[] = PERSON_CSV_COLUMNS;
 
   private static fieldOf(p: Person, label: string): string {
@@ -39,7 +38,7 @@ export class ExportService {
       case '辈分/字派': return p.generationChar;
       case '在世状态': return p.lifeStatus;
       case '子女身份': return p.childStatus === '未记' ? '' : p.childStatus;
-      case '子女标记': return p.childMark === '未记' ? '' : p.childMark;
+      case '标记': return p.childMark === '未记' ? '' : p.childMark;
       case '出嗣/兼祧对象': return p.childMarkTarget;
       case '入继来源': return p.childMarkSource;
       case '在源第几子': return p.childMarkSeq > 0 ? p.childMarkSeq.toString() : '';
@@ -380,7 +379,7 @@ export class ExportService {
       p.generationChar = r['辈分/字派'] ?? '';
       p.lifeStatus = ScriptService.getInstance().toSimplified(r['在世状态'] ?? '在世');
       p.childStatus = ScriptService.getInstance().toSimplified(r['子女身份'] ?? '未记');
-      p.childMark = ScriptService.getInstance().toSimplified(r['子女标记'] ?? '未记');
+      p.childMark = ScriptService.getInstance().toSimplified(r['标记'] ?? '未记');
       if (p.childMark.length === 0) {
         p.childMark = '未记';
       }
@@ -474,7 +473,7 @@ export class ExportService {
           case '辈分/字派': p.generationChar = value; break;
           case '在世状态': p.lifeStatus = norm.length > 0 ? norm : '在世'; break;
           case '子女身份': p.childStatus = norm.length > 0 ? norm : '未记'; break;
-          case '子女标记': p.childMark = norm.length > 0 ? norm : '未记'; break;
+          case '标记': p.childMark = norm.length > 0 ? norm : '未记'; break;
           case '出嗣/兼祧对象': p.childMarkTarget = value; break;
           case '入继来源': p.childMarkSource = value; break;
           case '在源第几子': p.childMarkSeq = parseInt(value, 10) || 0; break;

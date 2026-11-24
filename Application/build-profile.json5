@@ -5,26 +5,26 @@
         "name": "debug",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "./zhengshu/miyuan.p12",
-          "storePassword": "0000001EDBCFFDE80AF3B25477DA24BF09926AC4553BD14BA4E2673233A6B62E903E264C62925703CAA7136745DD",
+          "storeFile": "E:/HarmonyOS/miyuan_yunkaifa/.signature/miyuan.p12",
+          "storePassword": "0000001EE36BC6AB4F2D17E02EB09A06D1AEE913899A452FF0D38F9520371A3F60E370BA98321EAE28A1BFF9D5F1",
           "keyAlias": "miyuan",
-          "keyPassword": "0000001ED7B0AA6C55C6F282AF892005A3E4DB3074882E14A6378967CC2C23193875D5DE551DAC54DB260C8372D2",
+          "keyPassword": "0000001E1894592BF4598C1D231D98B8A0D32FD39ACDBE8B09B3BFEB8A79090A9CE4719A72D5DFAA1E26A40A9CFD",
           "signAlg": "SHA256withECDSA",
-          "profile": "./zhengshu/miyuanDebug.p7b",
-          "certpath": "./zhengshu/miyuan.cer"
+          "profile": "E:/HarmonyOS/miyuan_yunkaifa/.signature/miyuan_Debug.p7b",
+          "certpath": "E:/HarmonyOS/miyuan_yunkaifa/.signature/miyuan_Debug.cer"
         }
       },
       {
         "name": "release",
         "type": "HarmonyOS",
         "material": {
-          "storeFile": "E:/HarmonyOS/miyuan_yunkaifa/.sign/miyuan.p12",
-          "storePassword": "0000001E2271A0DBC624DA80FA4984A598032BD211D3152959DF62D6D75D2F48D405ED23521A3821F7DE0F6D3AD8",
+          "storeFile": "E:/HarmonyOS/miyuan_yunkaifa/.signature/miyuan.p12",
+          "storePassword": "0000001EF7EB89A6CE99E558136A2270662A6989E8BFE2EF9756AEE48D4434D69D0A5BB3F27CB01DAE83B08861C9",
           "keyAlias": "miyuan",
-          "keyPassword": "0000001E52A448E2F2B4C285BAFB266DE8FC1235CA795EB6D16E75BA4529A6062248D0AB8AAEF87580D89E89AAF4",
+          "keyPassword": "0000001E5D2701F5F0B00B85745B8F91EFE1C48AF5F0DAFBD3E10635108B49C30C7DB6340634A85FC2C9FBBBAEFC",
           "signAlg": "SHA256withECDSA",
-          "profile": "E:/HarmonyOS/miyuan_yunkaifa/.sign/miyuangRelease.p7b",
-          "certpath": "E:/HarmonyOS/miyuan_yunkaifa/.sign/miyuanRelease.cer"
+          "profile": "E:/HarmonyOS/miyuan_yunkaifa/.signature/miyuan_Release.p7b",
+          "certpath": "E:/HarmonyOS/miyuan_yunkaifa/.signature/miyuan_Release.cer"
         }
       }
     ],

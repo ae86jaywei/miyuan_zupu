@@ -38,7 +38,7 @@ import { EraPickerPanel } from './personedit/EraPickerPanel';
 const ANCESTOR_RANK: string = '第一世（始祖）';
 
 /**
- * 人物编辑页：覆盖《关键信息字段_20261023.xlsx》全部字段，
+ * 人物编辑页：覆盖全部人物字段，
  * 宽屏双栏（表单 + 实时族谱预览），窄屏单栏。
  */
 @Entry
@@ -88,7 +88,7 @@ struct PersonEdit {
   @State fMotherLifeStatus: string = '在世';
   /** 配偶关系（可多位：元配 / 继室 / 妾） */
   @State fSpouses: SpouseRelation[] = [];
-  /** 婚配状态：未记/未字/未娶/适人/娶妻/招赘/不详 */
+  /** 婚配状态：未记/未字/未娶/适人/娶妻/招赘（女）/出赘（男）/不详 */
   @State fMarriageStatus: string = '未记';
   /** 夫家/婆家/入赘对象（配偶未收录时填写） */
   @State fSpouseFamily: string = '';
@@ -370,7 +370,7 @@ struct PersonEdit {
     if (p.gender !== '女' && FEMALE_RANK_OPTIONS.indexOf(this.fChildStatus) >= 0) {
       this.fChildStatus = '未记';
     }
-    // 无出已并入子女标记：旧数据只有 childless 布尔值时映射为“无出”
+    // 无出已并入标记：旧数据只有 childless 布尔值时映射为“无出”
     this.fChildMark = (p.childMark.length > 0 && p.childMark !== '未记') ? p.childMark :
       (p.childless ? '无出' : '未记');
     this.fChildMarkTarget = p.childMarkTarget;
@@ -397,6 +397,10 @@ struct PersonEdit {
       return c;
     });
     this.fMarriageStatus = p.marriageStatus.length > 0 ? p.marriageStatus : '未记';
+    // 历史男性数据可能沿用“招赘”，统一归为“出赘”
+    if (this.fGender === '男' && this.fMarriageStatus === '招赘') {
+      this.fMarriageStatus = '出赘';
+    }
     // 已有配偶时“未娶/未字”与之矛盾，统一校正为娶妻/适人
     if (this.hasRecordedSpouse() && (this.fMarriageStatus === '未娶' || this.fMarriageStatus === '未字')) {
       this.fMarriageStatus = this.fGender === '女' ? '适人' : '娶妻';
@@ -1085,12 +1089,12 @@ struct PersonEdit {
     return this.isMarriedInWoman();
   }
 
-  /** 父亲ID/母亲ID：默认显示；已婚外来女性隐藏，招赘时仍需显示双方父母 */
+  /** 父亲ID/母亲ID：默认显示；已婚外来女性隐藏，招赘/出赘时仍需显示双方父母 */
   private showParentIds(): boolean {
     if (!this.isMarriedInWoman()) {
       return true;
     }
-    return this.fMarriageStatus === '招赘';
+    return this.fMarriageStatus === '招赘' || this.fMarriageStatus === '出赘';
   }
 
   /** 排行候选：姻亲用娘家排行；本族第一世只有“第一世（始祖）”，其余按性别取子/女排行 */
@@ -1144,10 +1148,10 @@ struct PersonEdit {
     }
   }
 
-  /** 选了适人/娶妻/招赘且尚未录入配偶，才显示夫家/婆家输入 */
+  /** 选了适人/娶妻/招赘/出赘且尚未录入配偶，才显示夫家/婆家输入 */
   private showSpouseFamily(): boolean {
     return !this.hasRecordedSpouse() && (this.fMarriageStatus === '适人' || this.fMarriageStatus === '娶妻' ||
-      this.fMarriageStatus === '招赘');
+      this.fMarriageStatus === '招赘' || this.fMarriageStatus === '出赘');
   }
 
   private genCharOptions(): string[] {
@@ -1208,7 +1212,7 @@ struct PersonEdit {
           this.rankOptions().indexOf(this.fRank) < 0) {
           this.fRank = '';
         }
-        // 新增且 ID 仍为自动生成 → 按新性别重新计算（男 F / 女 M）
+        // 新增且 ID 仍为自动生成 → 按新性别重新计算（男 M / 女 F）
         if (this.originalUid.length === 0 && this.uidAuto) {
           this.fUid = this.svc().nextUid(value);
         }
@@ -1846,7 +1850,7 @@ struct PersonEdit {
           PersonFieldForm({
             meta: fieldMetaOf('uid'),
             value: this.fUid,
-            hint: '选性别后自动生成（男 F / 女 M），也可手工填写',
+            hint: '选性别后自动生成（男 M / 女 F），也可手工填写',
             onValue: (v: string): void => {
               this.fUid = v;
               this.uidAuto = v.trim().length === 0;
@@ -1977,11 +1981,11 @@ struct PersonEdit {
       .alignItems(HorizontalAlign.Start)
       .width('100%')
 
-      // 婚配状态：未字/未娶/适人/娶妻/招赘，用于牒记「终身未字」「适XX」
+      // 婚配状态：未字/未娶/适人/娶妻/招赘（女）/出赘（男），用于牒记「终身未字」「适XX」
       PersonFieldForm({
         meta: fieldMetaOf('marriageStatus'),
         value: this.fMarriageStatus,
-        hint: '未记则不写婚配结论；未字/未娶写「终身未字」；适人/娶妻/招赘可写夫家',
+        hint: '未记则不写婚配结论；未字/未娶写「终身未字」；适人/娶妻/招赘/出赘可写夫家',
         optionsOverride: this.marriageOptions(),
         onValue: (v: string): void => {
           this.fMarriageStatus = v;
@@ -1997,7 +2001,7 @@ struct PersonEdit {
         })
       }
 
-      // 子女标记（无出已并入选项；出嗣/兼祧/继养统一在「过继/出嗣/兼祧」中填写）
+      // 标记（无出已并入选项；出嗣/兼祧/继养统一在「过继/出嗣/兼祧」中填写）
       PersonFieldForm({
         meta: fieldMetaOf('childMark'),
         value: this.fChildMark,
@@ -2093,7 +2097,7 @@ struct PersonEdit {
       if (this.showParentIds()) {
         PersonPickerField({
           label: '父亲ID',
-          hint: '点击搜索并选择父亲，如：F000；妻/妾等无父母者可留空',
+          hint: '点击搜索并选择父亲，如：M000；妻/妾等无父母者可留空',
           value: this.fFatherId,
           genderFilter: '男',
           excludeUid: this.fUid,
@@ -2106,7 +2110,7 @@ struct PersonEdit {
         })
         PersonPickerField({
           label: '母亲ID',
-          hint: '点击搜索并选择母亲，如：M050；妻/妾等无父母者可留空',
+          hint: '点击搜索并选择母亲，如：F050；妻/妾等无父母者可留空',
           value: this.fMotherId,
           genderFilter: '女',
           excludeUid: this.fUid,

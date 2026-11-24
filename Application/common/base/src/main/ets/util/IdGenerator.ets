@@ -4,7 +4,7 @@ import { Person } from '../model/Person';
  * 唯一ID生成器。
  *
  * 规则（可人工修改）：
- *  - 性别前缀：**男 F / 女 M**，两类各自独立编号；
+ *  - 性别前缀：**男 M / 女 F**，两类各自独立编号；
  *  - **优先复用最小空号**：删掉 F004 后再新增男丁，会优先拿到 F004；
  *  - 但调用方可通过 reserved 传入「已被删除、仍可能存在于云端的编号」，
  *    生成时会跳过这些历史编号，避免同一ID先后代表两个人；
@@ -20,7 +20,7 @@ export class IdGenerator {
    * @param reserved 需要跳过的历史编号（如已删除人员的编号）
    */
   static next(people: Person[], gender: string, reserved?: Set<string>): string {
-    const prefix: string = gender === '女' ? 'M' : 'F';
+    const prefix: string = gender === '女' ? 'F' : 'M';
     const used: Set<number> = new Set<number>();
     people.forEach((p: Person): void => {
       IdGenerator.collect(p.uid, prefix, used);
@@ -114,9 +114,9 @@ export class UidAllocator {
     this.setOf(m[1]).add(num);
   }
 
-  /** 占用并返回下一个可用编号（女 M / 其余 F，与 next 规则一致） */
+  /** 占用并返回下一个可用编号（男 M / 女 F，与 next 规则一致） */
   take(gender: string): string {
-    const prefix: string = gender === '女' ? 'M' : 'F';
+    const prefix: string = gender === '女' ? 'F' : 'M';
     const set: Set<number> = this.setOf(prefix);
     const start: number | undefined = this.cursor.get(prefix);
     let num: number = start === undefined ? 1 : start;
