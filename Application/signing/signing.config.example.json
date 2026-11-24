@@ -1,0 +1,34 @@
+{
+  "productSigning": {
+    "default": "debug",
+    "production": "release"
+  },
+  "signingConfigs": [
+    {
+      "name": "debug",
+      "type": "HarmonyOS",
+      "material": {
+        "storeFile": "<替换为 .p12 文件路径>",
+        "storePassword": "<替换为密钥库密码>",
+        "keyAlias": "<替换为密钥别名>",
+        "keyPassword": "<替换为密钥密码>",
+        "signAlg": "SHA256withECDSA",
+        "profile": "<替换为 .p7b 文件路径>",
+        "certpath": "<替换为 .cer 文件路径>"
+      }
+    },
+    {
+      "name": "release",
+      "type": "HarmonyOS",
+      "material": {
+        "storeFile": "<替换为 .p12 文件路径>",
+        "storePassword": "<替换为密钥库密码>",
+        "keyAlias": "<替换为密钥别名>",
+        "keyPassword": "<替换为密钥密码>",
+        "signAlg": "SHA256withECDSA",
+        "profile": "<替换为 .p7b 文件路径>",
+        "certpath": "<替换为 .cer 文件路径>"
+      }
+    }
+  ]
+}

@@ -54,6 +54,8 @@ zhengshu/
 **/*.pem
 **/*.key
 **/*.cer
+# 签名材料本地配置（由 hvigorfile.ts 构建时注入）
+**/signing/signing.config.json
 
 # ---------------- 云函数产物与凭据 ----------------
 CloudProgram/dist/
